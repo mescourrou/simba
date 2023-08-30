@@ -20,9 +20,8 @@ fn main() {
     println!("{}", turtlebot.name());
 
     let config_path = Path::new("./config.yaml");
-    match turtlebot.load_config(config_path) {
-        Err(e) => eprintln!("{}", e), // An Error Occurred, Please Try Again!
-        _ => println!("No error"),
-    }
+    let turtlebot = Turtlebot::from_config(config_path);
+
+    println!("{}", turtlebot.name());
 
 }
