@@ -1,1 +1,3 @@
-name: "My Turtle"
+turtles:
+  - name: "turtle1"
+  - name: "turtle2"

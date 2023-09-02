@@ -18,7 +18,3 @@ impl fmt::Debug for ConfigurationLoadingError {
         write!(f, "{{ file: {}, line: {} }}", file!(), line!()) // programmer-facing output
     }
 }
-
-pub trait Configurable {
-    fn load_config(&mut self, config_path:&Path) -> Result<(), ConfigurationLoadingError>;
-}

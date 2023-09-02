@@ -1,27 +1,20 @@
-pub mod turtlebot;
+pub mod simulator;
 mod configurable;
+mod turtlebot;
 
 use std::path::Path;
 
-use turtlebot::Turtlebot;
+use simulator::Simulator;
 
-use crate::configurable::Configurable;
 
 fn main() {
     println!("Hello, world!");
 
-    let turtlebot = Turtlebot::new(String::from("Test"));
-
-    println!("{}", turtlebot.name());
-
-    let mut turtlebot = turtlebot;
-    turtlebot.set_name(String::from("Test2"));
-
-    println!("{}", turtlebot.name());
 
     let config_path = Path::new("./config.yaml");
-    let turtlebot = Turtlebot::from_config(config_path);
+    let simulator = Simulator::from_config_path(config_path);
 
-    println!("{}", turtlebot.name());
+    simulator.show();
+    // println!("{}", turtlebot.name());
 
 }
