@@ -1,0 +1,6 @@
+turtles:
+  - name: "turtle1"
+    navigator:
+      TrajectoryFollower:
+        trajectory_path: "paths/path1.yaml"
+  - name: "turtle2"

@@ -1,3 +1,6 @@
+use super::navigators::navigator::{Navigator, NavigatorConfig};
+use super::navigators::trajectory_follower;
+
 // Configuration for Turtlebot
 extern crate confy;
 #[macro_use]
@@ -5,14 +8,17 @@ use serde_derive::{Serialize, Deserialize};
 
 
 #[derive(Serialize, Deserialize)]
+#[serde(default)]
 pub struct TurtlebotConfig {
-    pub name: String
+    pub name: String,
+    pub navigator: NavigatorConfig
 }
 
 impl Default for TurtlebotConfig {
     fn default() -> Self {
         TurtlebotConfig {
-            name: String::from("NoName")
+            name: String::from("NoName"),
+            navigator: NavigatorConfig::TrajectoryFollower(Box::new(trajectory_follower::TrajectoryFollowerConfig::default()))
         }
     }
 }
@@ -24,20 +30,29 @@ use std::path::Path;
 
 use super::configurable::ConfigurationLoadingError;
 
+#[derive(Debug)]
 pub struct Turtlebot {
     name: String,
-    pose: Array1<f64>
+    navigator: Box<dyn Navigator>
 }
 
 impl Turtlebot {
     pub fn new(name:String) -> Turtlebot {
-        Turtlebot { name: name, pose: arr1(&[0.0,0.0,0.0]) }
+        Turtlebot { 
+            name: name,
+            navigator: Box::new(trajectory_follower::TrajectoryFollower::new())
+        }
     }
 
     pub fn from_config(config:&TurtlebotConfig) -> Turtlebot {
-        let mut turtlebot = Turtlebot::new(String::new());
-        turtlebot.name = config.name.clone();
-        return turtlebot
+        Turtlebot {
+            name: config.name.clone(),
+            navigator: Box::new(
+                match &config.navigator {
+                    NavigatorConfig::TrajectoryFollower(c) => trajectory_follower::TrajectoryFollower::from_config(c)
+                }
+            )
+        }
     }
 
     pub fn name(&self) -> &String {

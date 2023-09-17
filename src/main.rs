@@ -1,6 +1,9 @@
 pub mod simulator;
 mod configurable;
 mod turtlebot;
+mod navigators;
+
+mod test_config;
 
 use std::path::Path;
 
@@ -11,10 +14,11 @@ fn main() {
     println!("Hello, world!");
 
 
-    let config_path = Path::new("./config.yaml");
+    let config_path = Path::new("configs/config.yaml");
     let simulator = Simulator::from_config_path(config_path);
 
     simulator.show();
-    // println!("{}", turtlebot.name());
+
+    // test_config::test();
 
 }

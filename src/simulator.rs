@@ -11,8 +11,9 @@ use super::configurable::ConfigurationLoadingError;
 use std::default::Default;
 
 #[derive(Serialize, Deserialize)]
+#[serde(default)]
 pub struct SimulatorConfig {
-    pub turtles: Vec<TurtlebotConfig>
+    pub turtles: Vec<Box<TurtlebotConfig>>
 }
 
 impl Default for SimulatorConfig {
@@ -25,7 +26,7 @@ impl Default for SimulatorConfig {
 
 
 pub struct Simulator {
-    turtles: Vec<Turtlebot>
+    turtles: Vec<Box<Turtlebot>>
 }
 
 impl Simulator {
@@ -51,7 +52,7 @@ impl Simulator {
 
         // Create turtles
         for turtle_config in &config.turtles {
-            simulator.turtles.push(Turtlebot::from_config(turtle_config));
+            simulator.turtles.push(Box::new(Turtlebot::from_config(turtle_config)));
         }
         simulator
     }
@@ -59,7 +60,7 @@ impl Simulator {
     pub fn show(&self) {
         println!("Simulator:");
         for turtle in &self.turtles {
-            println!("- {}", turtle.name());
+            println!("- {:?}", turtle);
         }
 
     }
