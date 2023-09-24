@@ -1,5 +1,3 @@
-use std::path::Path;
-
 use std::fmt;
 
 pub struct ConfigurationLoadingError {

@@ -3,7 +3,6 @@ use super::navigators::trajectory_follower;
 
 // Configuration for Turtlebot
 extern crate confy;
-#[macro_use]
 use serde_derive::{Serialize, Deserialize};
 
 
@@ -25,10 +24,6 @@ impl Default for TurtlebotConfig {
 
 
 // Turtlebot itself
-use ndarray::{Array1, arr1};
-use std::path::Path;
-
-use super::configurable::ConfigurationLoadingError;
 
 #[derive(Debug)]
 pub struct Turtlebot {
@@ -62,4 +57,6 @@ impl Turtlebot {
     pub fn set_name(&mut self, name:String) {
         self.name = name;
     }
+
+    
 }

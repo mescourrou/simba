@@ -1,53 +1,141 @@
-use ndarray::{Array1, arr1};
+extern crate nalgebra as na;
+use na::{SVector, DMatrix};
 
-#[macro_use]
+use super::super::utils::geometry::*;
+
 use serde_derive::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
 pub struct TrajectoryConfig {
-    pub point_list: Vec<Vec<f64>>
+    pub point_list: Vec<Vec<f32>>,
+    do_loop: bool
 }
 
 impl Default for TrajectoryConfig {
     fn default() -> Self {
         Self {
-            point_list: Vec::new()
+            point_list: Vec::new(),
+            do_loop: true
         }
     }
 }
 
 pub struct Trajectory {
-    point_list: Vec<Array1<f64>>
+    point_list: DMatrix<f32>,
+    do_loop: bool
 }
 
 impl Trajectory {
-    pub fn new() -> Trajectory {
-        return Trajectory { point_list: Vec::new() };
+    pub fn new() -> Self {
+        Self {
+            point_list: DMatrix::<f32>::from_vec(0, 0, Vec::<f32>::new()),
+            do_loop: true
+        }
     }
 
-    pub fn from_config(config: &TrajectoryConfig) -> Trajectory {
+    pub fn from_config(config: &TrajectoryConfig) -> Self {
         let mut trajectory = Self::new();
+        trajectory.point_list = trajectory.point_list.resize(config.point_list.len(), 2, 0.);
+        let mut i:usize = 0;
         for point in &config.point_list {
-            let mut point_arr = arr1(&point);
-            
-            trajectory.point_list.push(point_arr);
+            let mut j:usize = 0;
+            for &coord in point {
+                if j >= 2 {
+                    continue;
+                }
+                trajectory.point_list[(i, j)] = coord;
+                j += 1;
+            }
+            i += 1;
         }
+        trajectory.do_loop = config.do_loop;
         return trajectory;
+    }
+
+    pub fn map_matching(&self, point: SVector<f32, 2>) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>) {
+        println!("point: {:?}", point);
+        let mut pt1: SVector<f32, 2> = self.point_list.fixed_view::<1, 2>(0, 0).transpose();
+        let mut best_distance = 0.;
+        let mut best_segment = (pt1, pt1);
+        let mut best_projected = pt1;
+        let mut first = true;
+        let first_point = pt1;
+        for row in self.point_list.row_iter() {
+            if first {
+                first = false;
+                continue;
+            }
+            let pt2: SVector<f32, 2> = row.fixed_view::<1, 2>(0, 0).transpose();
+            let projected_point = project_point(point, pt1, pt2);
+            let d = ((point.x - projected_point.x).powf(2.) + (point.y - projected_point.y).powf(2.)).sqrt();
+            println!("pt1: {:?}, pt2: {:?}, projected: {:?}, d: {:?}", pt1, pt2, projected_point, d);
+            if best_distance == 0. || d < best_distance {
+                best_distance = d;
+                best_segment.0 = pt1;
+                best_segment.1 = pt2;
+                best_projected = projected_point;
+            }
+            pt1 = pt2;
+        }
+        if self.do_loop {
+            let projected_point = project_point(point, pt1, first_point);
+            let d = ((point.x - projected_point.x).powf(2.) + (point.y - projected_point.y).powf(2.)).sqrt();
+            println!("pt1: {:?}, pt2: {:?}, projected: {:?}, d: {:?}", pt1, first_point, projected_point, d);
+            if d < best_distance {
+                best_segment.0 = pt1;
+                best_segment.1 = first_point;
+                best_projected = projected_point;
+            }
+        }
+        return (best_segment, best_projected);
     }
 }
 
 impl std::fmt::Debug for Trajectory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Trajectory [");
+        let _ = write!(f, "Trajectory {{ point_list: [");
         let mut first = true;
-        for point in &self.point_list {
+        for point in self.point_list.row_iter() {
             if first {
                 first = false;
             } else {
-                write!(f, ", ");
+                let _ = write!(f, ", ");
             }
-            write!(f, "({}, {})", point[0], point[1]);
+            let _ = write!(f, "({}, {})", point[0], point[1]);
         }
-        write!(f, "]")
+        write!(f, "], do_loop: {} }}", self.do_loop)
+    }
+}
+
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    
+    #[test]
+    fn loading_from_config() {
+        let config = TrajectoryConfig {
+            point_list: vec![vec![0.0,1.], vec![0.,0.], vec![1.,0.], vec![0.,1.]],
+            do_loop: false
+        };
+
+        let trajectory = Trajectory::from_config(&config);
+        assert_eq!(trajectory.do_loop, config.do_loop);
+        let mut i:usize = 0;
+        for row in trajectory.point_list.row_iter() {
+            assert_eq!(row[0], config.point_list[i][0]);
+            assert_eq!(row[1], config.point_list[i][1]);
+            i += 1;
+        }
+
+    }
+
+    pub fn default_trajectory() -> Trajectory {
+        let config = TrajectoryConfig {
+            point_list: vec![vec![0., 0.], vec![5., 0.], vec![5., 5.], vec![0., 5.]],
+            do_loop: true
+        };
+        Trajectory::from_config(&config)
     }
 }

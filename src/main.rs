@@ -2,6 +2,7 @@ pub mod simulator;
 mod configurable;
 mod turtlebot;
 mod navigators;
+mod utils;
 
 mod test_config;
 

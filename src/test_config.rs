@@ -1,9 +1,9 @@
 extern crate confy;
-#[macro_use]
+
 use serde_derive::{Serialize, Deserialize};
-use ndarray::{Array1,array};
-use ndarray::prelude::*;
-use super::navigators::trajectory::{Trajectory,TrajectoryConfig};
+extern crate nalgebra as na;
+
+use super::navigators::trajectory::{TrajectoryConfig};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ConfigGenerale {
@@ -26,7 +26,7 @@ impl Default for ConfigGenerale {
 struct ConfigMage {
     baton: String,
     mana: i32,
-    sortPrincipal: String
+    sort_principal: String
 }
 
 impl Default for ConfigMage {
@@ -34,7 +34,7 @@ impl Default for ConfigMage {
         Self {
             baton: String::from("Pam"),
             mana: 12,
-            sortPrincipal: String::from("Eclair")
+            sort_principal: String::from("Eclair")
         }
     }
 }
@@ -97,7 +97,7 @@ pub fn test() {
     //     class: ClassTypes::Mage(ConfigMage {
     //         baton:String::from("Blanc"),
     //         mana: 150,
-    //         sortPrincipal: String::from("Pluie")
+    //         sort_principal: String::from("Pluie")
     //     })
     // });
 
@@ -109,5 +109,5 @@ pub fn test() {
     }
 
     let config_save_path = Path::new("./test_config2.yaml");
-    confy::store_path(config_save_path, &confs);
+    let _ = confy::store_path(config_save_path, &confs);
 }

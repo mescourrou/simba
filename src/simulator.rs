@@ -1,13 +1,10 @@
 // Configuration for Simulator
 extern crate confy;
-#[macro_use]
 use serde_derive::{Serialize, Deserialize};
 
 use super::turtlebot::{Turtlebot,TurtlebotConfig};
 use std::path::Path;
 
-
-use super::configurable::ConfigurationLoadingError;
 use std::default::Default;
 
 #[derive(Serialize, Deserialize)]
