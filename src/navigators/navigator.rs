@@ -6,13 +6,16 @@ use serde_derive::{Serialize, Deserialize};
 
 use super::trajectory_follower;
 
+use crate::state_estimators::state_estimator::State;
+use crate::controllers::controller::ControllerError;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum NavigatorConfig {
     TrajectoryFollower(Box<trajectory_follower::TrajectoryFollowerConfig>)
 }
 
-pub trait Navigator : std::fmt::Debug{
-    fn compute_error(&self, pose: SVector<f32, 3>) -> SVector<f32, 2>;
+pub trait Navigator : std::fmt::Debug {
+    fn compute_error(&self, state: &State) -> ControllerError;
 }
 
 

@@ -1,18 +1,25 @@
+extern crate nalgebra as na;
+use na::SVector;
+use crate::physics::physic::Command;
+
+#[derive(Debug)]
+pub struct ControllerError {
+    pub lateral: f32,
+    pub theta: f32,
+    pub velocity: f32
+}
+
+use super::pid;
+
 extern crate confy;
-#[macro_use]
 use serde_derive::{Serialize, Deserialize};
 
-// #[derive(Serialize, Deserialize, Debug)]
-// pub enum ControllerConfig {
-//     TrajectoryFollower(TrajectoryFollowerConfig)
-// }
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ControllerConfig {
+    PID(Box<pid::PIDConfig>)
+}
 
-// impl Default for NavigatorConfig {
-//     fn default() -> Self {
-//         Self {
-//             TrajectoryFollower(TrajectoryFollowerConfig::default())
-//         }
-//     }
-// }
 
-pub trait Controller {}
+pub trait Controller : std::fmt::Debug {
+    fn make_command(&mut self, error: &ControllerError, time: f32) -> Command;
+}

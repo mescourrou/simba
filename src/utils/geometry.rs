@@ -1,5 +1,5 @@
 extern crate nalgebra as na;
-use na::{SVector};
+use na::SVector;
 
 pub fn project_point(point: SVector<f32, 2>, p1: SVector<f32, 2>, p2: SVector<f32, 2>) -> SVector::<f32, 2> {
     let x_1 = p1.x;

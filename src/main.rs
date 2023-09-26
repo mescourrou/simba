@@ -3,6 +3,9 @@ mod configurable;
 mod turtlebot;
 mod navigators;
 mod utils;
+mod controllers;
+mod physics;
+mod state_estimators;
 
 mod test_config;
 
