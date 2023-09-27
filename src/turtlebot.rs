@@ -14,6 +14,8 @@ use crate::state_estimators::perfect_estimator;
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
 
+use std::borrow::BorrowMut;
+
 
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
@@ -62,7 +64,7 @@ impl Turtlebot {
     }
 
     pub fn from_config(config:&TurtlebotConfig) -> Self {
-        Self {
+        let mut turtle = Self {
             name: config.name.clone(),
             navigator: Box::new(
                 match &config.navigator {
@@ -84,7 +86,8 @@ impl Turtlebot {
                     StateEstimatorConfig::Perfect(c) => perfect_estimator::PerfectEstimator::from_config(c)
                 }
             )
-        }
+        };
+        turtle
     }
     
 }

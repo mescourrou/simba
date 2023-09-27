@@ -1,7 +1,26 @@
 extern crate nalgebra as na;
 use na::{SVector};
 
-#[derive(Debug)]
+extern crate confy;
+use serde_derive::{Serialize, Deserialize};
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(default)]
+pub struct StateConfig {
+    pose: Vec<f32>,
+    velocity: f32
+}
+
+impl Default for StateConfig {
+    fn default() -> Self {
+        Self {
+            pose: vec![0., 0., 0.],
+            velocity: 0.
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
 pub struct State {
     pub pose: SVector<f32, 3>,
     pub velocity: f32
@@ -14,10 +33,23 @@ impl State {
             velocity: 0.
         }
     }
+
+    pub fn from_config(config: &StateConfig) -> Self {
+        let mut state = Self::new();
+        
+        let mut i:usize = 0;
+        for coord in &config.pose {
+            if i >= 3 {
+                break;
+            }
+            state.pose[i] = *coord;
+            i += 1;
+        }
+        state.velocity = config.velocity;
+        return state;
+    }
 }
 
-extern crate confy;
-use serde_derive::{Serialize, Deserialize};
 
 use super::perfect_estimator;
 
@@ -25,7 +57,9 @@ use super::perfect_estimator;
 pub enum StateEstimatorConfig {
     Perfect(Box<perfect_estimator::PerfectEstimatorConfig>)
 }
+use crate::physics::physic::{Command, Physic};
 
 pub trait StateEstimator : std::fmt::Debug {
-
+    fn update_estimation(&mut self, time: f32, physic: &dyn Physic);
+    fn state(&self) -> &State;
 }

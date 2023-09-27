@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Command {
     pub left_wheel_speed: f32,
     pub right_wheel_speed: f32
@@ -18,5 +18,6 @@ use crate::state_estimators::state_estimator::State;
 
 pub trait Physic : std::fmt::Debug {
     fn apply_command(&mut self, command: &Command, time: f32);
-    fn state(&self) -> &State;
+    fn update_state(&mut self, time: f32);
+    fn state(&self, time: f32) -> &State;
 }
