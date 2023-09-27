@@ -49,7 +49,8 @@ pub struct Turtlebot {
     navigator: Box<dyn Navigator>,
     controller: Box<dyn Controller>,
     physic: Box<dyn Physic>,
-    state_estimator: Box<dyn StateEstimator>
+    state_estimator: Box<dyn StateEstimator>,
+    next_time_step: f32
 }
 
 impl Turtlebot {
@@ -60,6 +61,7 @@ impl Turtlebot {
             controller: Box::new(pid::PID::new()),
             physic: Box::new(perfect_physic::PerfectPhysic::new()),
             state_estimator: Box::new(perfect_estimator::PerfectEstimator::new()),
+            next_time_step: 0.
         }
     }
 
@@ -85,9 +87,34 @@ impl Turtlebot {
                 match &config.state_estimator {
                     StateEstimatorConfig::Perfect(c) => perfect_estimator::PerfectEstimator::from_config(c)
                 }
-            )
+            ),
+            next_time_step: 0.
         };
+        turtle.next_time_step = turtle.state_estimator.next_time_step();
         turtle
     }
     
+    pub fn run_next_time_step(&mut self, time: f32) -> f32 {
+        if time < self.next_time_step {
+            return self.next_time_step;
+        }
+        println!("Run time {}", time);
+        self.physic.update_state(time);
+        self.state_estimator.update_estimation(time, self.physic.as_ref());
+        let state = self.state_estimator.state();
+        println!("State: {:?}", state);
+        let error = self.navigator.compute_error(state);
+        println!("Error: {:?}", error);
+        let command = self.controller.make_command(&error, time);
+        println!("Command: {:?}", command);
+        self.physic.apply_command(&command, time);
+
+        println!("{}: {}", time, state);
+        self.next_time_step = self.state_estimator.next_time_step();
+        self.next_time_step
+    }
+
+    pub fn next_time_step(&self) -> f32 {
+        self.next_time_step
+    }
 }

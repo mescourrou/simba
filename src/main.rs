@@ -19,9 +19,11 @@ fn main() {
 
 
     let config_path = Path::new("configs/config.yaml");
-    let simulator = Simulator::from_config_path(config_path);
+    let mut simulator = Simulator::from_config_path(config_path);
 
     simulator.show();
+
+    simulator.run(1.);
 
     // test_config::test();
 

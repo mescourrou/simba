@@ -96,11 +96,11 @@ impl Navigator for TrajectoryFollower {
             segment_angle
         );
 
-        let forward_pose_with_segment: f32 = atan2((forward_pose.y - segment.0.y).into(), (forward_pose.x - segment.0.x).into()) as f32 - segment_angle;
+        let forward_pose_with_segment: f32 = segment_angle - atan2((forward_pose.y - segment.0.y).into(), (forward_pose.x - segment.0.x).into()) as f32;
         ControllerError {
             lateral: forward_pose_with_segment / forward_pose_with_segment.abs() * ((forward_pose.x - projected_point.x).powf(2.) + (forward_pose.y - projected_point.y).powf(2.)).sqrt(),
-            theta: forward_pose.z - projected_point.z,
-            velocity: state.velocity - self.target_speed
+            theta: projected_point.z - forward_pose.z,
+            velocity: self.target_speed - state.velocity
         }
     }
 }

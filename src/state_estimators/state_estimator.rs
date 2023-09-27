@@ -50,6 +50,15 @@ impl State {
     }
 }
 
+use std::fmt;
+
+impl fmt::Display for State {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(formatter, "pose: [{}, {}, {}], v: {}", self.pose.x, self.pose.y, self.pose.z, self.velocity)?;
+        Ok(())
+    }
+}
+
 
 use super::perfect_estimator;
 
@@ -62,4 +71,5 @@ use crate::physics::physic::{Command, Physic};
 pub trait StateEstimator : std::fmt::Debug {
     fn update_estimation(&mut self, time: f32, physic: &dyn Physic);
     fn state(&self) -> &State;
+    fn next_time_step(&self) -> f32;
 }

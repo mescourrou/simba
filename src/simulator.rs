@@ -6,6 +6,7 @@ use super::turtlebot::{Turtlebot,TurtlebotConfig};
 use std::path::Path;
 
 use std::default::Default;
+use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
@@ -25,6 +26,7 @@ impl Default for SimulatorConfig {
 pub struct Simulator {
     turtles: Vec<Box<Turtlebot>>
 }
+use std::borrow::BorrowMut;
 
 impl Simulator {
     pub fn new() -> Simulator {
@@ -60,5 +62,26 @@ impl Simulator {
             println!("- {:?}", turtle);
         }
 
+    }
+
+
+    pub fn run(&mut self, max_time: f32) {
+        loop {
+            let mut best_turtle: usize = 0;
+            let mut best_time = f32::INFINITY;
+            for i in 0..self.turtles.len() {
+                let turtle = self.turtles[i].as_ref();
+                let time = turtle.next_time_step();
+                println!("Check turtle {} => next time is {}", i, time);
+                if time < best_time {
+                    best_turtle = i;
+                    best_time = time;
+                }
+            }
+            if best_time > max_time {
+                break;
+            }
+            self.turtles[best_turtle].run_next_time_step(best_time);
+        }
     }
 }

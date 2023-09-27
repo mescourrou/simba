@@ -64,6 +64,8 @@ impl PerfectPhysic {
         self.state.pose.x += translation * (theta + rotation / 2.).cos();
         self.state.pose.y += translation * (theta + rotation / 2.).sin();
         self.state.pose.z += rotation;
+
+        self.state.velocity = translation / dt;
     }
 }
 
@@ -72,7 +74,6 @@ use super::physic::Physic;
 
 impl Physic for PerfectPhysic {
     fn apply_command(&mut self, command: &Command, time: f32) {
-        self.compute_state_until(time);
         self.current_command = command.clone();
     }
 
