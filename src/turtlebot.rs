@@ -1,20 +1,18 @@
-use super::navigators::navigator::{Navigator, NavigatorConfig};
+use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
 use super::navigators::trajectory_follower;
 
-use crate::controllers::controller::{Controller, ControllerConfig};
+use crate::controllers::controller::{Controller, ControllerConfig, ControllerRecord};
 use crate::controllers::pid;
 
-use crate::physics::physic::{Physic, PhysicConfig};
+use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 use crate::physics::perfect_physic;
 
-use crate::state_estimators::state_estimator::{StateEstimator, StateEstimatorConfig};
+use crate::state_estimators::state_estimator::{StateEstimator, StateEstimatorConfig, StateEstimatorRecord};
 use crate::state_estimators::perfect_estimator;
 
 // Configuration for Turtlebot
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
-
-use std::borrow::BorrowMut;
 
 
 #[derive(Serialize, Deserialize)]
@@ -38,6 +36,17 @@ impl Default for TurtlebotConfig {
             state_estimator: StateEstimatorConfig::Perfect(Box::new(perfect_estimator::PerfectEstimatorConfig::default()))
         }
     }
+}
+
+
+#[derive(Serialize, Deserialize)]
+pub struct TurtlebotRecord {
+    pub name: String,
+    pub navigator: NavigatorRecord,
+    pub controller: ControllerRecord,
+    pub physic: PhysicRecord,
+    pub state_estimator: StateEstimatorRecord
+    
 }
 
 
@@ -116,5 +125,15 @@ impl Turtlebot {
 
     pub fn next_time_step(&self) -> f32 {
         self.next_time_step
+    }
+
+    pub fn record(&self) -> TurtlebotRecord {
+        TurtlebotRecord {
+            name: self.name.clone(),
+            navigator: self.navigator.record(),
+            controller: self.controller.record(),
+            physic: self.physic.record(),
+            state_estimator: self.state_estimator.record(),
+        }
     }
 }

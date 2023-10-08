@@ -27,6 +27,28 @@ impl Default for PIDConfig {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PIDRecord {
+    v_integral: f32,
+    theta_integral: f32,
+    velocity: f32,
+    command: Command
+}
+
+impl Default for PIDRecord {
+    fn default() -> Self {
+        Self {
+            v_integral: 0.,
+            theta_integral: 0.,
+            velocity: 0.,
+            command: Command {
+                left_wheel_speed: 0.,
+                right_wheel_speed:0.
+            }
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub struct PID {
@@ -42,7 +64,8 @@ pub struct PID {
     theta_integral: f32,
     previous_velocity_error: f32,
     previous_theta_error: f32,
-    velocity: f32
+    velocity: f32,
+    current_record: PIDRecord
 }
 
 impl PID {
@@ -64,14 +87,15 @@ impl PID {
             theta_integral: 0.,
             previous_velocity_error: 0.,
             previous_theta_error: 0.,
-            velocity: 0.
+            velocity: 0.,
+            current_record: PIDRecord::default()
         }
     }
 }
 
 use crate::controllers::controller::ControllerError;
 use crate::physics::physic::Command;
-use super::controller::Controller;
+use super::controller::{Controller, ControllerRecord};
 
 impl Controller for PID {
     fn make_command(&mut self, error: &ControllerError, time: f32) -> Command {
@@ -92,9 +116,20 @@ impl Controller for PID {
         self.previous_velocity_error = error.velocity;
         self.last_command_time = time;
 
-        Command {
+        let command = Command {
             left_wheel_speed: self.velocity - correction_theta / 2.,
             right_wheel_speed: self.velocity + correction_theta / 2.
-        }
+        };
+        self.current_record = PIDRecord {
+            v_integral: self.v_integral,
+            theta_integral: self.theta_integral,
+            velocity: self.velocity,
+            command: command.clone()
+        };
+        command
+    }
+
+    fn record(&self) -> ControllerRecord {
+        ControllerRecord::PID(self.current_record.clone())
     }
 }

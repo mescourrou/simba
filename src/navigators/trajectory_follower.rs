@@ -1,8 +1,8 @@
 use super::trajectory::{Trajectory, TrajectoryConfig};
-use super::navigator::Navigator;
+use super::navigator::{Navigator, NavigatorRecord};
 
 extern crate nalgebra as na;
-use na::{SVector, Vector3};
+use na::Vector3;
 use libm::{atan2};
 
 // Configuration for TrajectoryFollower
@@ -28,12 +28,30 @@ impl Default for TrajectoryFollowerConfig {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TrajectoryFollowerRecord {
+    error: ControllerError
+}
+
+impl Default for TrajectoryFollowerRecord {
+    fn default() -> Self {
+        Self {
+            error: ControllerError {
+                lateral: 0.,
+                theta: 0.,
+                velocity: 0.
+            }
+        }
+    }
+}
+
 
 #[derive(Debug)]
 pub struct TrajectoryFollower {
     trajectory: Trajectory,
     forward_distance: f32,
-    target_speed: f32
+    target_speed: f32,
+    current_record: TrajectoryFollowerRecord
 }
 
 impl TrajectoryFollower {
@@ -41,7 +59,8 @@ impl TrajectoryFollower {
         Self {
             trajectory: Trajectory::new(),
             forward_distance: 1.0,
-            target_speed: 0.5
+            target_speed: 0.5,
+            current_record: TrajectoryFollowerRecord::default()
         }
     }
 
@@ -57,7 +76,8 @@ impl TrajectoryFollower {
         TrajectoryFollower{
             trajectory: Self::load_trajectory_from_path(&path),
             forward_distance: config.forward_distance,
-            target_speed: config.target_speed
+            target_speed: config.target_speed,
+            current_record: TrajectoryFollowerRecord::default()
         }
 
     }
@@ -81,7 +101,7 @@ use crate::controllers::controller::ControllerError;
 
 impl Navigator for TrajectoryFollower {
 
-    fn compute_error(&self, state: &State) -> ControllerError {
+    fn compute_error(&mut self, state: &State) -> ControllerError {
         let forward_pose = state.pose + self.forward_distance * Vector3::new(
             state.pose.z.cos(),
             state.pose.z.sin(),
@@ -97,11 +117,20 @@ impl Navigator for TrajectoryFollower {
         );
 
         let forward_pose_with_segment: f32 = segment_angle - atan2((forward_pose.y - segment.0.y).into(), (forward_pose.x - segment.0.x).into()) as f32;
-        ControllerError {
+        
+        let error = ControllerError {
             lateral: forward_pose_with_segment / forward_pose_with_segment.abs() * ((forward_pose.x - projected_point.x).powf(2.) + (forward_pose.y - projected_point.y).powf(2.)).sqrt(),
             theta: projected_point.z - forward_pose.z,
             velocity: self.target_speed - state.velocity
-        }
+        };
+        self.current_record = TrajectoryFollowerRecord {
+            error: error.clone()
+        };
+        error
+    }
+
+    fn record(&self) ->  NavigatorRecord {
+        NavigatorRecord::TrajectoryFollower(self.current_record.clone())
     }
 }
 

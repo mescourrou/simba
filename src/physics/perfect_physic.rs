@@ -1,6 +1,6 @@
 // Configuration for PerfectPhysic
 use serde_derive::{Serialize, Deserialize};
-use crate::state_estimators::state_estimator::{State, StateConfig};
+use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -16,6 +16,12 @@ impl Default for PerfectPhysicConfig {
             initial_state: StateConfig::default()
         }
     }
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PerfectPhysicRecord {
+    state: StateRecord
 }
 
 
@@ -70,7 +76,7 @@ impl PerfectPhysic {
 }
 
 use super::physic::Command;
-use super::physic::Physic;
+use super::physic::{Physic, PhysicRecord};
 
 impl Physic for PerfectPhysic {
     fn apply_command(&mut self, command: &Command, time: f32) {
@@ -83,5 +89,11 @@ impl Physic for PerfectPhysic {
 
     fn state(&self, time: f32) -> &State {
         &self.state
+    }
+
+    fn record(&self) -> PhysicRecord {
+        PhysicRecord::Perfect(PerfectPhysicRecord {
+            state: self.state.record()
+        })
     }
 }

@@ -3,3 +3,9 @@ turtles:
     navigator:
       TrajectoryFollower:
         trajectory_path: "paths/path1.yaml"
+        target_speed: 1.0
+  - name: "turtle2"
+    navigator:
+      TrajectoryFollower:
+        trajectory_path: "paths/path1.yaml"
+        target_speed: 0.7

@@ -20,6 +20,13 @@ impl Default for StateConfig {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct StateRecord {
+    pose: Vec<f32>,
+    velocity: f32
+}
+
+
 #[derive(Debug, Clone)]
 pub struct State {
     pub pose: SVector<f32, 3>,
@@ -48,6 +55,19 @@ impl State {
         state.velocity = config.velocity;
         return state;
     }
+
+    pub fn record(&self) -> StateRecord {
+        StateRecord {
+            pose: {
+                let mut ve: Vec<f32> = vec![];
+                for coord in &self.pose {
+                    ve.push(*coord);
+                }
+                ve
+            },
+            velocity: self.velocity
+        }
+    }
 }
 
 use std::fmt;
@@ -66,10 +86,16 @@ use super::perfect_estimator;
 pub enum StateEstimatorConfig {
     Perfect(Box<perfect_estimator::PerfectEstimatorConfig>)
 }
-use crate::physics::physic::{Command, Physic};
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum StateEstimatorRecord {
+    Perfect(perfect_estimator::PerfectEstimatorRecord)
+}
+use crate::physics::physic::Physic;
 
 pub trait StateEstimator : std::fmt::Debug {
     fn update_estimation(&mut self, time: f32, physic: &dyn Physic);
     fn state(&self) -> &State;
     fn next_time_step(&self) -> f32;
+    fn record(&self) ->  StateEstimatorRecord;
 }

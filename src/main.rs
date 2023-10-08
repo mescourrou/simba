@@ -6,12 +6,13 @@ mod utils;
 mod controllers;
 mod physics;
 mod state_estimators;
+mod plots;
 
 mod test_config;
 
-use std::path::Path;
 
 use simulator::Simulator;
+use std::path::Path;
 
 
 fn main() {
@@ -24,6 +25,8 @@ fn main() {
     simulator.show();
 
     simulator.run(1.);
+
+    // plots::real_time_plots::test();
 
     // test_config::test();
 

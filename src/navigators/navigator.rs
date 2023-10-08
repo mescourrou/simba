@@ -1,6 +1,3 @@
-extern crate nalgebra as na;
-use na::{SVector};
-
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
 
@@ -14,8 +11,14 @@ pub enum NavigatorConfig {
     TrajectoryFollower(Box<trajectory_follower::TrajectoryFollowerConfig>)
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub enum NavigatorRecord {
+    TrajectoryFollower(trajectory_follower::TrajectoryFollowerRecord)
+}
+
 pub trait Navigator : std::fmt::Debug {
-    fn compute_error(&self, state: &State) -> ControllerError;
+    fn compute_error(&mut self, state: &State) -> ControllerError;
+    fn record(&self) ->  NavigatorRecord;
 }
 
 

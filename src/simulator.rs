@@ -2,11 +2,14 @@
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
 
-use super::turtlebot::{Turtlebot,TurtlebotConfig};
+use super::turtlebot::{Turtlebot,TurtlebotConfig, TurtlebotRecord};
 use std::path::Path;
 
 use std::default::Default;
-use std::collections::HashMap;
+use serde_json;
+// use csv::WriterBuilder;
+use std::io::prelude::*;
+use std::fs::File;
 
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
@@ -22,11 +25,16 @@ impl Default for SimulatorConfig {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+struct Record {
+    time: f32,
+    turtle: TurtlebotRecord
+}
+
 
 pub struct Simulator {
     turtles: Vec<Box<Turtlebot>>
 }
-use std::borrow::BorrowMut;
 
 impl Simulator {
     pub fn new() -> Simulator {
@@ -66,6 +74,12 @@ impl Simulator {
 
 
     pub fn run(&mut self, max_time: f32) {
+        // let mut wtr = WriterBuilder::new()
+        //                 .has_headers(false)
+        //                 .from_path("result.csv")
+        //                 .expect("Impossible to create csv writer");
+        let mut recording_file = File::create("result.json").expect("Impossible to create record file");
+        recording_file.write(b"[\n");
         loop {
             let mut best_turtle: usize = 0;
             let mut best_time = f32::INFINITY;
@@ -82,6 +96,13 @@ impl Simulator {
                 break;
             }
             self.turtles[best_turtle].run_next_time_step(best_time);
+
+            serde_json::to_writer(&recording_file, &Record {
+                    time: best_time,
+                    turtle: self.turtles[best_turtle].record()
+                }).expect("Error during csv serialization");
+            recording_file.write(b",\n");
         }
+        recording_file.write(b"]");
     }
 }

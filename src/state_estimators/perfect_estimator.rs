@@ -1,6 +1,6 @@
 // Configuration for PerfectPhysic
 use serde_derive::{Serialize, Deserialize};
-use super::state_estimator::{State, StateConfig};
+use super::state_estimator::{State, StateRecord};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -16,9 +16,14 @@ impl Default for PerfectEstimatorConfig {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PerfectEstimatorRecord {
+    state: StateRecord
+}
 
 
-use crate::physics::physic::{Command, Physic};
+
+use crate::physics::physic::Physic;
 
 #[derive(Debug)]
 pub struct PerfectEstimator {
@@ -43,7 +48,7 @@ impl PerfectEstimator {
     
 }
 
-use super::state_estimator::StateEstimator;
+use super::state_estimator::{StateEstimator, StateEstimatorRecord};
 
 impl StateEstimator for PerfectEstimator {
     fn update_estimation(&mut self, time: f32, physic: &dyn Physic) {
@@ -57,5 +62,12 @@ impl StateEstimator for PerfectEstimator {
 
     fn next_time_step(&self) -> f32 {
         self.last_time_update + self.update_period
+    }
+
+    fn record(&self) -> StateEstimatorRecord {
+        StateEstimatorRecord::Perfect(
+            PerfectEstimatorRecord {
+                state: self.state.record()
+        })
     }
 }
