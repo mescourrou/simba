@@ -23,14 +23,16 @@ impl Default for TrajectoryConfig {
 
 pub struct Trajectory {
     point_list: DMatrix<f32>,
-    do_loop: bool
+    do_loop: bool,
+    current_segment: usize
 }
 
 impl Trajectory {
     pub fn new() -> Self {
         Self {
             point_list: DMatrix::<f32>::from_vec(0, 0, Vec::<f32>::new()),
-            do_loop: true
+            do_loop: true,
+            current_segment: 0
         }
     }
 
@@ -53,43 +55,71 @@ impl Trajectory {
         return trajectory;
     }
 
-    pub fn map_matching(&self, point: SVector<f32, 2>) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>) {
-        println!("point: {:?}", point);
-        let mut pt1: SVector<f32, 2> = self.point_list.fixed_view::<1, 2>(0, 0).transpose();
-        let mut best_distance = 0.;
-        let mut best_segment = (pt1, pt1);
-        let mut best_projected = pt1;
-        let mut first = true;
-        let first_point = pt1;
-        for row in self.point_list.row_iter() {
-            if first {
-                first = false;
-                continue;
+    // Map matching anywhere on trajectory, but not what is expected
+    // pub fn map_matching(&self, point: SVector<f32, 2>) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>) {
+    //     println!("point: {:?}", point);
+    //     let mut pt1: SVector<f32, 2> = self.point_list.fixed_view::<1, 2>(0, 0).transpose();
+    //     let mut best_distance = 0.;
+    //     let mut best_segment = (pt1, pt1);
+    //     let mut best_projected = pt1;
+    //     let mut first = true;
+    //     let first_point = pt1;
+    //     for row in self.point_list.row_iter() {
+    //         if first {
+    //             first = false;
+    //             continue;
+    //         }
+    //         let pt2: SVector<f32, 2> = row.fixed_view::<1, 2>(0, 0).transpose();
+    //         let projected_point = project_point(point, pt1, pt2);
+    //         let d = ((point.x - projected_point.x).powf(2.) + (point.y - projected_point.y).powf(2.)).sqrt();
+    //         println!("pt1: {:?}, pt2: {:?}, projected: {:?}, d: {:?}", pt1, pt2, projected_point, d);
+    //         if best_distance == 0. || d < best_distance {
+    //             best_distance = d;
+    //             best_segment.0 = pt1;
+    //             best_segment.1 = pt2;
+    //             best_projected = projected_point;
+    //         }
+    //         pt1 = pt2;
+    //     }
+    //     if self.do_loop {
+    //         let projected_point = project_point(point, pt1, first_point);
+    //         let d = ((point.x - projected_point.x).powf(2.) + (point.y - projected_point.y).powf(2.)).sqrt();
+    //         println!("pt1: {:?}, pt2: {:?}, projected: {:?}, d: {:?}", pt1, first_point, projected_point, d);
+    //         if d < best_distance {
+    //             best_segment.0 = pt1;
+    //             best_segment.1 = first_point;
+    //             best_projected = projected_point;
+    //         }
+    //     }
+    //     return (best_segment, best_projected);
+    // }
+
+    pub fn map_matching(&mut self, point: SVector<f32, 2>) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>) {
+        let pt1 = self.point_list.fixed_view::<1, 2>(self.current_segment, 0).transpose();
+        let pt2 = if self.current_segment + 1 >= self.point_list.nrows() {
+            self.point_list.fixed_view::<1, 2>(0, 0).transpose()
+        } else {
+            self.point_list.fixed_view::<1, 2>(self.current_segment + 1, 0).transpose()
+        };
+        let projected_point = project_point(point, pt1, pt2);
+        
+        let d = ((pt2.x - projected_point.x).powf(2.) + (pt2.y - projected_point.y).powf(2.)).sqrt();
+        let d_pt1_pt2 = ((pt2.x - pt1.x).powf(2.) + (pt2.y - pt1.y).powf(2.)).sqrt();
+        if d > 0.05 * d_pt1_pt2 {
+            return ((pt1, pt2), projected_point);
+        } else if self.current_segment + 1 == self.point_list.nrows() && !self.do_loop {
+            println!("No loop so give last point");
+            return ((pt1, pt2), pt2);
+        } else {
+            println!("Next segment: {}",self.current_segment);
+            self.current_segment += 1;
+            if self.current_segment == self.point_list.nrows() {
+                self.current_segment = 0;
             }
-            let pt2: SVector<f32, 2> = row.fixed_view::<1, 2>(0, 0).transpose();
-            let projected_point = project_point(point, pt1, pt2);
-            let d = ((point.x - projected_point.x).powf(2.) + (point.y - projected_point.y).powf(2.)).sqrt();
-            println!("pt1: {:?}, pt2: {:?}, projected: {:?}, d: {:?}", pt1, pt2, projected_point, d);
-            if best_distance == 0. || d < best_distance {
-                best_distance = d;
-                best_segment.0 = pt1;
-                best_segment.1 = pt2;
-                best_projected = projected_point;
-            }
-            pt1 = pt2;
+            return self.map_matching(point);
         }
-        if self.do_loop {
-            let projected_point = project_point(point, pt1, first_point);
-            let d = ((point.x - projected_point.x).powf(2.) + (point.y - projected_point.y).powf(2.)).sqrt();
-            println!("pt1: {:?}, pt2: {:?}, projected: {:?}, d: {:?}", pt1, first_point, projected_point, d);
-            if d < best_distance {
-                best_segment.0 = pt1;
-                best_segment.1 = first_point;
-                best_projected = projected_point;
-            }
-        }
-        return (best_segment, best_projected);
     }
+
 }
 
 impl std::fmt::Debug for Trajectory {

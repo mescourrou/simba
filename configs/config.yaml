@@ -3,9 +3,19 @@ turtles:
     navigator:
       TrajectoryFollower:
         trajectory_path: "paths/path1.yaml"
-        target_speed: 1.0
+        target_speed: 0.5
+        forward_distance: 0.2
+    controller:
+      PID:
+        kp_v: 1.0
+        kp_theta: 6.0
   - name: "turtle2"
     navigator:
       TrajectoryFollower:
         trajectory_path: "paths/path1.yaml"
-        target_speed: 0.7
+        target_speed: 0.3
+        forward_distance: 0.2
+    controller:
+      PID:
+        kp_v: 1.0
+        kp_theta: 3.0

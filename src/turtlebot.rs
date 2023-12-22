@@ -111,14 +111,14 @@ impl Turtlebot {
         self.physic.update_state(time);
         self.state_estimator.update_estimation(time, self.physic.as_ref());
         let state = self.state_estimator.state();
-        println!("State: {:?}", state);
+        // println!("State: {:?}", state);
         let error = self.navigator.compute_error(state);
-        println!("Error: {:?}", error);
+        // println!("Error: {:?}", error);
         let command = self.controller.make_command(&error, time);
-        println!("Command: {:?}", command);
+        // println!("Command: {:?}", command);
         self.physic.apply_command(&command, time);
 
-        println!("{}: {}", time, state);
+        // println!("{}: {}", time, state);
         self.next_time_step = self.state_estimator.next_time_step();
         self.next_time_step
     }

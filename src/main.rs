@@ -25,9 +25,9 @@ fn main() {
 
     simulator.show();
 
-    simulator.run(1.);
+    simulator.run(10.);
 
-    gui::run_gui();
+    // gui::run_gui();
     
 
     // test_config::test();
