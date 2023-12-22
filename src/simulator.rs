@@ -79,7 +79,7 @@ impl Simulator {
         //                 .from_path("result.csv")
         //                 .expect("Impossible to create csv writer");
         let mut recording_file = File::create("result.json").expect("Impossible to create record file");
-        recording_file.write(b"[\n");
+        let _ = recording_file.write(b"[\n");
         loop {
             let mut best_turtle: usize = 0;
             let mut best_time = f32::INFINITY;
@@ -101,8 +101,8 @@ impl Simulator {
                     time: best_time,
                     turtle: self.turtles[best_turtle].record()
                 }).expect("Error during csv serialization");
-            recording_file.write(b",\n");
+                let _ = recording_file.write(b",\n");
         }
-        recording_file.write(b"]");
+        let _ = recording_file.write(b"]");
     }
 }

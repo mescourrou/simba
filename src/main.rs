@@ -1,17 +1,18 @@
-pub mod simulator;
-mod configurable;
-mod turtlebot;
-mod navigators;
-mod utils;
-mod controllers;
-mod physics;
-mod state_estimators;
-mod plots;
+// pub mod simulator;
+// mod configurable;
+// mod turtlebot;
+// mod navigators;
+// mod utils;
+// mod controllers;
+// mod physics;
+// mod state_estimators;
+// mod plots;
 
-mod test_config;
+// mod test_config;
 
 
-use simulator::Simulator;
+use turtlebot_simulator::simulator::Simulator;
+use turtlebot_simulator::gui;
 use std::path::Path;
 
 
@@ -26,7 +27,8 @@ fn main() {
 
     simulator.run(1.);
 
-    // plots::real_time_plots::test();
+    gui::run_gui();
+    
 
     // test_config::test();
 
