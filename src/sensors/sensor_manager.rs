@@ -5,8 +5,6 @@ use crate::physics::physic::Physic;
 
 use super::{sensor::{Sensor, SensorConfig, GenericObservation}, oriented_landmark_sensor::OrientedLandmarkSensor};
 
-use std::cmp;
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SensorManagerConfig {
     sensors: Vec<SensorConfig>
@@ -47,13 +45,13 @@ impl SensorManager {
 
     pub fn get_observations(&mut self, physic: &dyn Physic, time: f32) -> Vec<Box<dyn GenericObservation>> {
         let mut observations = Vec::<Box<dyn GenericObservation>>::new();
-        let min_next_time = f32::INFINITY;
+        let mut min_next_time = f32::INFINITY;
         for sensor in &mut self.sensors {
             let sensor_observations = sensor.get_observations(physic, time);
             for obs in sensor_observations {
                 observations.push(obs);
             }
-            let min_next_time = min_next_time.min(sensor.next_time_step());
+            min_next_time = min_next_time.min(sensor.next_time_step());
         }
         self.next_time = min_next_time;
         observations

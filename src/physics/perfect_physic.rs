@@ -56,8 +56,6 @@ impl PerfectPhysic {
         assert!(dt > 0., "PID delta time should be positive: {} - {} = {} > 0", time, self.last_time_update, dt);
         
         let theta = self.state.pose.z;
-        let x = self.state.pose.x;
-        let y = self.state.pose.y;
 
         let displacement_wheel_left = self.current_command.left_wheel_speed * dt;
         let displacement_wheel_right = self.current_command.right_wheel_speed * dt;
@@ -79,7 +77,7 @@ use super::physic::Command;
 use super::physic::{Physic, PhysicRecord};
 
 impl Physic for PerfectPhysic {
-    fn apply_command(&mut self, command: &Command, time: f32) {
+    fn apply_command(&mut self, command: &Command, _time: f32) {
         self.current_command = command.clone();
     }
 
@@ -87,7 +85,7 @@ impl Physic for PerfectPhysic {
         self.compute_state_until(time);
     }
 
-    fn state(&self, time: f32) -> &State {
+    fn state(&self, _time: f32) -> &State {
         &self.state
     }
 

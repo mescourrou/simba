@@ -72,7 +72,7 @@ use std::path::Path;
 use super::sensors::oriented_landmark_sensor::{Map, OrientedLandmark};
 
 pub fn test() {
-    let config_path = Path::new("./test_config.yaml");
+    let _config_path = Path::new("./test_config.yaml");
     // let confs:Vec<ConfigGenerale> = match confy::load_path(&config_path) {
     //     Ok(config) => config,
     //     Err(error) => {

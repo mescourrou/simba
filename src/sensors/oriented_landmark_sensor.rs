@@ -4,7 +4,7 @@ use crate::physics::physic::Physic;
 use serde_derive::{Serialize, Deserialize};
 
 extern crate nalgebra as na;
-use na::{Vector3, RawStorageMut};
+use na::{Vector3};
 
 use std::path::Path;
 use std::fmt;
@@ -70,7 +70,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
     where
         D: Deserializer<'de>,
     {
-        enum Field { Id, X, Y, Theta, __unknown__ }
+        enum Field { Id, X, Y, Theta, Unknown }
 
         // This part could also be generated independently by:
         //
@@ -100,7 +100,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                             "x" => Ok(Field::X),
                             "y" => Ok(Field::Y),
                             "theta" => Ok(Field::Theta),
-                            _ => Ok(Field::__unknown__),
+                            _ => Ok(Field::Unknown),
                         }
                     }
                 }
@@ -171,7 +171,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                             }
                             theta = Some(map.next_value()?);
                         }
-                        Field::__unknown__ => {}
+                        Field::Unknown => {}
                     }
                 }
                 let id = id.ok_or_else(|| de::Error::missing_field("id"))?;
@@ -191,7 +191,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
 }
 
 #[derive(Debug)]
-struct OrientedLandmarkObservation {
+pub struct OrientedLandmarkObservation {
     id: i32,
     pose: Vector3<f32>
 }

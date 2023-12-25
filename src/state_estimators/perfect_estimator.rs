@@ -61,7 +61,7 @@ impl StateEstimator for PerfectEstimator {
         self.last_time_update = time;
     }
 
-    fn correction_step(&mut self, observations: Vec<Box<dyn GenericObservation>>, time: f32, physic: &dyn Physic) {
+    fn correction_step(&mut self, observations: Vec<Box<dyn GenericObservation>>, _time: f32, _physic: &dyn Physic) {
         println!("Receive observations, but not needed, I'm perfect !\n{:?}", observations);
     }
 
