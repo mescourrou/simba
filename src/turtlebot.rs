@@ -10,6 +10,8 @@ use crate::physics::perfect_physic;
 use crate::state_estimators::state_estimator::{StateEstimator, StateEstimatorConfig, StateEstimatorRecord};
 use crate::state_estimators::perfect_estimator;
 
+use crate::sensors::sensor_manager::{SensorManagerConfig, SensorManager};
+
 // Configuration for Turtlebot
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
@@ -22,7 +24,8 @@ pub struct TurtlebotConfig {
     pub navigator: NavigatorConfig,
     pub controller: ControllerConfig,
     pub physic: PhysicConfig,
-    pub state_estimator: StateEstimatorConfig
+    pub state_estimator: StateEstimatorConfig,
+    pub sensor_manager: SensorManagerConfig
     
 }
 
@@ -33,7 +36,8 @@ impl Default for TurtlebotConfig {
             navigator: NavigatorConfig::TrajectoryFollower(Box::new(trajectory_follower::TrajectoryFollowerConfig::default())),
             controller: ControllerConfig::PID(Box::new(pid::PIDConfig::default())),
             physic: PhysicConfig::Perfect(Box::new(perfect_physic::PerfectPhysicConfig::default())),
-            state_estimator: StateEstimatorConfig::Perfect(Box::new(perfect_estimator::PerfectEstimatorConfig::default()))
+            state_estimator: StateEstimatorConfig::Perfect(Box::new(perfect_estimator::PerfectEstimatorConfig::default())),
+            sensor_manager: SensorManagerConfig::default()
         }
     }
 }
@@ -59,6 +63,7 @@ pub struct Turtlebot {
     controller: Box<dyn Controller>,
     physic: Box<dyn Physic>,
     state_estimator: Box<dyn StateEstimator>,
+    sensor_manager: SensorManager,
     next_time_step: f32
 }
 
@@ -70,6 +75,7 @@ impl Turtlebot {
             controller: Box::new(pid::PID::new()),
             physic: Box::new(perfect_physic::PerfectPhysic::new()),
             state_estimator: Box::new(perfect_estimator::PerfectEstimator::new()),
+            sensor_manager: SensorManager::new(),
             next_time_step: 0.
         }
     }
@@ -97,6 +103,7 @@ impl Turtlebot {
                     StateEstimatorConfig::Perfect(c) => perfect_estimator::PerfectEstimator::from_config(c)
                 }
             ),
+            sensor_manager: SensorManager::from_config(&config.sensor_manager),
             next_time_step: 0.
         };
         turtle.next_time_step = turtle.state_estimator.next_time_step();
@@ -109,17 +116,23 @@ impl Turtlebot {
         }
         println!("Run time {}", time);
         self.physic.update_state(time);
-        self.state_estimator.update_estimation(time, self.physic.as_ref());
-        let state = self.state_estimator.state();
-        // println!("State: {:?}", state);
-        let error = self.navigator.compute_error(state);
-        // println!("Error: {:?}", error);
-        let command = self.controller.make_command(&error, time);
-        // println!("Command: {:?}", command);
-        self.physic.apply_command(&command, time);
-
+        let observations = self.sensor_manager.get_observations(self.physic.as_ref(), time);
+        self.state_estimator.correction_step(observations, time, self.physic.as_ref());
+        if time >= self.state_estimator.next_time_step() {
+            self.state_estimator.prediction_step(time, self.physic.as_ref());
+            let state = self.state_estimator.state();
+            // println!("State: {:?}", state);
+            let error = self.navigator.compute_error(state);
+            // println!("Error: {:?}", error);
+            let command = self.controller.make_command(&error, time);
+            // println!("Command: {:?}", command);
+            self.physic.apply_command(&command, time);
+        }
+        
+        self.next_time_step = 
+            self.state_estimator.next_time_step()
+            .min(self.sensor_manager.next_time_step());
         // println!("{}: {}", time, state);
-        self.next_time_step = self.state_estimator.next_time_step();
         self.next_time_step
     }
 

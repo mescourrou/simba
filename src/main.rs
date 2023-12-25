@@ -14,6 +14,7 @@
 use turtlebot_simulator::simulator::Simulator;
 use turtlebot_simulator::gui;
 use std::path::Path;
+use turtlebot_simulator::test_config;
 
 
 fn main() {
@@ -25,7 +26,7 @@ fn main() {
 
     simulator.show();
 
-    simulator.run(10.);
+    simulator.run(1.);
 
     // gui::run_gui();
     

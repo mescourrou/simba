@@ -105,7 +105,7 @@ impl Trajectory {
         
         let d = ((pt2.x - projected_point.x).powf(2.) + (pt2.y - projected_point.y).powf(2.)).sqrt();
         let d_pt1_pt2 = ((pt2.x - pt1.x).powf(2.) + (pt2.y - pt1.y).powf(2.)).sqrt();
-        if d > 0.05 * d_pt1_pt2 {
+        if d > 0.01 * d_pt1_pt2 {
             return ((pt1, pt2), projected_point);
         } else if self.current_segment + 1 == self.point_list.nrows() && !self.do_loop {
             println!("No loop so give last point");

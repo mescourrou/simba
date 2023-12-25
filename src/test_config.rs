@@ -3,7 +3,7 @@ extern crate confy;
 use serde_derive::{Serialize, Deserialize};
 extern crate nalgebra as na;
 
-use super::navigators::trajectory::{TrajectoryConfig};
+use crate::navigators::trajectory::{TrajectoryConfig};
 
 #[derive(Serialize, Deserialize, Debug)]
 struct ConfigGenerale {
@@ -69,14 +69,16 @@ enum ClassTypes {
 
 use std::path::Path;
 
+use super::sensors::oriented_landmark_sensor::{Map, OrientedLandmark};
+
 pub fn test() {
     let config_path = Path::new("./test_config.yaml");
-    let confs:Vec<ConfigGenerale> = match confy::load_path(&config_path) {
-        Ok(config) => config,
-        Err(error) => {
-            panic!("Error from Confy while loading the config file : {}", error)
-        }
-    };
+    // let confs:Vec<ConfigGenerale> = match confy::load_path(&config_path) {
+    //     Ok(config) => config,
+    //     Err(error) => {
+    //         panic!("Error from Confy while loading the config file : {}", error)
+    //     }
+    // };
 
     // let mut confs: Vec<ConfigGenerale> = Vec::new();
     // confs.push(ConfigGenerale {
@@ -101,13 +103,23 @@ pub fn test() {
     //     })
     // });
 
-    println!("Config:");
-    for conf in &confs {
-        println!("{:?}", conf.positions);
+    // println!("Config:");
+    // for conf in &confs {
+    //     println!("{:?}", conf.positions);
         
         
-    }
+    // }
+
+    let mut map: Map = Map::default();
+    map.landmarks.push(OrientedLandmark{
+        id: 1,
+        pose: na::Vector3::from_vec(vec![1., 1., 0.])
+    });
+    map.landmarks.push(OrientedLandmark{
+        id: 2,
+        pose: na::Vector3::from_vec(vec![2., 2., 1.])
+    });
 
     let config_save_path = Path::new("./test_config2.yaml");
-    let _ = confy::store_path(config_save_path, &confs);
+    let _ = confy::store_path(config_save_path, &map);
 }

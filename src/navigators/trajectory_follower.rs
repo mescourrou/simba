@@ -109,7 +109,6 @@ impl Navigator for TrajectoryFollower {
             0.
         );
         let (segment, projected_point) = self.trajectory.map_matching(forward_pose.fixed_view::<2, 1>(0, 0).into());
-        println!("segment: {:?} => pose: {:?} => projected: {:?}", segment, forward_pose, projected_point);
         let segment_angle: f32 = atan2((segment.1.y - segment.0.y).into(), (segment.1.x - segment.0.x).into()) as f32;
         let projected_point = Vector3::new(
             projected_point.x,
@@ -127,7 +126,6 @@ impl Navigator for TrajectoryFollower {
         while theta_error <= -PI {
             theta_error += 2.* PI;
         }
-        println!("Theta error: {}", theta_error);
         let error = ControllerError {
             lateral: forward_pose_with_segment / forward_pose_with_segment.abs() * ((forward_pose.x - projected_point.x).powf(2.) + (forward_pose.y - projected_point.y).powf(2.)).sqrt(),
             theta: theta_error,

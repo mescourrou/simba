@@ -1,6 +1,7 @@
 // Configuration for PerfectPhysic
 use serde_derive::{Serialize, Deserialize};
 use super::state_estimator::{State, StateRecord};
+use crate::sensors::sensor::GenericObservation;
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
@@ -51,9 +52,17 @@ impl PerfectEstimator {
 use super::state_estimator::{StateEstimator, StateEstimatorRecord};
 
 impl StateEstimator for PerfectEstimator {
-    fn update_estimation(&mut self, time: f32, physic: &dyn Physic) {
+    fn prediction_step(&mut self, time: f32, physic: &dyn Physic) {
+        if time < self.next_time_step() {
+            println!("Error trying to update estimate too soon !");
+            return;
+        }
         self.state = physic.state(time).clone();
         self.last_time_update = time;
+    }
+
+    fn correction_step(&mut self, observations: Vec<Box<dyn GenericObservation>>, time: f32, physic: &dyn Physic) {
+        println!("Receive observations, but not needed, I'm perfect !\n{:?}", observations);
     }
 
     fn state(&self) -> &State {

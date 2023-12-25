@@ -1,11 +1,13 @@
 pub mod simulator;
-mod configurable;
-mod turtlebot;
-mod navigators;
-mod utils;
-mod controllers;
-mod physics;
-mod state_estimators;
+pub mod configurable;
+pub mod turtlebot;
+pub mod navigators;
+pub mod utils;
+pub mod controllers;
+pub mod physics;
+pub mod state_estimators;
+pub mod sensors;
+
 pub mod gui;
 
-mod test_config;
+pub mod test_config;
