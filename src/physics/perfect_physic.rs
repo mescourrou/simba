@@ -2,7 +2,7 @@
 use serde_derive::{Serialize, Deserialize};
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct PerfectPhysicConfig {
     wheel_distance: f32,

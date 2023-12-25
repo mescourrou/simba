@@ -1,7 +1,7 @@
 // Configuration for PID
 use serde_derive::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct PIDConfig {
     kp_v: f32,

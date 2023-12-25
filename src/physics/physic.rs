@@ -10,7 +10,7 @@ pub struct Command {
 
 use super::perfect_physic;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PhysicConfig {
     Perfect(Box<perfect_physic::PerfectPhysicConfig>)
 }

@@ -13,7 +13,7 @@ pub struct ControllerError {
 use super::pid;
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ControllerConfig {
     PID(Box<pid::PIDConfig>)
 }

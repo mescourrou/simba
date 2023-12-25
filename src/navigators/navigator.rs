@@ -6,7 +6,7 @@ use super::trajectory_follower;
 use crate::state_estimators::state_estimator::State;
 use crate::controllers::controller::ControllerError;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NavigatorConfig {
     TrajectoryFollower(Box<trajectory_follower::TrajectoryFollowerConfig>)
 }

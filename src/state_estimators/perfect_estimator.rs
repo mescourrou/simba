@@ -3,7 +3,7 @@ use serde_derive::{Serialize, Deserialize};
 use super::state_estimator::{State, StateRecord};
 use crate::sensors::sensor::GenericObservation;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct PerfectEstimatorConfig {
     update_period: f32

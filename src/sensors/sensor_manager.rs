@@ -5,7 +5,7 @@ use crate::physics::physic::Physic;
 
 use super::{sensor::{Sensor, SensorConfig, GenericObservation}, oriented_landmark_sensor::OrientedLandmarkSensor};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SensorManagerConfig {
     sensors: Vec<SensorConfig>
 }

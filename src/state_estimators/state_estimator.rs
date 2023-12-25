@@ -4,7 +4,7 @@ use na::{SVector};
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct StateConfig {
     pose: Vec<f32>,
@@ -82,7 +82,7 @@ impl fmt::Display for State {
 
 use super::perfect_estimator;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum StateEstimatorConfig {
     Perfect(Box<perfect_estimator::PerfectEstimatorConfig>)
 }

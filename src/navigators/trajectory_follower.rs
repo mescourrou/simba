@@ -3,7 +3,7 @@ use super::navigator::{Navigator, NavigatorRecord};
 
 extern crate nalgebra as na;
 use na::Vector3;
-use libm::{atan2};
+use libm::atan2;
 
 // Configuration for TrajectoryFollower
 use serde_derive::{Serialize, Deserialize};
@@ -11,7 +11,7 @@ use serde_derive::{Serialize, Deserialize};
 use std::f32::consts::PI;
 use std::path::Path;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TrajectoryFollowerConfig {
     pub trajectory_path: String,

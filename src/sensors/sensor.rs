@@ -7,7 +7,7 @@ use super::oriented_landmark_sensor;
 pub trait GenericObservation : std::fmt::Debug {}
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SensorConfig {
     OrientedLandmarkSensor(Box<oriented_landmark_sensor::OrientedLandmarkSensorConfig>)
 }

@@ -9,7 +9,7 @@ use na::{Vector3};
 use std::path::Path;
 use std::fmt;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct OrientedLandmarkSensorConfig {
     detection_distance: f32,

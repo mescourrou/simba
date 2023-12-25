@@ -11,7 +11,7 @@ use serde_json;
 use std::io::prelude::*;
 use std::fs::File;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(default)]
 pub struct SimulatorConfig {
     pub turtles: Vec<Box<TurtlebotConfig>>
@@ -33,13 +33,15 @@ struct Record {
 
 
 pub struct Simulator {
-    turtles: Vec<Box<Turtlebot>>
+    turtles: Vec<Box<Turtlebot>>,
+    config: SimulatorConfig
 }
 
 impl Simulator {
     pub fn new() -> Simulator {
         Simulator {
-            turtles: Vec::new()
+            turtles: Vec::new(),
+            config: SimulatorConfig::default()
         }
     }
 
@@ -56,6 +58,7 @@ impl Simulator {
 
     pub fn from_config(config:&SimulatorConfig) -> Simulator {
         let mut simulator = Simulator::new();
+        simulator.config = config.clone();
 
         // Create turtles
         for turtle_config in &config.turtles {
@@ -79,7 +82,9 @@ impl Simulator {
         //                 .from_path("result.csv")
         //                 .expect("Impossible to create csv writer");
         let mut recording_file = File::create("result.json").expect("Impossible to create record file");
-        let _ = recording_file.write(b"[\n");
+        let _ = recording_file.write(b"{\"config\": ");
+        serde_json::to_writer(&recording_file, &self.config).expect("Error during json serialization");
+        let _ = recording_file.write(b",\n\"record\": [\n");
         let mut first_row_done = false;
         loop {
             let mut best_turtle: usize = 0;
@@ -106,9 +111,9 @@ impl Simulator {
             serde_json::to_writer(&recording_file, &Record {
                     time: best_time,
                     turtle: self.turtles[best_turtle].record()
-                }).expect("Error during csv serialization");
+                }).expect("Error during json serialization");
                 
         }
-        let _ = recording_file.write(b"]");
+        let _ = recording_file.write(b"]}");
     }
 }
