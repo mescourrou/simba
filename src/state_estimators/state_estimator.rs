@@ -98,7 +98,7 @@ use crate::sensors::sensor::GenericObservation;
 pub trait StateEstimator : std::fmt::Debug {
     fn prediction_step(&mut self, time: f32, physic: &dyn Physic);
     fn correction_step(&mut self, observations: Vec<Box<dyn GenericObservation>>, time: f32, physic: &dyn Physic);
-    fn state(&self) -> &State;
+    fn state(&self) -> State;
     fn next_time_step(&self) -> f32;
     fn record(&self) ->  StateEstimatorRecord;
 }

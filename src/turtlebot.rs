@@ -122,7 +122,7 @@ impl Turtlebot {
             self.state_estimator.prediction_step(time, self.physic.as_ref());
             let state = self.state_estimator.state();
             // println!("State: {:?}", state);
-            let error = self.navigator.compute_error(state);
+            let error = self.navigator.compute_error(&state);
             // println!("Error: {:?}", error);
             let command = self.controller.make_command(&error, time);
             // println!("Command: {:?}", command);

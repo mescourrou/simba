@@ -19,7 +19,7 @@ impl Default for PerfectEstimatorConfig {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PerfectEstimatorRecord {
-    state: StateRecord
+    pub state: StateRecord
 }
 
 
@@ -65,8 +65,8 @@ impl StateEstimator for PerfectEstimator {
         println!("Receive observations, but not needed, I'm perfect !\n{:?}", observations);
     }
 
-    fn state(&self) -> &State {
-        &self.state
+    fn state(&self) -> State {
+        self.state.clone()
     }
 
     fn next_time_step(&self) -> f32 {
