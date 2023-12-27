@@ -1,6 +1,7 @@
 use super::sensor::{Sensor, SensorRecord, GenericObservation};
 use crate::physics::physic::Physic;
 
+use crate::plugin_api::PluginAPI;
 use serde_derive::{Serialize, Deserialize};
 
 extern crate nalgebra as na;
@@ -213,10 +214,10 @@ pub struct OrientedLandmarkSensor {
 
 impl OrientedLandmarkSensor {
     pub fn new() -> Self {
-        OrientedLandmarkSensor::from_config(&OrientedLandmarkSensorConfig::default())
+        OrientedLandmarkSensor::from_config(&OrientedLandmarkSensorConfig::default(), &None)
     }
 
-    pub fn from_config(config: &OrientedLandmarkSensorConfig) -> Self {
+    pub fn from_config(config: &OrientedLandmarkSensorConfig, _plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
         let mut path = Path::new(&config.map_path);
 
         let mut sensor = Self {

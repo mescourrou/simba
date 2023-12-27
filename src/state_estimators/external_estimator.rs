@@ -2,11 +2,8 @@ use std::path::Path;
 
 use dlopen::wrapper::{Container, WrapperApi};
 use super::state_estimator::{State, StateRecord, StateEstimator, self};
+use crate::plugin_api::PluginAPI;
 
-#[derive(WrapperApi)]
-struct PluginApi {
-    get_state_estimator: extern fn() -> *mut dyn StateEstimator,
-}
 
 use serde_derive::{Serialize, Deserialize};
 use crate::sensors::sensor::GenericObservation;
@@ -15,13 +12,11 @@ use super::state_estimator::StateEstimatorRecord;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct ExternalEstimatorConfig {
-    plugin_path: String
 }
 
 impl Default for ExternalEstimatorConfig {
     fn default() -> Self {
         Self {
-            plugin_path: String::from(".")
         }
     }
 }
@@ -43,13 +38,12 @@ pub struct ExternalEstimator {
 
 impl ExternalEstimator {
     pub fn new() -> Self {
-        Self::from_config(&ExternalEstimatorConfig::default())
+        Self::from_config(&ExternalEstimatorConfig::default(), &None)
     }
 
-    pub fn from_config(config: &ExternalEstimatorConfig) -> Self {
-        let plugin: Container<PluginApi> = unsafe { Container::load(config.plugin_path.clone()) }.unwrap();
+    pub fn from_config(config: &ExternalEstimatorConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
         Self {
-            state_estimator: unsafe { Box::from_raw(plugin.get_state_estimator())},
+            state_estimator: plugin_api.as_ref().expect("Plugin API not set!").get_state_estimator(),
             last_time_update: 0.,
             update_period: 0.1
         }

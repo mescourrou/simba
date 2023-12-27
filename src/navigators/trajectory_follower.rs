@@ -1,6 +1,8 @@
 use super::trajectory::{Trajectory, TrajectoryConfig};
 use super::navigator::{Navigator, NavigatorRecord};
 
+use crate::plugin_api::PluginAPI;
+
 extern crate nalgebra as na;
 use na::Vector3;
 use libm::atan2;
@@ -65,7 +67,7 @@ impl TrajectoryFollower {
         }
     }
 
-    pub fn from_config(config: &TrajectoryFollowerConfig) -> Self {
+    pub fn from_config(config: &TrajectoryFollowerConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
         let mut path = Path::new(&config.trajectory_path);
         if config.trajectory_path == "" {
             return Self::new();

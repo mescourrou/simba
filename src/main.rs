@@ -22,7 +22,7 @@ fn main() {
 
 
     let config_path = Path::new("configs/config.yaml");
-    let mut simulator = Simulator::from_config_path(config_path);
+    let mut simulator = Simulator::from_config_path(config_path, None);
 
     simulator.show();
 

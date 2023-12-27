@@ -2,6 +2,8 @@
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
 
+use crate::plugin_api::PluginAPI;
+
 use super::turtlebot::{Turtlebot,TurtlebotConfig, TurtlebotRecord};
 use std::path::Path;
 
@@ -45,7 +47,7 @@ impl Simulator {
         }
     }
 
-    pub fn from_config_path(config_path:&Path) -> Simulator {
+    pub fn from_config_path(config_path:&Path, plugin_api: Option<Box<dyn PluginAPI>>) -> Simulator {
         let config: SimulatorConfig = match confy::load_path(&config_path) {
             Ok(config) => config,
             Err(error) => {
@@ -53,16 +55,16 @@ impl Simulator {
                 return Simulator::new();
             }
         };
-        Simulator::from_config(&config)
+        Simulator::from_config(&config, plugin_api)
     }
 
-    pub fn from_config(config:&SimulatorConfig) -> Simulator {
+    pub fn from_config(config:&SimulatorConfig, plugin_api: Option<Box<dyn PluginAPI>>) -> Simulator {
         let mut simulator = Simulator::new();
         simulator.config = config.clone();
 
         // Create turtles
         for turtle_config in &config.turtles {
-            simulator.turtles.push(Box::new(Turtlebot::from_config(turtle_config)));
+            simulator.turtles.push(Box::new(Turtlebot::from_config(turtle_config, &plugin_api)));
         }
         simulator
     }

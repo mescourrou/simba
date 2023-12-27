@@ -2,6 +2,7 @@
 use serde_derive::{Serialize, Deserialize};
 use super::state_estimator::{State, StateRecord};
 use crate::sensors::sensor::GenericObservation;
+use crate::plugin_api::PluginAPI;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -35,10 +36,10 @@ pub struct PerfectEstimator {
 
 impl PerfectEstimator {
     pub fn new() -> Self {
-        Self::from_config(&PerfectEstimatorConfig::default())
+        Self::from_config(&PerfectEstimatorConfig::default(), &None)
     }
 
-    pub fn from_config(config: &PerfectEstimatorConfig) -> Self {
+    pub fn from_config(config: &PerfectEstimatorConfig, _plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
         Self {
             update_period: config.update_period,
             state: State::new(),

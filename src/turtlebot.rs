@@ -12,6 +12,8 @@ use crate::state_estimators::{perfect_estimator, external_estimator};
 
 use crate::sensors::sensor_manager::{SensorManagerConfig, SensorManager};
 
+use crate::plugin_api::PluginAPI;
+
 // Configuration for Turtlebot
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
@@ -80,30 +82,30 @@ impl Turtlebot {
         }
     }
 
-    pub fn from_config(config:&TurtlebotConfig) -> Self {
+    pub fn from_config(config:&TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
         let mut turtle = Self {
             name: config.name.clone(),
             navigator: Box::new(
                 match &config.navigator {
-                    NavigatorConfig::TrajectoryFollower(c) => trajectory_follower::TrajectoryFollower::from_config(c)
+                    NavigatorConfig::TrajectoryFollower(c) => trajectory_follower::TrajectoryFollower::from_config(c, plugin_api)
                 }
             ),
             controller: Box::new(
                 match &config.controller {
-                    ControllerConfig::PID(c) => pid::PID::from_config(c)
+                    ControllerConfig::PID(c) => pid::PID::from_config(c, plugin_api)
                 }
             ),
             physic: Box::new(
                 match &config.physic {
-                    PhysicConfig::Perfect(c) => perfect_physic::PerfectPhysic::from_config(c)
+                    PhysicConfig::Perfect(c) => perfect_physic::PerfectPhysic::from_config(c, plugin_api)
                 }
             ),
             state_estimator: 
                 match &config.state_estimator {
-                    StateEstimatorConfig::Perfect(c) => Box::new(perfect_estimator::PerfectEstimator::from_config(c)) as Box<dyn StateEstimator>,
-                    StateEstimatorConfig::External(c) => Box::new(external_estimator::ExternalEstimator::from_config(c)) as Box<dyn StateEstimator>
+                    StateEstimatorConfig::Perfect(c) => Box::new(perfect_estimator::PerfectEstimator::from_config(c, plugin_api)) as Box<dyn StateEstimator>,
+                    StateEstimatorConfig::External(c) => Box::new(external_estimator::ExternalEstimator::from_config(c, plugin_api)) as Box<dyn StateEstimator>
                 },
-            sensor_manager: SensorManager::from_config(&config.sensor_manager),
+            sensor_manager: SensorManager::from_config(&config.sensor_manager, plugin_api),
             next_time_step: 0.
         };
         turtle.next_time_step = turtle.state_estimator.next_time_step();

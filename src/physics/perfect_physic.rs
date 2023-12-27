@@ -1,6 +1,7 @@
 // Configuration for PerfectPhysic
 use serde_derive::{Serialize, Deserialize};
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
+use crate::plugin_api::PluginAPI;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -36,10 +37,10 @@ pub struct PerfectPhysic {
 
 impl PerfectPhysic {
     pub fn new() -> Self {
-        Self::from_config(&PerfectPhysicConfig::default())
+        Self::from_config(&PerfectPhysicConfig::default(), &None)
     }
 
-    pub fn from_config(config: &PerfectPhysicConfig) -> Self {
+    pub fn from_config(config: &PerfectPhysicConfig, _plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
         PerfectPhysic {
             wheel_distance: config.wheel_distance,
             state: State::from_config(&config.initial_state),

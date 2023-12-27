@@ -1,9 +1,10 @@
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
 
-use crate::physics::physic::Physic;
+use crate::{physics::physic::Physic, plugin_api};
 
 use super::{sensor::{Sensor, SensorConfig, GenericObservation}, oriented_landmark_sensor::OrientedLandmarkSensor};
+use crate::plugin_api::PluginAPI;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SensorManagerConfig {
@@ -32,12 +33,12 @@ impl SensorManager {
         }
     }
 
-    pub fn from_config(config: &SensorManagerConfig) -> Self {
+    pub fn from_config(config: &SensorManagerConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {
             manager.sensors.push(Box::new(
                 match &sensor_config {
-                    SensorConfig::OrientedLandmarkSensor(c) => OrientedLandmarkSensor::from_config(c)
+                    SensorConfig::OrientedLandmarkSensor(c) => OrientedLandmarkSensor::from_config(c, plugin_api)
                 }));
         }
         manager

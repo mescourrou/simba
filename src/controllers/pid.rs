@@ -1,5 +1,6 @@
 // Configuration for PID
 use serde_derive::{Serialize, Deserialize};
+use crate::plugin_api::PluginAPI;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -70,10 +71,10 @@ pub struct PID {
 
 impl PID {
     pub fn new() -> Self {
-        Self::from_config(&PIDConfig::default())
+        Self::from_config(&PIDConfig::default(), &None)
     }
 
-    pub fn from_config(config: &PIDConfig) -> Self {
+    pub fn from_config(config: &PIDConfig, _plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
         PID {
             kp_v: config.kp_v,
             kd_v: config.kd_v,
