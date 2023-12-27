@@ -80,16 +80,18 @@ impl fmt::Display for State {
 }
 
 
-use super::perfect_estimator;
+use super::{perfect_estimator, external_estimator};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum StateEstimatorConfig {
-    Perfect(Box<perfect_estimator::PerfectEstimatorConfig>)
+    Perfect(Box<perfect_estimator::PerfectEstimatorConfig>),
+    External(Box<external_estimator::ExternalEstimatorConfig>)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum StateEstimatorRecord {
-    Perfect(perfect_estimator::PerfectEstimatorRecord)
+    Perfect(perfect_estimator::PerfectEstimatorRecord),
+    External(external_estimator::ExternalEstimatorRecord)
 }
 use crate::physics::physic::Physic;
 

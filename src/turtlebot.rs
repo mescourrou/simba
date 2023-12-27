@@ -8,7 +8,7 @@ use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 use crate::physics::perfect_physic;
 
 use crate::state_estimators::state_estimator::{StateEstimator, StateEstimatorConfig, StateEstimatorRecord};
-use crate::state_estimators::perfect_estimator;
+use crate::state_estimators::{perfect_estimator, external_estimator};
 
 use crate::sensors::sensor_manager::{SensorManagerConfig, SensorManager};
 
@@ -98,11 +98,11 @@ impl Turtlebot {
                     PhysicConfig::Perfect(c) => perfect_physic::PerfectPhysic::from_config(c)
                 }
             ),
-            state_estimator: Box::new(
+            state_estimator: 
                 match &config.state_estimator {
-                    StateEstimatorConfig::Perfect(c) => perfect_estimator::PerfectEstimator::from_config(c)
-                }
-            ),
+                    StateEstimatorConfig::Perfect(c) => Box::new(perfect_estimator::PerfectEstimator::from_config(c)) as Box<dyn StateEstimator>,
+                    StateEstimatorConfig::External(c) => Box::new(external_estimator::ExternalEstimator::from_config(c)) as Box<dyn StateEstimator>
+                },
             sensor_manager: SensorManager::from_config(&config.sensor_manager),
             next_time_step: 0.
         };
