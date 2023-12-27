@@ -1,15 +1,16 @@
 use std::path::Path;
 
 use dlopen::wrapper::{Container, WrapperApi};
+use super::state_estimator::{State, StateRecord, StateEstimator, self};
 
 #[derive(WrapperApi)]
 struct PluginApi {
-    run: extern fn(),
+    get_state_estimator: extern fn() -> *mut dyn StateEstimator,
 }
 
 use serde_derive::{Serialize, Deserialize};
-use super::state_estimator::{State, StateRecord};
 use crate::sensors::sensor::GenericObservation;
+use super::state_estimator::StateEstimatorRecord;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -35,7 +36,7 @@ pub struct ExternalEstimatorRecord {
 use crate::physics::physic::Physic;
 
 pub struct ExternalEstimator {
-    plugin: Container<PluginApi>,
+    state_estimator: Box<dyn StateEstimator>,
     last_time_update: f32,
     update_period: f32
 }
@@ -46,8 +47,9 @@ impl ExternalEstimator {
     }
 
     pub fn from_config(config: &ExternalEstimatorConfig) -> Self {
+        let plugin: Container<PluginApi> = unsafe { Container::load(config.plugin_path.clone()) }.unwrap();
         Self {
-            plugin: unsafe { Container::load(config.plugin_path.clone()) }.unwrap(),
+            state_estimator: unsafe { Box::from_raw(plugin.get_state_estimator())},
             last_time_update: 0.,
             update_period: 0.1
         }
@@ -62,7 +64,6 @@ impl std::fmt::Debug for ExternalEstimator {
     }
 }
 
-use super::state_estimator::{StateEstimator, StateEstimatorRecord};
 
 impl StateEstimator for ExternalEstimator {
     fn prediction_step(&mut self, time: f32, physic: &dyn Physic) {
@@ -70,7 +71,7 @@ impl StateEstimator for ExternalEstimator {
             println!("Error trying to update estimate too soon !");
             return;
         }
-        self.plugin.run();
+        self.state_estimator.prediction_step(time, physic);
         self.last_time_update = time;
     }
 
