@@ -1,16 +1,3 @@
-// pub mod simulator;
-// mod configurable;
-// mod turtlebot;
-// mod navigators;
-// mod utils;
-// mod controllers;
-// mod physics;
-// mod state_estimators;
-// mod plots;
-
-// mod test_config;
-
-
 use turtlebot_simulator::simulator::Simulator;
 use turtlebot_simulator::gui;
 use std::path::Path;

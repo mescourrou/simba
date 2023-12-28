@@ -13,7 +13,7 @@ use serde_json;
 use std::io::prelude::*;
 use std::fs::File;
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct SimulatorConfig {
     pub turtles: Vec<Box<TurtlebotConfig>>
@@ -55,6 +55,7 @@ impl Simulator {
                 return Simulator::new();
             }
         };
+        println!("Config: {:?}", config);
         Simulator::from_config(&config, plugin_api)
     }
 

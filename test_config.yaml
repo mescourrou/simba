@@ -1,12 +1,3 @@
----
-- nom: Test 1
-  class:
-    Guerrier:
-      epee: Truc
-      bouclier: Machin
-      rage: 10
-      force: 4.4
-  positions:
-    point_list:
-      - [0.0, 1.0]
-      - [1.0, 0.0]
+param1: 1
+param2: 2.3
+param3: "Bonjour"

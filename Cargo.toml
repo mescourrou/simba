@@ -3,11 +3,6 @@ name = "turtlebot_simulator"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-crate-type = ["dylib", "rlib"]
-
-[build]
-rustflags = ["-C", "prefer-dynamic", "-C", "rpath"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -29,8 +24,6 @@ eframe = { git = "https://github.com/emilk/egui", branch = "master", default-fea
     "persistence",   # Enable restoring app state when restarting the app.
 ] }
 log = "0.4"
-dlopen = "0.1.6"
-dlopen_derive = "0.1.3"
 
 [dependencies.confy]
 version = "^0.5"

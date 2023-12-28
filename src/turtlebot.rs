@@ -19,7 +19,7 @@ extern crate confy;
 use serde_derive::{Serialize, Deserialize};
 
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TurtlebotConfig {
     pub name: String,

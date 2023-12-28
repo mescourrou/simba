@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate dlopen_derive;
-
 pub mod simulator;
 pub mod configurable;
 pub mod turtlebot;
