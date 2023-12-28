@@ -12,13 +12,13 @@ use super::state_estimator::StateEstimatorRecord;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExternalEstimatorConfig {
     #[serde(flatten)]
-    config: Map<String, Value>
+    config: Value
 }
 
 impl Default for ExternalEstimatorConfig {
     fn default() -> Self {
         Self {
-            config: Map::new()
+            config: Value::Null
         }
     }
 }
