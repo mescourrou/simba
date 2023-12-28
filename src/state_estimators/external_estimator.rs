@@ -23,9 +23,10 @@ impl Default for ExternalEstimatorConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExternalEstimatorRecord {
-    pub state: StateRecord
+    #[serde(flatten)]
+    pub record: Value
 }
 
 
@@ -72,22 +73,19 @@ impl StateEstimator for ExternalEstimator {
         self.last_time_update = time;
     }
 
-    fn correction_step(&mut self, observations: Vec<Box<dyn GenericObservation>>, _time: f32, _physic: &dyn Physic) {
-        println!("Receive observations, but I don't know what to do with them");
+    fn correction_step(&mut self, observations: Vec<Box<dyn GenericObservation>>, time: f32, physic: &dyn Physic) {
+        self.state_estimator.correction_step(observations, time, physic);
     }
 
     fn state(&self) -> State {
-        State::new()
+        self.state_estimator.state()
     }
 
     fn next_time_step(&self) -> f32 {
-        self.last_time_update + self.update_period
+        self.state_estimator.next_time_step()
     }
 
     fn record(&self) -> StateEstimatorRecord {
-        StateEstimatorRecord::External(
-            ExternalEstimatorRecord {
-                state: self.state().record()
-        })
+        self.state_estimator.record()
     }
 }
