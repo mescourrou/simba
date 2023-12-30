@@ -1,7 +1,6 @@
 use serde_json::Value;
-use std::collections::BTreeMap as Map;
 
-use super::state_estimator::{State, StateRecord, StateEstimator, self};
+use super::state_estimator::{State, StateEstimator};
 use crate::plugin_api::PluginAPI;
 
 
@@ -34,9 +33,7 @@ pub struct ExternalEstimatorRecord {
 use crate::physics::physic::Physic;
 
 pub struct ExternalEstimator {
-    state_estimator: Box<dyn StateEstimator>,
-    last_time_update: f32,
-    update_period: f32
+    state_estimator: Box<dyn StateEstimator>
 }
 
 impl ExternalEstimator {
@@ -47,9 +44,7 @@ impl ExternalEstimator {
     pub fn from_config(config: &ExternalEstimatorConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
         println!("Config given: {:?}", config);
         Self {
-            state_estimator: plugin_api.as_ref().expect("Plugin API not set!").get_state_estimator(&config.config),
-            last_time_update: 0.,
-            update_period: 0.1
+            state_estimator: plugin_api.as_ref().expect("Plugin API not set!").get_state_estimator(&config.config)
         }
     }
 
@@ -70,7 +65,6 @@ impl StateEstimator for ExternalEstimator {
             return;
         }
         self.state_estimator.prediction_step(time, physic);
-        self.last_time_update = time;
     }
 
     fn correction_step(&mut self, observations: Vec<Box<dyn GenericObservation>>, time: f32, physic: &dyn Physic) {

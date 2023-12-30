@@ -1,9 +1,12 @@
+use std::sync::{Arc, RwLock};
+
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
 use super::navigators::trajectory_follower;
 
 use crate::controllers::controller::{Controller, ControllerConfig, ControllerRecord};
 use crate::controllers::pid;
 
+use crate::networking::network::{Network, NetworkConfig};
 use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 use crate::physics::perfect_physic;
 
@@ -27,7 +30,8 @@ pub struct TurtlebotConfig {
     pub controller: ControllerConfig,
     pub physic: PhysicConfig,
     pub state_estimator: StateEstimatorConfig,
-    pub sensor_manager: SensorManagerConfig
+    pub sensor_manager: SensorManagerConfig,
+    pub network: NetworkConfig
     
 }
 
@@ -39,7 +43,8 @@ impl Default for TurtlebotConfig {
             controller: ControllerConfig::PID(Box::new(pid::PIDConfig::default())),
             physic: PhysicConfig::Perfect(Box::new(perfect_physic::PerfectPhysicConfig::default())),
             state_estimator: StateEstimatorConfig::Perfect(Box::new(perfect_estimator::PerfectEstimatorConfig::default())),
-            sensor_manager: SensorManagerConfig::default()
+            sensor_manager: SensorManagerConfig::default(),
+            network: NetworkConfig::default()
         }
     }
 }
@@ -66,6 +71,7 @@ pub struct Turtlebot {
     physic: Box<dyn Physic>,
     state_estimator: Box<dyn StateEstimator>,
     sensor_manager: SensorManager,
+    network: Arc<RwLock<Network>>,
     next_time_step: f32
 }
 
@@ -78,6 +84,7 @@ impl Turtlebot {
             physic: Box::new(perfect_physic::PerfectPhysic::new()),
             state_estimator: Box::new(perfect_estimator::PerfectEstimator::new()),
             sensor_manager: SensorManager::new(),
+            network: Arc::new(RwLock::new(Network::new())),
             next_time_step: 0.
         }
     }
@@ -106,6 +113,7 @@ impl Turtlebot {
                     StateEstimatorConfig::External(c) => Box::new(external_estimator::ExternalEstimator::from_config(c, plugin_api)) as Box<dyn StateEstimator>
                 },
             sensor_manager: SensorManager::from_config(&config.sensor_manager, plugin_api),
+            network: Arc::new(RwLock::new(Network::from_config(&config.network))),
             next_time_step: 0.
         };
         turtle.next_time_step = turtle.state_estimator.next_time_step();
@@ -150,5 +158,13 @@ impl Turtlebot {
             physic: self.physic.record(),
             state_estimator: self.state_estimator.record(),
         }
+    }
+
+    pub fn name(&self) -> String {
+        self.name.clone()
+    }
+
+    pub fn network(&self) -> Arc<RwLock<Network>> {
+        Arc::clone(&self.network)
     }
 }

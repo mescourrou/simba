@@ -20,10 +20,3 @@ pub trait Navigator : std::fmt::Debug {
     fn compute_error(&mut self, state: &State) -> ControllerError;
     fn record(&self) ->  NavigatorRecord;
 }
-
-
-// impl std::fmt::Debug for dyn Navigator {
-//     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-//         write!(f, "{}", "derp")
-//     }
-// }

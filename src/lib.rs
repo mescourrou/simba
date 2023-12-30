@@ -7,6 +7,7 @@ pub mod controllers;
 pub mod physics;
 pub mod state_estimators;
 pub mod sensors;
+pub mod networking;
 
 pub mod plugin_api;
 

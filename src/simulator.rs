@@ -2,6 +2,7 @@
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
 
+use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
 
 use super::turtlebot::{Turtlebot,TurtlebotConfig, TurtlebotRecord};
@@ -9,6 +10,7 @@ use std::path::Path;
 
 use std::default::Default;
 use serde_json;
+use std::sync::{Arc, RwLock};
 // use csv::WriterBuilder;
 use std::io::prelude::*;
 use std::fs::File;
@@ -36,14 +38,16 @@ struct Record {
 
 pub struct Simulator {
     turtles: Vec<Box<Turtlebot>>,
-    config: SimulatorConfig
+    config: SimulatorConfig,
+    network_manager: Arc<RwLock<NetworkManager>>
 }
 
 impl Simulator {
     pub fn new() -> Simulator {
         Simulator {
             turtles: Vec::new(),
-            config: SimulatorConfig::default()
+            config: SimulatorConfig::default(),
+            network_manager: Arc::new(RwLock::new(NetworkManager::new()))
         }
     }
 
@@ -65,9 +69,18 @@ impl Simulator {
 
         // Create turtles
         for turtle_config in &config.turtles {
-            simulator.turtles.push(Box::new(Turtlebot::from_config(turtle_config, &plugin_api)));
+            simulator.add_turtlebot(turtle_config, &plugin_api);
+            // simulator.turtles.push(Box::new(Turtlebot::from_config(turtle_config, &plugin_api)));
+            // simulator.network_manager.register_turtle_network(simulator.turtles.last().expect("No turtle added to the vector, how is it possible ??").name(), simulator.turtles.last().expect("No turtle added to the vector, how is it possible ??").network());
         }
         simulator
+    }
+
+    fn add_turtlebot(&mut self, turtle_config: &TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>) {
+        self.turtles.push(Box::new(Turtlebot::from_config(turtle_config, &plugin_api)));
+        let last_turtle = self.turtles.last().expect("No turtle added to the vector, how is it possible ??");
+        self.network_manager.write().unwrap().register_turtle_network(last_turtle.name(), last_turtle.network());
+        last_turtle.network().write().unwrap().set_network_manager(Arc::clone(&self.network_manager));
     }
 
     pub fn show(&self) {
