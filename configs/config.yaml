@@ -9,21 +9,21 @@ turtles:
       PID:
         kp_v: 1.0
         kp_theta: 6.0
-    sensor_manager:
-      sensors:
-        - OrientedLandmarkSensor:
-            map_path: "maps/landmarks_square.yaml"
-            detection_distance: 6.0
+    # sensor_manager:
+    #   sensors:
+    #     - OrientedLandmarkSensor:
+    #         map_path: "maps/landmarks_square.yaml"
+    #         detection_distance: 6.0
     # state_estimator:
     #   ExternalEstimator:
     #     plugin_path: "/home/mescourr/Dev/comaloc_rust/target/debug/libcomaloc_rust.so"
-  # - name: "turtle2"
-  #   navigator:
-  #     TrajectoryFollower:
-  #       trajectory_path: "paths/path1.yaml"
-  #       target_speed: 0.3
-  #       forward_distance: 0.2
-  #   controller:
-  #     PID:
-  #       kp_v: 1.0
-  #       kp_theta: 3.0
+  - name: "turtle2"
+    navigator:
+      TrajectoryFollower:
+        trajectory_path: "paths/path1.yaml"
+        target_speed: 0.3
+        forward_distance: 0.2
+    controller:
+      PID:
+        kp_v: 1.0
+        kp_theta: 3.0

@@ -78,13 +78,13 @@ pub struct Turtlebot {
 impl Turtlebot {
     pub fn new(name:String) -> Self {
         Self { 
-            name: name,
+            name: name.clone(),
             navigator: Box::new(trajectory_follower::TrajectoryFollower::new()),
             controller: Box::new(pid::PID::new()),
             physic: Box::new(perfect_physic::PerfectPhysic::new()),
             state_estimator: Box::new(perfect_estimator::PerfectEstimator::new()),
             sensor_manager: SensorManager::new(),
-            network: Arc::new(RwLock::new(Network::new())),
+            network: Arc::new(RwLock::new(Network::new(name.clone()))),
             next_time_step: 0.
         }
     }
@@ -113,7 +113,7 @@ impl Turtlebot {
                     StateEstimatorConfig::External(c) => Box::new(external_estimator::ExternalEstimator::from_config(c, plugin_api)) as Box<dyn StateEstimator>
                 },
             sensor_manager: SensorManager::from_config(&config.sensor_manager, plugin_api),
-            network: Arc::new(RwLock::new(Network::from_config(&config.network))),
+            network: Arc::new(RwLock::new(Network::from_config(config.name.clone(), &config.network))),
             next_time_step: 0.
         };
         turtle.next_time_step = turtle.state_estimator.next_time_step();
@@ -137,6 +137,8 @@ impl Turtlebot {
             let command = self.controller.make_command(&error, time);
             // println!("Command: {:?}", command);
             self.physic.apply_command(&command, time);
+
+            self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::String(String::from("Bonjour")));
         }
         
         self.next_time_step = 
