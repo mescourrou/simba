@@ -37,7 +37,7 @@ struct Record {
 
 
 pub struct Simulator {
-    turtles: Vec<Box<Turtlebot>>,
+    turtles: Vec<Arc<RwLock<Turtlebot>>>,
     config: SimulatorConfig,
     network_manager: Arc<RwLock<NetworkManager>>
 }
@@ -77,8 +77,8 @@ impl Simulator {
     }
 
     fn add_turtlebot(&mut self, turtle_config: &TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>) {
-        self.turtles.push(Box::new(Turtlebot::from_config(turtle_config, &plugin_api)));
-        let last_turtle = self.turtles.last().expect("No turtle added to the vector, how is it possible ??");
+        self.turtles.push(Turtlebot::from_config(turtle_config, &plugin_api));
+        let last_turtle = self.turtles.last().expect("No turtle added to the vector, how is it possible ??").write().unwrap();
         self.network_manager.write().unwrap().register_turtle_network(last_turtle.name(), last_turtle.network());
         last_turtle.network().write().unwrap().set_network_manager(Arc::clone(&self.network_manager));
     }
@@ -106,7 +106,7 @@ impl Simulator {
             let mut best_turtle: usize = 0;
             let mut best_time = f32::INFINITY;
             for i in 0..self.turtles.len() {
-                let turtle = self.turtles[i].as_ref();
+                let turtle = self.turtles[i].as_ref().read().unwrap();
                 let time = turtle.next_time_step();
                 // println!("Check turtle {} => next time is {}", i, time);
                 if time < best_time {
@@ -122,11 +122,12 @@ impl Simulator {
             } else {
                 first_row_done = true;
             }
-            self.turtles[best_turtle].run_next_time_step(best_time);
+            let mut turtle = self.turtles[best_turtle].write().unwrap();
+            turtle.run_next_time_step(best_time);
 
             serde_json::to_writer(&recording_file, &Record {
                     time: best_time,
-                    turtle: self.turtles[best_turtle].record()
+                    turtle: turtle.record()
                 }).expect("Error during json serialization");
                 
         }

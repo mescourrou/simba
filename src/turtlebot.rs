@@ -6,6 +6,7 @@ use super::navigators::trajectory_follower;
 use crate::controllers::controller::{Controller, ControllerConfig, ControllerRecord};
 use crate::controllers::pid;
 
+use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::{Network, NetworkConfig};
 use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 use crate::physics::perfect_physic;
@@ -20,6 +21,7 @@ use crate::plugin_api::PluginAPI;
 // Configuration for Turtlebot
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
+use serde_json::Value;
 
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -76,8 +78,8 @@ pub struct Turtlebot {
 }
 
 impl Turtlebot {
-    pub fn new(name:String) -> Self {
-        Self { 
+    pub fn new(name:String) -> Arc<RwLock<Self>> {
+        Arc::new(RwLock::new(Self { 
             name: name.clone(),
             navigator: Box::new(trajectory_follower::TrajectoryFollower::new()),
             controller: Box::new(pid::PID::new()),
@@ -86,11 +88,11 @@ impl Turtlebot {
             sensor_manager: SensorManager::new(),
             network: Arc::new(RwLock::new(Network::new(name.clone()))),
             next_time_step: 0.
-        }
+        }))
     }
 
-    pub fn from_config(config:&TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
-        let mut turtle = Self {
+    pub fn from_config(config:&TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Arc<RwLock<Self>> {
+        let mut turtle = Arc::new(RwLock::new(Self {
             name: config.name.clone(),
             navigator: Box::new(
                 match &config.navigator {
@@ -115,9 +117,31 @@ impl Turtlebot {
             sensor_manager: SensorManager::from_config(&config.sensor_manager, plugin_api),
             network: Arc::new(RwLock::new(Network::from_config(config.name.clone(), &config.network))),
             next_time_step: 0.
-        };
-        turtle.next_time_step = turtle.state_estimator.next_time_step();
+        }));
+        let next_time_step = turtle.read().unwrap().state_estimator.next_time_step();
+        turtle.write().unwrap().next_time_step = next_time_step;
+        turtle.write().unwrap().network.write().unwrap().subscribe(Arc::<RwLock<Turtlebot>>::clone(&turtle));
         turtle
+    }
+
+    pub fn message_callback_str(&mut self, message: &Value) -> Result<(), ()> {
+        if let Value::String(str_msg) = message {
+            println!("I accept to receive your message: {}", str_msg);
+            return Ok(());
+        } else {
+            println!("Use next handler please");
+            return Err(());
+        }
+    }
+
+    pub fn message_callback_number(&mut self, message: &Value) -> Result<(), ()> {
+        if let Value::Number(nbr) = message {
+            println!("I accept to receive your message: {}", nbr);
+            return Ok(());
+        } else {
+            println!("Use next handler please");
+            return Err(());
+        }
     }
     
     pub fn run_next_time_step(&mut self, time: f32) -> f32 {
@@ -139,6 +163,7 @@ impl Turtlebot {
             self.physic.apply_command(&command, time);
 
             self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::String(String::from("Bonjour")));
+            self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::Number(serde_json::value::Number::from_f64(3.2).unwrap()));
         }
         
         self.next_time_step = 
@@ -168,5 +193,16 @@ impl Turtlebot {
 
     pub fn network(&self) -> Arc<RwLock<Network>> {
         Arc::clone(&self.network)
+    }
+}
+
+impl MessageHandler for Turtlebot {
+    fn handle_message(&mut self, from: &String, message: &Value) -> Result<(),()> {
+        if self.message_callback_str(&message).is_ok() {
+            return Ok(());
+        } else if self.message_callback_number(&message).is_ok() {
+            return Ok(());
+        }
+        Err(())
     }
 }

@@ -5,6 +5,7 @@ use std::fmt;
 use serde_derive::{Serialize, Deserialize};
 use serde_json::Value;
 
+use super::message_handler::MessageHandler;
 use super::network_manager::NetworkManager;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -27,7 +28,8 @@ pub struct Network {
     from: String,
     range: f32,
     delay: f32,
-    network_manager: Option<Arc<RwLock<NetworkManager>>>
+    network_manager: Option<Arc<RwLock<NetworkManager>>>,
+    message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>
 }
 
 impl fmt::Debug for Network {
@@ -50,7 +52,8 @@ impl Network {
             from: from,
             range: config.range,
             delay: config.delay,
-            network_manager: None
+            network_manager: None,
+            message_handlers: Vec::new()
         }
     }
 
@@ -65,5 +68,14 @@ impl Network {
 
     pub fn receive(&mut self, from: String, message: Value) {
         println!("Receive message from {from}:\n{:?}", message);
+        for handler in &self.message_handlers {
+            if handler.write().unwrap().handle_message(&from, &message).is_ok() {
+                break;
+            }
+        }
+    }
+
+    pub fn subscribe(&mut self, handler: Arc<RwLock<dyn MessageHandler>>) {
+        self.message_handlers.push(handler);
     }
 }
