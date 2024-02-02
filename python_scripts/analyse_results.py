@@ -26,7 +26,10 @@ class TurtleData:
 
 all_turtles_data = dict()
 
-for row in data:
+config = data["config"]
+record = data["record"]
+
+for row in record:
     turtle = row["turtle"]["name"]
     if not turtle in all_turtles_data:
         all_turtles_data[turtle] = TurtleData()
@@ -45,6 +48,9 @@ for row in data:
     state_estimator = row["turtle"]["state_estimator"]
     if "Perfect" in state_estimator:
         estimated_pose = np.array(state_estimator["Perfect"]["state"]["pose"])
+        turtle_data.estimated_poses.append(estimated_pose)
+    elif "External" in state_estimator:
+        estimated_pose = np.array(state_estimator["External"]["state"]["pose"])
         turtle_data.estimated_poses.append(estimated_pose)
     else:
         raise Exception(f"State Estimator module not known: {state_estimator}")
