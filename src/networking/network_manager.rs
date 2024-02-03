@@ -31,4 +31,12 @@ impl NetworkManager {
             }
         }
     }
+
+    pub fn broadcast_from(&mut self, from: String, message: Value) {
+        for (to, network) in &self.turtles_networks {
+            if from != to.clone() {
+                network.write().unwrap().receive(from.clone(), message.clone());
+            }
+        }
+    }
 }

@@ -66,8 +66,14 @@ impl Network {
         self.network_manager.as_mut().unwrap().write().unwrap().send_from_to(self.from.clone(), recipient, message);
     }
 
+    pub fn broadcast(&mut self, message: Value) {
+        assert!(self.network_manager.is_some(), "Manager should be set.");
+        self.network_manager.as_mut().unwrap().write().unwrap().broadcast_from(self.from.clone(), message);
+    }
+
     pub fn receive(&mut self, from: String, message: Value) {
         println!("Receive message from {from}:\n{:?}", message);
+        // TODO: add delay and range
         for handler in &self.message_handlers {
             if handler.write().unwrap().handle_message(&from, &message).is_ok() {
                 break;

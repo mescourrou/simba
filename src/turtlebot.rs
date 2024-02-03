@@ -164,6 +164,9 @@ impl Turtlebot {
 
             self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::String(String::from("Bonjour")));
             self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::Number(serde_json::value::Number::from_f64(3.2).unwrap()));
+
+            self.network.write().unwrap().broadcast(serde_json::Value::String(String::from("Bonjour tout le monde")));
+            self.network.write().unwrap().broadcast(serde_json::Value::Number(serde_json::value::Number::from_f64(5.1).unwrap()));
         }
         
         self.next_time_step = 
