@@ -16,7 +16,7 @@ pub enum NavigatorRecord {
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerRecord)
 }
 
-pub trait Navigator : std::fmt::Debug {
+pub trait Navigator : std::fmt::Debug + std::marker::Send + std::marker::Sync {
     fn compute_error(&mut self, state: &State) -> ControllerError;
     fn record(&self) ->  NavigatorRecord;
 }

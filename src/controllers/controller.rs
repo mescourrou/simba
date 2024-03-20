@@ -24,7 +24,7 @@ pub enum ControllerRecord {
 }
 
 
-pub trait Controller : std::fmt::Debug {
+pub trait Controller : std::fmt::Debug + std::marker::Send + std::marker::Sync {
     fn make_command(&mut self, error: &ControllerError, time: f32) -> Command;
     fn record(&self) -> ControllerRecord;
 }

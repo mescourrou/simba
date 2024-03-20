@@ -10,7 +10,8 @@ use std::path::Path;
 
 use std::default::Default;
 use serde_json;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, Mutex};
+use std::thread;
 // use csv::WriterBuilder;
 use std::io::prelude::*;
 use std::fs::File;
@@ -97,40 +98,56 @@ impl Simulator {
         //                 .has_headers(false)
         //                 .from_path("result.csv")
         //                 .expect("Impossible to create csv writer");
-        let mut recording_file = File::create("result.json").expect("Impossible to create record file");
-        let _ = recording_file.write(b"{\"config\": ");
-        serde_json::to_writer(&recording_file, &self.config).expect("Error during json serialization");
-        let _ = recording_file.write(b",\n\"record\": [\n");
-        let mut first_row_done = false;
+        let recording_file_rw: Arc<RwLock<File>> = Arc::new(RwLock::new(File::create("result.json").expect("Impossible to create record file")));
+    
+        let _ = recording_file_rw.write().unwrap().write(b"{\"config\": ");
+        serde_json::to_writer(&*recording_file_rw.write().unwrap(), &self.config).expect("Error during json serialization");
+        let _ = recording_file_rw.write().unwrap().write(b",\n\"record\": [\n");
+    
+        let mut handles = vec![];
+
+        for turtle in &self.turtles {
+            let new_recording_file = Arc::clone(&recording_file_rw);
+            let new_turtle = Arc::clone(turtle);
+            let new_max_time = max_time.clone();
+            let handle = thread::spawn(move || Self::run_one_turtle(new_turtle, new_max_time, new_recording_file));
+            handles.push(handle);
+        }
+
+        for handle in handles {
+            handle.join().unwrap();
+        }
+        
+        {
+            let mut recording_file_open = recording_file_rw.write().unwrap();
+            
+            let pos = recording_file_open.stream_position().ok().unwrap() - 2;
+            let _ = recording_file_open.set_len(pos);
+            let _ = recording_file_open.write(b"\n]}");
+        }
+    }
+
+    fn run_one_turtle(turtle: Arc<RwLock<Turtlebot>>, max_time: f32, recording_file: Arc<RwLock<File>>) {
+        println!("Start thread of turtle {}", turtle.read().unwrap().name());
+        
         loop {
-            let mut best_turtle: usize = 0;
-            let mut best_time = f32::INFINITY;
-            for i in 0..self.turtles.len() {
-                let turtle = self.turtles[i].as_ref().read().unwrap();
-                let time = turtle.next_time_step();
-                // println!("Check turtle {} => next time is {}", i, time);
-                if time < best_time {
-                    best_turtle = i;
-                    best_time = time;
-                }
-            }
-            if best_time > max_time {
+            let next_time = turtle.read().unwrap().next_time_step();
+            if next_time > max_time {
                 break;
             }
-            if first_row_done {
-                let _ = recording_file.write(b",\n");
-            } else {
-                first_row_done = true;
-            }
-            let mut turtle = self.turtles[best_turtle].write().unwrap();
-            turtle.run_next_time_step(best_time);
+            
+            let mut turtle_open = turtle.write().unwrap();
+            turtle_open.run_next_time_step(next_time);
 
-            serde_json::to_writer(&recording_file, &Record {
-                    time: best_time,
-                    turtle: turtle.record()
-                }).expect("Error during json serialization");
+            {
+                let mut recording_file_open = recording_file.write().unwrap();
+                serde_json::to_writer(&*recording_file_open, &Record {
+                        time: next_time,
+                        turtle: turtle_open.record()
+                    }).expect("Error during json serialization");
                 
+                let _ = recording_file_open.write(b",\n");
+            }
         }
-        let _ = recording_file.write(b"]}");
     }
 }

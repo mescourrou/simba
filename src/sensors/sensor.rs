@@ -17,7 +17,7 @@ pub enum SensorRecord {
     OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorRecord)
 }
 
-pub trait Sensor : std::fmt::Debug {
+pub trait Sensor : std::fmt::Debug + std::marker::Send + std::marker::Sync {
     fn get_observations(&mut self, physic: &dyn Physic, time: f32) -> Vec<Box<dyn GenericObservation>>;
     fn record(&self) ->  SensorRecord;
     fn next_time_step(&self) -> f32;

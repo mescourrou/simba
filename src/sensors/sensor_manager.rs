@@ -1,5 +1,6 @@
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
+use std::sync::{Arc, RwLock};
 
 use crate::{physics::physic::Physic, plugin_api};
 
@@ -21,7 +22,7 @@ impl Default for SensorManagerConfig {
 
 #[derive(Debug)]
 pub struct SensorManager {
-    sensors: Vec<Box<dyn Sensor>>,
+    sensors: Vec<Arc<RwLock<Box<dyn Sensor>>>>,
     next_time: f32
 }
 
@@ -36,10 +37,10 @@ impl SensorManager {
     pub fn from_config(config: &SensorManagerConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {
-            manager.sensors.push(Box::new(
+            manager.sensors.push(Arc::new(RwLock::new(Box::new(
                 match &sensor_config {
                     SensorConfig::OrientedLandmarkSensor(c) => OrientedLandmarkSensor::from_config(c, plugin_api)
-                }));
+                }))));
         }
         manager
     }
@@ -48,11 +49,11 @@ impl SensorManager {
         let mut observations = Vec::<Box<dyn GenericObservation>>::new();
         let mut min_next_time = f32::INFINITY;
         for sensor in &mut self.sensors {
-            let sensor_observations = sensor.get_observations(physic, time);
+            let sensor_observations = sensor.write().unwrap().get_observations(physic, time);
             for obs in sensor_observations {
                 observations.push(obs);
             }
-            min_next_time = min_next_time.min(sensor.next_time_step());
+            min_next_time = min_next_time.min(sensor.read().unwrap().next_time_step());
         }
         self.next_time = min_next_time;
         observations

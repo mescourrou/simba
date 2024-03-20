@@ -1,5 +1,6 @@
 use std::sync::{Arc, RwLock};
 
+
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
 use super::navigators::trajectory_follower;
 
@@ -68,11 +69,11 @@ pub struct TurtlebotRecord {
 #[derive(Debug)]
 pub struct Turtlebot {
     name: String,
-    navigator: Box<dyn Navigator>,
-    controller: Box<dyn Controller>,
-    physic: Box<dyn Physic>,
-    state_estimator: Box<dyn StateEstimator>,
-    sensor_manager: SensorManager,
+    navigator: Arc<RwLock<Box<dyn Navigator>>>,
+    controller: Arc<RwLock<Box<dyn Controller>>>,
+    physic: Arc<RwLock<Box<dyn Physic>>>,
+    state_estimator: Arc<RwLock<Box<dyn StateEstimator>>>,
+    sensor_manager: Arc<RwLock<SensorManager>>,
     network: Arc<RwLock<Network>>,
     next_time_step: f32
 }
@@ -81,11 +82,11 @@ impl Turtlebot {
     pub fn new(name:String) -> Arc<RwLock<Self>> {
         Arc::new(RwLock::new(Self { 
             name: name.clone(),
-            navigator: Box::new(trajectory_follower::TrajectoryFollower::new()),
-            controller: Box::new(pid::PID::new()),
-            physic: Box::new(perfect_physic::PerfectPhysic::new()),
-            state_estimator: Box::new(perfect_estimator::PerfectEstimator::new()),
-            sensor_manager: SensorManager::new(),
+            navigator: Arc::new(RwLock::new(Box::new(trajectory_follower::TrajectoryFollower::new()))),
+            controller: Arc::new(RwLock::new(Box::new(pid::PID::new()))),
+            physic: Arc::new(RwLock::new(Box::new(perfect_physic::PerfectPhysic::new()))),
+            state_estimator: Arc::new(RwLock::new(Box::new(perfect_estimator::PerfectEstimator::new()))),
+            sensor_manager: Arc::new(RwLock::new(SensorManager::new())),
             network: Arc::new(RwLock::new(Network::new(name.clone()))),
             next_time_step: 0.
         }))
@@ -94,31 +95,31 @@ impl Turtlebot {
     pub fn from_config(config:&TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Arc<RwLock<Self>> {
         let mut turtle = Arc::new(RwLock::new(Self {
             name: config.name.clone(),
-            navigator: Box::new(
+            navigator: Arc::new(RwLock::new(Box::new(
                 match &config.navigator {
                     NavigatorConfig::TrajectoryFollower(c) => trajectory_follower::TrajectoryFollower::from_config(c, plugin_api)
                 }
-            ),
-            controller: Box::new(
+            ))),
+            controller: Arc::new(RwLock::new(Box::new(
                 match &config.controller {
                     ControllerConfig::PID(c) => pid::PID::from_config(c, plugin_api)
                 }
-            ),
-            physic: Box::new(
+            ))),
+            physic: Arc::new(RwLock::new(Box::new(
                 match &config.physic {
                     PhysicConfig::Perfect(c) => perfect_physic::PerfectPhysic::from_config(c, plugin_api)
                 }
-            ),
+            ))),
             state_estimator: 
                 match &config.state_estimator {
-                    StateEstimatorConfig::Perfect(c) => Box::new(perfect_estimator::PerfectEstimator::from_config(c, plugin_api)) as Box<dyn StateEstimator>,
-                    StateEstimatorConfig::External(c) => Box::new(external_estimator::ExternalEstimator::from_config(c, plugin_api)) as Box<dyn StateEstimator>
+                    StateEstimatorConfig::Perfect(c) => Arc::new(RwLock::new(Box::new(perfect_estimator::PerfectEstimator::from_config(c, plugin_api)) as Box<dyn StateEstimator>)),
+                    StateEstimatorConfig::External(c) => Arc::new(RwLock::new(Box::new(external_estimator::ExternalEstimator::from_config(c, plugin_api)) as Box<dyn StateEstimator>))
                 },
-            sensor_manager: SensorManager::from_config(&config.sensor_manager, plugin_api),
+            sensor_manager: Arc::new(RwLock::new(SensorManager::from_config(&config.sensor_manager, plugin_api))),
             network: Arc::new(RwLock::new(Network::from_config(config.name.clone(), &config.network))),
             next_time_step: 0.
         }));
-        let next_time_step = turtle.read().unwrap().state_estimator.next_time_step();
+        let next_time_step = turtle.read().unwrap().state_estimator.read().unwrap().next_time_step();
         turtle.write().unwrap().next_time_step = next_time_step;
         turtle.write().unwrap().network.write().unwrap().subscribe(Arc::<RwLock<Turtlebot>>::clone(&turtle));
         turtle
@@ -143,24 +144,26 @@ impl Turtlebot {
             return Err(());
         }
     }
+
+    
     
     pub fn run_next_time_step(&mut self, time: f32) -> f32 {
         if time < self.next_time_step {
             return self.next_time_step;
         }
         println!("Run time {}", time);
-        self.physic.update_state(time);
-        let observations = self.sensor_manager.get_observations(self.physic.as_ref(), time);
-        self.state_estimator.correction_step(observations, time, self.physic.as_ref());
-        if time >= self.state_estimator.next_time_step() {
-            self.state_estimator.prediction_step(time, self.physic.as_ref());
-            let state = self.state_estimator.state();
+        self.physic.write().unwrap().update_state(time);
+        let observations = self.sensor_manager.write().unwrap().get_observations(self.physic.read().unwrap().as_ref(), time);
+        self.state_estimator.write().unwrap().correction_step(observations, time, self.physic.read().unwrap().as_ref());
+        if time >= self.state_estimator.read().unwrap().next_time_step() {
+            self.state_estimator.write().unwrap().prediction_step(time, self.physic.read().unwrap().as_ref());
+            let state = self.state_estimator.read().unwrap().state();
             // println!("State: {:?}", state);
-            let error = self.navigator.compute_error(&state);
+            let error = self.navigator.write().unwrap().compute_error(&state);
             // println!("Error: {:?}", error);
-            let command = self.controller.make_command(&error, time);
+            let command = self.controller.write().unwrap().make_command(&error, time);
             // println!("Command: {:?}", command);
-            self.physic.apply_command(&command, time);
+            self.physic.write().unwrap().apply_command(&command, time);
 
             self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::String(String::from("Bonjour")));
             self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::Number(serde_json::value::Number::from_f64(3.2).unwrap()));
@@ -170,8 +173,8 @@ impl Turtlebot {
         }
         
         self.next_time_step = 
-            self.state_estimator.next_time_step()
-            .min(self.sensor_manager.next_time_step());
+            self.state_estimator.read().unwrap().next_time_step()
+            .min(self.sensor_manager.read().unwrap().next_time_step());
         // println!("{}: {}", time, state);
         self.next_time_step
     }
@@ -183,10 +186,10 @@ impl Turtlebot {
     pub fn record(&self) -> TurtlebotRecord {
         TurtlebotRecord {
             name: self.name.clone(),
-            navigator: self.navigator.record(),
-            controller: self.controller.record(),
-            physic: self.physic.record(),
-            state_estimator: self.state_estimator.record(),
+            navigator: self.navigator.read().unwrap().record(),
+            controller: self.controller.read().unwrap().record(),
+            physic: self.physic.read().unwrap().record(),
+            state_estimator: self.state_estimator.read().unwrap().record(),
         }
     }
 

@@ -22,7 +22,7 @@ pub enum PhysicRecord {
 
 use crate::state_estimators::state_estimator::State;
 
-pub trait Physic : std::fmt::Debug {
+pub trait Physic : std::fmt::Debug + std::marker::Send + std::marker::Sync {
     fn apply_command(&mut self, command: &Command, time: f32);
     fn update_state(&mut self, time: f32);
     fn state(&self, time: f32) -> &State;

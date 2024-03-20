@@ -22,20 +22,26 @@ impl NetworkManager {
     }
 
     pub fn send_from_to(&mut self, from: String, to: String, message: Value) {
+        println!("Send from {} to {}", from, to);
         if from == to {
             println!("Impossible to send a message to ourselve !");
         } else {
             let network_option = self.turtles_networks.get(&to);
             if let Some(network) = network_option {
+                println!("Calling receive from {} to {} !", from, to);
                 network.write().unwrap().receive(from, message);
+                println!("Call success");
             }
         }
     }
 
     pub fn broadcast_from(&mut self, from: String, message: Value) {
+        println!("Send broadcas from {}", from);
         for (to, network) in &self.turtles_networks {
             if from != to.clone() {
+                println!("Calling receive broadcast {} !", from);
                 network.write().unwrap().receive(from.clone(), message.clone());
+                println!("Call success");
             }
         }
     }

@@ -49,7 +49,7 @@ impl Network {
 
     pub fn from_config(from: String, config: &NetworkConfig) -> Network {
         Network {
-            from: from,
+            from,
             range: config.range,
             delay: config.delay,
             network_manager: None,
@@ -63,12 +63,16 @@ impl Network {
 
     pub fn send_to(&mut self, recipient: String, message: Value) {
         assert!(self.network_manager.is_some(), "Manager should be set.");
+        println!("Sent to");
         self.network_manager.as_mut().unwrap().write().unwrap().send_from_to(self.from.clone(), recipient, message);
+        println!("Out of Sent to");
     }
 
     pub fn broadcast(&mut self, message: Value) {
         assert!(self.network_manager.is_some(), "Manager should be set.");
+        println!("Broadcast");
         self.network_manager.as_mut().unwrap().write().unwrap().broadcast_from(self.from.clone(), message);
+        println!("Out of Broadcast");
     }
 
     pub fn receive(&mut self, from: String, message: Value) {
