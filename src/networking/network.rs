@@ -1,6 +1,7 @@
 extern crate confy;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, RwLock, mpsc, Mutex};
 use std::fmt;
+use std::collections::BTreeMap;
 
 use serde_derive::{Serialize, Deserialize};
 use serde_json::Value;
@@ -24,12 +25,16 @@ impl Default for NetworkConfig {
     }
 }
 
+#[derive(Clone)]
 pub struct Network {
     from: String,
     range: f32,
     delay: f32,
     network_manager: Option<Arc<RwLock<NetworkManager>>>,
-    message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>
+    other_emitters: BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value)>>>>,
+    message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>,
+    channel_receiver: Arc<Mutex<mpsc::Receiver<(String, Value)>>>,
+    channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value)>>>,
 }
 
 impl fmt::Debug for Network {
@@ -48,12 +53,16 @@ impl Network {
     }
 
     pub fn from_config(from: String, config: &NetworkConfig) -> Network {
+        let (tx, rx) = mpsc::channel::<(String, Value)>();
         Network {
             from,
             range: config.range,
             delay: config.delay,
             network_manager: None,
-            message_handlers: Vec::new()
+            other_emitters: BTreeMap::new(),
+            message_handlers: Vec::new(),
+            channel_receiver: Arc::new(Mutex::new(rx)),
+            channel_emitter: Arc::new(Mutex::new(tx))
         }
     }
 
@@ -61,28 +70,44 @@ impl Network {
         self.network_manager = Some(network_manager);
     }
 
+    pub fn get_emitter(&mut self) -> mpsc::Sender<(String, Value)> {
+        self.channel_emitter.lock().unwrap().clone()
+    }
+
+    pub fn add_emitter(&mut self, turtle_name: String, emitter: mpsc::Sender<(String, Value)>) {
+        self.other_emitters.insert(turtle_name, Arc::new(Mutex::new(emitter)));
+    }
+
     pub fn send_to(&mut self, recipient: String, message: Value) {
-        assert!(self.network_manager.is_some(), "Manager should be set.");
-        println!("Sent to");
-        self.network_manager.as_mut().unwrap().write().unwrap().send_from_to(self.from.clone(), recipient, message);
-        println!("Out of Sent to");
+        let emitter_option = self.other_emitters.get(&recipient);
+        if let Some(emitter) = emitter_option {
+            let _ = emitter.lock().unwrap().send((self.from.clone(), message));
+        }
     }
 
     pub fn broadcast(&mut self, message: Value) {
-        assert!(self.network_manager.is_some(), "Manager should be set.");
-        println!("Broadcast");
-        self.network_manager.as_mut().unwrap().write().unwrap().broadcast_from(self.from.clone(), message);
-        println!("Out of Broadcast");
+        for (_, emitter) in &self.other_emitters {
+            let _ = emitter.lock().unwrap().send((self.from.clone(), message.clone()));
+        }
     }
 
-    pub fn receive(&mut self, from: String, message: Value) {
-        println!("Receive message from {from}:\n{:?}", message);
-        // TODO: add delay and range
-        for handler in &self.message_handlers {
-            if handler.write().unwrap().handle_message(&from, &message).is_ok() {
-                break;
+    pub fn handle_messages(&mut self) {
+        println!("Handle messages by {}", self.from);
+        let rx = self.channel_receiver.lock().unwrap();
+        for (from, message) in rx.try_iter() {
+            println!("Receive message from {from}: {:?}", message);
+            // TODO: add delay and range
+            println!("Handler list size: {}", self.message_handlers.len());
+            for handler in &self.message_handlers {
+                println!("Handler available: {:?}", handler.try_write().is_ok());
+                if handler.write().unwrap().handle_message(&from, &message).is_ok() {
+                    println!("Found handler");
+                    break;
+                }
             }
+            println!("End of handler list");
         }
+        println!("End of message handling by {}", self.from);
     }
 
     pub fn subscribe(&mut self, handler: Arc<RwLock<dyn MessageHandler>>) {

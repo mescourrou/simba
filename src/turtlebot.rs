@@ -176,6 +176,8 @@ impl Turtlebot {
             self.state_estimator.read().unwrap().next_time_step()
             .min(self.sensor_manager.read().unwrap().next_time_step());
         // println!("{}: {}", time, state);
+        self.network().write().unwrap().handle_messages();
+
         self.next_time_step
     }
 
