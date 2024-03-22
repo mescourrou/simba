@@ -63,6 +63,47 @@ pub struct TurtlebotRecord {
     
 }
 
+#[derive(Clone, Debug)]
+pub struct TurtlebotGenericMessageHandler {
+    
+}
+
+impl TurtlebotGenericMessageHandler {
+    pub fn new() -> Self {
+        TurtlebotGenericMessageHandler {}
+    }
+
+    pub fn message_callback_str(&mut self, message: &Value) -> Result<(), ()> {
+        if let Value::String(str_msg) = message {
+            println!("I accept to receive your message: {}", str_msg);
+            return Ok(());
+        } else {
+            println!("Use next handler please");
+            return Err(());
+        }
+    }
+
+    pub fn message_callback_number(&mut self, message: &Value) -> Result<(), ()> {
+        if let Value::Number(nbr) = message {
+            println!("I accept to receive your message: {}", nbr);
+            return Ok(());
+        } else {
+            println!("Use next handler please");
+            return Err(());
+        }
+    }
+}
+
+impl MessageHandler for TurtlebotGenericMessageHandler {
+    fn handle_message(&mut self, from: &String, message: &Value) -> Result<(),()> {
+        if self.message_callback_str(&message).is_ok() {
+            return Ok(());
+        } else if self.message_callback_number(&message).is_ok() {
+            return Ok(());
+        }
+        Err(())
+    }
+}
 
 // Turtlebot itself
 
@@ -75,6 +116,7 @@ pub struct Turtlebot {
     state_estimator: Arc<RwLock<Box<dyn StateEstimator>>>,
     sensor_manager: Arc<RwLock<SensorManager>>,
     network: Arc<RwLock<Network>>,
+    message_handler: Arc<RwLock<TurtlebotGenericMessageHandler>>,
     next_time_step: f32
 }
 
@@ -88,6 +130,7 @@ impl Turtlebot {
             state_estimator: Arc::new(RwLock::new(Box::new(perfect_estimator::PerfectEstimator::new()))),
             sensor_manager: Arc::new(RwLock::new(SensorManager::new())),
             network: Arc::new(RwLock::new(Network::new(name.clone()))),
+            message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
             next_time_step: 0.
         }))
     }
@@ -117,35 +160,18 @@ impl Turtlebot {
                 },
             sensor_manager: Arc::new(RwLock::new(SensorManager::from_config(&config.sensor_manager, plugin_api))),
             network: Arc::new(RwLock::new(Network::from_config(config.name.clone(), &config.network))),
+            message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
             next_time_step: 0.
         }));
         let next_time_step = turtle.read().unwrap().state_estimator.read().unwrap().next_time_step();
         turtle.write().unwrap().next_time_step = next_time_step;
-        turtle.write().unwrap().network.write().unwrap().subscribe(Arc::<RwLock<Turtlebot>>::clone(&turtle));
+        {
+            let writable_turtle = turtle.write().unwrap();
+            writable_turtle.network.write().unwrap().subscribe(Arc::<RwLock<TurtlebotGenericMessageHandler>>::clone(&writable_turtle.message_handler));
+        }
         turtle
     }
-
-    pub fn message_callback_str(&mut self, message: &Value) -> Result<(), ()> {
-        if let Value::String(str_msg) = message {
-            println!("I accept to receive your message: {}", str_msg);
-            return Ok(());
-        } else {
-            println!("Use next handler please");
-            return Err(());
-        }
-    }
-
-    pub fn message_callback_number(&mut self, message: &Value) -> Result<(), ()> {
-        if let Value::Number(nbr) = message {
-            println!("I accept to receive your message: {}", nbr);
-            return Ok(());
-        } else {
-            println!("Use next handler please");
-            return Err(());
-        }
-    }
-
-    
+   
     
     pub fn run_next_time_step(&mut self, time: f32) -> f32 {
         if time < self.next_time_step {
@@ -204,13 +230,3 @@ impl Turtlebot {
     }
 }
 
-impl MessageHandler for Turtlebot {
-    fn handle_message(&mut self, from: &String, message: &Value) -> Result<(),()> {
-        if self.message_callback_str(&message).is_ok() {
-            return Ok(());
-        } else if self.message_callback_number(&message).is_ok() {
-            return Ok(());
-        }
-        Err(())
-    }
-}
