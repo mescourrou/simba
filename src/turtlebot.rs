@@ -12,6 +12,7 @@ use crate::networking::network::{Network, NetworkConfig};
 use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 use crate::physics::perfect_physic;
 
+use crate::sensors::sensor::Sensor;
 use crate::state_estimators::state_estimator::{StateEstimator, StateEstimatorConfig, StateEstimatorRecord};
 use crate::state_estimators::{perfect_estimator, external_estimator};
 
@@ -118,7 +119,7 @@ impl Turtlebot {
     }
 
     pub fn from_config(config:&TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Arc<RwLock<Self>> {
-        let mut turtle = Arc::new(RwLock::new(Self {
+        let turtle = Arc::new(RwLock::new(Self {
             name: config.name.clone(),
             navigator: Arc::new(RwLock::new(Box::new(
                 match &config.navigator {
@@ -161,15 +162,15 @@ impl Turtlebot {
         }
         println!("Run time {}", time);
         self.physic.write().unwrap().update_state(time);
-        let observations = self.sensor_manager.write().unwrap().get_observations(self, self.physic.read().unwrap().as_ref(), time);
-        self.state_estimator.write().unwrap().correction_step(self, observations, time, self.physic.read().unwrap().as_ref());
+        let observations = self.sensor_manager().write().unwrap().get_observations(self, time);
+        self.state_estimator().write().unwrap().correction_step(self, observations, time);
         if time >= self.state_estimator.read().unwrap().next_time_step() {
-            self.state_estimator.write().unwrap().prediction_step(self, time, self.physic.read().unwrap().as_ref());
+            self.state_estimator().write().unwrap().prediction_step(self, time);
             let state = self.state_estimator.read().unwrap().state();
             // println!("State: {:?}", state);
-            let error = self.navigator.write().unwrap().compute_error(self, &state);
+            let error = self.navigator().write().unwrap().compute_error(self, state);
             // println!("Error: {:?}", error);
-            let command = self.controller.write().unwrap().make_command(self, &error, time);
+            let command = self.controller().write().unwrap().make_command(self, &error, time);
             // println!("Command: {:?}", command);
             self.physic.write().unwrap().apply_command(&command, time);
 
@@ -209,6 +210,26 @@ impl Turtlebot {
 
     pub fn network(&self) -> Arc<RwLock<Network>> {
         Arc::clone(&self.network)
+    }
+
+    pub fn physics(&self) -> Arc<RwLock<Box<dyn Physic>>> {
+        Arc::clone(&self.physic)
+    }
+
+    pub fn sensor_manager(&self) -> Arc<RwLock<SensorManager>> {
+        Arc::clone(&self.sensor_manager)
+    }
+
+    pub fn state_estimator(&self) -> Arc<RwLock<Box<dyn StateEstimator>>> {
+        Arc::clone(&self.state_estimator)
+    }
+
+    pub fn navigator(&self) -> Arc<RwLock<Box<dyn Navigator>>> {
+        Arc::clone(&self.navigator)
+    }
+
+    pub fn controller(&self) -> Arc<RwLock<Box<dyn Controller>>> {
+        Arc::clone(&self.controller)
     }
 
     pub fn message_callback_str(&mut self, message: &Value) -> Result<(), ()> {

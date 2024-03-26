@@ -46,11 +46,11 @@ impl SensorManager {
         manager
     }
 
-    pub fn get_observations(&mut self, turtle: &mut Turtlebot, physic: &dyn Physic, time: f32) -> Vec<Box<dyn GenericObservation>> {
+    pub fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Box<dyn GenericObservation>> {
         let mut observations = Vec::<Box<dyn GenericObservation>>::new();
         let mut min_next_time = f32::INFINITY;
         for sensor in &mut self.sensors {
-            let sensor_observations = sensor.write().unwrap().get_observations(turtle, physic, time);
+            let sensor_observations = sensor.write().unwrap().get_observations(turtle, time);
             for obs in sensor_observations {
                 observations.push(obs);
             }

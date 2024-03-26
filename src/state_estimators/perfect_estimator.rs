@@ -1,7 +1,7 @@
 // Configuration for PerfectPhysic
 use serde_derive::{Serialize, Deserialize};
 use super::state_estimator::{State, StateRecord};
-use crate::sensors::sensor::GenericObservation;
+use crate::{physics::physic, sensors::sensor::GenericObservation};
 use crate::plugin_api::PluginAPI;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -54,7 +54,9 @@ use super::state_estimator::{StateEstimator, StateEstimatorRecord};
 use crate::turtlebot::Turtlebot;
 
 impl StateEstimator for PerfectEstimator {
-    fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32, physic: &dyn Physic) {
+    fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32) {
+        let arc_physic = turtle.physics();
+        let mut physic = arc_physic.read().unwrap();
         if time < self.next_time_step() {
             println!("Error trying to update estimate too soon !");
             return;
@@ -63,7 +65,7 @@ impl StateEstimator for PerfectEstimator {
         self.last_time_update = time;
     }
 
-    fn correction_step(&mut self, turtle: &mut Turtlebot, observations: Vec<Box<dyn GenericObservation>>, _time: f32, _physic: &dyn Physic) {
+    fn correction_step(&mut self, turtle: &mut Turtlebot, observations: Vec<Box<dyn GenericObservation>>, _time: f32) {
         println!("Receive observations, but not needed, I'm perfect !\n{:?}", observations);
     }
 

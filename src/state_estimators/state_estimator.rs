@@ -99,8 +99,8 @@ use crate::physics::physic::Physic;
 use crate::sensors::sensor::GenericObservation;
 
 pub trait StateEstimator : std::fmt::Debug  + std::marker::Send + std::marker::Sync {
-    fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32, physic: &dyn Physic);
-    fn correction_step(&mut self, turtle: &mut Turtlebot, observations: Vec<Box<dyn GenericObservation>>, time: f32, physic: &dyn Physic);
+    fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32);
+    fn correction_step(&mut self, turtle: &mut Turtlebot, observations: Vec<Box<dyn GenericObservation>>, time: f32);
     fn state(&self) -> State;
     fn next_time_step(&self) -> f32;
     fn record(&self) ->  StateEstimatorRecord;

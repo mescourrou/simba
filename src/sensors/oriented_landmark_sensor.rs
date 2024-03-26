@@ -1,5 +1,5 @@
 use super::sensor::{Sensor, SensorRecord, GenericObservation};
-use crate::physics::physic::Physic;
+use crate::physics::physic::{self, Physic};
 
 use crate::plugin_api::PluginAPI;
 use serde_derive::{Serialize, Deserialize};
@@ -255,7 +255,9 @@ impl OrientedLandmarkSensor {
 use crate::turtlebot::Turtlebot;
 
 impl Sensor for OrientedLandmarkSensor {
-    fn get_observations(&mut self, turtle: &mut Turtlebot, physic: &dyn Physic, time: f32) -> Vec<Box<dyn GenericObservation>> {
+    fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Box<dyn GenericObservation>> {
+        let arc_physic = turtle.physics();
+        let mut physic = arc_physic.read().unwrap();
         let mut observation_list = Vec::<Box<dyn GenericObservation>>::new();
         if time < self.next_time_step() {
             return observation_list;
