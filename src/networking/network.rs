@@ -6,6 +6,8 @@ use std::collections::BTreeMap;
 use serde_derive::{Serialize, Deserialize};
 use serde_json::Value;
 
+use crate::turtlebot::Turtlebot;
+
 use super::message_handler::MessageHandler;
 use super::network_manager::NetworkManager;
 
@@ -91,7 +93,7 @@ impl Network {
         }
     }
 
-    pub fn handle_messages(&mut self) {
+    pub fn handle_messages(&mut self, turtle: &mut Turtlebot) {
         println!("Handle messages by {}", self.from);
         let rx = self.channel_receiver.lock().unwrap();
         for (from, message) in rx.try_iter() {
@@ -100,7 +102,7 @@ impl Network {
             println!("Handler list size: {}", self.message_handlers.len());
             for handler in &self.message_handlers {
                 println!("Handler available: {:?}", handler.try_write().is_ok());
-                if handler.write().unwrap().handle_message(&from, &message).is_ok() {
+                if handler.write().unwrap().handle_message(turtle, &from, &message).is_ok() {
                     println!("Found handler");
                     break;
                 }

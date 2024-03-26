@@ -73,32 +73,14 @@ impl TurtlebotGenericMessageHandler {
         TurtlebotGenericMessageHandler {}
     }
 
-    pub fn message_callback_str(&mut self, message: &Value) -> Result<(), ()> {
-        if let Value::String(str_msg) = message {
-            println!("I accept to receive your message: {}", str_msg);
-            return Ok(());
-        } else {
-            println!("Use next handler please");
-            return Err(());
-        }
-    }
-
-    pub fn message_callback_number(&mut self, message: &Value) -> Result<(), ()> {
-        if let Value::Number(nbr) = message {
-            println!("I accept to receive your message: {}", nbr);
-            return Ok(());
-        } else {
-            println!("Use next handler please");
-            return Err(());
-        }
-    }
+    
 }
 
 impl MessageHandler for TurtlebotGenericMessageHandler {
-    fn handle_message(&mut self, from: &String, message: &Value) -> Result<(),()> {
-        if self.message_callback_str(&message).is_ok() {
+    fn handle_message(&mut self, turtle: &mut Turtlebot, from: &String, message: &Value) -> Result<(),()> {
+        if turtle.message_callback_str(&message).is_ok() {
             return Ok(());
-        } else if self.message_callback_number(&message).is_ok() {
+        } else if turtle.message_callback_number(&message).is_ok() {
             return Ok(());
         }
         Err(())
@@ -179,15 +161,15 @@ impl Turtlebot {
         }
         println!("Run time {}", time);
         self.physic.write().unwrap().update_state(time);
-        let observations = self.sensor_manager.write().unwrap().get_observations(self.physic.read().unwrap().as_ref(), time);
-        self.state_estimator.write().unwrap().correction_step(observations, time, self.physic.read().unwrap().as_ref());
+        let observations = self.sensor_manager.write().unwrap().get_observations(self, self.physic.read().unwrap().as_ref(), time);
+        self.state_estimator.write().unwrap().correction_step(self, observations, time, self.physic.read().unwrap().as_ref());
         if time >= self.state_estimator.read().unwrap().next_time_step() {
-            self.state_estimator.write().unwrap().prediction_step(time, self.physic.read().unwrap().as_ref());
+            self.state_estimator.write().unwrap().prediction_step(self, time, self.physic.read().unwrap().as_ref());
             let state = self.state_estimator.read().unwrap().state();
             // println!("State: {:?}", state);
-            let error = self.navigator.write().unwrap().compute_error(&state);
+            let error = self.navigator.write().unwrap().compute_error(self, &state);
             // println!("Error: {:?}", error);
-            let command = self.controller.write().unwrap().make_command(&error, time);
+            let command = self.controller.write().unwrap().make_command(self, &error, time);
             // println!("Command: {:?}", command);
             self.physic.write().unwrap().apply_command(&command, time);
 
@@ -202,7 +184,7 @@ impl Turtlebot {
             self.state_estimator.read().unwrap().next_time_step()
             .min(self.sensor_manager.read().unwrap().next_time_step());
         // println!("{}: {}", time, state);
-        self.network().write().unwrap().handle_messages();
+        self.network().write().unwrap().handle_messages(self);
 
         self.next_time_step
     }
@@ -227,6 +209,26 @@ impl Turtlebot {
 
     pub fn network(&self) -> Arc<RwLock<Network>> {
         Arc::clone(&self.network)
+    }
+
+    pub fn message_callback_str(&mut self, message: &Value) -> Result<(), ()> {
+        if let Value::String(str_msg) = message {
+            println!("I accept to receive your message: {}", str_msg);
+            return Ok(());
+        } else {
+            println!("Use next handler please");
+            return Err(());
+        }
+    }
+
+    pub fn message_callback_number(&mut self, message: &Value) -> Result<(), ()> {
+        if let Value::Number(nbr) = message {
+            println!("I accept to receive your message: {}", nbr);
+            return Ok(());
+        } else {
+            println!("Use next handler please");
+            return Err(());
+        }
     }
 }
 

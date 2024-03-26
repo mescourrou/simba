@@ -31,6 +31,7 @@ pub struct ExternalEstimatorRecord {
 
 
 use crate::physics::physic::Physic;
+use crate::turtlebot::Turtlebot;
 
 pub struct ExternalEstimator {
     state_estimator: Box<dyn StateEstimator>
@@ -59,16 +60,16 @@ impl std::fmt::Debug for ExternalEstimator {
 
 
 impl StateEstimator for ExternalEstimator {
-    fn prediction_step(&mut self, time: f32, physic: &dyn Physic) {
+    fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32, physic: &dyn Physic) {
         if time < self.next_time_step() {
             println!("Error trying to update estimate too soon !");
             return;
         }
-        self.state_estimator.prediction_step(time, physic);
+        self.state_estimator.prediction_step(turtle, time, physic);
     }
 
-    fn correction_step(&mut self, observations: Vec<Box<dyn GenericObservation>>, time: f32, physic: &dyn Physic) {
-        self.state_estimator.correction_step(observations, time, physic);
+    fn correction_step(&mut self, turtle: &mut Turtlebot, observations: Vec<Box<dyn GenericObservation>>, time: f32, physic: &dyn Physic) {
+        self.state_estimator.correction_step(turtle, observations, time, physic);
     }
 
     fn state(&self) -> State {

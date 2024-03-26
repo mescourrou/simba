@@ -3,6 +3,7 @@ use serde_derive::{Serialize, Deserialize};
 use std::sync::{Arc, RwLock};
 
 use crate::{physics::physic::Physic, plugin_api};
+use crate::turtlebot::Turtlebot;
 
 use super::{sensor::{Sensor, SensorConfig, GenericObservation}, oriented_landmark_sensor::OrientedLandmarkSensor};
 use crate::plugin_api::PluginAPI;
@@ -45,11 +46,11 @@ impl SensorManager {
         manager
     }
 
-    pub fn get_observations(&mut self, physic: &dyn Physic, time: f32) -> Vec<Box<dyn GenericObservation>> {
+    pub fn get_observations(&mut self, turtle: &mut Turtlebot, physic: &dyn Physic, time: f32) -> Vec<Box<dyn GenericObservation>> {
         let mut observations = Vec::<Box<dyn GenericObservation>>::new();
         let mut min_next_time = f32::INFINITY;
         for sensor in &mut self.sensors {
-            let sensor_observations = sensor.write().unwrap().get_observations(physic, time);
+            let sensor_observations = sensor.write().unwrap().get_observations(turtle, physic, time);
             for obs in sensor_observations {
                 observations.push(obs);
             }

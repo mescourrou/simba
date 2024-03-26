@@ -252,8 +252,10 @@ impl OrientedLandmarkSensor {
     }
 }
 
+use crate::turtlebot::Turtlebot;
+
 impl Sensor for OrientedLandmarkSensor {
-    fn get_observations(&mut self, physic: &dyn Physic, time: f32) -> Vec<Box<dyn GenericObservation>> {
+    fn get_observations(&mut self, turtle: &mut Turtlebot, physic: &dyn Physic, time: f32) -> Vec<Box<dyn GenericObservation>> {
         let mut observation_list = Vec::<Box<dyn GenericObservation>>::new();
         if time < self.next_time_step() {
             return observation_list;

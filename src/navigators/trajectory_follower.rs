@@ -101,10 +101,11 @@ impl TrajectoryFollower {
 
 use crate::state_estimators::state_estimator::State;
 use crate::controllers::controller::ControllerError;
+use crate::turtlebot::Turtlebot;
 
 impl Navigator for TrajectoryFollower {
 
-    fn compute_error(&mut self, state: &State) -> ControllerError {
+    fn compute_error(&mut self, turtle: &mut Turtlebot, state: &State) -> ControllerError {
         let forward_pose = state.pose + self.forward_distance * Vector3::new(
             state.pose.z.cos(),
             state.pose.z.sin(),

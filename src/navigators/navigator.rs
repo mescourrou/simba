@@ -16,7 +16,9 @@ pub enum NavigatorRecord {
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerRecord)
 }
 
+use crate::turtlebot::Turtlebot;
+
 pub trait Navigator : std::fmt::Debug + std::marker::Send + std::marker::Sync {
-    fn compute_error(&mut self, state: &State) -> ControllerError;
+    fn compute_error(&mut self, turtle: &mut Turtlebot, state: &State) -> ControllerError;
     fn record(&self) ->  NavigatorRecord;
 }

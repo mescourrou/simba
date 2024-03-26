@@ -97,9 +97,10 @@ impl PID {
 use crate::controllers::controller::ControllerError;
 use crate::physics::physic::Command;
 use super::controller::{Controller, ControllerRecord};
+use crate::turtlebot::Turtlebot;
 
 impl Controller for PID {
-    fn make_command(&mut self, error: &ControllerError, time: f32) -> Command {
+    fn make_command(&mut self, turtle: &mut Turtlebot, error: &ControllerError, time: f32) -> Command {
         let dt = time - self.last_command_time;
         assert!(dt > 0., "PID delta time should be positive: {} - {} = {} > 0", time, self.last_command_time, dt);
         
