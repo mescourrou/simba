@@ -16,6 +16,20 @@ use std::thread;
 use std::io::prelude::*;
 use std::fs::File;
 
+#[derive(Clone)]
+pub struct SimulatorMetaConfig {
+    pub config_path: Option<Box<Path>>
+}
+
+impl SimulatorMetaConfig {
+    pub fn new() -> Self {
+        Self {
+            config_path: None
+        }
+    }
+}
+
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct SimulatorConfig {
@@ -61,24 +75,27 @@ impl Simulator {
             }
         };
         println!("Config: {:?}", config);
-        Simulator::from_config(&config, plugin_api)
+        let meta_config = SimulatorMetaConfig {
+            config_path: Some(Box::from(config_path))
+        };
+        Simulator::from_config(&config, plugin_api, meta_config)
     }
 
-    pub fn from_config(config:&SimulatorConfig, plugin_api: Option<Box<dyn PluginAPI>>) -> Simulator {
+    pub fn from_config(config:&SimulatorConfig, plugin_api: Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Simulator {
         let mut simulator = Simulator::new();
         simulator.config = config.clone();
 
         // Create turtles
         for turtle_config in &config.turtles {
-            simulator.add_turtlebot(turtle_config, &plugin_api);
+            simulator.add_turtlebot(turtle_config, &plugin_api, meta_config.clone());
             // simulator.turtles.push(Box::new(Turtlebot::from_config(turtle_config, &plugin_api)));
             // simulator.network_manager.register_turtle_network(simulator.turtles.last().expect("No turtle added to the vector, how is it possible ??").name(), simulator.turtles.last().expect("No turtle added to the vector, how is it possible ??").network());
         }
         simulator
     }
 
-    fn add_turtlebot(&mut self, turtle_config: &TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>) {
-        self.turtles.push(Turtlebot::from_config(turtle_config, &plugin_api));
+    fn add_turtlebot(&mut self, turtle_config: &TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) {
+        self.turtles.push(Turtlebot::from_config(turtle_config, &plugin_api, meta_config));
         let last_turtle = self.turtles.last().expect("No turtle added to the vector, how is it possible ??").write().unwrap();
         self.network_manager.write().unwrap().register_turtle_network(last_turtle.name(), last_turtle.network());
         last_turtle.network().write().unwrap().set_network_manager(Arc::clone(&self.network_manager));

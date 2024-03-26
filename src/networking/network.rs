@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use serde_derive::{Serialize, Deserialize};
 use serde_json::Value;
 
+use crate::simulator::SimulatorMetaConfig;
 use crate::turtlebot::Turtlebot;
 
 use super::message_handler::MessageHandler;
@@ -51,10 +52,10 @@ impl fmt::Debug for Network {
 
 impl Network {
     pub fn new(from: String) -> Network {
-        Network::from_config(from,&NetworkConfig::default())
+        Network::from_config(from,&NetworkConfig::default(), SimulatorMetaConfig::new())
     }
 
-    pub fn from_config(from: String, config: &NetworkConfig) -> Network {
+    pub fn from_config(from: String, config: &NetworkConfig, meta_config: SimulatorMetaConfig) -> Network {
         let (tx, rx) = mpsc::channel::<(String, Value)>();
         Network {
             from,

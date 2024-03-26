@@ -2,6 +2,7 @@ use serde_json::Value;
 
 use super::state_estimator::{State, StateEstimator};
 use crate::plugin_api::PluginAPI;
+use crate::simulator::SimulatorMetaConfig;
 
 
 use serde_derive::{Serialize, Deserialize};
@@ -39,10 +40,10 @@ pub struct ExternalEstimator {
 
 impl ExternalEstimator {
     pub fn new() -> Self {
-        Self::from_config(&ExternalEstimatorConfig::default(), &None)
+        Self::from_config(&ExternalEstimatorConfig::default(), &None, SimulatorMetaConfig::new())
     }
 
-    pub fn from_config(config: &ExternalEstimatorConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
+    pub fn from_config(config: &ExternalEstimatorConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Self {
         println!("Config given: {:?}", config);
         Self {
             state_estimator: plugin_api.as_ref().expect("Plugin API not set!").get_state_estimator(&config.config)

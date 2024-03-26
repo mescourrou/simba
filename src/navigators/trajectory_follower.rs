@@ -2,6 +2,7 @@ use super::trajectory::{Trajectory, TrajectoryConfig};
 use super::navigator::{Navigator, NavigatorRecord};
 
 use crate::plugin_api::PluginAPI;
+use crate::simulator::SimulatorMetaConfig;
 
 extern crate nalgebra as na;
 use na::Vector3;
@@ -67,12 +68,16 @@ impl TrajectoryFollower {
         }
     }
 
-    pub fn from_config(config: &TrajectoryFollowerConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
+    pub fn from_config(config: &TrajectoryFollowerConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Self {
         let mut path = Path::new(&config.trajectory_path);
         if config.trajectory_path == "" {
             return Self::new();
         }
-        let joined_path = Path::new("./configs").join(&config.trajectory_path);
+        let config_root_path = match &meta_config.config_path {
+            Some(p) => p.parent().unwrap(),
+            None => Path::new("")
+        };
+        let joined_path = config_root_path.join(&config.trajectory_path);
         if path.is_relative() {
             path = joined_path.as_path();
         }

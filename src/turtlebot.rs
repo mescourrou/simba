@@ -19,6 +19,7 @@ use crate::state_estimators::{perfect_estimator, external_estimator};
 use crate::sensors::sensor_manager::{SensorManagerConfig, SensorManager};
 
 use crate::plugin_api::PluginAPI;
+use crate::simulator::SimulatorMetaConfig;
 
 // Configuration for Turtlebot
 extern crate confy;
@@ -118,31 +119,31 @@ impl Turtlebot {
         }))
     }
 
-    pub fn from_config(config:&TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Arc<RwLock<Self>> {
+    pub fn from_config(config:&TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Arc<RwLock<Self>> {
         let turtle = Arc::new(RwLock::new(Self {
             name: config.name.clone(),
             navigator: Arc::new(RwLock::new(Box::new(
                 match &config.navigator {
-                    NavigatorConfig::TrajectoryFollower(c) => trajectory_follower::TrajectoryFollower::from_config(c, plugin_api)
+                    NavigatorConfig::TrajectoryFollower(c) => trajectory_follower::TrajectoryFollower::from_config(c, plugin_api, meta_config.clone())
                 }
             ))),
             controller: Arc::new(RwLock::new(Box::new(
                 match &config.controller {
-                    ControllerConfig::PID(c) => pid::PID::from_config(c, plugin_api)
+                    ControllerConfig::PID(c) => pid::PID::from_config(c, plugin_api, meta_config.clone())
                 }
             ))),
             physic: Arc::new(RwLock::new(Box::new(
                 match &config.physic {
-                    PhysicConfig::Perfect(c) => perfect_physic::PerfectPhysic::from_config(c, plugin_api)
+                    PhysicConfig::Perfect(c) => perfect_physic::PerfectPhysic::from_config(c, plugin_api, meta_config.clone())
                 }
             ))),
             state_estimator: 
                 match &config.state_estimator {
-                    StateEstimatorConfig::Perfect(c) => Arc::new(RwLock::new(Box::new(perfect_estimator::PerfectEstimator::from_config(c, plugin_api)) as Box<dyn StateEstimator>)),
-                    StateEstimatorConfig::External(c) => Arc::new(RwLock::new(Box::new(external_estimator::ExternalEstimator::from_config(c, plugin_api)) as Box<dyn StateEstimator>))
+                    StateEstimatorConfig::Perfect(c) => Arc::new(RwLock::new(Box::new(perfect_estimator::PerfectEstimator::from_config(c, plugin_api, meta_config.clone())) as Box<dyn StateEstimator>)),
+                    StateEstimatorConfig::External(c) => Arc::new(RwLock::new(Box::new(external_estimator::ExternalEstimator::from_config(c, plugin_api, meta_config.clone())) as Box<dyn StateEstimator>))
                 },
-            sensor_manager: Arc::new(RwLock::new(SensorManager::from_config(&config.sensor_manager, plugin_api))),
-            network: Arc::new(RwLock::new(Network::from_config(config.name.clone(), &config.network))),
+            sensor_manager: Arc::new(RwLock::new(SensorManager::from_config(&config.sensor_manager, plugin_api, meta_config.clone()))),
+            network: Arc::new(RwLock::new(Network::from_config(config.name.clone(), &config.network, meta_config.clone()))),
             message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
             next_time_step: 0.
         }));

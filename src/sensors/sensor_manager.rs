@@ -4,6 +4,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::{physics::physic::Physic, plugin_api};
 use crate::turtlebot::Turtlebot;
+use crate::simulator::SimulatorMetaConfig;
 
 use super::{sensor::{Sensor, SensorConfig, GenericObservation}, oriented_landmark_sensor::OrientedLandmarkSensor};
 use crate::plugin_api::PluginAPI;
@@ -35,7 +36,7 @@ impl SensorManager {
         }
     }
 
-    pub fn from_config(config: &SensorManagerConfig, plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
+    pub fn from_config(config: &SensorManagerConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Self {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {
             manager.sensors.push(Arc::new(RwLock::new(Box::new(

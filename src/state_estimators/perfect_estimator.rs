@@ -1,6 +1,7 @@
 // Configuration for PerfectPhysic
 use serde_derive::{Serialize, Deserialize};
 use super::state_estimator::{State, StateRecord};
+use crate::simulator::SimulatorMetaConfig;
 use crate::{physics::physic, sensors::sensor::GenericObservation};
 use crate::plugin_api::PluginAPI;
 
@@ -36,10 +37,10 @@ pub struct PerfectEstimator {
 
 impl PerfectEstimator {
     pub fn new() -> Self {
-        Self::from_config(&PerfectEstimatorConfig::default(), &None)
+        Self::from_config(&PerfectEstimatorConfig::default(), &None, SimulatorMetaConfig::new())
     }
 
-    pub fn from_config(config: &PerfectEstimatorConfig, _plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
+    pub fn from_config(config: &PerfectEstimatorConfig, _plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Self {
         Self {
             update_period: config.update_period,
             state: State::new(),
