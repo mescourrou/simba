@@ -1,3 +1,4 @@
+use log::{debug, error};
 // Configuration for PID
 use serde_derive::{Serialize, Deserialize};
 use crate::plugin_api::PluginAPI;
@@ -34,7 +35,10 @@ pub struct PIDRecord {
     v_integral: f32,
     theta_integral: f32,
     velocity: f32,
-    command: Command
+    command: Command,
+    last_command_time: f32,
+    previous_velocity_error: f32,
+    previous_theta_error: f32
 }
 
 impl Default for PIDRecord {
@@ -46,7 +50,10 @@ impl Default for PIDRecord {
             command: Command {
                 left_wheel_speed: 0.,
                 right_wheel_speed:0.
-            }
+            },
+            last_command_time: 0.,
+            previous_velocity_error: 0.,
+            previous_theta_error: 0.
         }
     }
 }
@@ -127,12 +134,30 @@ impl Controller for PID {
             v_integral: self.v_integral,
             theta_integral: self.theta_integral,
             velocity: self.velocity,
-            command: command.clone()
+            command: command.clone(),
+            last_command_time: self.last_command_time,
+            previous_theta_error: self.previous_theta_error,
+            previous_velocity_error: self.previous_velocity_error
         };
         command
     }
 
     fn record(&self) -> ControllerRecord {
         ControllerRecord::PID(self.current_record.clone())
+    }
+
+    
+    fn from_record(&mut self, record: ControllerRecord) {
+        if let ControllerRecord::PID(pid_record) = record {
+            self.current_record = pid_record.clone();
+            self.v_integral = pid_record.v_integral;
+            self.theta_integral = pid_record.theta_integral;
+            self.velocity = pid_record.velocity;
+            self.last_command_time = pid_record.last_command_time;
+            self.previous_theta_error = pid_record.previous_theta_error;
+            self.previous_velocity_error = pid_record.previous_velocity_error;
+        } else {
+            error!("Using a ControllerRecord type which does not match the used Controller (PID)");
+        }
     }
 }

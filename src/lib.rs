@@ -12,5 +12,3 @@ pub mod networking;
 pub mod plugin_api;
 
 pub mod gui;
-
-pub mod test_config;

@@ -1,3 +1,4 @@
+use log::error;
 // Configuration for PerfectPhysic
 use serde_derive::{Serialize, Deserialize};
 use super::state_estimator::{State, StateRecord};
@@ -19,7 +20,7 @@ impl Default for PerfectEstimatorConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PerfectEstimatorRecord {
     pub state: StateRecord
 }
@@ -59,7 +60,7 @@ impl StateEstimator for PerfectEstimator {
         let arc_physic = turtle.physics();
         let mut physic = arc_physic.read().unwrap();
         if time < self.next_time_step() {
-            println!("Error trying to update estimate too soon !");
+            error!("Error trying to update estimate too soon !");
             return;
         }
         self.state = physic.state(time).clone();
@@ -67,7 +68,7 @@ impl StateEstimator for PerfectEstimator {
     }
 
     fn correction_step(&mut self, turtle: &mut Turtlebot, observations: Vec<Box<dyn GenericObservation>>, _time: f32) {
-        println!("Receive observations, but not needed, I'm perfect !\n{:?}", observations);
+        
     }
 
     fn state(&self) -> State {
@@ -83,5 +84,13 @@ impl StateEstimator for PerfectEstimator {
             PerfectEstimatorRecord {
                 state: self.state.record()
         })
+    }
+    
+    fn from_record(&mut self, record: StateEstimatorRecord) {
+        if let StateEstimatorRecord::Perfect(record_state_estimator) = record {
+            self.state.from_record(record_state_estimator.state);
+        } else {
+            error!("Using a PhysicRecord type which does not match the used Physic (PerfectPhysic)");
+        }
     }
 }

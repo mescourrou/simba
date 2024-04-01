@@ -3,11 +3,13 @@ use std::sync::{Arc, RwLock, mpsc, Mutex};
 use std::fmt;
 use std::collections::BTreeMap;
 
+use log::debug;
 use serde_derive::{Serialize, Deserialize};
 use serde_json::Value;
 
 use crate::simulator::SimulatorMetaConfig;
 use crate::turtlebot::Turtlebot;
+use crate::utils::time_ordered_data::TimeOrderedData;
 
 use super::message_handler::MessageHandler;
 use super::network_manager::NetworkManager;
@@ -34,10 +36,12 @@ pub struct Network {
     range: f32,
     delay: f32,
     network_manager: Option<Arc<RwLock<NetworkManager>>>,
-    other_emitters: BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value)>>>>,
+    other_emitters: BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value, f32)>>>>,
     message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>,
-    channel_receiver: Arc<Mutex<mpsc::Receiver<(String, Value)>>>,
-    channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value)>>>,
+    channel_receiver: Arc<Mutex<mpsc::Receiver<(String, Value, f32)>>>,
+    channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value, f32)>>>,
+    messages_buffer: TimeOrderedData<(String, Value)>,
+    next_message_time: f32
 }
 
 impl fmt::Debug for Network {
@@ -56,7 +60,7 @@ impl Network {
     }
 
     pub fn from_config(from: String, config: &NetworkConfig, meta_config: SimulatorMetaConfig) -> Network {
-        let (tx, rx) = mpsc::channel::<(String, Value)>();
+        let (tx, rx) = mpsc::channel::<(String, Value, f32)>();
         Network {
             from,
             range: config.range,
@@ -65,7 +69,9 @@ impl Network {
             other_emitters: BTreeMap::new(),
             message_handlers: Vec::new(),
             channel_receiver: Arc::new(Mutex::new(rx)),
-            channel_emitter: Arc::new(Mutex::new(tx))
+            channel_emitter: Arc::new(Mutex::new(tx)),
+            messages_buffer: TimeOrderedData::new(),
+            next_message_time: -1.
         }
     }
 
@@ -73,44 +79,59 @@ impl Network {
         self.network_manager = Some(network_manager);
     }
 
-    pub fn get_emitter(&mut self) -> mpsc::Sender<(String, Value)> {
+    pub fn get_emitter(&mut self) -> mpsc::Sender<(String, Value, f32)> {
         self.channel_emitter.lock().unwrap().clone()
     }
 
-    pub fn add_emitter(&mut self, turtle_name: String, emitter: mpsc::Sender<(String, Value)>) {
+    pub fn add_emitter(&mut self, turtle_name: String, emitter: mpsc::Sender<(String, Value, f32)>) {
         self.other_emitters.insert(turtle_name, Arc::new(Mutex::new(emitter)));
     }
 
-    pub fn send_to(&mut self, recipient: String, message: Value) {
+    pub fn send_to(&mut self, recipient: String, message: Value, time: f32) {
         let emitter_option = self.other_emitters.get(&recipient);
         if let Some(emitter) = emitter_option {
-            let _ = emitter.lock().unwrap().send((self.from.clone(), message));
+            let _ = emitter.lock().unwrap().send((self.from.clone(), message, time));
         }
     }
 
-    pub fn broadcast(&mut self, message: Value) {
+    pub fn broadcast(&mut self, message: Value, time: f32) {
         for (_, emitter) in &self.other_emitters {
-            let _ = emitter.lock().unwrap().send((self.from.clone(), message.clone()));
+            let _ = emitter.lock().unwrap().send((self.from.clone(), message.clone(), time));
         }
     }
 
-    pub fn handle_messages(&mut self, turtle: &mut Turtlebot) {
-        println!("Handle messages by {}", self.from);
+    pub fn process_messages(&mut self) {
         let rx = self.channel_receiver.lock().unwrap();
-        for (from, message) in rx.try_iter() {
-            println!("Receive message from {from}: {:?}", message);
+        for (from, message, time) in rx.try_iter() {
+            debug!("[{}] Add new message from {from} at time {time}", self.from);
+            self.messages_buffer.insert(time, (from, message), false);
+        }
+    }
+
+    pub fn next_message_time(&self) -> Option<f32> {
+        self.messages_buffer.min_time()
+    }
+
+    pub fn handle_message_at_time(&mut self, turtle: &mut Turtlebot, time: f32) {
+        let mut elements_to_remove = Vec::<usize>::new();
+        let mut i: usize = 0;
+        while let Some((msg_time, (from, message))) = self.messages_buffer.remove(time) {
+            debug!("[{}] Receive message from {from}: {:?}", self.from, message);
             // TODO: add delay and range
-            println!("Handler list size: {}", self.message_handlers.len());
+            debug!("[{}] Handler list size: {}", self.from, self.message_handlers.len());
             for handler in &self.message_handlers {
-                println!("Handler available: {:?}", handler.try_write().is_ok());
-                if handler.write().unwrap().handle_message(turtle, &from, &message).is_ok() {
-                    println!("Found handler");
+                debug!("[{}] Handler available: {:?}", self.from, handler.try_write().is_ok());
+                if handler.write().unwrap().handle_message(turtle, &from, &message, time).is_ok() {
+                    debug!("[{}] Found handler", self.from);
                     break;
                 }
             }
-            println!("End of handler list");
+            
         }
-        println!("End of message handling by {}", self.from);
+
+        debug!("[{}] New next_message_time: {}", self.from, self.messages_buffer.min_time().unwrap_or(-1.));
+
+        debug!("[{}] Messages remaining: {}", self.from, self.messages_buffer.len());
     }
 
     pub fn subscribe(&mut self, handler: Arc<RwLock<dyn MessageHandler>>) {

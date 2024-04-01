@@ -1,3 +1,4 @@
+use log::error;
 // Configuration for PerfectPhysic
 use serde_derive::{Serialize, Deserialize};
 use crate::simulator::SimulatorMetaConfig;
@@ -21,9 +22,10 @@ impl Default for PerfectPhysicConfig {
 }
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PerfectPhysicRecord {
-    state: StateRecord
+    state: StateRecord,
+    last_time_update: f32
 }
 
 
@@ -93,7 +95,17 @@ impl Physic for PerfectPhysic {
 
     fn record(&self) -> PhysicRecord {
         PhysicRecord::Perfect(PerfectPhysicRecord {
-            state: self.state.record()
+            state: self.state.record(),
+            last_time_update: self.last_time_update
         })
+    }
+
+    fn from_record(&mut self, record: PhysicRecord) {
+        if let PhysicRecord::Perfect(perfect_record) = record {
+            self.state.from_record(perfect_record.state);
+            self.last_time_update = perfect_record.last_time_update;
+        } else {
+            error!("Using a PhysicRecord type which does not match the used Physic (PerfectPhysic)");
+        }
     }
 }

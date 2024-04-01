@@ -1,5 +1,5 @@
 use std::sync::{Arc, RwLock};
-
+use std::ops::Deref;
 
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
 use super::navigators::trajectory_follower;
@@ -20,9 +20,11 @@ use crate::sensors::sensor_manager::{SensorManagerConfig, SensorManager};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
+use crate::utils::time_ordered_data::TimeOrderedData;
 
 // Configuration for Turtlebot
 extern crate confy;
+use log::{debug, info, warn};
 use serde_derive::{Serialize, Deserialize};
 use serde_json::Value;
 
@@ -55,7 +57,7 @@ impl Default for TurtlebotConfig {
 }
 
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TurtlebotRecord {
     pub name: String,
     pub navigator: NavigatorRecord,
@@ -79,7 +81,7 @@ impl TurtlebotGenericMessageHandler {
 }
 
 impl MessageHandler for TurtlebotGenericMessageHandler {
-    fn handle_message(&mut self, turtle: &mut Turtlebot, from: &String, message: &Value) -> Result<(),()> {
+    fn handle_message(&mut self, turtle: &mut Turtlebot, from: &String, message: &Value, time: f32) -> Result<(),()> {
         if turtle.message_callback_str(&message).is_ok() {
             return Ok(());
         } else if turtle.message_callback_number(&message).is_ok() {
@@ -101,7 +103,8 @@ pub struct Turtlebot {
     sensor_manager: Arc<RwLock<SensorManager>>,
     network: Arc<RwLock<Network>>,
     message_handler: Arc<RwLock<TurtlebotGenericMessageHandler>>,
-    next_time_step: f32
+    next_time_step: f32,
+    state_history: TimeOrderedData<TurtlebotRecord>
 }
 
 impl Turtlebot {
@@ -115,7 +118,8 @@ impl Turtlebot {
             sensor_manager: Arc::new(RwLock::new(SensorManager::new())),
             network: Arc::new(RwLock::new(Network::new(name.clone()))),
             message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
-            next_time_step: 0.
+            next_time_step: 0.,
+            state_history: TimeOrderedData::new()
         }))
     }
 
@@ -145,7 +149,8 @@ impl Turtlebot {
             sensor_manager: Arc::new(RwLock::new(SensorManager::from_config(&config.sensor_manager, plugin_api, meta_config.clone()))),
             network: Arc::new(RwLock::new(Network::from_config(config.name.clone(), &config.network, meta_config.clone()))),
             message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
-            next_time_step: 0.
+            next_time_step: 0.,
+            state_history: TimeOrderedData::new()
         }));
         let next_time_step = turtle.read().unwrap().state_estimator.read().unwrap().next_time_step();
         turtle.write().unwrap().next_time_step = next_time_step;
@@ -158,10 +163,22 @@ impl Turtlebot {
    
     
     pub fn run_next_time_step(&mut self, time: f32) -> f32 {
-        if time < self.next_time_step {
-            return self.next_time_step;
+       
+        self.network().write().unwrap().process_messages();
+
+        
+        while self.next_time_step <= time {
+            self.run_time_step(self.next_time_step);
         }
-        println!("Run time {}", time);
+
+        
+
+        self.next_time_step
+    }
+
+    fn run_time_step(&mut self, time: f32) {
+        self.set_in_state(time);
+        info!("[{}] Run time {}", self.name(), time);
         self.physic.write().unwrap().update_state(time);
         let observations = self.sensor_manager().write().unwrap().get_observations(self, time);
         self.state_estimator().write().unwrap().correction_step(self, observations, time);
@@ -175,27 +192,38 @@ impl Turtlebot {
             // println!("Command: {:?}", command);
             self.physic.write().unwrap().apply_command(&command, time);
 
-            self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::String(String::from("Bonjour")));
-            self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::Number(serde_json::value::Number::from_f64(3.2).unwrap()));
+            // self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::String(String::from("Bonjour")), time);
+            // self.network.write().unwrap().send_to(String::from("turtle2"), serde_json::Value::Number(serde_json::value::Number::from_f64(3.2).unwrap()), time);
 
-            self.network.write().unwrap().broadcast(serde_json::Value::String(String::from("Bonjour tout le monde")));
-            self.network.write().unwrap().broadcast(serde_json::Value::Number(serde_json::value::Number::from_f64(5.1).unwrap()));
+            self.network.write().unwrap().broadcast(serde_json::Value::String(String::from("Bonjour tout le monde, c'est ") + &self.name()), time);
+            self.network.write().unwrap().broadcast(serde_json::Value::Number(serde_json::value::Number::from_f64(5.1).unwrap()), time);
         }
         
+
+        self.network().write().unwrap().handle_message_at_time(self, time);
+
+        
+        self.save_state(time);
+
         self.next_time_step = 
             self.state_estimator.read().unwrap().next_time_step()
             .min(self.sensor_manager.read().unwrap().next_time_step());
-        // println!("{}: {}", time, state);
-        self.network().write().unwrap().handle_messages(self);
 
-        self.next_time_step
+        let message_next_time = self.network().write().unwrap().next_message_time();
+        debug!("[{}] In turtlebot: message_next_time: {}", self.name(), message_next_time.unwrap_or(-1.));
+        if let Some(msg_next_time) = message_next_time {
+            self.next_time_step = self.next_time_step.min(msg_next_time);
+            debug!("[{}] Time step changed with message: {}", self.name(), self.next_time_step);
+        }
+        debug!("[{}] next_time_step: {}", self.name(), self.next_time_step);
+
     }
 
     pub fn next_time_step(&self) -> f32 {
         self.next_time_step
     }
 
-    pub fn record(&self) -> TurtlebotRecord {
+    fn record(&self) -> TurtlebotRecord {
         TurtlebotRecord {
             name: self.name.clone(),
             navigator: self.navigator.read().unwrap().record(),
@@ -203,6 +231,27 @@ impl Turtlebot {
             physic: self.physic.read().unwrap().record(),
             state_estimator: self.state_estimator.read().unwrap().record(),
         }
+    }
+
+    pub fn save_state(&mut self, time: f32) {
+        self.state_history.insert(time, self.record(), true);
+    }
+
+    pub fn set_in_state(&mut self, time: f32) {
+        let state_at_time = self.state_history.get_data_before_time(time);
+        if state_at_time.is_none() {
+            warn!("[{}] No state to be set in at time {time}", self.name());
+            return;
+        }
+        let state_at_time = state_at_time.unwrap().1;
+        self.navigator.write().unwrap().from_record(state_at_time.navigator.clone());
+        self.controller().write().unwrap().from_record(state_at_time.controller.clone());
+        self.physics().write().unwrap().from_record(state_at_time.physic.clone());
+        self.state_estimator().write().unwrap().from_record(state_at_time.state_estimator.clone());
+    }
+
+    pub fn record_history(&self) -> &TimeOrderedData<TurtlebotRecord> {
+        &self.state_history
     }
 
     pub fn name(&self) -> String {
@@ -235,20 +284,20 @@ impl Turtlebot {
 
     pub fn message_callback_str(&mut self, message: &Value) -> Result<(), ()> {
         if let Value::String(str_msg) = message {
-            println!("I accept to receive your message: {}", str_msg);
+            info!("I accept to receive your message: {}", str_msg);
             return Ok(());
         } else {
-            println!("Use next handler please");
+            info!("Use next handler please");
             return Err(());
         }
     }
 
     pub fn message_callback_number(&mut self, message: &Value) -> Result<(), ()> {
         if let Value::Number(nbr) = message {
-            println!("I accept to receive your message: {}", nbr);
+            info!("I accept to receive your message: {}", nbr);
             return Ok(());
         } else {
-            println!("Use next handler please");
+            info!("Use next handler please");
             return Err(());
         }
     }

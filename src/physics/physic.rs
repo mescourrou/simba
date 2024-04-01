@@ -15,7 +15,7 @@ pub enum PhysicConfig {
     Perfect(Box<perfect_physic::PerfectPhysicConfig>)
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PhysicRecord {
     Perfect(perfect_physic::PerfectPhysicRecord)
 }
@@ -26,5 +26,6 @@ pub trait Physic : std::fmt::Debug + std::marker::Send + std::marker::Sync {
     fn apply_command(&mut self, command: &Command, time: f32);
     fn update_state(&mut self, time: f32);
     fn state(&self, time: f32) -> &State;
+    fn from_record(&mut self, record: PhysicRecord);
     fn record(&self) -> PhysicRecord;
 }

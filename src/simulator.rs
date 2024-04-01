@@ -1,3 +1,7 @@
+//! Simulator definitions: the Simulator struct, and the config and record linked structs
+//! 
+//! The Simulator is the primary struct to be called to start the simulator.
+
 // Configuration for Simulator
 extern crate confy;
 use serde_derive::{Serialize, Deserialize};
@@ -15,6 +19,8 @@ use std::thread;
 // use csv::WriterBuilder;
 use std::io::prelude::*;
 use std::fs::File;
+
+use log::{debug, error, log_enabled, info, Level};
 
 #[derive(Clone)]
 pub struct SimulatorMetaConfig {
@@ -70,11 +76,11 @@ impl Simulator {
         let config: SimulatorConfig = match confy::load_path(&config_path) {
             Ok(config) => config,
             Err(error) => {
-                println!("Error from Confy while loading the config file : {}", error);
+                error!("Error from Confy while loading the config file : {}", error);
                 return Simulator::new();
             }
         };
-        println!("Config: {:?}", config);
+        debug!("Config: {:?}", config);
         let meta_config = SimulatorMetaConfig {
             config_path: Some(Box::from(config_path))
         };
@@ -94,6 +100,10 @@ impl Simulator {
         simulator
     }
 
+    pub fn init_environment() {
+        env_logger::init();
+    }
+
     fn add_turtlebot(&mut self, turtle_config: &TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) {
         self.turtles.push(Turtlebot::from_config(turtle_config, &plugin_api, meta_config));
         let last_turtle = self.turtles.last().expect("No turtle added to the vector, how is it possible ??").write().unwrap();
@@ -102,9 +112,9 @@ impl Simulator {
     }
 
     pub fn show(&self) {
-        println!("Simulator:");
+        info!("Simulator:");
         for turtle in &self.turtles {
-            println!("- {:?}", turtle);
+            info!("- {:?}", turtle);
         }
 
     }
@@ -115,37 +125,51 @@ impl Simulator {
         //                 .has_headers(false)
         //                 .from_path("result.csv")
         //                 .expect("Impossible to create csv writer");
-        let recording_file_rw: Arc<RwLock<File>> = Arc::new(RwLock::new(File::create("result.json").expect("Impossible to create record file")));
+        let recording_file: Arc<RwLock<File>> = Arc::new(RwLock::new(File::create("result.json").expect("Impossible to create record file")));
     
-        let _ = recording_file_rw.write().unwrap().write(b"{\"config\": ");
-        serde_json::to_writer(&*recording_file_rw.write().unwrap(), &self.config).expect("Error during json serialization");
-        let _ = recording_file_rw.write().unwrap().write(b",\n\"record\": [\n");
+        let _ = recording_file.write().unwrap().write(b"{\"config\": ");
+        serde_json::to_writer(&*recording_file.write().unwrap(), &self.config).expect("Error during json serialization");
+        let _ = recording_file.write().unwrap().write(b",\n\"record\": [\n");
     
         let mut handles = vec![];
 
         for turtle in &self.turtles {
-            let new_recording_file = Arc::clone(&recording_file_rw);
+            turtle.write().unwrap().save_state(0.);
             let new_turtle = Arc::clone(turtle);
             let new_max_time = max_time.clone();
-            let handle = thread::spawn(move || Self::run_one_turtle(new_turtle, new_max_time, new_recording_file));
+            let handle = thread::spawn(move || Self::run_one_turtle(new_turtle, new_max_time));
             handles.push(handle);
         }
 
         for handle in handles {
-            handle.join().unwrap();
+            let _ = handle.join();
         }
         
+        let mut recording_file_open = recording_file.write().unwrap();
+        let mut first_row = true;
+        for turtle in &self.turtles
         {
-            let mut recording_file_open = recording_file_rw.write().unwrap();
+            let turtle_r = turtle.read().unwrap();
+            let turtle_history = turtle_r.record_history();
+            for (time, record) in turtle_history.iter() {
+                if first_row {
+                    first_row = false;
+                } else {
+                    let _ = recording_file_open.write(b",\n");
+                }
+                serde_json::to_writer(&*recording_file_open, &Record {
+                        time: time.clone(),
+                        turtle: record.clone()
+                    }).expect("Error during json serialization");
+                
+            }
             
-            let pos = recording_file_open.stream_position().ok().unwrap() - 2;
-            let _ = recording_file_open.set_len(pos);
-            let _ = recording_file_open.write(b"\n]}");
         }
+        let _ = recording_file_open.write(b"\n]}");
     }
 
-    fn run_one_turtle(turtle: Arc<RwLock<Turtlebot>>, max_time: f32, recording_file: Arc<RwLock<File>>) {
-        println!("Start thread of turtle {}", turtle.read().unwrap().name());
+    fn run_one_turtle(turtle: Arc<RwLock<Turtlebot>>, max_time: f32) {
+        info!("Start thread of turtle {}", turtle.read().unwrap().name());
         
         loop {
             let next_time = turtle.read().unwrap().next_time_step();
@@ -156,15 +180,7 @@ impl Simulator {
             let mut turtle_open = turtle.write().unwrap();
             turtle_open.run_next_time_step(next_time);
 
-            {
-                let mut recording_file_open = recording_file.write().unwrap();
-                serde_json::to_writer(&*recording_file_open, &Record {
-                        time: next_time,
-                        turtle: turtle_open.record()
-                    }).expect("Error during json serialization");
-                
-                let _ = recording_file_open.write(b",\n");
-            }
+            
         }
     }
 }

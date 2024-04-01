@@ -46,7 +46,7 @@ impl ExternalEstimator {
     pub fn from_config(config: &ExternalEstimatorConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Self {
         println!("Config given: {:?}", config);
         Self {
-            state_estimator: plugin_api.as_ref().expect("Plugin API not set!").get_state_estimator(&config.config)
+            state_estimator: plugin_api.as_ref().expect("Plugin API not set!").get_state_estimator(&config.config, meta_config)
         }
     }
 
@@ -83,5 +83,9 @@ impl StateEstimator for ExternalEstimator {
 
     fn record(&self) -> StateEstimatorRecord {
         self.state_estimator.record()
+    }
+
+    fn from_record(&mut self, record: StateEstimatorRecord) {
+        self.state_estimator.from_record(record);
     }
 }

@@ -148,6 +148,10 @@ impl Navigator for TrajectoryFollower {
     fn record(&self) ->  NavigatorRecord {
         NavigatorRecord::TrajectoryFollower(self.current_record.clone())
     }
+
+    fn from_record(&mut self, record: NavigatorRecord) {
+        
+    }
 }
 
 

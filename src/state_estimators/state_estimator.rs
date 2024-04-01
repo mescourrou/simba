@@ -20,7 +20,7 @@ impl Default for StateConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StateRecord {
     pose: Vec<f32>,
     velocity: f32
@@ -68,6 +68,15 @@ impl State {
             velocity: self.velocity
         }
     }
+
+    pub fn from_record(&mut self, record: StateRecord) {
+        self.velocity = record.velocity;
+        let mut i:usize = 0;
+        for coord in &record.pose {
+            self.pose[i] = *coord;
+            i += 1;
+        }
+    }
 }
 
 use std::fmt;
@@ -89,7 +98,7 @@ pub enum StateEstimatorConfig {
     External(Box<external_estimator::ExternalEstimatorConfig>)
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum StateEstimatorRecord {
     Perfect(perfect_estimator::PerfectEstimatorRecord),
     External(external_estimator::ExternalEstimatorRecord)
@@ -104,4 +113,5 @@ pub trait StateEstimator : std::fmt::Debug  + std::marker::Send + std::marker::S
     fn state(&self) -> State;
     fn next_time_step(&self) -> f32;
     fn record(&self) ->  StateEstimatorRecord;
+    fn from_record(&mut self, record: StateEstimatorRecord);
 }
