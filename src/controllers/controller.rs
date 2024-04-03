@@ -10,6 +10,16 @@ pub struct ControllerError {
     pub velocity: f32
 }
 
+impl ControllerError {
+    pub fn default() -> Self {
+        Self {
+            lateral: 0.,
+            theta: 0.,
+            velocity: 0.
+        }
+    }
+}
+
 use super::pid;
 
 

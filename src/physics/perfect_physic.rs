@@ -25,7 +25,8 @@ impl Default for PerfectPhysicConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PerfectPhysicRecord {
     state: StateRecord,
-    last_time_update: f32
+    last_time_update: f32,
+    current_command: Command
 }
 
 
@@ -96,7 +97,8 @@ impl Physic for PerfectPhysic {
     fn record(&self) -> PhysicRecord {
         PhysicRecord::Perfect(PerfectPhysicRecord {
             state: self.state.record(),
-            last_time_update: self.last_time_update
+            last_time_update: self.last_time_update,
+            current_command: self.current_command.clone()
         })
     }
 
@@ -104,6 +106,7 @@ impl Physic for PerfectPhysic {
         if let PhysicRecord::Perfect(perfect_record) = record {
             self.state.from_record(perfect_record.state);
             self.last_time_update = perfect_record.last_time_update;
+            self.current_command = perfect_record.current_command.clone();
         } else {
             error!("Using a PhysicRecord type which does not match the used Physic (PerfectPhysic)");
         }

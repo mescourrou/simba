@@ -50,10 +50,10 @@ impl Default for SimulatorConfig {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct Record {
-    time: f32,
-    turtle: TurtlebotRecord
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Record {
+    pub time: f32,
+    pub turtle: TurtlebotRecord
 }
 
 
@@ -101,7 +101,9 @@ impl Simulator {
     }
 
     pub fn init_environment() {
-        env_logger::init();
+        env_logger::builder()
+            .target(env_logger::Target::Stdout)
+            .init();
     }
 
     fn add_turtlebot(&mut self, turtle_config: &TurtlebotConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) {
@@ -125,11 +127,7 @@ impl Simulator {
         //                 .has_headers(false)
         //                 .from_path("result.csv")
         //                 .expect("Impossible to create csv writer");
-        let recording_file: Arc<RwLock<File>> = Arc::new(RwLock::new(File::create("result.json").expect("Impossible to create record file")));
-    
-        let _ = recording_file.write().unwrap().write(b"{\"config\": ");
-        serde_json::to_writer(&*recording_file.write().unwrap(), &self.config).expect("Error during json serialization");
-        let _ = recording_file.write().unwrap().write(b",\n\"record\": [\n");
+        
     
         let mut handles = vec![];
 
@@ -145,7 +143,35 @@ impl Simulator {
             let _ = handle.join();
         }
         
-        let mut recording_file_open = recording_file.write().unwrap();
+        
+    }
+
+    pub fn get_results(&self) -> Vec<Record> {
+        let mut records = Vec::new();
+        for turtle in &self.turtles
+        {
+            let turtle_r = turtle.read().unwrap();
+            let turtle_history = turtle_r.record_history();
+            for (time, record) in turtle_history.iter() {
+                records.push(Record {
+                        time: time.clone(),
+                        turtle: record.clone()
+                    });
+                
+            }
+            
+        }
+        records
+    }
+
+    pub fn save_results(&mut self, filename: &Path) {
+        let mut recording_file = File::create(filename).expect("Impossible to create record file");
+    
+        let _ = recording_file.write(b"{\"config\": ");
+        serde_json::to_writer(&recording_file, &self.config).expect("Error during json serialization");
+        let _ = recording_file.write(b",\n\"record\": [\n");
+
+        
         let mut first_row = true;
         for turtle in &self.turtles
         {
@@ -155,9 +181,9 @@ impl Simulator {
                 if first_row {
                     first_row = false;
                 } else {
-                    let _ = recording_file_open.write(b",\n");
+                    let _ = recording_file.write(b",\n");
                 }
-                serde_json::to_writer(&*recording_file_open, &Record {
+                serde_json::to_writer(&recording_file, &Record {
                         time: time.clone(),
                         turtle: record.clone()
                     }).expect("Error during json serialization");
@@ -165,7 +191,7 @@ impl Simulator {
             }
             
         }
-        let _ = recording_file_open.write(b"\n]}");
+        let _ = recording_file.write(b"\n]}");
     }
 
     fn run_one_turtle(turtle: Arc<RwLock<Turtlebot>>, max_time: f32) {
@@ -181,6 +207,46 @@ impl Simulator {
             turtle_open.run_next_time_step(next_time);
 
             
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::Path;
+
+    use super::*;
+
+    #[test]
+    fn replication_test() {
+        let nb_replications = 100;
+        env_logger::builder()
+            .target(env_logger::Target::Stdout)
+            .is_test(true)
+            .filter_level(log::LevelFilter::Warn)
+            .init();
+
+        let mut results: Vec<Vec<Record>> = Vec::new();
+    
+        let config_path = Path::new("config_example/config.yaml");
+        for i in 0..nb_replications {
+            let mut simulator = Simulator::from_config_path(config_path, None);
+
+            simulator.show();
+
+            simulator.run(60.);
+
+            results.push(simulator.get_results());
+        }
+
+        let reference_result = &results[0];
+        for i in 1..nb_replications {
+            assert_eq!(results[i].len(), reference_result.len());
+            for j in 0..reference_result.len() {
+                let result_as_str = format!("{:?}", results[i][j]);
+                let reference_result_as_str = format!("{:?}", reference_result[j]);
+                assert_eq!(result_as_str, reference_result_as_str);
+            }
         }
     }
 }

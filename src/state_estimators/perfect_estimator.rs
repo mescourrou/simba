@@ -22,7 +22,8 @@ impl Default for PerfectEstimatorConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PerfectEstimatorRecord {
-    pub state: StateRecord
+    pub state: StateRecord,
+    pub last_time_update: f32
 }
 
 
@@ -82,13 +83,15 @@ impl StateEstimator for PerfectEstimator {
     fn record(&self) -> StateEstimatorRecord {
         StateEstimatorRecord::Perfect(
             PerfectEstimatorRecord {
-                state: self.state.record()
+                state: self.state.record(),
+                last_time_update: self.last_time_update
         })
     }
     
     fn from_record(&mut self, record: StateEstimatorRecord) {
         if let StateEstimatorRecord::Perfect(record_state_estimator) = record {
             self.state.from_record(record_state_estimator.state);
+            self.last_time_update = record_state_estimator.last_time_update;
         } else {
             error!("Using a PhysicRecord type which does not match the used Physic (PerfectPhysic)");
         }

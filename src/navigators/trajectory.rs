@@ -1,4 +1,5 @@
 extern crate nalgebra as na;
+use log::debug;
 use na::{SVector, DMatrix};
 
 use super::super::utils::geometry::*;
@@ -17,6 +18,19 @@ impl Default for TrajectoryConfig {
         Self {
             point_list: Vec::new(),
             do_loop: true
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TrajectoryRecord {
+    current_segment: usize
+}
+
+impl TrajectoryRecord {
+    pub fn default() -> Self {
+        Self {
+            current_segment: 0
         }
     }
 }
@@ -108,16 +122,26 @@ impl Trajectory {
         if d > 0.01 * d_pt1_pt2 {
             return ((pt1, pt2), projected_point);
         } else if self.current_segment + 1 == self.point_list.nrows() && !self.do_loop {
-            println!("No loop so give last point");
+            debug!("No loop so give last point");
             return ((pt1, pt2), pt2);
         } else {
-            println!("Next segment: {}",self.current_segment);
+            debug!("Next segment: {}",self.current_segment);
             self.current_segment += 1;
             if self.current_segment == self.point_list.nrows() {
                 self.current_segment = 0;
             }
             return self.map_matching(point);
         }
+    }
+
+    pub fn record(&self) -> TrajectoryRecord {
+        TrajectoryRecord {
+            current_segment: self.current_segment
+        }
+    }
+
+    pub fn from_record(&mut self, record: TrajectoryRecord) {
+        self.current_segment = record.current_segment;
     }
 
 }

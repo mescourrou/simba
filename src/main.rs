@@ -13,12 +13,15 @@ fn main() {
     Simulator::init_environment();
     
     let config_path = Path::new("config_example/config.yaml");
-    let mut simulator = Simulator::from_config_path(config_path, None);
+    for i in 1..10 {
+        let mut simulator = Simulator::from_config_path(config_path, None);
 
-    simulator.show();
+        simulator.show();
 
-    simulator.run(1.);
+        simulator.run(60.);
 
+        simulator.save_results(Path::new(&format!("result{i}.json")));
+    }
     // gui::run_gui();
     
 

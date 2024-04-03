@@ -16,7 +16,7 @@ turtles:
     #         detection_distance: 6.0
     # state_estimator:
     #   ExternalEstimator:
-    #     plugin_path: "/home/mescourr/Dev/comaloc_rust/target/debug/libcomaloc_rust.so"
+    #     plugin_path: "path to my library.so"
   - name: "turtle2"
     navigator:
       TrajectoryFollower:

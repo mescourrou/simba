@@ -196,7 +196,7 @@ mod tests {
         
         let str_to_insert = String::from("Hello");
 
-        tod.insert(2.1, str_to_insert);
+        tod.insert(2.1, str_to_insert, true);
 
         assert_eq!(tod.data.len(), 1);
         let data = &tod.data[0];
@@ -210,11 +210,11 @@ mod tests {
 
         // Empty
         let str_to_insert = String::from("Hello1");
-        tod.insert(2.1, str_to_insert);
+        tod.insert(2.1, str_to_insert, true);
 
         // Insert after
         let str_to_insert = String::from("Hello2");
-        tod.insert(2.5, str_to_insert);
+        tod.insert(2.5, str_to_insert, true);
 
         assert_eq!(tod.data.len(), 2);
         let data = &tod.data[1];
@@ -228,11 +228,11 @@ mod tests {
 
         // Empty
         let str_to_insert = String::from("Hello1");
-        tod.insert(2.1, str_to_insert);
+        tod.insert(2.1, str_to_insert, true);
 
         // Insert in 1st position
         let str_to_insert = String::from("Hello2");
-        tod.insert(1.5, str_to_insert);
+        tod.insert(1.5, str_to_insert, true);
 
         assert_eq!(tod.data.len(), 2);
         let data = &tod.data[0];
@@ -246,15 +246,15 @@ mod tests {
 
         // Empty
         let str_to_insert = String::from("Hello1");
-        tod.insert(2.1, str_to_insert);
+        tod.insert(2.1, str_to_insert, true);
 
         // Insert after
         let str_to_insert = String::from("Hello2");
-        tod.insert(2.6, str_to_insert);
+        tod.insert(2.6, str_to_insert, true);
 
         // Insert in between
         let str_to_insert = String::from("Hello3");
-        tod.insert(2.4, str_to_insert);
+        tod.insert(2.4, str_to_insert, true);
 
         assert_eq!(tod.data.len(), 3);
         // 0
@@ -279,11 +279,11 @@ mod tests {
 
         // Empty
         let str_to_insert = String::from("Hello1");
-        tod.insert(2.1, str_to_insert);
+        tod.insert(2.1, str_to_insert, true);
 
         // Insert at same place
         let str_to_insert = String::from("Hello2");
-        tod.insert(2.1, str_to_insert);
+        tod.insert(2.1, str_to_insert, true);
 
         assert_eq!(tod.data.len(), 1);
         let data = &tod.data[0];
@@ -294,8 +294,8 @@ mod tests {
     #[test]
     fn get_data_before_and_equal_time() {
         let mut tod = TimeOrderedData::<String>::new();
-        tod.insert(2.1, String::from("Hello"));
-        tod.insert(2.3, String::from("Hello2"));
+        tod.insert(2.1, String::from("Hello"), true);
+        tod.insert(2.3, String::from("Hello2"), true);
 
         assert_eq!(*tod.get_data_beq_time(2.2).unwrap().1, String::from("Hello"));
         assert_eq!(*tod.get_data_beq_time(2.1).unwrap().1, String::from("Hello"));
@@ -307,8 +307,8 @@ mod tests {
     #[test]
     fn get_data_before_and_equal_time_mut() {
         let mut tod = TimeOrderedData::<String>::new();
-        tod.insert(2.1, String::from("Hello"));
-        tod.insert(2.3, String::from("Hello2"));
+        tod.insert(2.1, String::from("Hello"), true);
+        tod.insert(2.3, String::from("Hello2"), true);
 
         assert_eq!(*tod.get_data_beq_time(2.2).unwrap().1, String::from("Hello"));
         let data: &mut String = tod.get_data_beq_time_mut(2.2).unwrap().1;
@@ -324,8 +324,8 @@ mod tests {
     #[test]
     fn get_data_after_and_equal_time() {
         let mut tod = TimeOrderedData::<String>::new();
-        tod.insert(2.1, String::from("Hello"));
-        tod.insert(2.3, String::from("Hello2"));
+        tod.insert(2.1, String::from("Hello"), true);
+        tod.insert(2.3, String::from("Hello2"), true);
 
         assert_eq!(*tod.get_data_geq_time(2.2).unwrap().1, String::from("Hello2"));
         assert_eq!(*tod.get_data_geq_time(2.1).unwrap().1, String::from("Hello"));
@@ -338,8 +338,8 @@ mod tests {
     #[test]
     fn get_data_after_and_equal_time_mut() {
         let mut tod = TimeOrderedData::<String>::new();
-        tod.insert(2.1, String::from("Hello"));
-        tod.insert(2.3, String::from("Hello2"));
+        tod.insert(2.1, String::from("Hello"), true);
+        tod.insert(2.3, String::from("Hello2"), true);
 
         assert_eq!(*tod.get_data_geq_time(2.2).unwrap().1, String::from("Hello2"));
         let data: &mut String = tod.get_data_geq_time_mut(2.2).unwrap().1;
@@ -356,11 +356,11 @@ mod tests {
     fn iter_from_time() {
         let mut tod = TimeOrderedData::<String>::new();
         let str_to_insert = String::from("Hello1");
-        tod.insert(2.1, str_to_insert);
+        tod.insert(2.1, str_to_insert, true);
         let str_to_insert = String::from("Hello2");
-        tod.insert(2.6, str_to_insert);
+        tod.insert(2.6, str_to_insert, true);
         let str_to_insert = String::from("Hello3");
-        tod.insert(2.9, str_to_insert);
+        tod.insert(2.9, str_to_insert, true);
 
         let mut iterator = tod.iter_from_time(2.2);
         assert_eq!(iterator.next(), Some((2.6, String::from("Hello2"))).as_ref());
@@ -371,11 +371,11 @@ mod tests {
     fn iter_from_time_mut() {
         let mut tod = TimeOrderedData::<String>::new();
         let str_to_insert = String::from("Hello1");
-        tod.insert(2.1, str_to_insert);
+        tod.insert(2.1, str_to_insert, true);
         let str_to_insert = String::from("Hello2");
-        tod.insert(2.6, str_to_insert);
+        tod.insert(2.6, str_to_insert, true);
         let str_to_insert = String::from("Hello3");
-        tod.insert(2.9, str_to_insert);
+        tod.insert(2.9, str_to_insert, true);
 
         let mut iterator = tod.iter_from_time_mut(2.2);
         let tpl = &mut iterator.next().unwrap();
@@ -393,11 +393,11 @@ mod tests {
     fn remove_element() {
         let mut tod = TimeOrderedData::<String>::new();
         let str_to_insert = String::from("Hello1");
-        tod.insert(2.1, str_to_insert);
+        tod.insert(2.1, str_to_insert, true);
         let str_to_insert = String::from("Hello2");
-        tod.insert(2.6, str_to_insert);
+        tod.insert(2.6, str_to_insert, true);
         let str_to_insert = String::from("Hello3");
-        tod.insert(2.9, str_to_insert);
+        tod.insert(2.9, str_to_insert, true);
 
         assert_eq!(tod.len(), 3);
 

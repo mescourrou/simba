@@ -1,10 +1,11 @@
-use super::trajectory::{Trajectory, TrajectoryConfig};
+use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
 use super::navigator::{Navigator, NavigatorRecord};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 
 extern crate nalgebra as na;
+use log::error;
 use na::Vector3;
 use libm::atan2;
 
@@ -34,17 +35,15 @@ impl Default for TrajectoryFollowerConfig {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TrajectoryFollowerRecord {
-    error: ControllerError
+    error: ControllerError,
+    trajectory: TrajectoryRecord
 }
 
 impl Default for TrajectoryFollowerRecord {
     fn default() -> Self {
         Self {
-            error: ControllerError {
-                lateral: 0.,
-                theta: 0.,
-                velocity: 0.
-            }
+            error: ControllerError::default(),
+            trajectory: TrajectoryRecord::default()
         }
     }
 }
@@ -55,7 +54,7 @@ pub struct TrajectoryFollower {
     trajectory: Trajectory,
     forward_distance: f32,
     target_speed: f32,
-    current_record: TrajectoryFollowerRecord
+    error: ControllerError
 }
 
 impl TrajectoryFollower {
@@ -64,7 +63,7 @@ impl TrajectoryFollower {
             trajectory: Trajectory::new(),
             forward_distance: 0.2,
             target_speed: 0.5,
-            current_record: TrajectoryFollowerRecord::default()
+            error: ControllerError::default()
         }
     }
 
@@ -85,7 +84,7 @@ impl TrajectoryFollower {
             trajectory: Self::load_trajectory_from_path(&path),
             forward_distance: config.forward_distance,
             target_speed: config.target_speed,
-            current_record: TrajectoryFollowerRecord::default()
+            error: ControllerError::default()
         }
 
     }
@@ -134,23 +133,29 @@ impl Navigator for TrajectoryFollower {
         while theta_error <= -PI {
             theta_error += 2.* PI;
         }
-        let error = ControllerError {
-            lateral: forward_pose_with_segment / forward_pose_with_segment.abs() * ((forward_pose.x - projected_point.x).powf(2.) + (forward_pose.y - projected_point.y).powf(2.)).sqrt(),
-            theta: theta_error,
-            velocity: self.target_speed - state.velocity
-        };
-        self.current_record = TrajectoryFollowerRecord {
-            error: error.clone()
-        };
-        error
+        self.error.lateral = forward_pose_with_segment / forward_pose_with_segment.abs() * ((forward_pose.x - projected_point.x).powf(2.) + (forward_pose.y - projected_point.y).powf(2.)).sqrt();
+        self.error.theta = theta_error;
+        self.error.velocity = self.target_speed - state.velocity;
+        
+        self.error.clone()
     }
 
     fn record(&self) ->  NavigatorRecord {
-        NavigatorRecord::TrajectoryFollower(self.current_record.clone())
+        NavigatorRecord::TrajectoryFollower(
+            TrajectoryFollowerRecord {
+                error: self.error.clone(),
+                trajectory: self.trajectory.record()
+            }
+        )
     }
 
     fn from_record(&mut self, record: NavigatorRecord) {
-        
+        if let NavigatorRecord::TrajectoryFollower(navigation_record) = record {
+            self.error = navigation_record.error.clone();
+            self.trajectory.from_record(navigation_record.trajectory);
+        }  else {
+            error!("Using a NavigatorRecord type which does not match the used Navigator (TrajectoryFollower)");
+        }
     }
 }
 
