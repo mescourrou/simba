@@ -2,6 +2,8 @@ extern crate nalgebra as na;
 use log::debug;
 use na::{SVector, DMatrix};
 
+use crate::stateful::Stateful;
+
 use super::super::utils::geometry::*;
 
 use serde_derive::{Serialize, Deserialize};
@@ -134,16 +136,19 @@ impl Trajectory {
         }
     }
 
-    pub fn record(&self) -> TrajectoryRecord {
+    
+}
+
+impl Stateful<TrajectoryRecord> for Trajectory {
+    fn record(&self) -> TrajectoryRecord {
         TrajectoryRecord {
             current_segment: self.current_segment
         }
     }
-
-    pub fn from_record(&mut self, record: TrajectoryRecord) {
+    
+    fn from_record(&mut self, record: TrajectoryRecord) {
         self.current_segment = record.current_segment;
     }
-
 }
 
 impl std::fmt::Debug for Trajectory {

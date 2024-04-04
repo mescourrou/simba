@@ -140,6 +140,11 @@ impl Navigator for TrajectoryFollower {
         self.error.clone()
     }
 
+}
+
+use crate::stateful::Stateful;
+
+impl Stateful<NavigatorRecord> for TrajectoryFollower{
     fn record(&self) ->  NavigatorRecord {
         NavigatorRecord::TrajectoryFollower(
             TrajectoryFollowerRecord {
@@ -158,8 +163,6 @@ impl Navigator for TrajectoryFollower {
         }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {

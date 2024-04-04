@@ -8,6 +8,7 @@ pub mod physics;
 pub mod state_estimators;
 pub mod sensors;
 pub mod networking;
+pub mod stateful;
 
 pub mod plugin_api;
 

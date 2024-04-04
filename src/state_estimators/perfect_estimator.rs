@@ -3,6 +3,7 @@ use log::error;
 use serde_derive::{Serialize, Deserialize};
 use super::state_estimator::{State, StateRecord};
 use crate::simulator::SimulatorMetaConfig;
+use crate::stateful::Stateful;
 use crate::{physics::physic, sensors::sensor::GenericObservation};
 use crate::plugin_api::PluginAPI;
 
@@ -80,6 +81,9 @@ impl StateEstimator for PerfectEstimator {
         self.last_time_update + self.update_period
     }
 
+}
+
+impl Stateful<StateEstimatorRecord> for PerfectEstimator {
     fn record(&self) -> StateEstimatorRecord {
         StateEstimatorRecord::Perfect(
             PerfectEstimatorRecord {

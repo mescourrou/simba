@@ -4,6 +4,7 @@ use serde_derive::{Serialize, Deserialize};
 use crate::simulator::SimulatorMetaConfig;
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
 use crate::plugin_api::PluginAPI;
+use crate::stateful::Stateful;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -94,6 +95,9 @@ impl Physic for PerfectPhysic {
         &self.state
     }
 
+}
+
+impl Stateful<PhysicRecord> for PerfectPhysic {
     fn record(&self) -> PhysicRecord {
         PhysicRecord::Perfect(PerfectPhysicRecord {
             state: self.state.record(),
@@ -101,7 +105,7 @@ impl Physic for PerfectPhysic {
             current_command: self.current_command.clone()
         })
     }
-
+    
     fn from_record(&mut self, record: PhysicRecord) {
         if let PhysicRecord::Perfect(perfect_record) = record {
             self.state.from_record(perfect_record.state);

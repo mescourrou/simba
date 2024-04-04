@@ -90,6 +90,7 @@ impl fmt::Display for State {
 
 
 use super::{perfect_estimator, external_estimator};
+use crate::stateful::Stateful;
 use crate::turtlebot::Turtlebot;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -107,11 +108,9 @@ use crate::physics::physic::Physic;
 
 use crate::sensors::sensor::GenericObservation;
 
-pub trait StateEstimator : std::fmt::Debug  + std::marker::Send + std::marker::Sync {
+pub trait StateEstimator : std::fmt::Debug  + std::marker::Send + std::marker::Sync + Stateful<StateEstimatorRecord> {
     fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32);
     fn correction_step(&mut self, turtle: &mut Turtlebot, observations: Vec<Box<dyn GenericObservation>>, time: f32);
     fn state(&self) -> State;
     fn next_time_step(&self) -> f32;
-    fn record(&self) ->  StateEstimatorRecord;
-    fn from_record(&mut self, record: StateEstimatorRecord);
 }

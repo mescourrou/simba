@@ -20,6 +20,7 @@ use crate::sensors::sensor_manager::{SensorManagerConfig, SensorManager};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
+use crate::stateful::Stateful;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
 // Configuration for Turtlebot
@@ -223,16 +224,6 @@ impl Turtlebot {
         self.next_time_step
     }
 
-    fn record(&self) -> TurtlebotRecord {
-        TurtlebotRecord {
-            name: self.name.clone(),
-            navigator: self.navigator.read().unwrap().record(),
-            controller: self.controller.read().unwrap().record(),
-            physic: self.physic.read().unwrap().record(),
-            state_estimator: self.state_estimator.read().unwrap().record(),
-        }
-    }
-
     pub fn save_state(&mut self, time: f32) {
         self.state_history.insert(time, self.record(), true);
     }
@@ -244,10 +235,7 @@ impl Turtlebot {
             return;
         }
         let state_at_time = state_at_time.unwrap().1;
-        self.navigator.write().unwrap().from_record(state_at_time.navigator.clone());
-        self.controller().write().unwrap().from_record(state_at_time.controller.clone());
-        self.physics().write().unwrap().from_record(state_at_time.physic.clone());
-        self.state_estimator().write().unwrap().from_record(state_at_time.state_estimator.clone());
+        self.from_record(state_at_time.clone());
     }
 
     pub fn record_history(&self) -> &TimeOrderedData<TurtlebotRecord> {
@@ -300,6 +288,25 @@ impl Turtlebot {
             info!("Use next handler please");
             return Err(());
         }
+    }
+}
+
+impl Stateful<TurtlebotRecord> for Turtlebot {
+    fn record(&self) -> TurtlebotRecord {
+        TurtlebotRecord {
+            name: self.name.clone(),
+            navigator: self.navigator.read().unwrap().record(),
+            controller: self.controller.read().unwrap().record(),
+            physic: self.physic.read().unwrap().record(),
+            state_estimator: self.state_estimator.read().unwrap().record(),
+        }
+    }
+
+    fn from_record(&mut self, record: TurtlebotRecord) {
+        self.navigator.write().unwrap().from_record(record.navigator.clone());
+        self.controller().write().unwrap().from_record(record.controller.clone());
+        self.physics().write().unwrap().from_record(record.physic.clone());
+        self.state_estimator().write().unwrap().from_record(record.state_estimator.clone());
     }
 }
 

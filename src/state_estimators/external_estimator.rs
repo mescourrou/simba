@@ -3,6 +3,7 @@ use serde_json::Value;
 use super::state_estimator::{State, StateEstimator};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
+use crate::stateful::Stateful;
 
 
 use serde_derive::{Serialize, Deserialize};
@@ -80,7 +81,9 @@ impl StateEstimator for ExternalEstimator {
     fn next_time_step(&self) -> f32 {
         self.state_estimator.next_time_step()
     }
+}
 
+impl Stateful<StateEstimatorRecord> for ExternalEstimator {
     fn record(&self) -> StateEstimatorRecord {
         self.state_estimator.record()
     }
