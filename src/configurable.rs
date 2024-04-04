@@ -1,7 +1,7 @@
 use std::fmt;
 
 pub struct ConfigurationLoadingError {
-    pub what: String
+    pub what: String,
 }
 
 // Implement std::fmt::Display for AppError

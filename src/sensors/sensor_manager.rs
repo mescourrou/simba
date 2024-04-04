@@ -1,23 +1,26 @@
 extern crate confy;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
-use crate::{physics::physic::Physic, plugin_api};
-use crate::turtlebot::Turtlebot;
 use crate::simulator::SimulatorMetaConfig;
+use crate::turtlebot::Turtlebot;
+use crate::{physics::physic::Physic, plugin_api};
 
-use super::{sensor::{Sensor, SensorConfig, GenericObservation}, oriented_landmark_sensor::OrientedLandmarkSensor};
+use super::{
+    oriented_landmark_sensor::OrientedLandmarkSensor,
+    sensor::{GenericObservation, Sensor, SensorConfig},
+};
 use crate::plugin_api::PluginAPI;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SensorManagerConfig {
-    sensors: Vec<SensorConfig>
+    sensors: Vec<SensorConfig>,
 }
 
 impl Default for SensorManagerConfig {
     fn default() -> Self {
         Self {
-            sensors: Vec::new()
+            sensors: Vec::new(),
         }
     }
 }
@@ -25,29 +28,40 @@ impl Default for SensorManagerConfig {
 #[derive(Debug)]
 pub struct SensorManager {
     sensors: Vec<Arc<RwLock<Box<dyn Sensor>>>>,
-    next_time: f32
+    next_time: f32,
 }
 
 impl SensorManager {
     pub fn new() -> Self {
         Self {
             sensors: Vec::new(),
-            next_time: 0.
+            next_time: 0.,
         }
     }
 
-    pub fn from_config(config: &SensorManagerConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Self {
+    pub fn from_config(
+        config: &SensorManagerConfig,
+        plugin_api: &Option<Box<dyn PluginAPI>>,
+        meta_config: SimulatorMetaConfig,
+    ) -> Self {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {
-            manager.sensors.push(Arc::new(RwLock::new(Box::new(
-                match &sensor_config {
-                    SensorConfig::OrientedLandmarkSensor(c) => OrientedLandmarkSensor::from_config(c, plugin_api)
+            manager
+                .sensors
+                .push(Arc::new(RwLock::new(Box::new(match &sensor_config {
+                    SensorConfig::OrientedLandmarkSensor(c) => {
+                        OrientedLandmarkSensor::from_config(c, plugin_api)
+                    }
                 }))));
         }
         manager
     }
 
-    pub fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Box<dyn GenericObservation>> {
+    pub fn get_observations(
+        &mut self,
+        turtle: &mut Turtlebot,
+        time: f32,
+    ) -> Vec<Box<dyn GenericObservation>> {
         let mut observations = Vec::<Box<dyn GenericObservation>>::new();
         let mut min_next_time = f32::INFINITY;
         for sensor in &mut self.sensors {

@@ -1,66 +1,77 @@
 use log::error;
 // Configuration for PerfectPhysic
-use serde_derive::{Serialize, Deserialize};
+use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
-use crate::plugin_api::PluginAPI;
 use crate::stateful::Stateful;
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct PerfectPhysicConfig {
     wheel_distance: f32,
-    initial_state: StateConfig
+    initial_state: StateConfig,
 }
 
 impl Default for PerfectPhysicConfig {
     fn default() -> Self {
         Self {
             wheel_distance: 0.25,
-            initial_state: StateConfig::default()
+            initial_state: StateConfig::default(),
         }
     }
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PerfectPhysicRecord {
     state: StateRecord,
     last_time_update: f32,
-    current_command: Command
+    current_command: Command,
 }
-
-
 
 #[derive(Debug)]
 pub struct PerfectPhysic {
     wheel_distance: f32,
     state: State,
     last_time_update: f32,
-    current_command: Command
+    current_command: Command,
 }
 
 impl PerfectPhysic {
     pub fn new() -> Self {
-        Self::from_config(&PerfectPhysicConfig::default(), &None, SimulatorMetaConfig::new())
+        Self::from_config(
+            &PerfectPhysicConfig::default(),
+            &None,
+            SimulatorMetaConfig::new(),
+        )
     }
 
-    pub fn from_config(config: &PerfectPhysicConfig, _plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Self {
+    pub fn from_config(
+        config: &PerfectPhysicConfig,
+        _plugin_api: &Option<Box<dyn PluginAPI>>,
+        meta_config: SimulatorMetaConfig,
+    ) -> Self {
         PerfectPhysic {
             wheel_distance: config.wheel_distance,
             state: State::from_config(&config.initial_state),
             last_time_update: 0.,
             current_command: Command {
                 left_wheel_speed: 0.,
-                right_wheel_speed: 0.
-            }
+                right_wheel_speed: 0.,
+            },
         }
     }
 
     fn compute_state_until(&mut self, time: f32) {
         let dt = time - self.last_time_update;
-        assert!(dt > 0., "PID delta time should be positive: {} - {} = {} > 0", time, self.last_time_update, dt);
-        
+        assert!(
+            dt > 0.,
+            "PID delta time should be positive: {} - {} = {} > 0",
+            time,
+            self.last_time_update,
+            dt
+        );
+
         let theta = self.state.pose.z;
 
         let displacement_wheel_left = self.current_command.left_wheel_speed * dt;
@@ -94,7 +105,6 @@ impl Physic for PerfectPhysic {
     fn state(&self, _time: f32) -> &State {
         &self.state
     }
-
 }
 
 impl Stateful<PhysicRecord> for PerfectPhysic {
@@ -102,17 +112,19 @@ impl Stateful<PhysicRecord> for PerfectPhysic {
         PhysicRecord::Perfect(PerfectPhysicRecord {
             state: self.state.record(),
             last_time_update: self.last_time_update,
-            current_command: self.current_command.clone()
+            current_command: self.current_command.clone(),
         })
     }
-    
+
     fn from_record(&mut self, record: PhysicRecord) {
         if let PhysicRecord::Perfect(perfect_record) = record {
             self.state.from_record(perfect_record.state);
             self.last_time_update = perfect_record.last_time_update;
             self.current_command = perfect_record.current_command.clone();
         } else {
-            error!("Using a PhysicRecord type which does not match the used Physic (PerfectPhysic)");
+            error!(
+                "Using a PhysicRecord type which does not match the used Physic (PerfectPhysic)"
+            );
         }
     }
 }

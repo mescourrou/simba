@@ -1,21 +1,21 @@
-use super::sensor::{Sensor, SensorRecord, GenericObservation};
+use super::sensor::{GenericObservation, Sensor, SensorRecord};
 use crate::physics::physic::{self, Physic};
 
 use crate::plugin_api::PluginAPI;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 extern crate nalgebra as na;
-use na::{Vector3};
+use na::Vector3;
 
-use std::path::Path;
 use std::fmt;
+use std::path::Path;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct OrientedLandmarkSensorConfig {
     detection_distance: f32,
     map_path: String,
-    period: f32
+    period: f32,
 }
 
 impl Default for OrientedLandmarkSensorConfig {
@@ -23,31 +23,27 @@ impl Default for OrientedLandmarkSensorConfig {
         Self {
             detection_distance: 5.0,
             map_path: String::from(""),
-            period: 0.1
+            period: 0.1,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct OrientedLandmarkSensorRecord {
-    
-}
+pub struct OrientedLandmarkSensorRecord {}
 
 impl Default for OrientedLandmarkSensorRecord {
     fn default() -> Self {
-        Self {
-        }
+        Self {}
     }
 }
 
 #[derive(Debug)]
 pub struct OrientedLandmark {
     pub id: i32,
-    pub pose: Vector3<f32>
+    pub pose: Vector3<f32>,
 }
 
-
-use serde::ser::{Serialize, Serializer, SerializeStruct};
+use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 impl Serialize for OrientedLandmark {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -64,14 +60,20 @@ impl Serialize for OrientedLandmark {
     }
 }
 
-use serde::de::{self, Deserialize, Deserializer, Visitor, SeqAccess, MapAccess};
+use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 
 impl<'de> Deserialize<'de> for OrientedLandmark {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
     {
-        enum Field { Id, X, Y, Theta, Unknown }
+        enum Field {
+            Id,
+            X,
+            Y,
+            Theta,
+            Unknown,
+        }
 
         // This part could also be generated independently by:
         //
@@ -123,17 +125,21 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
             where
                 V: SeqAccess<'de>,
             {
-                let id: i32 = seq.next_element()?
+                let id: i32 = seq
+                    .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let x: f32 = seq.next_element()?
+                let x: f32 = seq
+                    .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let y: f32 = seq.next_element()?
+                let y: f32 = seq
+                    .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(2, &self))?;
-                let theta: f32 = seq.next_element()?
+                let theta: f32 = seq
+                    .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
                 Ok(OrientedLandmark {
                     id: id,
-                    pose: Vector3::from_vec(vec![x, y, theta])
+                    pose: Vector3::from_vec(vec![x, y, theta]),
                 })
             }
 
@@ -181,7 +187,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                 let theta = theta.ok_or_else(|| de::Error::missing_field("theta"))?;
                 Ok(OrientedLandmark {
                     id: id,
-                    pose: Vector3::from_vec(vec![x, y, theta])
+                    pose: Vector3::from_vec(vec![x, y, theta]),
                 })
             }
         }
@@ -194,14 +200,14 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
 #[derive(Debug)]
 pub struct OrientedLandmarkObservation {
     id: i32,
-    pose: Vector3<f32>
+    pose: Vector3<f32>,
 }
 
 impl GenericObservation for OrientedLandmarkObservation {}
 
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Map {
-    pub landmarks: Vec<OrientedLandmark>
+    pub landmarks: Vec<OrientedLandmark>,
 }
 
 #[derive(Debug)]
@@ -209,7 +215,7 @@ pub struct OrientedLandmarkSensor {
     detection_distance: f32,
     landmarks: Vec<OrientedLandmark>,
     period: f32,
-    last_time: f32
+    last_time: f32,
 }
 
 impl OrientedLandmarkSensor {
@@ -217,14 +223,17 @@ impl OrientedLandmarkSensor {
         OrientedLandmarkSensor::from_config(&OrientedLandmarkSensorConfig::default(), &None)
     }
 
-    pub fn from_config(config: &OrientedLandmarkSensorConfig, _plugin_api: &Option<Box<dyn PluginAPI>>) -> Self {
+    pub fn from_config(
+        config: &OrientedLandmarkSensorConfig,
+        _plugin_api: &Option<Box<dyn PluginAPI>>,
+    ) -> Self {
         let mut path = Path::new(&config.map_path);
 
         let mut sensor = Self {
             detection_distance: config.detection_distance,
             landmarks: Vec::new(),
             period: config.period,
-            last_time: -1.
+            last_time: -1.,
         };
 
         if config.map_path == "" {
@@ -237,14 +246,17 @@ impl OrientedLandmarkSensor {
         sensor.landmarks = Self::load_map_from_path(&path);
 
         sensor
-
     }
 
     fn load_map_from_path(path: &Path) -> Vec<OrientedLandmark> {
-        let map: Map =  match confy::load_path(&path) {
+        let map: Map = match confy::load_path(&path) {
             Ok(config) => config,
             Err(error) => {
-                println!("Error from Confy while loading the map file {} : {}", path.display(), error);
+                println!(
+                    "Error from Confy while loading the map file {} : {}",
+                    path.display(),
+                    error
+                );
                 return Vec::new();
             }
         };
@@ -255,24 +267,31 @@ impl OrientedLandmarkSensor {
 use crate::turtlebot::Turtlebot;
 
 impl Sensor for OrientedLandmarkSensor {
-    fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Box<dyn GenericObservation>> {
+    fn get_observations(
+        &mut self,
+        turtle: &mut Turtlebot,
+        time: f32,
+    ) -> Vec<Box<dyn GenericObservation>> {
         let arc_physic = turtle.physics();
         let mut physic = arc_physic.read().unwrap();
         let mut observation_list = Vec::<Box<dyn GenericObservation>>::new();
         if time < self.next_time_step() {
             return observation_list;
         }
-        let state  = physic.state(time);
+        let state = physic.state(time);
 
-        let rotation_matrix = nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
+        let rotation_matrix =
+            nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
         println!("Rotation matrix: {}", rotation_matrix);
 
         for landmark in &self.landmarks {
-            let d = ((landmark.pose.x - state.pose.x).powf(2.) + (landmark.pose.y - state.pose.y).powf(2.)).sqrt();
+            let d = ((landmark.pose.x - state.pose.x).powf(2.)
+                + (landmark.pose.y - state.pose.y).powf(2.))
+            .sqrt();
             if d <= self.detection_distance {
                 observation_list.push(Box::new(OrientedLandmarkObservation {
                     id: landmark.id,
-                    pose: rotation_matrix * landmark.pose + state.pose
+                    pose: rotation_matrix * landmark.pose + state.pose,
                 }));
             }
         }
@@ -280,10 +299,8 @@ impl Sensor for OrientedLandmarkSensor {
         observation_list
     }
 
-    fn record(&self) ->  SensorRecord {
-        SensorRecord::OrientedLandmarkSensor(OrientedLandmarkSensorRecord {
-
-        })
+    fn record(&self) -> SensorRecord {
+        SensorRecord::OrientedLandmarkSensor(OrientedLandmarkSensorRecord {})
     }
 
     fn next_time_step(&self) -> f32 {

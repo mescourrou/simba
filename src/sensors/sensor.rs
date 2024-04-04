@@ -1,29 +1,30 @@
 extern crate confy;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
-use crate::physics::physic::Physic;
 use super::oriented_landmark_sensor;
+use crate::physics::physic::Physic;
 
-pub trait GenericObservation : std::fmt::Debug {}
-
+pub trait GenericObservation: std::fmt::Debug {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SensorConfig {
-    OrientedLandmarkSensor(Box<oriented_landmark_sensor::OrientedLandmarkSensorConfig>)
+    OrientedLandmarkSensor(Box<oriented_landmark_sensor::OrientedLandmarkSensorConfig>),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum SensorRecord {
-    OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorRecord)
+    OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorRecord),
 }
 
 use crate::turtlebot::Turtlebot;
 
-pub trait Sensor : std::fmt::Debug + std::marker::Send + std::marker::Sync {
-    fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Box<dyn GenericObservation>>;
-    fn record(&self) ->  SensorRecord;
+pub trait Sensor: std::fmt::Debug + std::marker::Send + std::marker::Sync {
+    fn get_observations(
+        &mut self,
+        turtle: &mut Turtlebot,
+        time: f32,
+    ) -> Vec<Box<dyn GenericObservation>>;
+    fn record(&self) -> SensorRecord;
     fn next_time_step(&self) -> f32;
     fn period(&self) -> f32;
 }
-
-

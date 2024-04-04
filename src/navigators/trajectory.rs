@@ -1,46 +1,44 @@
 extern crate nalgebra as na;
 use log::debug;
-use na::{SVector, DMatrix};
+use na::{DMatrix, SVector};
 
 use crate::stateful::Stateful;
 
 use super::super::utils::geometry::*;
 
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct TrajectoryConfig {
     pub point_list: Vec<Vec<f32>>,
-    do_loop: bool
+    do_loop: bool,
 }
 
 impl Default for TrajectoryConfig {
     fn default() -> Self {
         Self {
             point_list: Vec::new(),
-            do_loop: true
+            do_loop: true,
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TrajectoryRecord {
-    current_segment: usize
+    current_segment: usize,
 }
 
 impl TrajectoryRecord {
     pub fn default() -> Self {
-        Self {
-            current_segment: 0
-        }
+        Self { current_segment: 0 }
     }
 }
 
 pub struct Trajectory {
     point_list: DMatrix<f32>,
     do_loop: bool,
-    current_segment: usize
+    current_segment: usize,
 }
 
 impl Trajectory {
@@ -48,16 +46,16 @@ impl Trajectory {
         Self {
             point_list: DMatrix::<f32>::from_vec(0, 0, Vec::<f32>::new()),
             do_loop: true,
-            current_segment: 0
+            current_segment: 0,
         }
     }
 
     pub fn from_config(config: &TrajectoryConfig) -> Self {
         let mut trajectory = Self::new();
         trajectory.point_list = trajectory.point_list.resize(config.point_list.len(), 2, 0.);
-        let mut i:usize = 0;
+        let mut i: usize = 0;
         for point in &config.point_list {
-            let mut j:usize = 0;
+            let mut j: usize = 0;
             for &coord in point {
                 if j >= 2 {
                     continue;
@@ -110,16 +108,25 @@ impl Trajectory {
     //     return (best_segment, best_projected);
     // }
 
-    pub fn map_matching(&mut self, point: SVector<f32, 2>) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>) {
-        let pt1 = self.point_list.fixed_view::<1, 2>(self.current_segment, 0).transpose();
+    pub fn map_matching(
+        &mut self,
+        point: SVector<f32, 2>,
+    ) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>) {
+        let pt1 = self
+            .point_list
+            .fixed_view::<1, 2>(self.current_segment, 0)
+            .transpose();
         let pt2 = if self.current_segment + 1 >= self.point_list.nrows() {
             self.point_list.fixed_view::<1, 2>(0, 0).transpose()
         } else {
-            self.point_list.fixed_view::<1, 2>(self.current_segment + 1, 0).transpose()
+            self.point_list
+                .fixed_view::<1, 2>(self.current_segment + 1, 0)
+                .transpose()
         };
         let projected_point = project_point(point, pt1, pt2);
-        
-        let d = ((pt2.x - projected_point.x).powf(2.) + (pt2.y - projected_point.y).powf(2.)).sqrt();
+
+        let d =
+            ((pt2.x - projected_point.x).powf(2.) + (pt2.y - projected_point.y).powf(2.)).sqrt();
         let d_pt1_pt2 = ((pt2.x - pt1.x).powf(2.) + (pt2.y - pt1.y).powf(2.)).sqrt();
         if d > 0.01 * d_pt1_pt2 {
             return ((pt1, pt2), projected_point);
@@ -127,7 +134,7 @@ impl Trajectory {
             debug!("No loop so give last point");
             return ((pt1, pt2), pt2);
         } else {
-            debug!("Next segment: {}",self.current_segment);
+            debug!("Next segment: {}", self.current_segment);
             self.current_segment += 1;
             if self.current_segment == self.point_list.nrows() {
                 self.current_segment = 0;
@@ -135,17 +142,15 @@ impl Trajectory {
             return self.map_matching(point);
         }
     }
-
-    
 }
 
 impl Stateful<TrajectoryRecord> for Trajectory {
     fn record(&self) -> TrajectoryRecord {
         TrajectoryRecord {
-            current_segment: self.current_segment
+            current_segment: self.current_segment,
         }
     }
-    
+
     fn from_record(&mut self, record: TrajectoryRecord) {
         self.current_segment = record.current_segment;
     }
@@ -167,33 +172,31 @@ impl std::fmt::Debug for Trajectory {
     }
 }
 
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    
+
     #[test]
     fn loading_from_config() {
         let config = TrajectoryConfig {
-            point_list: vec![vec![0.0,1.], vec![0.,0.], vec![1.,0.], vec![0.,1.]],
-            do_loop: false
+            point_list: vec![vec![0.0, 1.], vec![0., 0.], vec![1., 0.], vec![0., 1.]],
+            do_loop: false,
         };
 
         let trajectory = Trajectory::from_config(&config);
         assert_eq!(trajectory.do_loop, config.do_loop);
-        let mut i:usize = 0;
+        let mut i: usize = 0;
         for row in trajectory.point_list.row_iter() {
             assert_eq!(row[0], config.point_list[i][0]);
             assert_eq!(row[1], config.point_list[i][1]);
             i += 1;
         }
-
     }
 
     pub fn default_trajectory() -> Trajectory {
         let config = TrajectoryConfig {
             point_list: vec![vec![0., 0.], vec![5., 0.], vec![5., 5.], vec![0., 5.]],
-            do_loop: true
+            do_loop: true,
         };
         Trajectory::from_config(&config)
     }

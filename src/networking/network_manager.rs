@@ -7,24 +7,31 @@ use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
 pub struct NetworkManager {
-    turtles_networks: BTreeMap<String, Arc<RwLock<Network>>>
+    turtles_networks: BTreeMap<String, Arc<RwLock<Network>>>,
 }
 
 impl NetworkManager {
     pub fn new() -> Self {
         Self {
-            turtles_networks: BTreeMap::new()
+            turtles_networks: BTreeMap::new(),
         }
     }
 
     pub fn register_turtle_network(&mut self, turtle_name: String, network: Arc<RwLock<Network>>) {
-        self.turtles_networks.insert(turtle_name.clone(), Arc::clone(&network));
+        self.turtles_networks
+            .insert(turtle_name.clone(), Arc::clone(&network));
         for (other_turtle, other_network) in &self.turtles_networks {
             if other_turtle.clone() != turtle_name.clone() {
                 let other_emitter = other_network.write().unwrap().get_emitter();
-                network.write().unwrap().add_emitter(other_turtle.clone(), other_emitter);
+                network
+                    .write()
+                    .unwrap()
+                    .add_emitter(other_turtle.clone(), other_emitter);
                 let emitter = network.write().unwrap().get_emitter();
-                other_network.write().unwrap().add_emitter(turtle_name.clone(), emitter)
+                other_network
+                    .write()
+                    .unwrap()
+                    .add_emitter(turtle_name.clone(), emitter)
             }
         }
     }

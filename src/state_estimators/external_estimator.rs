@@ -5,21 +5,20 @@ use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
 
-
-use serde_derive::{Serialize, Deserialize};
-use crate::sensors::sensor::GenericObservation;
 use super::state_estimator::StateEstimatorRecord;
+use crate::sensors::sensor::GenericObservation;
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExternalEstimatorConfig {
     #[serde(flatten)]
-    config: Value
+    config: Value,
 }
 
 impl Default for ExternalEstimatorConfig {
     fn default() -> Self {
         Self {
-            config: Value::Null
+            config: Value::Null,
         }
     }
 }
@@ -27,31 +26,38 @@ impl Default for ExternalEstimatorConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExternalEstimatorRecord {
     #[serde(flatten)]
-    pub record: Value
+    pub record: Value,
 }
-
-
 
 use crate::physics::physic::Physic;
 use crate::turtlebot::Turtlebot;
 
 pub struct ExternalEstimator {
-    state_estimator: Box<dyn StateEstimator>
+    state_estimator: Box<dyn StateEstimator>,
 }
 
 impl ExternalEstimator {
     pub fn new() -> Self {
-        Self::from_config(&ExternalEstimatorConfig::default(), &None, SimulatorMetaConfig::new())
+        Self::from_config(
+            &ExternalEstimatorConfig::default(),
+            &None,
+            SimulatorMetaConfig::new(),
+        )
     }
 
-    pub fn from_config(config: &ExternalEstimatorConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Self {
+    pub fn from_config(
+        config: &ExternalEstimatorConfig,
+        plugin_api: &Option<Box<dyn PluginAPI>>,
+        meta_config: SimulatorMetaConfig,
+    ) -> Self {
         println!("Config given: {:?}", config);
         Self {
-            state_estimator: plugin_api.as_ref().expect("Plugin API not set!").get_state_estimator(&config.config, meta_config)
+            state_estimator: plugin_api
+                .as_ref()
+                .expect("Plugin API not set!")
+                .get_state_estimator(&config.config, meta_config),
         }
     }
-
-    
 }
 
 impl std::fmt::Debug for ExternalEstimator {
@@ -59,7 +65,6 @@ impl std::fmt::Debug for ExternalEstimator {
         write!(f, "ExternalEstimator {{}}")
     }
 }
-
 
 impl StateEstimator for ExternalEstimator {
     fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32) {
@@ -70,8 +75,14 @@ impl StateEstimator for ExternalEstimator {
         self.state_estimator.prediction_step(turtle, time);
     }
 
-    fn correction_step(&mut self, turtle: &mut Turtlebot, observations: Vec<Box<dyn GenericObservation>>, time: f32) {
-        self.state_estimator.correction_step(turtle, observations, time);
+    fn correction_step(
+        &mut self,
+        turtle: &mut Turtlebot,
+        observations: Vec<Box<dyn GenericObservation>>,
+        time: f32,
+    ) {
+        self.state_estimator
+            .correction_step(turtle, observations, time);
     }
 
     fn state(&self) -> State {

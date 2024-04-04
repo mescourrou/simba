@@ -1,16 +1,16 @@
-use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
 use super::navigator::{Navigator, NavigatorRecord};
+use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 
 extern crate nalgebra as na;
+use libm::atan2;
 use log::error;
 use na::Vector3;
-use libm::atan2;
 
 // Configuration for TrajectoryFollower
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 
 use std::f32::consts::PI;
 use std::path::Path;
@@ -20,7 +20,7 @@ use std::path::Path;
 pub struct TrajectoryFollowerConfig {
     pub trajectory_path: String,
     forward_distance: f32,
-    target_speed: f32
+    target_speed: f32,
 }
 
 impl Default for TrajectoryFollowerConfig {
@@ -28,7 +28,7 @@ impl Default for TrajectoryFollowerConfig {
         Self {
             trajectory_path: String::from(""),
             forward_distance: 1.0,
-            target_speed: 0.5
+            target_speed: 0.5,
         }
     }
 }
@@ -36,25 +36,24 @@ impl Default for TrajectoryFollowerConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TrajectoryFollowerRecord {
     error: ControllerError,
-    trajectory: TrajectoryRecord
+    trajectory: TrajectoryRecord,
 }
 
 impl Default for TrajectoryFollowerRecord {
     fn default() -> Self {
         Self {
             error: ControllerError::default(),
-            trajectory: TrajectoryRecord::default()
+            trajectory: TrajectoryRecord::default(),
         }
     }
 }
-
 
 #[derive(Debug)]
 pub struct TrajectoryFollower {
     trajectory: Trajectory,
     forward_distance: f32,
     target_speed: f32,
-    error: ControllerError
+    error: ControllerError,
 }
 
 impl TrajectoryFollower {
@@ -63,102 +62,111 @@ impl TrajectoryFollower {
             trajectory: Trajectory::new(),
             forward_distance: 0.2,
             target_speed: 0.5,
-            error: ControllerError::default()
+            error: ControllerError::default(),
         }
     }
 
-    pub fn from_config(config: &TrajectoryFollowerConfig, plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Self {
+    pub fn from_config(
+        config: &TrajectoryFollowerConfig,
+        plugin_api: &Option<Box<dyn PluginAPI>>,
+        meta_config: SimulatorMetaConfig,
+    ) -> Self {
         let mut path = Path::new(&config.trajectory_path);
         if config.trajectory_path == "" {
             return Self::new();
         }
         let config_root_path = match &meta_config.config_path {
             Some(p) => p.parent().unwrap(),
-            None => Path::new("")
+            None => Path::new(""),
         };
         let joined_path = config_root_path.join(&config.trajectory_path);
         if path.is_relative() {
             path = joined_path.as_path();
         }
-        TrajectoryFollower{
+        TrajectoryFollower {
             trajectory: Self::load_trajectory_from_path(&path),
             forward_distance: config.forward_distance,
             target_speed: config.target_speed,
-            error: ControllerError::default()
+            error: ControllerError::default(),
         }
-
     }
 
     fn load_trajectory_from_path(path: &Path) -> Trajectory {
-        let trajectory: TrajectoryConfig =  match confy::load_path(&path) {
+        let trajectory: TrajectoryConfig = match confy::load_path(&path) {
             Ok(config) => config,
             Err(error) => {
-                println!("Error from Confy while loading the trajectory file {} : {}", path.display(), error);
+                println!(
+                    "Error from Confy while loading the trajectory file {} : {}",
+                    path.display(),
+                    error
+                );
                 return Trajectory::new();
             }
         };
         Trajectory::from_config(&trajectory)
     }
-
-    
 }
 
-use crate::state_estimators::state_estimator::State;
 use crate::controllers::controller::ControllerError;
+use crate::state_estimators::state_estimator::State;
 use crate::turtlebot::Turtlebot;
 
 impl Navigator for TrajectoryFollower {
-
     fn compute_error(&mut self, turtle: &mut Turtlebot, state: State) -> ControllerError {
-        let forward_pose = state.pose + self.forward_distance * Vector3::new(
-            state.pose.z.cos(),
-            state.pose.z.sin(),
-            0.
-        );
-        let (segment, projected_point) = self.trajectory.map_matching(forward_pose.fixed_view::<2, 1>(0, 0).into());
-        let segment_angle: f32 = atan2((segment.1.y - segment.0.y).into(), (segment.1.x - segment.0.x).into()) as f32;
-        let projected_point = Vector3::new(
-            projected_point.x,
-            projected_point.y,
-            segment_angle
-        );
+        let forward_pose = state.pose
+            + self.forward_distance * Vector3::new(state.pose.z.cos(), state.pose.z.sin(), 0.);
+        let (segment, projected_point) = self
+            .trajectory
+            .map_matching(forward_pose.fixed_view::<2, 1>(0, 0).into());
+        let segment_angle: f32 = atan2(
+            (segment.1.y - segment.0.y).into(),
+            (segment.1.x - segment.0.x).into(),
+        ) as f32;
+        let projected_point = Vector3::new(projected_point.x, projected_point.y, segment_angle);
 
-        let forward_pose_with_segment: f32 = segment_angle - atan2((forward_pose.y - segment.0.y).into(), (forward_pose.x - segment.0.x).into()) as f32;
-        let projected_point_direction = atan2((projected_point.y - state.pose.y).into(), (projected_point.x - state.pose.x).into()) as f32;
-        
+        let forward_pose_with_segment: f32 = segment_angle
+            - atan2(
+                (forward_pose.y - segment.0.y).into(),
+                (forward_pose.x - segment.0.x).into(),
+            ) as f32;
+        let projected_point_direction = atan2(
+            (projected_point.y - state.pose.y).into(),
+            (projected_point.x - state.pose.x).into(),
+        ) as f32;
+
         let mut theta_error = projected_point_direction - state.pose.z;
         while theta_error > PI {
-            theta_error -= 2.* PI;
+            theta_error -= 2. * PI;
         }
         while theta_error <= -PI {
-            theta_error += 2.* PI;
+            theta_error += 2. * PI;
         }
-        self.error.lateral = forward_pose_with_segment / forward_pose_with_segment.abs() * ((forward_pose.x - projected_point.x).powf(2.) + (forward_pose.y - projected_point.y).powf(2.)).sqrt();
+        self.error.lateral = forward_pose_with_segment / forward_pose_with_segment.abs()
+            * ((forward_pose.x - projected_point.x).powf(2.)
+                + (forward_pose.y - projected_point.y).powf(2.))
+            .sqrt();
         self.error.theta = theta_error;
         self.error.velocity = self.target_speed - state.velocity;
-        
+
         self.error.clone()
     }
-
 }
 
 use crate::stateful::Stateful;
 
-impl Stateful<NavigatorRecord> for TrajectoryFollower{
-    fn record(&self) ->  NavigatorRecord {
-        NavigatorRecord::TrajectoryFollower(
-            TrajectoryFollowerRecord {
-                error: self.error.clone(),
-                trajectory: self.trajectory.record()
-            }
-        )
+impl Stateful<NavigatorRecord> for TrajectoryFollower {
+    fn record(&self) -> NavigatorRecord {
+        NavigatorRecord::TrajectoryFollower(TrajectoryFollowerRecord {
+            error: self.error.clone(),
+            trajectory: self.trajectory.record(),
+        })
     }
 
     fn from_record(&mut self, record: NavigatorRecord) {
         if let NavigatorRecord::TrajectoryFollower(navigation_record) = record {
             self.error = navigation_record.error.clone();
             self.trajectory.from_record(navigation_record.trajectory);
-        }  else {
+        } else {
             error!("Using a NavigatorRecord type which does not match the used Navigator (TrajectoryFollower)");
         }
     }
@@ -168,8 +176,8 @@ impl Stateful<NavigatorRecord> for TrajectoryFollower{
 mod tests {
     use std::f32::consts::PI;
 
-    use super::*;
     use super::super::trajectory;
+    use super::*;
     #[test]
     fn compute_error() {
         // let navigator = TrajectoryFollower {
@@ -201,6 +209,5 @@ mod tests {
         // let error = navigator.compute_error(pose);
         // assert_eq!(error[0], -1., "lateral error should be -1., but is {}", error[0]);
         // assert_eq!(error[1], 0., "angle error should be 0., but is {}", error[1]);
-
     }
 }

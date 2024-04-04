@@ -1,10 +1,10 @@
 extern crate confy;
-use std::sync::{Arc, RwLock, mpsc, Mutex};
-use std::fmt;
 use std::collections::BTreeMap;
+use std::fmt;
+use std::sync::{mpsc, Arc, Mutex, RwLock};
 
 use log::debug;
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::simulator::SimulatorMetaConfig;
@@ -18,14 +18,14 @@ use super::network_manager::NetworkManager;
 #[serde(default)]
 pub struct NetworkConfig {
     range: f32,
-    delay: f32
+    delay: f32,
 }
 
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             range: f32::INFINITY,
-            delay: 0.
+            delay: 0.,
         }
     }
 }
@@ -41,25 +41,29 @@ pub struct Network {
     channel_receiver: Arc<Mutex<mpsc::Receiver<(String, Value, f32)>>>,
     channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value, f32)>>>,
     messages_buffer: TimeOrderedData<(String, Value)>,
-    next_message_time: f32
+    next_message_time: f32,
 }
 
 impl fmt::Debug for Network {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("")
-         .field(&self.from)
-         .field(&self.range)
-         .field(&self.delay)
-         .finish()
+            .field(&self.from)
+            .field(&self.range)
+            .field(&self.delay)
+            .finish()
     }
 }
 
 impl Network {
     pub fn new(from: String) -> Network {
-        Network::from_config(from,&NetworkConfig::default(), SimulatorMetaConfig::new())
+        Network::from_config(from, &NetworkConfig::default(), SimulatorMetaConfig::new())
     }
 
-    pub fn from_config(from: String, config: &NetworkConfig, meta_config: SimulatorMetaConfig) -> Network {
+    pub fn from_config(
+        from: String,
+        config: &NetworkConfig,
+        meta_config: SimulatorMetaConfig,
+    ) -> Network {
         let (tx, rx) = mpsc::channel::<(String, Value, f32)>();
         Network {
             from,
@@ -71,7 +75,7 @@ impl Network {
             channel_receiver: Arc::new(Mutex::new(rx)),
             channel_emitter: Arc::new(Mutex::new(tx)),
             messages_buffer: TimeOrderedData::new(),
-            next_message_time: -1.
+            next_message_time: -1.,
         }
     }
 
@@ -83,20 +87,31 @@ impl Network {
         self.channel_emitter.lock().unwrap().clone()
     }
 
-    pub fn add_emitter(&mut self, turtle_name: String, emitter: mpsc::Sender<(String, Value, f32)>) {
-        self.other_emitters.insert(turtle_name, Arc::new(Mutex::new(emitter)));
+    pub fn add_emitter(
+        &mut self,
+        turtle_name: String,
+        emitter: mpsc::Sender<(String, Value, f32)>,
+    ) {
+        self.other_emitters
+            .insert(turtle_name, Arc::new(Mutex::new(emitter)));
     }
 
     pub fn send_to(&mut self, recipient: String, message: Value, time: f32) {
         let emitter_option = self.other_emitters.get(&recipient);
         if let Some(emitter) = emitter_option {
-            let _ = emitter.lock().unwrap().send((self.from.clone(), message, time));
+            let _ = emitter
+                .lock()
+                .unwrap()
+                .send((self.from.clone(), message, time));
         }
     }
 
     pub fn broadcast(&mut self, message: Value, time: f32) {
         for (_, emitter) in &self.other_emitters {
-            let _ = emitter.lock().unwrap().send((self.from.clone(), message.clone(), time));
+            let _ = emitter
+                .lock()
+                .unwrap()
+                .send((self.from.clone(), message.clone(), time));
         }
     }
 
@@ -118,20 +133,40 @@ impl Network {
         while let Some((msg_time, (from, message))) = self.messages_buffer.remove(time) {
             debug!("[{}] Receive message from {from}: {:?}", self.from, message);
             // TODO: add delay and range
-            debug!("[{}] Handler list size: {}", self.from, self.message_handlers.len());
+            debug!(
+                "[{}] Handler list size: {}",
+                self.from,
+                self.message_handlers.len()
+            );
             for handler in &self.message_handlers {
-                debug!("[{}] Handler available: {:?}", self.from, handler.try_write().is_ok());
-                if handler.write().unwrap().handle_message(turtle, &from, &message, time).is_ok() {
+                debug!(
+                    "[{}] Handler available: {:?}",
+                    self.from,
+                    handler.try_write().is_ok()
+                );
+                if handler
+                    .write()
+                    .unwrap()
+                    .handle_message(turtle, &from, &message, time)
+                    .is_ok()
+                {
                     debug!("[{}] Found handler", self.from);
                     break;
                 }
             }
-            
         }
 
-        debug!("[{}] New next_message_time: {}", self.from, self.messages_buffer.min_time().unwrap_or(-1.));
+        debug!(
+            "[{}] New next_message_time: {}",
+            self.from,
+            self.messages_buffer.min_time().unwrap_or(-1.)
+        );
 
-        debug!("[{}] Messages remaining: {}", self.from, self.messages_buffer.len());
+        debug!(
+            "[{}] Messages remaining: {}",
+            self.from,
+            self.messages_buffer.len()
+        );
     }
 
     pub fn subscribe(&mut self, handler: Arc<RwLock<dyn MessageHandler>>) {

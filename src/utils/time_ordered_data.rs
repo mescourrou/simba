@@ -1,25 +1,22 @@
-use std::vec::Vec;
 use core::slice::{Iter, IterMut};
 use std::iter::Skip;
+use std::vec::Vec;
 
 #[derive(Debug, Clone)]
 pub struct TimeOrderedData<T> {
-    data: Vec<(f32, T)>
+    data: Vec<(f32, T)>,
 }
 
-impl<T> TimeOrderedData<T>
-{
+impl<T> TimeOrderedData<T> {
     pub fn new() -> Self {
-        Self {
-            data: Vec::new()
-        }
+        Self { data: Vec::new() }
     }
 
     fn find_time_position(&self, time: f32) -> (usize, bool) {
         let mut pos = self.data.len();
-        
+
         while pos > 0 {
-            let pos_time = self.data[pos-1].0;
+            let pos_time = self.data[pos - 1].0;
             if pos_time < time {
                 // Return.1 is erase value
                 return (pos, false);
@@ -51,7 +48,7 @@ impl<T> TimeOrderedData<T>
         }
         None
     }
-    
+
     pub fn get_data_beq_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter().rev() {
             if data_time <= &time {
@@ -69,7 +66,7 @@ impl<T> TimeOrderedData<T>
         }
         None
     }
-    
+
     pub fn get_data_before_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter().rev() {
             if data_time < &time {
@@ -87,7 +84,7 @@ impl<T> TimeOrderedData<T>
         }
         None
     }
-    
+
     pub fn get_data_geq_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
             if data_time >= &time {
@@ -105,7 +102,7 @@ impl<T> TimeOrderedData<T>
         }
         None
     }
-    
+
     pub fn get_data_after_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
             if data_time > &time {
@@ -143,11 +140,11 @@ impl<T> TimeOrderedData<T>
         self.data.iter_mut().skip(pos)
     }
 
-    pub fn iter(&self) -> impl Iterator<Item=&(f32, T)> {
+    pub fn iter(&self) -> impl Iterator<Item = &(f32, T)> {
         self.data.iter()
     }
 
-    pub fn remove(&mut self, time: f32) -> Option<(f32, T)>{
+    pub fn remove(&mut self, time: f32) -> Option<(f32, T)> {
         let (pos, erase) = self.find_time_position(time);
         if !erase {
             return None;
@@ -172,13 +169,10 @@ impl<T> TimeOrderedData<T>
         if self.len() == 0 {
             None
         } else {
-            Some(self.data[self.len()-1].0)
+            Some(self.data[self.len() - 1].0)
         }
     }
-
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -193,7 +187,7 @@ mod tests {
     #[test]
     fn insert_when_empty() {
         let mut tod = TimeOrderedData::<String>::new();
-        
+
         let str_to_insert = String::from("Hello");
 
         tod.insert(2.1, str_to_insert, true);
@@ -297,11 +291,16 @@ mod tests {
         tod.insert(2.1, String::from("Hello"), true);
         tod.insert(2.3, String::from("Hello2"), true);
 
-        assert_eq!(*tod.get_data_beq_time(2.2).unwrap().1, String::from("Hello"));
-        assert_eq!(*tod.get_data_beq_time(2.1).unwrap().1, String::from("Hello"));
+        assert_eq!(
+            *tod.get_data_beq_time(2.2).unwrap().1,
+            String::from("Hello")
+        );
+        assert_eq!(
+            *tod.get_data_beq_time(2.1).unwrap().1,
+            String::from("Hello")
+        );
         assert_eq!(tod.get_data_beq_time(2.), None);
         assert_eq!(tod.get_data_before_time(2.1), None);
-
     }
 
     #[test]
@@ -310,15 +309,23 @@ mod tests {
         tod.insert(2.1, String::from("Hello"), true);
         tod.insert(2.3, String::from("Hello2"), true);
 
-        assert_eq!(*tod.get_data_beq_time(2.2).unwrap().1, String::from("Hello"));
+        assert_eq!(
+            *tod.get_data_beq_time(2.2).unwrap().1,
+            String::from("Hello")
+        );
         let data: &mut String = tod.get_data_beq_time_mut(2.2).unwrap().1;
         *data = String::from("Hello1");
-        assert_eq!(*tod.get_data_beq_time(2.2).unwrap().1, String::from("Hello1"));
-        assert_eq!(*tod.get_data_beq_time(2.1).unwrap().1, String::from("Hello1"));
+        assert_eq!(
+            *tod.get_data_beq_time(2.2).unwrap().1,
+            String::from("Hello1")
+        );
+        assert_eq!(
+            *tod.get_data_beq_time(2.1).unwrap().1,
+            String::from("Hello1")
+        );
         assert_eq!(tod.get_data_beq_time(2.), None);
 
         assert_eq!(tod.get_data_before_time_mut(2.1), None);
-
     }
 
     #[test]
@@ -327,12 +334,17 @@ mod tests {
         tod.insert(2.1, String::from("Hello"), true);
         tod.insert(2.3, String::from("Hello2"), true);
 
-        assert_eq!(*tod.get_data_geq_time(2.2).unwrap().1, String::from("Hello2"));
-        assert_eq!(*tod.get_data_geq_time(2.1).unwrap().1, String::from("Hello"));
+        assert_eq!(
+            *tod.get_data_geq_time(2.2).unwrap().1,
+            String::from("Hello2")
+        );
+        assert_eq!(
+            *tod.get_data_geq_time(2.1).unwrap().1,
+            String::from("Hello")
+        );
         assert_eq!(*tod.get_data_geq_time(2.).unwrap().1, String::from("Hello"));
         assert_eq!(tod.get_data_geq_time(2.4), None);
         assert_eq!(tod.get_data_after_time(2.3), None);
-
     }
 
     #[test]
@@ -341,15 +353,23 @@ mod tests {
         tod.insert(2.1, String::from("Hello"), true);
         tod.insert(2.3, String::from("Hello2"), true);
 
-        assert_eq!(*tod.get_data_geq_time(2.2).unwrap().1, String::from("Hello2"));
+        assert_eq!(
+            *tod.get_data_geq_time(2.2).unwrap().1,
+            String::from("Hello2")
+        );
         let data: &mut String = tod.get_data_geq_time_mut(2.2).unwrap().1;
         *data = String::from("Hello1");
-        assert_eq!(*tod.get_data_geq_time(2.2).unwrap().1, String::from("Hello1"));
-        assert_eq!(*tod.get_data_geq_time(2.1).unwrap().1, String::from("Hello"));
+        assert_eq!(
+            *tod.get_data_geq_time(2.2).unwrap().1,
+            String::from("Hello1")
+        );
+        assert_eq!(
+            *tod.get_data_geq_time(2.1).unwrap().1,
+            String::from("Hello")
+        );
         assert_eq!(tod.get_data_geq_time(2.4), None);
 
         assert_eq!(tod.get_data_after_time_mut(2.3), None);
-
     }
 
     #[test]
@@ -363,8 +383,14 @@ mod tests {
         tod.insert(2.9, str_to_insert, true);
 
         let mut iterator = tod.iter_from_time(2.2);
-        assert_eq!(iterator.next(), Some((2.6, String::from("Hello2"))).as_ref());
-        assert_eq!(iterator.next(), Some((2.9, String::from("Hello3"))).as_ref());
+        assert_eq!(
+            iterator.next(),
+            Some((2.6, String::from("Hello2"))).as_ref()
+        );
+        assert_eq!(
+            iterator.next(),
+            Some((2.9, String::from("Hello3"))).as_ref()
+        );
         assert_eq!(iterator.next(), None);
     }
     #[test]
@@ -382,7 +408,10 @@ mod tests {
         assert_eq!(tpl.0, 2.6);
         assert_eq!(tpl.1, String::from("Hello2"));
         tpl.1 = String::from("Hello");
-        assert_eq!(iterator.next(), Some((2.9, String::from("Hello3"))).as_mut());
+        assert_eq!(
+            iterator.next(),
+            Some((2.9, String::from("Hello3"))).as_mut()
+        );
         assert_eq!(iterator.next(), None);
 
         // Test if modification occurs
@@ -406,6 +435,5 @@ mod tests {
         assert_eq!(data, String::from("Hello1"));
 
         assert_eq!(tod.len(), 2);
-
     }
 }

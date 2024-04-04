@@ -1,8 +1,8 @@
 use log::{debug, error};
 // Configuration for PID
-use serde_derive::{Serialize, Deserialize};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
+use serde_derive::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
@@ -25,7 +25,7 @@ impl Default for PIDConfig {
             kp_theta: 0.8,
             kd_theta: 0.3,
             ki_theta: 0.,
-            wheel_distance: 0.25
+            wheel_distance: 0.25,
         }
     }
 }
@@ -38,7 +38,7 @@ pub struct PIDRecord {
     command: Command,
     last_command_time: f32,
     previous_velocity_error: f32,
-    previous_theta_error: f32
+    previous_theta_error: f32,
 }
 
 impl Default for PIDRecord {
@@ -49,15 +49,14 @@ impl Default for PIDRecord {
             velocity: 0.,
             command: Command {
                 left_wheel_speed: 0.,
-                right_wheel_speed:0.
+                right_wheel_speed: 0.,
             },
             last_command_time: 0.,
             previous_velocity_error: 0.,
-            previous_theta_error: 0.
+            previous_theta_error: 0.,
         }
     }
 }
-
 
 #[derive(Debug)]
 pub struct PID {
@@ -74,7 +73,7 @@ pub struct PID {
     previous_velocity_error: f32,
     previous_theta_error: f32,
     velocity: f32,
-    current_record: PIDRecord
+    current_record: PIDRecord,
 }
 
 impl PID {
@@ -82,7 +81,11 @@ impl PID {
         Self::from_config(&PIDConfig::default(), &None, SimulatorMetaConfig::new())
     }
 
-    pub fn from_config(config: &PIDConfig, _plugin_api: &Option<Box<dyn PluginAPI>>, meta_config: SimulatorMetaConfig) -> Self {
+    pub fn from_config(
+        config: &PIDConfig,
+        _plugin_api: &Option<Box<dyn PluginAPI>>,
+        meta_config: SimulatorMetaConfig,
+    ) -> Self {
         PID {
             kp_v: config.kp_v,
             kd_v: config.kd_v,
@@ -97,29 +100,44 @@ impl PID {
             previous_velocity_error: 0.,
             previous_theta_error: 0.,
             velocity: 0.,
-            current_record: PIDRecord::default()
+            current_record: PIDRecord::default(),
         }
     }
 }
 
+use super::controller::{Controller, ControllerRecord};
 use crate::controllers::controller::ControllerError;
 use crate::physics::physic::Command;
-use super::controller::{Controller, ControllerRecord};
 use crate::turtlebot::Turtlebot;
 
 impl Controller for PID {
-    fn make_command(&mut self, turtle: &mut Turtlebot, error: &ControllerError, time: f32) -> Command {
+    fn make_command(
+        &mut self,
+        turtle: &mut Turtlebot,
+        error: &ControllerError,
+        time: f32,
+    ) -> Command {
         let dt = time - self.last_command_time;
-        assert!(dt > 0., "PID delta time should be positive: {} - {} = {} > 0", time, self.last_command_time, dt);
-        
+        assert!(
+            dt > 0.,
+            "PID delta time should be positive: {} - {} = {} > 0",
+            time,
+            self.last_command_time,
+            dt
+        );
+
         self.v_integral += error.velocity * dt;
         self.theta_integral += error.theta * dt;
 
         let v_derivative = (error.velocity - self.previous_velocity_error) / dt;
         let theta_derivative = (error.theta - self.previous_theta_error) / dt;
 
-        let correction_theta = (self.kp_theta * error.theta + self.ki_theta * self.theta_integral + self.kd_theta * theta_derivative) * self.wheel_distance;
-        let correction_v = self.kp_v * error.velocity + self.ki_v * self.v_integral + self.kd_v * v_derivative;
+        let correction_theta = (self.kp_theta * error.theta
+            + self.ki_theta * self.theta_integral
+            + self.kd_theta * theta_derivative)
+            * self.wheel_distance;
+        let correction_v =
+            self.kp_v * error.velocity + self.ki_v * self.v_integral + self.kd_v * v_derivative;
 
         self.velocity = self.velocity + correction_v;
         self.previous_theta_error = error.theta;
@@ -128,7 +146,7 @@ impl Controller for PID {
 
         let command = Command {
             left_wheel_speed: self.velocity - correction_theta / 2.,
-            right_wheel_speed: self.velocity + correction_theta / 2.
+            right_wheel_speed: self.velocity + correction_theta / 2.,
         };
         self.current_record = PIDRecord {
             v_integral: self.v_integral,
@@ -137,7 +155,7 @@ impl Controller for PID {
             command: command.clone(),
             last_command_time: self.last_command_time,
             previous_theta_error: self.previous_theta_error,
-            previous_velocity_error: self.previous_velocity_error
+            previous_velocity_error: self.previous_velocity_error,
         };
         command
     }
@@ -146,7 +164,6 @@ impl Controller for PID {
         ControllerRecord::PID(self.current_record.clone())
     }
 
-    
     fn from_record(&mut self, record: ControllerRecord) {
         if let ControllerRecord::PID(pid_record) = record {
             self.current_record = pid_record.clone();
