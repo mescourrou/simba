@@ -78,7 +78,7 @@ pub struct PID {
 
 impl PID {
     pub fn new() -> Self {
-        Self::from_config(&PIDConfig::default(), &None, SimulatorMetaConfig::new())
+        Self::from_config(&PIDConfig::default(), &None, SimulatorMetaConfig::default())
     }
 
     pub fn from_config(

@@ -3,6 +3,8 @@ name = "turtlebot_simulator"
 version = "0.1.0"
 edition = "2021"
 
+crate-type = ["cdylib"]
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -24,6 +26,11 @@ eframe = { git = "https://github.com/emilk/egui", branch = "master", default-fea
     "persistence",   # Enable restoring app state when restarting the app.
 ] }
 log = "0.4"
+
+[dependencies.pyo3]
+version = "0.21.1"
+[features]
+extension-module = ["pyo3/extension-module"]
 
 [dependencies.confy]
 version = "^0.5"

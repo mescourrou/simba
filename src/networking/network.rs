@@ -56,7 +56,7 @@ impl fmt::Debug for Network {
 
 impl Network {
     pub fn new(from: String) -> Network {
-        Network::from_config(from, &NetworkConfig::default(), SimulatorMetaConfig::new())
+        Network::from_config(from, &NetworkConfig::default(), SimulatorMetaConfig::default())
     }
 
     pub fn from_config(

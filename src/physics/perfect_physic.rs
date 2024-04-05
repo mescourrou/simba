@@ -42,7 +42,7 @@ impl PerfectPhysic {
         Self::from_config(
             &PerfectPhysicConfig::default(),
             &None,
-            SimulatorMetaConfig::new(),
+            SimulatorMetaConfig::default(),
         )
     }
 

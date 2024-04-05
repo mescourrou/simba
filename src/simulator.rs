@@ -8,6 +8,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
+use crate::result_analyser;
 
 use super::turtlebot::{Turtlebot, TurtlebotConfig, TurtlebotRecord};
 use std::path::Path;
@@ -25,11 +26,19 @@ use log::{debug, error, info, log_enabled, Level};
 #[derive(Clone)]
 pub struct SimulatorMetaConfig {
     pub config_path: Option<Box<Path>>,
+    pub result_path: Option<Box<Path>>,
+    pub compute_results: bool,
+    pub no_gui: bool,
 }
 
 impl SimulatorMetaConfig {
-    pub fn new() -> Self {
-        Self { config_path: None }
+    pub fn default() -> Self {
+        Self {
+            config_path: None,
+            result_path: None,
+            compute_results: false,
+            no_gui: true
+        }
     }
 }
 
@@ -56,6 +65,7 @@ pub struct Record {
 pub struct Simulator {
     turtles: Vec<Arc<RwLock<Turtlebot>>>,
     config: SimulatorConfig,
+    meta_config: SimulatorMetaConfig,
     network_manager: Arc<RwLock<NetworkManager>>,
 }
 
@@ -64,6 +74,7 @@ impl Simulator {
         Simulator {
             turtles: Vec::new(),
             config: SimulatorConfig::default(),
+            meta_config: SimulatorMetaConfig::default(),
             network_manager: Arc::new(RwLock::new(NetworkManager::new())),
         }
     }
@@ -71,6 +82,9 @@ impl Simulator {
     pub fn from_config_path(
         config_path: &Path,
         plugin_api: Option<Box<dyn PluginAPI>>,
+        result_path: &Path,
+        compute_results: bool,
+        no_gui: bool
     ) -> Simulator {
         let config: SimulatorConfig = match confy::load_path(&config_path) {
             Ok(config) => config,
@@ -82,6 +96,9 @@ impl Simulator {
         debug!("Config: {:?}", config);
         let meta_config = SimulatorMetaConfig {
             config_path: Some(Box::from(config_path)),
+            result_path: Some(Box::from(result_path)),
+            compute_results,
+            no_gui,
         };
         Simulator::from_config(&config, plugin_api, meta_config)
     }
@@ -93,6 +110,7 @@ impl Simulator {
     ) -> Simulator {
         let mut simulator = Simulator::new();
         simulator.config = config.clone();
+        simulator.meta_config = meta_config.clone();
 
         // Create turtles
         for turtle_config in &config.turtles {
@@ -163,6 +181,9 @@ impl Simulator {
         for handle in handles {
             let _ = handle.join();
         }
+
+        self.save_results();
+        self.compute_results();
     }
 
     pub fn get_results(&self) -> Vec<Record> {
@@ -180,7 +201,11 @@ impl Simulator {
         records
     }
 
-    pub fn save_results(&mut self, filename: &Path) {
+    pub fn save_results(&mut self) {
+        let filename = match &self.meta_config.result_path {
+            Some(f) => f,
+            None => return
+        };
         let mut recording_file = File::create(filename).expect("Impossible to create record file");
 
         let _ = recording_file.write(b"{\"config\": ");
@@ -223,6 +248,28 @@ impl Simulator {
             let mut turtle_open = turtle.write().unwrap();
             turtle_open.run_next_time_step(next_time);
         }
+    }
+
+    pub fn compute_results(&self) {
+        if !self.meta_config.compute_results {
+            return;
+        }
+
+        let result_filename = match &self.meta_config.result_path {
+            Some(f) => f,
+            None => return
+        };
+
+        info!("Starting result analyse...");
+        let show_figures = !self.meta_config.no_gui;
+        match result_analyser::execute_python_analyser(
+            result_filename.as_ref(),
+            show_figures, 
+            result_filename.parent().unwrap_or(Path::new(".")), 
+            String::from(".pdf")) {
+            Ok(()) => info!("Results analysed!"),
+            Err(e) => error!("Error during python execution: {e}")
+        };
     }
 }
 

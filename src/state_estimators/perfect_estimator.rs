@@ -39,7 +39,7 @@ impl PerfectEstimator {
         Self::from_config(
             &PerfectEstimatorConfig::default(),
             &None,
-            SimulatorMetaConfig::new(),
+            SimulatorMetaConfig::default(),
         )
     }
 

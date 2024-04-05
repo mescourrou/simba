@@ -41,7 +41,7 @@ impl ExternalEstimator {
         Self::from_config(
             &ExternalEstimatorConfig::default(),
             &None,
-            SimulatorMetaConfig::new(),
+            SimulatorMetaConfig::default(),
         )
     }
 
