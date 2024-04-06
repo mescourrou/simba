@@ -2,7 +2,7 @@
 Module providing the trait to link the simulator to external implementations.
 
 Example to use an external state estimator:
-```compile_fail
+```
 use turtlebot_simulator::state_estimators::state_estimator::StateEstimator;
 use turtlebot_simulator::{plugin_api::PluginAPI, simulator::SimulatorMetaConfig};
 

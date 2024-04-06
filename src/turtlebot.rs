@@ -155,9 +155,6 @@ impl MessageHandler for TurtlebotGenericMessageHandler {
 /// the send of messages to other robots.
 /// * `message_handler` manages the messages that are not sent to a specific module.
 ///
-/// You can add [`StateEstimator`]s to evaluate them, but their output won't be used to
-/// control the robot.
-///
 /// The [`Turtlebot`] internally manages a history of its states, using [`TimeOrderedData`].
 /// In this way, it can get back to a past state, in order to treat a message sent
 /// from the past. [`Turtlebot::run_next_time_step`] does the necessary
@@ -205,7 +202,6 @@ impl Turtlebot {
             network: Arc::new(RwLock::new(Network::new(name.clone()))),
             message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
-            state_estimator_bench: Arc::new(RwLock::new(Vec::new())),
         }));
         turtle.write().unwrap().save_state(0.);
         turtle
@@ -283,36 +279,12 @@ impl Turtlebot {
 
         {
             let mut writable_turtle = turtle.write().unwrap();
-            for additional_state_estimator_config in &config.state_estimator_bench {
-                let additional_state_estimator = match &additional_state_estimator_config {
-                    StateEstimatorConfig::Perfect(c) => Box::new(
-                        perfect_estimator::PerfectEstimator::from_config(
-                            c,
-                            plugin_api,
-                            meta_config.clone(),
-                        ),
-                    )
-                        as Box<dyn StateEstimator>,
-                    StateEstimatorConfig::External(c) => Box::new(
-                        external_estimator::ExternalEstimator::from_config(
-                            c,
-                            plugin_api,
-                            meta_config.clone(),
-                        ),
-                    )
-                        as Box<dyn StateEstimator>,
-                };
-                writable_turtle.state_estimator_bench.write().unwrap().push(additional_state_estimator);
-            }
-
             writable_turtle.network.write().unwrap().subscribe(Arc::<
                 RwLock<TurtlebotGenericMessageHandler>,
             >::clone(
                 &writable_turtle.message_handler
             ));
             writable_turtle.save_state(0.);
-            let sensor_manager = writable_turtle.sensor_manager();
-            sensor_manager.write().unwrap().init(&mut writable_turtle);
         }
         turtle
     }
@@ -369,16 +341,10 @@ impl Turtlebot {
 
         if observations.len() > 0 {
             // Treat the observations
-            info!("Sending {} observations", observations.len());
             self.state_estimator()
                 .write()
                 .unwrap()
-                .correction_step(self, &observations, time);
-
-            let other_state_estimator = self.state_estimator_bench.clone();
-            for additional_state_estimator in other_state_estimator.write().unwrap().iter_mut() {
-                additional_state_estimator.correction_step(self, &observations, time);
-            }
+                .correction_step(self, observations, time);
         }
 
         // If it is time for the state estimator to do the prediction
@@ -431,6 +397,11 @@ impl Turtlebot {
         );
         if let Some(msg_next_time) = message_next_time {
             next_time_step = next_time_step.min(msg_next_time);
+            debug!(
+                "[{}] Time step changed with message: {}",
+                self.name(),
+                next_time_step
+            );
         }
         debug!("[{}] next_time_step: {}", self.name(), next_time_step);
         next_time_step

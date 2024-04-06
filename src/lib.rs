@@ -18,11 +18,6 @@ the state of the robot, this module uses the data produced by the [`sensors`] mo
 The entry-point for the simulator is [`simulator`], which provides a [`simulator::Simulator`]
 struct to load a configuration, run the simulation, save the results and process the results.
 
-Utilitary components are also present:
-- The [`network`](networking) management, which allows the exchange of messages between the robots
-and the addition of latency.
-- Different tools in [`utils`].
-
 For example, the simulator can be used as follows:
 ```
 use std::path::Path;

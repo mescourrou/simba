@@ -21,5 +21,5 @@ fn main() {
     // Run the simulation for 60 seconds.
     // It also save the results to "result.json",
     // compute the results and show the figures.
-    simulator.run(1.);
+    simulator.run(60.);
 }
