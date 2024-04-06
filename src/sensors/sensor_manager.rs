@@ -4,7 +4,6 @@ use std::sync::{Arc, RwLock};
 
 use crate::simulator::SimulatorMetaConfig;
 use crate::turtlebot::Turtlebot;
-use crate::{physics::physic::Physic, plugin_api};
 
 use super::{
     oriented_landmark_sensor::OrientedLandmarkSensor,
@@ -42,7 +41,7 @@ impl SensorManager {
     pub fn from_config(
         config: &SensorManagerConfig,
         plugin_api: &Option<Box<dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        _meta_config: SimulatorMetaConfig,
     ) -> Self {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {

@@ -1,10 +1,14 @@
-use serde_json::Value;
+/*!
+Provide the Manager of the robots [`Network`]s. Only one should exist for one
+[`Simulator`](crate::simulator::Simulator).
+*/
 
 use super::network::Network;
 use std::collections::BTreeMap;
 
 use std::sync::{Arc, RwLock};
 
+/// Manages the [`Network`]s, making the link between them, and keep a list.
 #[derive(Debug)]
 pub struct NetworkManager {
     turtles_networks: BTreeMap<String, Arc<RwLock<Network>>>,
@@ -17,6 +21,11 @@ impl NetworkManager {
         }
     }
 
+    /// Add a new [`Network`] node to the network. It creates the links to each existing network.
+    ///
+    /// ## Argument
+    /// * `turtle_name` - Name of the [`Turtlebot`](crate::turtlebot::Turtlebot).
+    /// * `network` - [`Network`] to add.
     pub fn register_turtle_network(&mut self, turtle_name: String, network: Arc<RwLock<Network>>) {
         self.turtles_networks
             .insert(turtle_name.clone(), Arc::clone(&network));
@@ -35,29 +44,4 @@ impl NetworkManager {
             }
         }
     }
-
-    // pub fn send_from_to(&mut self, from: String, to: String, message: Value) {
-    //     println!("Send from {} to {}", from, to);
-    //     if from == to {
-    //         println!("Impossible to send a message to ourselve !");
-    //     } else {
-    //         let network_option = self.turtles_networks.get(&to);
-    //         if let Some(network) = network_option {
-    //             println!("Calling receive from {} to {} !", from, to);
-    //             network.write().unwrap().receive(from, message);
-    //             println!("Call success");
-    //         }
-    //     }
-    // }
-
-    // pub fn broadcast_from(&mut self, from: String, message: Value) {
-    //     println!("Send broadcas from {}", from);
-    //     for (to, network) in &self.turtles_networks {
-    //         if from != to.clone() {
-    //             println!("Calling receive broadcast {} !", from);
-    //             network.write().unwrap().receive(from.clone(), message.clone());
-    //             println!("Call success");
-    //         }
-    //     }
-    // }
 }

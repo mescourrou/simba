@@ -1,22 +1,40 @@
-use log::{debug, error};
-// Configuration for PID
+/*!
+Module providing the [`PID`] specification for the [`Controller`] strategy.
+
+The [`PID`] controller uses three derivative of the error:
+- `Proportional` - error itself
+- `Integral` - integration of the error
+- `Derivative` - derivative of the error
+
+Each component has a gain, which can be set in [`PIDConfig`].
+*/
+
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
+use crate::stateful::Stateful;
+use log::error;
 use serde_derive::{Deserialize, Serialize};
 
+/// Configuration of the [`PID`], it contains the 3 gains for the velocity
+/// control, 3 gain for the orientation control, and the wheel distance.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct PIDConfig {
-    kp_v: f32,
-    kd_v: f32,
-    ki_v: f32,
-    kp_theta: f32,
-    kd_theta: f32,
-    ki_theta: f32,
-    wheel_distance: f32,
+    pub kp_v: f32,
+    pub kd_v: f32,
+    pub ki_v: f32,
+    pub kp_theta: f32,
+    pub kd_theta: f32,
+    pub ki_theta: f32,
+    pub wheel_distance: f32,
 }
 
 impl Default for PIDConfig {
+    /// Defaut PID configuration.
+    ///
+    /// - Velocity: Proportionnal 1, other 0
+    /// - Orientation: P=0.8, D=0.3
+    /// - Wheel distance: 0.25
     fn default() -> Self {
         Self {
             kp_v: 1.0,
@@ -30,15 +48,16 @@ impl Default for PIDConfig {
     }
 }
 
+/// Record of the [`PID`] controller.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PIDRecord {
-    v_integral: f32,
-    theta_integral: f32,
-    velocity: f32,
-    command: Command,
-    last_command_time: f32,
-    previous_velocity_error: f32,
-    previous_theta_error: f32,
+    pub v_integral: f32,
+    pub theta_integral: f32,
+    pub velocity: f32,
+    pub command: Command,
+    pub last_command_time: f32,
+    pub previous_velocity_error: f32,
+    pub previous_theta_error: f32,
 }
 
 impl Default for PIDRecord {
@@ -58,33 +77,50 @@ impl Default for PIDRecord {
     }
 }
 
+/// Proportional-integral-derivative controller for velocity and angle.
 #[derive(Debug)]
 pub struct PID {
+    /// Velocity proportional gain
     kp_v: f32,
+    /// Velocity derivative gain
     kd_v: f32,
+    /// Velocity integral gain
     ki_v: f32,
+    /// Orientation proportional gain
     kp_theta: f32,
+    /// Orientation derivative gain
     kd_theta: f32,
+    /// Orientation integral gain
     ki_theta: f32,
+    /// Distance between the wheels
     wheel_distance: f32,
+    /// Time of the last command
     last_command_time: f32,
+    /// Current integral of the velocity
     v_integral: f32,
+    /// Current integral of the orientation
     theta_integral: f32,
+    /// Previous velocity error to compute the derivative
     previous_velocity_error: f32,
+    /// Previous orientation error to compute the derivative
     previous_theta_error: f32,
+    /// Current velocity
     velocity: f32,
+    /// Current record
     current_record: PIDRecord,
 }
 
 impl PID {
+    /// Makes a new default PID.
     pub fn new() -> Self {
         Self::from_config(&PIDConfig::default(), &None, SimulatorMetaConfig::default())
     }
 
+    /// Makes a new [`PID`] from the given `config`.
     pub fn from_config(
         config: &PIDConfig,
         _plugin_api: &Option<Box<dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        _meta_config: SimulatorMetaConfig,
     ) -> Self {
         PID {
             kp_v: config.kp_v,
@@ -113,7 +149,7 @@ use crate::turtlebot::Turtlebot;
 impl Controller for PID {
     fn make_command(
         &mut self,
-        turtle: &mut Turtlebot,
+        _turtle: &mut Turtlebot,
         error: &ControllerError,
         time: f32,
     ) -> Command {
@@ -159,7 +195,9 @@ impl Controller for PID {
         };
         command
     }
+}
 
+impl Stateful<ControllerRecord> for PID {
     fn record(&self) -> ControllerRecord {
         ControllerRecord::PID(self.current_record.clone())
     }

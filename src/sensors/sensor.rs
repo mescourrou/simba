@@ -2,7 +2,6 @@ extern crate confy;
 use serde_derive::{Deserialize, Serialize};
 
 use super::oriented_landmark_sensor;
-use crate::physics::physic::Physic;
 
 pub trait GenericObservation: std::fmt::Debug {}
 

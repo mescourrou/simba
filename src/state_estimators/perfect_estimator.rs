@@ -1,16 +1,23 @@
-use log::error;
-// Configuration for PerfectPhysic
+/*!
+Module providing the [`PerfectEstimator`] strategy. This strategy uses directly
+the groundtruth to provide the estimation. It can be used when the state used
+by the controller should be perfect.
+*/
+
 use super::state_estimator::{State, StateRecord};
 use crate::plugin_api::PluginAPI;
+use crate::sensors::sensor::GenericObservation;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
-use crate::{physics::physic, sensors::sensor::GenericObservation};
+use log::error;
 use serde_derive::{Deserialize, Serialize};
 
+/// Configuration for [`PerfectEstimator`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct PerfectEstimatorConfig {
-    update_period: f32,
+    /// Prediction period.
+    pub update_period: f32,
 }
 
 impl Default for PerfectEstimatorConfig {
@@ -19,22 +26,28 @@ impl Default for PerfectEstimatorConfig {
     }
 }
 
+/// Record for [`PerfectEstimator`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PerfectEstimatorRecord {
+    /// Current state estimated
     pub state: StateRecord,
+    /// Last change of state
     pub last_time_update: f32,
 }
 
-use crate::physics::physic::Physic;
-
+/// Estimation strategy without any error.
 #[derive(Debug)]
 pub struct PerfectEstimator {
+    /// Estimation of the state on the `last_time_update`.
     state: State,
+    /// Update period, in seconds.
     update_period: f32,
+    /// Last time the state was updated/predicted.
     last_time_update: f32,
 }
 
 impl PerfectEstimator {
+    /// Create a new [`PerfectEstimator`] using default [`PerfectEstimatorConfig`].
     pub fn new() -> Self {
         Self::from_config(
             &PerfectEstimatorConfig::default(),
@@ -43,10 +56,11 @@ impl PerfectEstimator {
         )
     }
 
+    /// Creates a new [`PerfectEstimator`] from the given `config`.
     pub fn from_config(
         config: &PerfectEstimatorConfig,
         _plugin_api: &Option<Box<dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        _meta_config: SimulatorMetaConfig,
     ) -> Self {
         Self {
             update_period: config.update_period,
@@ -62,7 +76,7 @@ use crate::turtlebot::Turtlebot;
 impl StateEstimator for PerfectEstimator {
     fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32) {
         let arc_physic = turtle.physics();
-        let mut physic = arc_physic.read().unwrap();
+        let physic = arc_physic.read().unwrap();
         if time < self.next_time_step() {
             error!("Error trying to update estimate too soon !");
             return;
@@ -73,8 +87,8 @@ impl StateEstimator for PerfectEstimator {
 
     fn correction_step(
         &mut self,
-        turtle: &mut Turtlebot,
-        observations: Vec<Box<dyn GenericObservation>>,
+        _turtle: &mut Turtlebot,
+        _observations: Vec<Box<dyn GenericObservation>>,
         _time: f32,
     ) {
     }
@@ -102,7 +116,7 @@ impl Stateful<StateEstimatorRecord> for PerfectEstimator {
             self.last_time_update = record_state_estimator.last_time_update;
         } else {
             error!(
-                "Using a PhysicRecord type which does not match the used Physic (PerfectPhysic)"
+                "Using a StateEstimatorRecord type which does not match the used StateEstimator (PerfectEstimator)"
             );
         }
     }

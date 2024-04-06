@@ -1,16 +1,22 @@
-use log::error;
-// Configuration for PerfectPhysic
+/*!
+Provide the implementation of the [`Physic`] trait without any noise added to the [`Command`].
+*/
+
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
 use crate::stateful::Stateful;
+use log::error;
 use serde_derive::{Deserialize, Serialize};
 
+/// Config for the [`PerfectPhysic`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct PerfectPhysicConfig {
-    wheel_distance: f32,
-    initial_state: StateConfig,
+    /// Distance between the two wheels, to compute the angular velocity from the wheel speeds.
+    pub wheel_distance: f32,
+    /// Starting state.
+    pub initial_state: StateConfig,
 }
 
 impl Default for PerfectPhysicConfig {
@@ -22,22 +28,32 @@ impl Default for PerfectPhysicConfig {
     }
 }
 
+/// Record for the [`PerfectPhysic`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PerfectPhysicRecord {
-    state: StateRecord,
-    last_time_update: f32,
-    current_command: Command,
+    /// State at the time `last_time_update`
+    pub state: StateRecord,
+    /// Time of the state
+    pub last_time_update: f32,
+    /// Current command applied.
+    pub current_command: Command,
 }
 
+/// Implementation of [`Physic`] with the command perfectly applied.
 #[derive(Debug)]
 pub struct PerfectPhysic {
+    /// Distance between the wheels
     wheel_distance: f32,
+    /// Current state
     state: State,
+    /// Time of the current state.
     last_time_update: f32,
+    /// Current command applied.
     current_command: Command,
 }
 
 impl PerfectPhysic {
+    /// Makes a new [`PerfectPhysic`] situated at (0,0,0) and 25cm between wheels.
     pub fn new() -> Self {
         Self::from_config(
             &PerfectPhysicConfig::default(),
@@ -46,10 +62,16 @@ impl PerfectPhysic {
         )
     }
 
+    /// Makes a new [`PerfectPhysic`] with the given configurations.
+    ///
+    /// ## Arguments
+    /// * `config` - Configuration of [`PerfectPhysic`].
+    /// * `plugin_api` - [`PluginAPI`] not used there.
+    /// * `meta_config` - Configuration of the simulator.
     pub fn from_config(
         config: &PerfectPhysicConfig,
         _plugin_api: &Option<Box<dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        _meta_config: SimulatorMetaConfig,
     ) -> Self {
         PerfectPhysic {
             wheel_distance: config.wheel_distance,
@@ -62,6 +84,7 @@ impl PerfectPhysic {
         }
     }
 
+    /// Compute the state to the given `time`, using `self.command`.
     fn compute_state_until(&mut self, time: f32) {
         let dt = time - self.last_time_update;
         assert!(
@@ -94,14 +117,17 @@ use super::physic::Command;
 use super::physic::{Physic, PhysicRecord};
 
 impl Physic for PerfectPhysic {
+    /// Apply the given `command` perfectly.
     fn apply_command(&mut self, command: &Command, _time: f32) {
         self.current_command = command.clone();
     }
 
+    /// Compute the state at the given `time`.
     fn update_state(&mut self, time: f32) {
         self.compute_state_until(time);
     }
 
+    /// Return the current state. Do not compute the state again.
     fn state(&self, _time: f32) -> &State {
         &self.state
     }

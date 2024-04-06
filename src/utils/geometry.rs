@@ -1,6 +1,21 @@
+/*!
+Provide geometry tools.
+*/
+
 extern crate nalgebra as na;
 use na::SVector;
 
+/// Computes the projection of a point on a segment.
+///
+/// If the projected point is out of the segment, the closest segment point is selected.
+///
+/// ## Arguments
+/// * `point` -- Point to project.
+/// * `p1` -- Point 1 of the segment.
+/// * `p2` -- Point 2 of the segment.
+///
+/// ## Return
+/// Projected point.
 pub fn project_point(
     point: SVector<f32, 2>,
     p1: SVector<f32, 2>,

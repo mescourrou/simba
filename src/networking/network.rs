@@ -1,3 +1,8 @@
+/*!
+Provide the [`Network`] struct, allowing communication between robots, and
+the configuration struct [`NetworkConfig`].
+*/
+
 extern crate confy;
 use std::collections::BTreeMap;
 use std::fmt;
@@ -14,11 +19,14 @@ use crate::utils::time_ordered_data::TimeOrderedData;
 use super::message_handler::MessageHandler;
 use super::network_manager::NetworkManager;
 
+/// Configuration for the [`Network`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct NetworkConfig {
-    range: f32,
-    delay: f32,
+    /// Limit range communication, `f32::INFINITY` for no limit.
+    pub range: f32,
+    /// Communication delay (fixed). 0 for no delay.
+    pub delay: f32,
 }
 
 impl Default for NetworkConfig {
@@ -30,18 +38,33 @@ impl Default for NetworkConfig {
     }
 }
 
+/// Network interface for [`Turtlebot`].
+///
+/// Each [`Turtlebot`] should have a [`Network`] instance. Through this interface,
+/// the robots can send messages to other robots using pair-to-pair communication,
+/// or broadcast diffusion.
 #[derive(Clone)]
 pub struct Network {
+    /// Name of the robot (will be in the 'from' field of the sent messages).
     from: String,
+    /// Range limitation (not implemented yet).
     range: f32,
+    /// Added delay to the messages.
     delay: f32,
+    /// Reference to the simulator [`NetworkManager`].
     network_manager: Option<Arc<RwLock<NetworkManager>>>,
+    /// List of the other robots associated to their asynchronous Sender.
+    ///
+    /// Map[Name of the robot, Sender].
     other_emitters: BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value, f32)>>>>,
+    /// List of handler. First handler returning Ok has priority.
     message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>,
+    /// Asynchronous receiver for the current [`Network`].
     channel_receiver: Arc<Mutex<mpsc::Receiver<(String, Value, f32)>>>,
+    /// Asynchronous sender for the current [`Network`].
     channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value, f32)>>>,
+    /// Message list
     messages_buffer: TimeOrderedData<(String, Value)>,
-    next_message_time: f32,
 }
 
 impl fmt::Debug for Network {
@@ -55,14 +78,20 @@ impl fmt::Debug for Network {
 }
 
 impl Network {
+    /// Create a new default Network.
     pub fn new(from: String) -> Network {
-        Network::from_config(from, &NetworkConfig::default(), SimulatorMetaConfig::default())
+        Network::from_config(
+            from,
+            &NetworkConfig::default(),
+            SimulatorMetaConfig::default(),
+        )
     }
 
+    /// Makes a new Network from the given config.
     pub fn from_config(
         from: String,
         config: &NetworkConfig,
-        meta_config: SimulatorMetaConfig,
+        _meta_config: SimulatorMetaConfig,
     ) -> Network {
         let (tx, rx) = mpsc::channel::<(String, Value, f32)>();
         Network {
@@ -75,18 +104,20 @@ impl Network {
             channel_receiver: Arc::new(Mutex::new(rx)),
             channel_emitter: Arc::new(Mutex::new(tx)),
             messages_buffer: TimeOrderedData::new(),
-            next_message_time: -1.,
         }
     }
 
+    /// Set the `network_manager` reference.
     pub fn set_network_manager(&mut self, network_manager: Arc<RwLock<NetworkManager>>) {
         self.network_manager = Some(network_manager);
     }
 
+    /// Get the Sender, to be able to send message to this [`Network`].
     pub fn get_emitter(&mut self) -> mpsc::Sender<(String, Value, f32)> {
         self.channel_emitter.lock().unwrap().clone()
     }
 
+    /// Add a new `emitter`, to send messages to the robot `turtle_name`.
     pub fn add_emitter(
         &mut self,
         turtle_name: String,
@@ -96,6 +127,7 @@ impl Network {
             .insert(turtle_name, Arc::new(Mutex::new(emitter)));
     }
 
+    /// Send a `message` to the given `recipient`. `time` is the send message time, before delays.
     pub fn send_to(&mut self, recipient: String, message: Value, time: f32) {
         let emitter_option = self.other_emitters.get(&recipient);
         if let Some(emitter) = emitter_option {
@@ -106,6 +138,7 @@ impl Network {
         }
     }
 
+    /// Send a `message` to all available robots. `time` is the send message time, before delays.
     pub fn broadcast(&mut self, message: Value, time: f32) {
         for (_, emitter) in &self.other_emitters {
             let _ = emitter
@@ -115,6 +148,7 @@ impl Network {
         }
     }
 
+    /// Unstack the waiting messages in the asynchronous receiver and put them in the buffer.
     pub fn process_messages(&mut self) {
         let rx = self.channel_receiver.lock().unwrap();
         for (from, message, time) in rx.try_iter() {
@@ -123,13 +157,17 @@ impl Network {
         }
     }
 
+    /// Get the minimal time among all waiting messages.
     pub fn next_message_time(&self) -> Option<f32> {
         self.messages_buffer.min_time()
     }
 
+    /// Handle the messages which are received at the given `time`.
+    ///
+    /// ## Arguments
+    /// * `turtle` - Reference to the robot to give to the handlers.
+    /// * `time` - Time of the messages to handle.
     pub fn handle_message_at_time(&mut self, turtle: &mut Turtlebot, time: f32) {
-        let mut elements_to_remove = Vec::<usize>::new();
-        let mut i: usize = 0;
         while let Some((msg_time, (from, message))) = self.messages_buffer.remove(time) {
             debug!("[{}] Receive message from {from}: {:?}", self.from, message);
             // TODO: add delay and range
@@ -147,7 +185,7 @@ impl Network {
                 if handler
                     .write()
                     .unwrap()
-                    .handle_message(turtle, &from, &message, time)
+                    .handle_message(turtle, &from, &message, msg_time)
                     .is_ok()
                 {
                     debug!("[{}] Found handler", self.from);
@@ -169,6 +207,7 @@ impl Network {
         );
     }
 
+    /// Add a new handler to the [`Network`].
     pub fn subscribe(&mut self, handler: Arc<RwLock<dyn MessageHandler>>) {
         self.message_handlers.push(handler);
     }

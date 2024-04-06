@@ -1,3 +1,18 @@
+/*!
+Module providing the interface to use external [`StateEstimator`].
+
+To make your own external state estimation strategy, the simulator should
+be used as a library (see [dedicated page](crate::plugin_api)).
+
+Your own external state estimation strategy is made using the
+[`PluginAPI::get_state_estimator`] function.
+
+For the [`Stateful`] trait, the generic type is [`StateEstimatorRecord`],
+and your implementation should return a [`StateEstimatorRecord::External`]
+type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
+and [`serde_json::from_value`] to make the bridge to your own Record struct.
+*/
+
 use serde_json::Value;
 
 use super::state_estimator::{State, StateEstimator};
@@ -9,10 +24,22 @@ use super::state_estimator::StateEstimatorRecord;
 use crate::sensors::sensor::GenericObservation;
 use serde_derive::{Deserialize, Serialize};
 
+/// Config for the external state estimation (generic).
+///
+/// The config for [`ExternalEstimator`] uses a [`serde_json::Value`] to
+/// integrate your own configuration inside the full simulator config.
+///
+/// In the yaml file, the config could be:
+/// ```YAML
+/// state_estimator:
+///     External:
+///         parameter_of_my_own_estimator: true
+/// ```
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExternalEstimatorConfig {
+    /// Config serialized.
     #[serde(flatten)]
-    config: Value,
+    pub config: Value,
 }
 
 impl Default for ExternalEstimatorConfig {
@@ -23,20 +50,30 @@ impl Default for ExternalEstimatorConfig {
     }
 }
 
+/// Record for the external state estimation (generic).
+///
+/// Like [`ExternalEstimatorConfig`], [`ExternalEstimator`] uses a [`serde_json::Value`]
+/// to take every record.
+///
+/// The record is not automatically cast to your own type, the cast should be done
+/// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExternalEstimatorRecord {
+    /// Record serialized.
     #[serde(flatten)]
     pub record: Value,
 }
 
-use crate::physics::physic::Physic;
 use crate::turtlebot::Turtlebot;
 
+/// External estimator strategy, which does the bridge with your own strategy.
 pub struct ExternalEstimator {
+    /// External state estimator.
     state_estimator: Box<dyn StateEstimator>,
 }
 
 impl ExternalEstimator {
+    /// Creates a new [`ExternalEstimator`]
     pub fn new() -> Self {
         Self::from_config(
             &ExternalEstimatorConfig::default(),
@@ -45,6 +82,14 @@ impl ExternalEstimator {
         )
     }
 
+    /// Creates a new [`ExternalEstimator`] from the given config.
+    ///
+    /// <div class="warning">The `plugin_api` is required here !</div>
+    ///
+    ///  ## Arguments
+    /// * `config` -- Scenario config of the External estimator.
+    /// * `plugin_api` -- Required [`PluginAPI`] implementation.
+    /// * `meta_config` -- Simulator config.
     pub fn from_config(
         config: &ExternalEstimatorConfig,
         plugin_api: &Option<Box<dyn PluginAPI>>,

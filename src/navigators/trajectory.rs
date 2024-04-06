@@ -1,18 +1,25 @@
+/*!
+Trajectory tool.
+*/
+
 extern crate nalgebra as na;
 use log::debug;
 use na::{DMatrix, SVector};
 
 use crate::stateful::Stateful;
 
-use super::super::utils::geometry::*;
+use crate::utils::geometry::*;
 
 use serde_derive::{Deserialize, Serialize};
 
+/// Config of the [`Trajectory`].
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(default)]
 pub struct TrajectoryConfig {
+    /// Ordered list of the points to follow.
     pub point_list: Vec<Vec<f32>>,
-    do_loop: bool,
+    /// Closing the loop or not.
+    pub do_loop: bool,
 }
 
 impl Default for TrajectoryConfig {
@@ -24,9 +31,11 @@ impl Default for TrajectoryConfig {
     }
 }
 
+/// Record for [`Stateful`] trait. The only dynamic element
+/// is the current segment.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TrajectoryRecord {
-    current_segment: usize,
+    pub current_segment: usize,
 }
 
 impl TrajectoryRecord {
@@ -35,6 +44,9 @@ impl TrajectoryRecord {
     }
 }
 
+/// Tool to manage a polyline trajectory.
+///
+/// The matching starts at the segment 0, and continues in the order.
 pub struct Trajectory {
     point_list: DMatrix<f32>,
     do_loop: bool,
@@ -42,6 +54,7 @@ pub struct Trajectory {
 }
 
 impl Trajectory {
+    /// Creates a new empty trajectory
     pub fn new() -> Self {
         Self {
             point_list: DMatrix::<f32>::from_vec(0, 0, Vec::<f32>::new()),
@@ -50,6 +63,7 @@ impl Trajectory {
         }
     }
 
+    /// Makes a new trajectory from the given config.
     pub fn from_config(config: &TrajectoryConfig) -> Self {
         let mut trajectory = Self::new();
         trajectory.point_list = trajectory.point_list.resize(config.point_list.len(), 2, 0.);
@@ -108,6 +122,17 @@ impl Trajectory {
     //     return (best_segment, best_projected);
     // }
 
+    /// Match a point on the polyline, and returns the projected point and the segment.
+    ///
+    /// The segment privilieged is the previous matched segment. If the next segment is
+    /// closer, it is taken, but there is no loop to go through all segments.
+    ///
+    /// ## Arguments
+    /// * `point` - Point to match
+    ///
+    /// ## Return
+    /// * Matched segment, as a tuple of two points.
+    /// * Projected point.
     pub fn map_matching(
         &mut self,
         point: SVector<f32, 2>,

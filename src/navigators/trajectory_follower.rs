@@ -1,3 +1,8 @@
+/*!
+Implementation of a [`Navigator`] strategy, which follows a polyline shaped
+trajectory.
+*/
+
 use super::navigator::{Navigator, NavigatorRecord};
 use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
 
@@ -9,18 +14,21 @@ use libm::atan2;
 use log::error;
 use na::Vector3;
 
-// Configuration for TrajectoryFollower
 use serde_derive::{Deserialize, Serialize};
 
 use std::f32::consts::PI;
 use std::path::Path;
 
+/// Configuration of the [`TrajectoryFollower`] strategy.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct TrajectoryFollowerConfig {
+    /// Path to load the path. The file should be compatible with [`TrajectoryConfig`].
     pub trajectory_path: String,
-    forward_distance: f32,
-    target_speed: f32,
+    /// Distance of the point which is projected on the trajectory.
+    pub forward_distance: f32,
+    /// Speed to reach, in m/s.
+    pub target_speed: f32,
 }
 
 impl Default for TrajectoryFollowerConfig {
@@ -33,10 +41,13 @@ impl Default for TrajectoryFollowerConfig {
     }
 }
 
+/// Record of the [`TrajectoryFollower`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TrajectoryFollowerRecord {
-    error: ControllerError,
-    trajectory: TrajectoryRecord,
+    /// Current error
+    pub error: ControllerError,
+    /// Trajectory dynamic record.
+    pub trajectory: TrajectoryRecord,
 }
 
 impl Default for TrajectoryFollowerRecord {
@@ -48,15 +59,28 @@ impl Default for TrajectoryFollowerRecord {
     }
 }
 
+/// [`Navigator`] strategy which follows a polyline.
+///
+/// The lateral error is computed using the projection on the closest
+/// segment.
+///
+/// The orientation error is computed so that the robot goes to the projected
+/// point.
 #[derive(Debug)]
 pub struct TrajectoryFollower {
+    /// Trajectory to follow
     trajectory: Trajectory,
+    /// Distance of the point which is projected on the trajectory
+    /// to compute the error.
     forward_distance: f32,
+    /// Speed to reach in m/s
     target_speed: f32,
+    /// Last error, stored to make the [`TrajectoryFollowerRecord`]
     error: ControllerError,
 }
 
 impl TrajectoryFollower {
+    /// Makes a new default [`TrajectoryFollower`].
     pub fn new() -> Self {
         Self {
             trajectory: Trajectory::new(),
@@ -66,9 +90,16 @@ impl TrajectoryFollower {
         }
     }
 
+    /// Makes a [`TrajectoryFollower`] from the given config.
+    ///
+    /// ## Arguments
+    /// * `config` - Trajectory configuration
+    /// * `plugin_api` - Not used there.
+    /// * `meta_config` - Meta configuration of the simulator. Used there to get the
+    /// path of the config, used as relative reference for the trajectory path.
     pub fn from_config(
         config: &TrajectoryFollowerConfig,
-        plugin_api: &Option<Box<dyn PluginAPI>>,
+        _plugin_api: &Option<Box<dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
     ) -> Self {
         let mut path = Path::new(&config.trajectory_path);
@@ -91,6 +122,8 @@ impl TrajectoryFollower {
         }
     }
 
+    /// Load the trajectory from the given `path`. This file should be compatible
+    /// with [`TrajectoryConfig`].
     fn load_trajectory_from_path(path: &Path) -> Trajectory {
         let trajectory: TrajectoryConfig = match confy::load_path(&path) {
             Ok(config) => config,
@@ -112,7 +145,16 @@ use crate::state_estimators::state_estimator::State;
 use crate::turtlebot::Turtlebot;
 
 impl Navigator for TrajectoryFollower {
-    fn compute_error(&mut self, turtle: &mut Turtlebot, state: State) -> ControllerError {
+    /// Compute the error between the given `state` and the current trajectory.
+    ///
+    /// This error is computed through the following steps:
+    /// 1. Compute the foward pose, using the `forward_distance`.
+    /// 2. Use [`Trajectory::map_matching`] to get the matching segment and the projected
+    /// point (no orientation).
+    /// 3. Compute the orientation of the point to orient the robot to the projected point.
+    /// 4. Compute the lateral error
+    /// 5. Compute the velocity error
+    fn compute_error(&mut self, _turtle: &mut Turtlebot, state: State) -> ControllerError {
         let forward_pose = state.pose
             + self.forward_distance * Vector3::new(state.pose.z.cos(), state.pose.z.sin(), 0.);
         let (segment, projected_point) = self
@@ -124,11 +166,7 @@ impl Navigator for TrajectoryFollower {
         ) as f32;
         let projected_point = Vector3::new(projected_point.x, projected_point.y, segment_angle);
 
-        let forward_pose_with_segment: f32 = segment_angle
-            - atan2(
-                (forward_pose.y - segment.0.y).into(),
-                (forward_pose.x - segment.0.x).into(),
-            ) as f32;
+        // Compute the orientation error
         let projected_point_direction = atan2(
             (projected_point.y - state.pose.y).into(),
             (projected_point.x - state.pose.x).into(),
@@ -141,11 +179,20 @@ impl Navigator for TrajectoryFollower {
         while theta_error <= -PI {
             theta_error += 2. * PI;
         }
+        self.error.theta = theta_error;
+
+        // Compute the lateral error
+        let forward_pose_with_segment: f32 = segment_angle
+            - atan2(
+                (forward_pose.y - segment.0.y).into(),
+                (forward_pose.x - segment.0.x).into(),
+            ) as f32;
         self.error.lateral = forward_pose_with_segment / forward_pose_with_segment.abs()
             * ((forward_pose.x - projected_point.x).powf(2.)
                 + (forward_pose.y - projected_point.y).powf(2.))
             .sqrt();
-        self.error.theta = theta_error;
+
+        // Compute the velocity error
         self.error.velocity = self.target_speed - state.velocity;
 
         self.error.clone()

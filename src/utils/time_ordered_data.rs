@@ -1,17 +1,61 @@
+/*!
+Module providing a data structure to store data with a timestamp, with
+increasing order.
+*/
+
 use core::slice::{Iter, IterMut};
 use std::iter::Skip;
 use std::vec::Vec;
 
+/// Data structure to store ordered timed data.
+///
+/// The generic is the Type to be stored. For now, the time is stored
+/// using `f32` without possibility of modifying it.
+///
+/// ## Example
+/// ```
+/// use turtlebot_simulator::utils::time_ordered_data::TimeOrderedData;
+///
+/// let mut tod = TimeOrderedData::<String>::new();
+/// tod.insert(2.1, String::from("Hello1"), true);
+/// tod.insert(2.9, String::from("Hello2"), true);
+/// tod.insert(2.6, String::from("Hello3"), true);
+///
+/// for data in tod.iter_from_time(2.2) {
+///     println!("Time {}: {}", data.0, data.1);
+/// }
+/// ```
+///
+/// Output:
+/// ```txt
+/// Time 2.6: Hello3
+/// Time 2.9: Hello2
+/// ```
+///
 #[derive(Debug, Clone)]
 pub struct TimeOrderedData<T> {
+    /// Data structure. WARNING: the sort is done during the insertion,
+    /// and is not checked after !
     data: Vec<(f32, T)>,
 }
 
 impl<T> TimeOrderedData<T> {
+    /// Creates a new empty data structure.
     pub fn new() -> Self {
         Self { data: Vec::new() }
     }
 
+    /// Find the index equal or just after the required time.
+    ///
+    /// This function was primarly made for insertion. So the position returned
+    /// is the position where to insert a new element.
+    ///
+    /// ## Arguments
+    /// * `time` -- timestamp looked for.
+    ///
+    /// ## Return
+    /// * `usize` -- position of the element with equal time or just after.
+    /// * `bool` -- Is the element found is equal (the position is then this element).
     fn find_time_position(&self, time: f32) -> (usize, bool) {
         let mut pos = self.data.len();
 
@@ -30,16 +74,35 @@ impl<T> TimeOrderedData<T> {
         return (pos, false);
     }
 
+    /// Insert an element at the given time.
+    ///
+    /// ## Arguments
+    /// * `time` -- Time where to insert the new element.
+    /// * `data` -- Element to insert.
+    /// * `do_erase` -- Erase or not if an element is already at the same timestamp.
+    /// If it does not erase, multiple elements will have the same timestamp.
+    ///
+    /// TODO: test without erase, if all elements come out by iter.
     pub fn insert(&mut self, time: f32, data: T, do_erase: bool) {
         let (pos, erase) = self.find_time_position(time);
 
-        if erase && do_erase {
-            self.data[pos] = (time, data);
+        if erase {
+            if do_erase {
+                self.data[pos] = (time, data);
+            } else {
+                self.data.insert(pos + 1, (time, data));
+            }
         } else {
             self.data.insert(pos, (time, data));
         }
     }
 
+    /// Get a mutable reference on the data just before or at the given `time`.
+    ///
+    /// ## Return
+    /// Return an Option with:
+    /// * `Some(time, mutable reference on data)` if a data was found.
+    /// * `None` if no data was found, e.g. if `time` is below the minimal time.
     pub fn get_data_beq_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
         for (data_time, ref mut data) in self.data.iter_mut().rev() {
             if data_time <= &mut time {
@@ -49,6 +112,12 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
+    /// Get a reference on the data just before or at the given `time`.
+    ///
+    /// ## Return
+    /// Return an Option with:
+    /// * `Some(time, reference on data)` if a data was found.
+    /// * `None` if no data was found, e.g. if `time` is below the minimal time.
     pub fn get_data_beq_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter().rev() {
             if data_time <= &time {
@@ -58,6 +127,12 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
+    /// Get a mutable reference on the data strictly before the given `time`.
+    ///
+    /// ## Return
+    /// Return an Option with:
+    /// * `Some(time, mutable reference on data)` if a data was found.
+    /// * `None` if no data was found, e.g. if `time` is below the minimal time.
     pub fn get_data_before_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
         for (data_time, ref mut data) in self.data.iter_mut().rev() {
             if data_time < &mut time {
@@ -67,6 +142,12 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
+    /// Get a reference on the data strictly before the given `time`.
+    ///
+    /// ## Return
+    /// Return an Option with:
+    /// * `Some(time, reference on data)` if a data was found.
+    /// * `None` if no data was found, e.g. if `time` is below the minimal time.
     pub fn get_data_before_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter().rev() {
             if data_time < &time {
@@ -76,6 +157,12 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
+    /// Get a mutable reference on the data just after or at the given `time`.
+    ///
+    /// ## Return
+    /// Return an Option with:
+    /// * `Some(time, mutable reference on data)` if a data was found.
+    /// * `None` if no data was found, e.g. if `time` is after the maximal time.
     pub fn get_data_geq_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
         for (data_time, ref mut data) in self.data.iter_mut() {
             if data_time >= &mut time {
@@ -85,6 +172,12 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
+    /// Get a reference on the data just after or at the given `time`.
+    ///
+    /// ## Return
+    /// Return an Option with:
+    /// * `Some(time, reference on data)` if a data was found.
+    /// * `None` if no data was found, e.g. if `time` is after the maximal time.
     pub fn get_data_geq_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
             if data_time >= &time {
@@ -94,6 +187,12 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
+    /// Get a mutable reference on the data strictly after the given `time`.
+    ///
+    /// ## Return
+    /// Return an Option with:
+    /// * `Some(time, mutable reference on data)` if a data was found.
+    /// * `None` if no data was found, e.g. if `time` is after the maximal time.
     pub fn get_data_after_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
         for (data_time, ref mut data) in self.data.iter_mut() {
             if data_time > &mut time {
@@ -103,6 +202,12 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
+    /// Get a reference on the data strictly after the given `time`.
+    ///
+    /// ## Return
+    /// Return an Option with:
+    /// * `Some(time, reference on data)` if a data was found.
+    /// * `None` if no data was found, e.g. if `time` is after the maximal time.
     pub fn get_data_after_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
             if data_time > &time {
@@ -112,6 +217,12 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
+    /// Get a reference on the data strictly (within 1e-15) at the given `time`.
+    ///
+    /// ## Return
+    /// Return an Option with:
+    /// * `Some(time, reference on data)` if a data was found.
+    /// * `None` if no data was found at this `time`.
     pub fn get_data_at_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
             if (data_time - &time).abs() < 1e-15 {
@@ -121,6 +232,12 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
+    /// Get a mutable reference on the data strictly (within 1e-15) at the given `time`.
+    ///
+    /// ## Return
+    /// Return an Option with:
+    /// * `Some(time, mutable reference on data)` if a data was found.
+    /// * `None` if no data was found at this `time`.
     pub fn get_data_at_time_mut(&mut self, time: f32) -> Option<(f32, &mut T)> {
         for (data_time, ref mut data) in self.data.iter_mut() {
             if (*data_time - time).abs() < 1e-15 {
@@ -130,20 +247,33 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
+    /// Provide an iterator from the given `time`, in the chronological order.
+    ///
+    /// If `time` is an existent time, the iterator starts at this position.
     pub fn iter_from_time(&self, time: f32) -> Skip<Iter<'_, (f32, T)>> {
-        let (pos, _) = self.find_time_position(time);
+        let (mut pos, _) = self.find_time_position(time);
+        while pos > 0 && (self.data[pos - 1].0 - time).abs() < 1e-15 {
+            pos -= 1;
+        }
         self.data.iter().skip(pos)
     }
 
+    /// Provide an mutable iterator from the given `time`, in the chronological order.
+    ///
+    /// If `time` is an existent time, the iterator starts at this position.
     pub fn iter_from_time_mut(&mut self, time: f32) -> Skip<IterMut<'_, (f32, T)>> {
         let (pos, _) = self.find_time_position(time);
         self.data.iter_mut().skip(pos)
     }
 
+    /// Provide an iterator which goes on all the data in the chronological order.
     pub fn iter(&self) -> impl Iterator<Item = &(f32, T)> {
         self.data.iter()
     }
 
+    /// Remove a data at the given `time` and returns it.
+    ///
+    /// If there is no data at the given time, `None` is returned.
     pub fn remove(&mut self, time: f32) -> Option<(f32, T)> {
         let (pos, erase) = self.find_time_position(time);
         if !erase {
@@ -153,10 +283,12 @@ impl<T> TimeOrderedData<T> {
         Some(self.data.remove(pos))
     }
 
+    /// Size of the data structure.
     pub fn len(&self) -> usize {
         self.data.len()
     }
 
+    /// Minimal time in the data structure.
     pub fn min_time(&self) -> Option<f32> {
         if self.len() == 0 {
             None
@@ -165,6 +297,7 @@ impl<T> TimeOrderedData<T> {
         }
     }
 
+    /// Maximal time in the data structure.
     pub fn max_time(&self) -> Option<f32> {
         if self.len() == 0 {
             None
@@ -435,5 +568,26 @@ mod tests {
         assert_eq!(data, String::from("Hello1"));
 
         assert_eq!(tod.len(), 2);
+    }
+
+    #[test]
+    fn do_not_erase() {
+        let mut tod = TimeOrderedData::<String>::new();
+        let str_to_insert = String::from("Hello1");
+        tod.insert(2.1, str_to_insert, false);
+        let str_to_insert = String::from("Hello2");
+        tod.insert(2.6, str_to_insert, false);
+        let str_to_insert = String::from("Hello3");
+        tod.insert(2.6, str_to_insert, false);
+
+        let mut iterator = tod.iter_from_time(2.6);
+        let tpl = iterator.next().unwrap();
+        assert_eq!(tpl.0, 2.6);
+        assert_eq!(tpl.1, String::from("Hello2"));
+        assert_eq!(
+            iterator.next(),
+            Some((2.6, String::from("Hello3"))).as_ref()
+        );
+        assert_eq!(iterator.next(), None);
     }
 }
