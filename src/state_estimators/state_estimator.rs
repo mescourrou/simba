@@ -40,6 +40,15 @@ pub struct StateRecord {
     pub velocity: f32,
 }
 
+impl Default for StateRecord {
+    fn default() -> Self {
+        Self {
+            pose: vec![0., 0., 0.],
+            velocity: 0.,
+        }
+    }
+}
+
 /// State to be estimated.
 #[derive(Debug, Clone)]
 pub struct State {

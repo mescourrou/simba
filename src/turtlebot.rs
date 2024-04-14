@@ -16,7 +16,7 @@ use crate::networking::network::{Network, NetworkConfig};
 use crate::physics::perfect_physic;
 use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 
-use crate::sensors::sensor::Sensor;
+use crate::sensors::sensor::{Sensor};
 use crate::state_estimators::state_estimator::{
     StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
 };
@@ -275,6 +275,8 @@ impl Turtlebot {
                 &writable_turtle.message_handler
             ));
             writable_turtle.save_state(0.);
+            let sensor_manager = writable_turtle.sensor_manager();
+            sensor_manager.write().unwrap().init(&mut writable_turtle);
         }
         turtle
     }

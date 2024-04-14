@@ -10,6 +10,7 @@ use std::sync::{Arc, RwLock};
 use crate::turtlebot::Turtlebot;
 use crate::{simulator::SimulatorMetaConfig, stateful::Stateful};
 
+use super::odometry_sensor::OdometrySensor;
 use super::{
     oriented_landmark_sensor::OrientedLandmarkSensor,
     sensor::{GenericObservation, Sensor, SensorConfig, SensorRecord},
@@ -68,17 +69,33 @@ impl SensorManager {
         for sensor_config in &config.sensors {
             manager
                 .sensors
-                .push(Arc::new(RwLock::new(Box::new(match &sensor_config {
-                    SensorConfig::OrientedLandmarkSensor(c) => {
-                        OrientedLandmarkSensor::from_config(c, plugin_api, meta_config.clone())
-                    }
-                }))));
+                .push(Arc::new(RwLock::new(match &sensor_config {
+                    SensorConfig::OrientedLandmarkSensor(c) => Box::new(
+                        OrientedLandmarkSensor::from_config(c, plugin_api, meta_config.clone()),
+                    )
+                        as Box<dyn Sensor>,
+                    SensorConfig::OdometrySensor(c) => Box::new(OdometrySensor::from_config(
+                        c,
+                        plugin_api,
+                        meta_config.clone(),
+                    )) as Box<dyn Sensor>,
+                })));
         }
         manager.next_time = f32::INFINITY;
         for sensor in &manager.sensors {
-           manager.next_time = manager.next_time.min(sensor.read().unwrap().next_time_step());
+            manager.next_time = manager
+                .next_time
+                .min(sensor.read().unwrap().next_time_step());
         }
         manager
+    }
+
+    /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after
+    /// the initialization of the modules.
+    pub fn init(&mut self, turtle: &mut Turtlebot) {
+        for sensor in &mut self.sensors {
+            sensor.write().unwrap().init(turtle);
+        }
     }
 
     /// Get the observations at the given `time`.

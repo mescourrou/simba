@@ -253,7 +253,7 @@ impl OrientedLandmarkSensor {
     }
 
     /// Makes a new [`OrientedLandmarkSensor`] from the given config.
-    /// 
+    ///
     /// The map path is relative to the config path of the simulator.
     pub fn from_config(
         config: &OrientedLandmarkSensorConfig,
@@ -272,7 +272,12 @@ impl OrientedLandmarkSensor {
         if config.map_path == "" {
             return sensor;
         }
-        let joined_path = meta_config.config_path.unwrap().join(path);
+        let joined_path = meta_config
+            .config_path
+            .unwrap()
+            .parent()
+            .unwrap_or(Path::new("."))
+            .join(path);
         if path.is_relative() {
             path = joined_path.as_path();
         }
@@ -301,7 +306,8 @@ impl OrientedLandmarkSensor {
 use crate::turtlebot::Turtlebot;
 
 impl Sensor for OrientedLandmarkSensor {
-    /// Get the observations if possible at the give `time`.
+    fn init(&mut self, _turtle: &mut Turtlebot) {}
+
     fn get_observations(
         &mut self,
         turtle: &mut Turtlebot,
@@ -319,8 +325,8 @@ impl Sensor for OrientedLandmarkSensor {
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
 
         for landmark in &self.landmarks {
-            let d = ((landmark.pose.x - state.pose.x).powf(2.)
-                + (landmark.pose.y - state.pose.y).powf(2.))
+            let d = ((landmark.pose.x - state.pose.x).powi(2)
+                + (landmark.pose.y - state.pose.y).powi(2))
             .sqrt();
             if d <= self.detection_distance {
                 observation_list.push(Box::new(OrientedLandmarkObservation {
