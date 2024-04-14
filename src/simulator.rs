@@ -338,7 +338,7 @@ impl Simulator {
     pub fn get_results(&self) -> Vec<Record> {
         let mut records = Vec::new();
         for turtle in &self.turtles {
-            let turtle_r = turtle.read().unwrap();
+            let turtle_r = turtle.read().expect("Turtle cannot be read");
             let turtle_history = turtle_r.record_history();
             for (time, record) in turtle_history.iter() {
                 records.push(Record {

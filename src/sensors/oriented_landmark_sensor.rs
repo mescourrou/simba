@@ -1,21 +1,32 @@
+/*!
+Provides a [`Sensor`] which can observe oriented landmarks in the frame of the robot.
+*/
+
 use super::sensor::{GenericObservation, Sensor, SensorRecord};
-use crate::physics::physic::Physic;
 
 use crate::plugin_api::PluginAPI;
+use crate::simulator::SimulatorMetaConfig;
+use crate::stateful::Stateful;
 use serde_derive::{Deserialize, Serialize};
 
+use log::error;
 extern crate nalgebra as na;
 use na::Vector3;
 
 use std::fmt;
 use std::path::Path;
 
+/// Configuration of the [`OrientedLandmarkSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct OrientedLandmarkSensorConfig {
-    detection_distance: f32,
-    map_path: String,
-    period: f32,
+    /// Max distance of detection.
+    pub detection_distance: f32,
+    /// Path to the map (with real position of the landmarks), relative to the simulator
+    /// config path.
+    pub map_path: String,
+    /// Observation period of the sensor.
+    pub period: f32,
 }
 
 impl Default for OrientedLandmarkSensorConfig {
@@ -28,15 +39,19 @@ impl Default for OrientedLandmarkSensorConfig {
     }
 }
 
+/// Record of the [`OrientedLandmarkSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct OrientedLandmarkSensorRecord {}
+pub struct OrientedLandmarkSensorRecord {
+    last_time: f32,
+}
 
 impl Default for OrientedLandmarkSensorRecord {
     fn default() -> Self {
-        Self {}
+        Self { last_time: 0. }
     }
 }
 
+/// Landmark struct, with an `id` and a `pose`, used to read the map file.
 #[derive(Debug)]
 pub struct OrientedLandmark {
     pub id: i32,
@@ -197,35 +212,53 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
     }
 }
 
+/// Observation of an [`OrientedLandmark`].
 #[derive(Debug)]
 pub struct OrientedLandmarkObservation {
-    id: i32,
-    pose: Vector3<f32>,
+    /// Id of the landmark
+    pub id: i32,
+    /// Pose of the landmark
+    pub pose: Vector3<f32>,
 }
 
 impl GenericObservation for OrientedLandmarkObservation {}
 
+/// Map, containing multiple [`OrientedLandmark`], used for the map file.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Map {
     pub landmarks: Vec<OrientedLandmark>,
 }
 
+/// Sensor which observe the map landmarks.
 #[derive(Debug)]
 pub struct OrientedLandmarkSensor {
+    /// Detection distance
     detection_distance: f32,
+    /// Landmarks list.
     landmarks: Vec<OrientedLandmark>,
+    /// Observation period
     period: f32,
+    /// Last observation time.
     last_time: f32,
 }
 
 impl OrientedLandmarkSensor {
+    /// Makes a new [`OrientedLandmarkSensor`].
     pub fn new() -> Self {
-        OrientedLandmarkSensor::from_config(&OrientedLandmarkSensorConfig::default(), &None)
+        OrientedLandmarkSensor::from_config(
+            &OrientedLandmarkSensorConfig::default(),
+            &None,
+            SimulatorMetaConfig::default(),
+        )
     }
 
+    /// Makes a new [`OrientedLandmarkSensor`] from the given config.
+    /// 
+    /// The map path is relative to the config path of the simulator.
     pub fn from_config(
         config: &OrientedLandmarkSensorConfig,
         _plugin_api: &Option<Box<dyn PluginAPI>>,
+        meta_config: SimulatorMetaConfig,
     ) -> Self {
         let mut path = Path::new(&config.map_path);
 
@@ -233,13 +266,13 @@ impl OrientedLandmarkSensor {
             detection_distance: config.detection_distance,
             landmarks: Vec::new(),
             period: config.period,
-            last_time: -1.,
+            last_time: 0.,
         };
 
         if config.map_path == "" {
             return sensor;
         }
-        let joined_path = Path::new("./configs").join(path);
+        let joined_path = meta_config.config_path.unwrap().join(path);
         if path.is_relative() {
             path = joined_path.as_path();
         }
@@ -248,11 +281,12 @@ impl OrientedLandmarkSensor {
         sensor
     }
 
+    /// Load the map from the given `path`.
     fn load_map_from_path(path: &Path) -> Vec<OrientedLandmark> {
         let map: Map = match confy::load_path(&path) {
             Ok(config) => config,
             Err(error) => {
-                println!(
+                error!(
                     "Error from Confy while loading the map file {} : {}",
                     path.display(),
                     error
@@ -267,6 +301,7 @@ impl OrientedLandmarkSensor {
 use crate::turtlebot::Turtlebot;
 
 impl Sensor for OrientedLandmarkSensor {
+    /// Get the observations if possible at the give `time`.
     fn get_observations(
         &mut self,
         turtle: &mut Turtlebot,
@@ -282,7 +317,6 @@ impl Sensor for OrientedLandmarkSensor {
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
-        println!("Rotation matrix: {}", rotation_matrix);
 
         for landmark in &self.landmarks {
             let d = ((landmark.pose.x - state.pose.x).powf(2.)
@@ -299,15 +333,27 @@ impl Sensor for OrientedLandmarkSensor {
         observation_list
     }
 
-    fn record(&self) -> SensorRecord {
-        SensorRecord::OrientedLandmarkSensor(OrientedLandmarkSensorRecord {})
-    }
-
+    /// Get the next observation time.
     fn next_time_step(&self) -> f32 {
         self.last_time + self.period
     }
 
+    /// Get the observation period.
     fn period(&self) -> f32 {
         self.period
+    }
+}
+
+impl Stateful<SensorRecord> for OrientedLandmarkSensor {
+    fn record(&self) -> SensorRecord {
+        SensorRecord::OrientedLandmarkSensor(OrientedLandmarkSensorRecord {
+            last_time: self.last_time,
+        })
+    }
+
+    fn from_record(&mut self, record: SensorRecord) {
+        if let SensorRecord::OrientedLandmarkSensor(oriented_landmark_record) = record {
+            self.last_time = oriented_landmark_record.last_time;
+        }
     }
 }

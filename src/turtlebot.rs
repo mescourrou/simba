@@ -331,6 +331,7 @@ impl Turtlebot {
 
         if observations.len() > 0 {
             // Treat the observations
+            info!("Sending {} observations", observations.len());
             self.state_estimator()
                 .write()
                 .unwrap()
@@ -387,11 +388,6 @@ impl Turtlebot {
         );
         if let Some(msg_next_time) = message_next_time {
             next_time_step = next_time_step.min(msg_next_time);
-            debug!(
-                "[{}] Time step changed with message: {}",
-                self.name(),
-                next_time_step
-            );
         }
         debug!("[{}] next_time_step: {}", self.name(), next_time_step);
         next_time_step
