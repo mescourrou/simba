@@ -92,7 +92,7 @@ impl SimulatorMetaConfig {
 /// This config contains an item, `turtles`, which list the robots [`TurtlebotConfig`].
 ///
 /// ## Example in yaml:
-/// ```
+/// ```compile_fail
 /// turtles:
 ///     - TurtlebotConfig 1
 ///     - TurtlebotConfig 2
