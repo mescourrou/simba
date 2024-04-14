@@ -123,7 +123,7 @@ impl StateEstimator for ExternalEstimator {
     fn correction_step(
         &mut self,
         turtle: &mut Turtlebot,
-        observations: Vec<Box<dyn GenericObservation>>,
+        observations: &Vec<Box<dyn GenericObservation>>,
         time: f32,
     ) {
         self.state_estimator

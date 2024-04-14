@@ -88,7 +88,7 @@ impl StateEstimator for PerfectEstimator {
     fn correction_step(
         &mut self,
         _turtle: &mut Turtlebot,
-        _observations: Vec<Box<dyn GenericObservation>>,
+        _observations: &Vec<Box<dyn GenericObservation>>,
         _time: f32,
     ) {
     }

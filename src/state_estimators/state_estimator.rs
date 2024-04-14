@@ -174,7 +174,7 @@ pub trait StateEstimator:
     fn correction_step(
         &mut self,
         turtle: &mut Turtlebot,
-        observations: Vec<Box<dyn GenericObservation>>,
+        observations: &Vec<Box<dyn GenericObservation>>,
         time: f32,
     );
 

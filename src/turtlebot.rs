@@ -16,7 +16,7 @@ use crate::networking::network::{Network, NetworkConfig};
 use crate::physics::perfect_physic;
 use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 
-use crate::sensors::sensor::{Sensor};
+use crate::sensors::sensor::Sensor;
 use crate::state_estimators::state_estimator::{
     StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
 };
@@ -53,6 +53,10 @@ pub struct TurtlebotConfig {
     pub sensor_manager: SensorManagerConfig,
     /// [`Network`] configuration.
     pub network: NetworkConfig,
+
+    /// Additional [`StateEstimator`] to be evaluated but without a feedback
+    /// loop with the [`Navigator`]
+    pub state_estimator_bench: Vec<StateEstimatorConfig>,
 }
 
 impl Default for TurtlebotConfig {
@@ -76,6 +80,7 @@ impl Default for TurtlebotConfig {
             )),
             sensor_manager: SensorManagerConfig::default(),
             network: NetworkConfig::default(),
+            state_estimator_bench: Vec::new(),
         }
     }
 }
@@ -95,6 +100,8 @@ pub struct TurtlebotRecord {
     pub physic: PhysicRecord,
     /// Record of the [`StateEstimator`] module.
     pub state_estimator: StateEstimatorRecord,
+    /// Record of the additionnal [`StateEstimator`]s, only to evaluate them.
+    pub state_estimator_bench: Vec<StateEstimatorRecord>,
 }
 
 /// Structure to manage the messages for no specific modules of the robot.
@@ -148,6 +155,9 @@ impl MessageHandler for TurtlebotGenericMessageHandler {
 /// the send of messages to other robots.
 /// * `message_handler` manages the messages that are not sent to a specific module.
 ///
+/// You can add [`StateEstimator`]s to evaluate them, but their output won't be used to
+/// control the robot.
+///
 /// The [`Turtlebot`] internally manages a history of its states, using [`TimeOrderedData`].
 /// In this way, it can get back to a past state, in order to treat a message sent
 /// from the past. [`Turtlebot::run_next_time_step`] does the necessary
@@ -174,6 +184,8 @@ pub struct Turtlebot {
     /// History of the states ([`TurtlebotRecord`]) of the robot, to set the [`Turtlebot`]
     /// in a past state.
     state_history: TimeOrderedData<TurtlebotRecord>,
+    /// Additional [`StateEstimator`] to be evaluated.
+    state_estimator_bench: Arc<RwLock<Vec<Box<dyn StateEstimator>>>>,
 }
 
 impl Turtlebot {
@@ -193,6 +205,7 @@ impl Turtlebot {
             network: Arc::new(RwLock::new(Network::new(name.clone()))),
             message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
+            state_estimator_bench: Arc::new(RwLock::new(Vec::new())),
         }));
         turtle.write().unwrap().save_state(0.);
         turtle
@@ -265,10 +278,33 @@ impl Turtlebot {
             ))),
             message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
+            state_estimator_bench: Arc::new(RwLock::new(Vec::new())),
         }));
 
         {
             let mut writable_turtle = turtle.write().unwrap();
+            for additional_state_estimator_config in &config.state_estimator_bench {
+                let additional_state_estimator = match &additional_state_estimator_config {
+                    StateEstimatorConfig::Perfect(c) => Box::new(
+                        perfect_estimator::PerfectEstimator::from_config(
+                            c,
+                            plugin_api,
+                            meta_config.clone(),
+                        ),
+                    )
+                        as Box<dyn StateEstimator>,
+                    StateEstimatorConfig::External(c) => Box::new(
+                        external_estimator::ExternalEstimator::from_config(
+                            c,
+                            plugin_api,
+                            meta_config.clone(),
+                        ),
+                    )
+                        as Box<dyn StateEstimator>,
+                };
+                writable_turtle.state_estimator_bench.write().unwrap().push(additional_state_estimator);
+            }
+
             writable_turtle.network.write().unwrap().subscribe(Arc::<
                 RwLock<TurtlebotGenericMessageHandler>,
             >::clone(
@@ -337,7 +373,12 @@ impl Turtlebot {
             self.state_estimator()
                 .write()
                 .unwrap()
-                .correction_step(self, observations, time);
+                .correction_step(self, &observations, time);
+
+            let other_state_estimator = self.state_estimator_bench.clone();
+            for additional_state_estimator in other_state_estimator.write().unwrap().iter_mut() {
+                additional_state_estimator.correction_step(self, &observations, time);
+            }
         }
 
         // If it is time for the state estimator to do the prediction
@@ -479,13 +520,21 @@ impl Turtlebot {
 impl Stateful<TurtlebotRecord> for Turtlebot {
     /// Generate the current state record.
     fn record(&self) -> TurtlebotRecord {
-        TurtlebotRecord {
+        let mut record = TurtlebotRecord {
             name: self.name.clone(),
             navigator: self.navigator.read().unwrap().record(),
             controller: self.controller.read().unwrap().record(),
             physic: self.physic.read().unwrap().record(),
             state_estimator: self.state_estimator.read().unwrap().record(),
+            state_estimator_bench: Vec::new(),
+        };
+        let other_state_estimators = self.state_estimator_bench.clone();
+        for additional_state_estimator in other_state_estimators.read().unwrap().iter() {
+            record
+                .state_estimator_bench
+                .push(additional_state_estimator.record());
         }
+        record
     }
 
     /// Change the robot to be in the state of the given `record`.
@@ -506,5 +555,9 @@ impl Stateful<TurtlebotRecord> for Turtlebot {
             .write()
             .unwrap()
             .from_record(record.state_estimator.clone());
+        let other_state_estimators = self.state_estimator_bench.clone();
+        for (i, additional_state_estimator) in other_state_estimators.write().unwrap().iter_mut().enumerate() {
+            additional_state_estimator.from_record(record.state_estimator_bench[i].clone());
+        }
     }
 }

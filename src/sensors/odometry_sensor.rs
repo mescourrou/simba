@@ -10,12 +10,7 @@ use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::stateful::Stateful;
 use serde_derive::{Deserialize, Serialize};
 
-
 extern crate nalgebra as na;
-
-
-
-
 
 /// Configuration of the [`OdometrySensor`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -27,9 +22,7 @@ pub struct OdometrySensorConfig {
 
 impl Default for OdometrySensorConfig {
     fn default() -> Self {
-        Self {
-            period: 0.1,
-        }
+        Self { period: 0.1 }
     }
 }
 
