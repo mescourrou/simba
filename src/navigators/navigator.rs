@@ -3,11 +3,15 @@ Provide the [`Navigator`] trait and the configuration and record enumerations.
 */
 
 extern crate confy;
+use std::sync::{Arc, RwLock};
+
 use serde_derive::{Deserialize, Serialize};
 
 use super::trajectory_follower;
 
 use crate::controllers::controller::ControllerError;
+use crate::plugin_api::PluginAPI;
+use crate::simulator::SimulatorMetaConfig;
 use crate::state_estimators::state_estimator::State;
 
 /// Enumerate the configuration of the different strategies.
@@ -31,4 +35,16 @@ pub trait Navigator:
 {
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
     fn compute_error(&mut self, turtle: &mut Turtlebot, state: State) -> ControllerError;
+}
+
+pub fn make_navigator_from_config(
+    config: &NavigatorConfig,
+    plugin_api: &Option<Box<dyn PluginAPI>>,
+    meta_config: SimulatorMetaConfig,
+) -> Arc<RwLock<Box<dyn Navigator>>> {
+    Arc::new(RwLock::new(Box::new(match config {
+        NavigatorConfig::TrajectoryFollower(c) => {
+            trajectory_follower::TrajectoryFollower::from_config(c, plugin_api, meta_config.clone())
+        }
+    })))
 }

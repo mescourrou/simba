@@ -8,6 +8,8 @@ However, the [`Physic::state`] should provide the real [`State`].
 */
 
 extern crate confy;
+use std::sync::{Arc, RwLock};
+
 use serde_derive::{Deserialize, Serialize};
 
 /// Command struct, to control both wheel speed, in m/s.
@@ -33,7 +35,10 @@ pub enum PhysicRecord {
     Perfect(perfect_physic::PerfectPhysicRecord),
 }
 
-use crate::{state_estimators::state_estimator::State, stateful::Stateful};
+use crate::{
+    plugin_api::PluginAPI, simulator::SimulatorMetaConfig,
+    state_estimators::state_estimator::State, stateful::Stateful,
+};
 
 /// Physic simulation trait.
 ///
@@ -54,4 +59,16 @@ pub trait Physic:
 
     /// Get the current real state, the groundtruth.
     fn state(&self, time: f32) -> &State;
+}
+
+pub fn make_physic_from_config(
+    config: &PhysicConfig,
+    plugin_api: &Option<Box<dyn PluginAPI>>,
+    meta_config: SimulatorMetaConfig,
+) -> Arc<RwLock<Box<dyn Physic>>> {
+    Arc::new(RwLock::new(Box::new(match &config {
+        PhysicConfig::Perfect(c) => {
+            perfect_physic::PerfectPhysic::from_config(c, plugin_api, meta_config.clone())
+        }
+    })))
 }

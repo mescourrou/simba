@@ -40,6 +40,15 @@ pub struct StateRecord {
     pub velocity: f32,
 }
 
+impl Default for StateRecord {
+    fn default() -> Self {
+        Self {
+            pose: vec![0., 0., 0.],
+            velocity: 0.,
+        }
+    }
+}
+
 /// State to be estimated.
 #[derive(Debug, Clone)]
 pub struct State {
@@ -113,8 +122,12 @@ impl fmt::Display for State {
 }
 
 use super::{external_estimator, perfect_estimator};
+use crate::plugin_api::PluginAPI;
+use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
 use crate::turtlebot::Turtlebot;
+
+use std::sync::{Arc, RwLock};
 
 /// List the possible configs, to be selected in the global config.
 ///
@@ -135,6 +148,26 @@ pub enum StateEstimatorConfig {
 pub enum StateEstimatorRecord {
     Perfect(perfect_estimator::PerfectEstimatorRecord),
     External(external_estimator::ExternalEstimatorRecord),
+}
+
+/**
+ * Make the right [`StateEstimator`] from the configuration given.
+ */
+pub fn make_state_estimator_from_config(
+    config: &StateEstimatorConfig,
+    plugin_api: &Option<Box<dyn PluginAPI>>,
+    meta_config: SimulatorMetaConfig,
+) -> Arc<RwLock<Box<dyn StateEstimator>>> {
+    return match config {
+        StateEstimatorConfig::Perfect(c) => Arc::new(RwLock::new(Box::new(
+            perfect_estimator::PerfectEstimator::from_config(c, plugin_api, meta_config.clone()),
+        )
+            as Box<dyn StateEstimator>)),
+        StateEstimatorConfig::External(c) => Arc::new(RwLock::new(Box::new(
+            external_estimator::ExternalEstimator::from_config(c, plugin_api, meta_config.clone()),
+        )
+            as Box<dyn StateEstimator>)),
+    };
 }
 
 use crate::sensors::sensor::GenericObservation;

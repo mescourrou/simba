@@ -2,7 +2,10 @@
 Module defining the [Controller]
 */
 
-use crate::{physics::physic::Command, stateful::Stateful};
+use crate::{stateful::Stateful};
+use std::sync::{Arc, RwLock};
+
+use crate::{physics::physic::Command, plugin_api::PluginAPI, simulator::SimulatorMetaConfig};
 
 extern crate confy;
 use serde_derive::{Deserialize, Serialize};
@@ -64,4 +67,14 @@ pub trait Controller:
         error: &ControllerError,
         time: f32,
     ) -> Command;
+}
+
+pub fn make_controller_from_config(
+    config: &ControllerConfig,
+    plugin_api: &Option<Box<dyn PluginAPI>>,
+    meta_config: SimulatorMetaConfig,
+) -> Arc<RwLock<Box<dyn Controller>>> {
+    Arc::new(RwLock::new(Box::new(match config {
+        ControllerConfig::PID(c) => pid::PID::from_config(c, plugin_api, meta_config.clone()),
+    })))
 }
