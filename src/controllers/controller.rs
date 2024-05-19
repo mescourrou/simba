@@ -2,7 +2,7 @@
 Module defining the [Controller]
 */
 
-use crate::{stateful::Stateful};
+use crate::stateful::Stateful;
 use std::sync::{Arc, RwLock};
 
 use crate::{physics::physic::Command, plugin_api::PluginAPI, simulator::SimulatorMetaConfig};

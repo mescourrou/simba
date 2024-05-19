@@ -512,7 +512,12 @@ impl Stateful<TurtlebotRecord> for Turtlebot {
             .unwrap()
             .from_record(record.state_estimator.clone());
         let other_state_estimators = self.state_estimator_bench.clone();
-        for (i, additional_state_estimator) in other_state_estimators.write().unwrap().iter_mut().enumerate() {
+        for (i, additional_state_estimator) in other_state_estimators
+            .write()
+            .unwrap()
+            .iter_mut()
+            .enumerate()
+        {
             additional_state_estimator.from_record(record.state_estimator_bench[i].clone());
         }
     }

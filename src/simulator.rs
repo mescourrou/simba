@@ -282,7 +282,7 @@ impl Simulator {
             &plugin_api,
             meta_config,
         ));
-        let last_turtle = self
+        let last_turtle_write = self
             .turtles
             .last()
             .expect("No turtle added to the vector, how is it possible ??")
@@ -291,8 +291,11 @@ impl Simulator {
         self.network_manager
             .write()
             .unwrap()
-            .register_turtle_network(last_turtle.name(), last_turtle.network());
-        last_turtle
+            .register_turtle_network(
+                self.turtles.last().unwrap().clone(),
+                last_turtle_write.network(),
+            );
+        last_turtle_write
             .network()
             .write()
             .unwrap()

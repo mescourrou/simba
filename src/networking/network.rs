@@ -23,7 +23,7 @@ use super::network_manager::NetworkManager;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct NetworkConfig {
-    /// Limit range communication, `f32::INFINITY` for no limit.
+    /// Limit range communication, 0 or `f32::INFINITY` for no limit.
     pub range: f32,
     /// Communication delay (fixed). 0 for no delay.
     pub delay: f32,
@@ -127,8 +127,27 @@ impl Network {
             .insert(turtle_name, Arc::new(Mutex::new(emitter)));
     }
 
+    /// Check whether the recipient is in range or not.
+    fn can_send(&self, recipient: &String, time: f32) -> bool {
+        if self.range <= 0. {
+            return true;
+        }
+        let distance = self
+            .network_manager
+            .as_ref()
+            .unwrap()
+            .read()
+            .unwrap()
+            .distance_between(&self.from, recipient, time);
+        return distance < self.range;
+    }
+
     /// Send a `message` to the given `recipient`. `time` is the send message time, before delays.
+    /// The message is sent if in range.
     pub fn send_to(&mut self, recipient: String, message: Value, time: f32) {
+        if !self.can_send(&recipient, time) {
+            return;
+        }
         let emitter_option = self.other_emitters.get(&recipient);
         if let Some(emitter) = emitter_option {
             let _ = emitter
@@ -140,7 +159,10 @@ impl Network {
 
     /// Send a `message` to all available robots. `time` is the send message time, before delays.
     pub fn broadcast(&mut self, message: Value, time: f32) {
-        for (_, emitter) in &self.other_emitters {
+        for (recipient, emitter) in &self.other_emitters {
+            if !self.can_send(&recipient, time) {
+                continue;
+            }
             let _ = emitter
                 .lock()
                 .unwrap()
@@ -149,9 +171,11 @@ impl Network {
     }
 
     /// Unstack the waiting messages in the asynchronous receiver and put them in the buffer.
+    /// Adds the delay.
     pub fn process_messages(&mut self) {
         let rx = self.channel_receiver.lock().unwrap();
         for (from, message, time) in rx.try_iter() {
+            let time = time + self.delay;
             debug!("[{}] Add new message from {from} at time {time}", self.from);
             self.messages_buffer.insert(time, (from, message), false);
         }
@@ -170,7 +194,6 @@ impl Network {
     pub fn handle_message_at_time(&mut self, turtle: &mut Turtlebot, time: f32) {
         while let Some((msg_time, (from, message))) = self.messages_buffer.remove(time) {
             debug!("[{}] Receive message from {from}: {:?}", self.from, message);
-            // TODO: add delay and range
             debug!(
                 "[{}] Handler list size: {}",
                 self.from,
