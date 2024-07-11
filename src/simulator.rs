@@ -282,19 +282,19 @@ impl Simulator {
             &plugin_api,
             meta_config,
         ));
+        
+        self.network_manager
+            .write()
+            .unwrap()
+            .register_turtle_network(
+                self.turtles.last().unwrap().clone()
+            );
         let last_turtle_write = self
             .turtles
             .last()
             .expect("No turtle added to the vector, how is it possible ??")
             .write()
             .unwrap();
-        self.network_manager
-            .write()
-            .unwrap()
-            .register_turtle_network(
-                self.turtles.last().unwrap().clone(),
-                last_turtle_write.network(),
-            );
         last_turtle_write
             .network()
             .write()
