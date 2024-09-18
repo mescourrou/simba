@@ -42,19 +42,22 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
-use crate::result_analyser;
+use crate::result_analyser::{self, run_python};
 
 use super::turtlebot::{Turtlebot, TurtlebotConfig, TurtlebotRecord};
 use std::path::Path;
 
 use serde_json;
 use std::default::Default;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::prelude::*;
 use std::sync::{Arc, RwLock};
 use std::thread;
 
 use log::{debug, error, info};
+
+use pyo3::prelude::*;
+use pyo3::prepare_freethreaded_python;
 
 /// Meta configuration of [`Simulator`], to configure how the simulation
 /// is run, outside of the scenario to run.
@@ -426,15 +429,121 @@ impl Simulator {
 
         info!("Starting result analyse...");
         let show_figures = !self.meta_config.no_gui;
-        match result_analyser::execute_python_analyser(
-            result_filename.as_ref(),
-            show_figures,
-            result_filename.parent().unwrap_or(Path::new(".")),
-            String::from(".pdf"),
-        ) {
-            Ok(()) => info!("Results analysed!"),
-            Err(e) => error!("Error during python execution: {e}"),
-        };
+        // match result_analyser::execute_python_analyser(
+        //     result_filename.as_ref(),
+        //     show_figures,
+        //     result_filename.parent().unwrap_or(Path::new(".")),
+        //     String::from(".pdf"),
+        // ) {
+        //     Ok(()) => info!("Results analysed!"),
+        //     Err(e) => error!("Error during python execution: {e}"),
+        // };
+        prepare_freethreaded_python();
+        let open_json_py = r#"
+import json
+
+def load_json(result_filename):
+    with open(result_filename) as file:
+        data = json.load(file)
+    return data["config"], data["record"]
+"#;
+
+        let analyse_py = r#"
+import numpy as np
+import matplotlib.pyplot as plt
+
+def analyse(data, show_figures, figure_path, figure_type):
+    class TurtleData:
+        def __init__(self) -> None:
+            self.times = list()
+            self.errors = list()
+            self.estimated_poses = list()
+            self.real_poses = list()
+
+    all_turtles_data = dict()
+    config, record = data
+    for row in record:
+        turtle = row["turtle"]["name"]
+        if not turtle in all_turtles_data:
+            all_turtles_data[turtle] = TurtleData()
+            
+        turtle_data = all_turtles_data[turtle]
+            
+        turtle_data.times.append(row["time"])
+        
+        physics = row["turtle"]["physic"]
+        if "Perfect" in physics:
+            real_pose = np.array(physics["Perfect"]["state"]["pose"])
+            turtle_data.real_poses.append(real_pose)
+        else:
+            raise Exception(f"Physics module not known: {physics}")
+        
+        state_estimator = row["turtle"]["state_estimator"]
+        if "Perfect" in state_estimator:
+            estimated_pose = np.array(state_estimator["Perfect"]["state"]["pose"])
+            turtle_data.estimated_poses.append(estimated_pose)
+        elif "External" in state_estimator:
+            estimated_pose = np.array(state_estimator["External"]["state"]["pose"])
+            turtle_data.estimated_poses.append(estimated_pose)
+        else:
+            raise Exception(f"State Estimator module not known: {state_estimator}")
+        
+
+        position_error = np.linalg.norm(real_pose[0:2] - estimated_pose[0:2])
+        
+        turtle_data.errors.append(position_error)
+        
+        
+        
+    f, ax = plt.subplots()
+
+    for turtle, data in all_turtles_data.items():
+        ax.plot(data.times, data.errors, label=turtle)
+
+    ax.set_title("Localization errors")
+    ax.legend()
+    if figure_path != "":
+        f.savefig(f"{figure_path}/LocalizationError_all{figure_type}", bbox_inches='tight')
+
+    f, ax = plt.subplots()
+    for turtle, data in all_turtles_data.items():
+        estimated_pose_np = np.array(data.estimated_poses)
+        ax.plot(estimated_pose_np[:,0], estimated_pose_np[:,1], label=f"{turtle} - Estimated")
+        real_pose_np = np.array(data.real_poses)
+        ax.plot(real_pose_np[:,0], real_pose_np[:,1], label=f"{turtle} - Real")
+
+    ax.set_title("Trajectories")
+    ax.legend()
+
+    if figure_path != "":
+        f.savefig(f"{figure_path}/Trajectories_all{figure_type}", bbox_inches='tight')
+
+    #if show_figures:
+    #   plt.show()
+"#;
+
+        let show_figure_py = r#"
+import matplotlib.pyplot as plt
+
+def show():
+    plt.show()
+"#;
+        let res = Python::with_gil(|py| -> PyResult<()> {
+            let result_json: Py<PyAny> = PyModule::from_code_bound(py, open_json_py, "", "")?
+            .getattr("load_json")?
+            .into();
+            let config_record = result_json.call_bound(py, (result_filename.to_str().unwrap(),), None)?;
+
+            run_python(&analyse_py, &py, &config_record, show_figures, Path::new(""), ".pdf")?;
+            if show_figures {
+                PyModule::from_code_bound(py, show_figure_py, "", "")?
+                .getattr("show")?;
+            }
+            Ok(())
+        });
+        if let Some(err) = res.err() {
+            error!("{}", err);
+        }
     }
 }
 

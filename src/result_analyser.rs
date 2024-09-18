@@ -47,3 +47,24 @@ pub fn execute_python_analyser(
         Ok(())
     })
 }
+
+pub fn run_python(python_code: &str, py: &Python, config_record: &Py<PyAny>, show_figures: bool, figure_path: &Path, figure_format: &str) -> PyResult<()> {
+    let result_analyser: Py<PyAny> = PyModule::from_code_bound(*py, python_code, "", "")?
+    .getattr("analyse")?
+    .into();
+    result_analyser.call_bound(
+        *py,
+        (
+            config_record.as_any(),
+            show_figures,
+            figure_path,
+            figure_format,
+        ),
+        None,
+    )?;
+    Ok(())
+}
+
+pub trait Analysable {
+    
+}
