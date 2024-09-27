@@ -1,10 +1,11 @@
 use std::path::Path;
+use log::info;
 use turtlebot_simulator::simulator::Simulator;
 
 fn main() {
     // Initialize the environment, essentially the logging part
-    Simulator::init_environment();
-
+    Simulator::init_environment(log::LevelFilter::Debug);
+    info!("Load configuration...");
     // Load the configuration
     let config_path = Path::new("config_example/config.yaml");
     let mut simulator = Simulator::from_config_path(

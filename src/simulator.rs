@@ -259,9 +259,10 @@ impl Simulator {
     /// Initialize the simulator environment.
     ///
     /// For now, only start the logging environment.
-    pub fn init_environment() {
+    pub fn init_environment(level: log::LevelFilter) {
         env_logger::builder()
             .target(env_logger::Target::Stdout)
+            .filter_level(level)
             .init();
     }
 
