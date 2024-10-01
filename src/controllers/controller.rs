@@ -71,7 +71,7 @@ pub trait Controller:
 
 pub fn make_controller_from_config(
     config: &ControllerConfig,
-    plugin_api: &Option<Box<dyn PluginAPI>>,
+    plugin_api: &Option<Box<&dyn PluginAPI>>,
     meta_config: SimulatorMetaConfig,
 ) -> Arc<RwLock<Box<dyn Controller>>> {
     Arc::new(RwLock::new(Box::new(match config {

@@ -75,7 +75,7 @@ impl OdometrySensor {
     /// Makes a new [`OdometrySensor`] from the given config.
     pub fn from_config(
         config: &OdometrySensorConfig,
-        _plugin_api: &Option<Box<dyn PluginAPI>>,
+        _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
     ) -> Self {
         Self {

@@ -52,6 +52,8 @@ fn main() {
 
 */
 
+use pyo3::prelude::*;
+
 pub mod configurable;
 pub mod controllers;
 pub mod navigators;
@@ -65,6 +67,13 @@ pub mod turtlebot;
 pub mod utils;
 
 pub mod plugin_api;
+pub mod pybinds;
 pub mod result_analyser;
 
 pub mod gui;
+
+#[pymodule]
+fn turtlebot_simulator(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    pybinds::make_python_bindings(m)?;
+    Ok(())
+}

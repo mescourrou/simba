@@ -30,23 +30,31 @@ impl NetworkManager {
     /// ## Argument
     /// * `turtle` - Reference to the [`Turtlebot`](crate::turtlebot::Turtlebot).
     /// * `network` - [`Network`] to add.
-    pub fn register_turtle_network(
-        &mut self,
-        turtle: Arc<RwLock<Turtlebot>>
-    ) {
+    pub fn register_turtle_network(&mut self, turtle: Arc<RwLock<Turtlebot>>) {
         let turtle_name = turtle.read().unwrap().name();
-        self.turtles_networks
-            .insert(turtle_name.clone(), Arc::clone(&turtle.write().unwrap().network()));
+        self.turtles_networks.insert(
+            turtle_name.clone(),
+            Arc::clone(&turtle.write().unwrap().network()),
+        );
         self.turtles
             .insert(turtle_name.clone(), Arc::clone(&turtle));
         for (other_turtle, other_network) in &self.turtles_networks {
             if other_turtle.clone() != turtle_name.clone() {
                 let other_emitter = other_network.write().unwrap().get_emitter();
-                turtle.write().unwrap().network()
+                turtle
+                    .write()
+                    .unwrap()
+                    .network()
                     .write()
                     .unwrap()
                     .add_emitter(other_turtle.clone(), other_emitter);
-                let emitter = turtle.write().unwrap().network().write().unwrap().get_emitter();
+                let emitter = turtle
+                    .write()
+                    .unwrap()
+                    .network()
+                    .write()
+                    .unwrap()
+                    .get_emitter();
                 other_network
                     .write()
                     .unwrap()

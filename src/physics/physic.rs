@@ -63,7 +63,7 @@ pub trait Physic:
 
 pub fn make_physic_from_config(
     config: &PhysicConfig,
-    plugin_api: &Option<Box<dyn PluginAPI>>,
+    plugin_api: &Option<Box<&dyn PluginAPI>>,
     meta_config: SimulatorMetaConfig,
 ) -> Arc<RwLock<Box<dyn Physic>>> {
     Arc::new(RwLock::new(Box::new(match &config {

@@ -59,7 +59,7 @@ impl PerfectEstimator {
     /// Creates a new [`PerfectEstimator`] from the given `config`.
     pub fn from_config(
         config: &PerfectEstimatorConfig,
-        _plugin_api: &Option<Box<dyn PluginAPI>>,
+        _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
     ) -> Self {
         Self {

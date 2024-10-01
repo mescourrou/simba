@@ -48,10 +48,17 @@ pub fn execute_python_analyser(
     })
 }
 
-pub fn run_python(python_code: &str, py: &Python, config_record: &Py<PyAny>, show_figures: bool, figure_path: &Path, figure_format: &str) -> PyResult<()> {
+pub fn run_python(
+    python_code: &str,
+    py: &Python,
+    config_record: &Py<PyAny>,
+    show_figures: bool,
+    figure_path: &Path,
+    figure_format: &str,
+) -> PyResult<()> {
     let result_analyser: Py<PyAny> = PyModule::from_code_bound(*py, python_code, "", "")?
-    .getattr("analyse")?
-    .into();
+        .getattr("analyse")?
+        .into();
     result_analyser.call_bound(
         *py,
         (
@@ -65,6 +72,4 @@ pub fn run_python(python_code: &str, py: &Python, config_record: &Py<PyAny>, sho
     Ok(())
 }
 
-pub trait Analysable {
-    
-}
+pub trait Analysable {}

@@ -70,7 +70,7 @@ impl PerfectPhysic {
     /// * `meta_config` - Configuration of the simulator.
     pub fn from_config(
         config: &PerfectPhysicConfig,
-        _plugin_api: &Option<Box<dyn PluginAPI>>,
+        _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
     ) -> Self {
         PerfectPhysic {

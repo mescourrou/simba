@@ -257,7 +257,7 @@ impl OrientedLandmarkSensor {
     /// The map path is relative to the config path of the simulator.
     pub fn from_config(
         config: &OrientedLandmarkSensorConfig,
-        _plugin_api: &Option<Box<dyn PluginAPI>>,
+        _plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
     ) -> Self {
         let mut path = Path::new(&config.map_path);

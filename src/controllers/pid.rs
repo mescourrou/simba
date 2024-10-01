@@ -119,7 +119,7 @@ impl PID {
     /// Makes a new [`PID`] from the given `config`.
     pub fn from_config(
         config: &PIDConfig,
-        _plugin_api: &Option<Box<dyn PluginAPI>>,
+        _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
     ) -> Self {
         PID {

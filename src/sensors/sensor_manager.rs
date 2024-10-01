@@ -62,7 +62,7 @@ impl SensorManager {
     /// * `meta_config` - Simulator meta config.
     pub fn from_config(
         config: &SensorManagerConfig,
-        plugin_api: &Option<Box<dyn PluginAPI>>,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
     ) -> Self {
         let mut manager = Self::new();

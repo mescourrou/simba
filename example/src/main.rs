@@ -1,5 +1,5 @@
-use std::path::Path;
 use log::info;
+use std::path::Path;
 use turtlebot_simulator::simulator::Simulator;
 
 fn main() {

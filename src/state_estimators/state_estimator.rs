@@ -7,6 +7,7 @@ extern crate nalgebra as na;
 use na::SVector;
 
 extern crate confy;
+use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
 /// Configuration for [`State`] in order to load a state from the configuration.
@@ -33,6 +34,7 @@ impl Default for StateConfig {
 
 /// Record for [`State`] in order to record a state.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct StateRecord {
     /// Position and orientation of the robot
     pub pose: Vec<f32>,
@@ -65,6 +67,20 @@ impl State {
             pose: SVector::<f32, 3>::new(0., 0., 0.),
             velocity: 0.,
         }
+    }
+
+    pub fn from_vector(vec: Vec<f32>) -> Self {
+        let mut state = State::new();
+        if vec.len() >= 1 {
+            state.pose.x = vec[0];
+        }
+        if vec.len() >= 2 {
+            state.pose.y = vec[1];
+        }
+        if vec.len() >= 3 {
+            state.pose.z = vec[2];
+        }
+        state
     }
 
     /// Load a [`State`] from the `config` ([`StateConfig`]).
@@ -155,7 +171,7 @@ pub enum StateEstimatorRecord {
  */
 pub fn make_state_estimator_from_config(
     config: &StateEstimatorConfig,
-    plugin_api: &Option<Box<dyn PluginAPI>>,
+    plugin_api: &Option<Box<&dyn PluginAPI>>,
     meta_config: SimulatorMetaConfig,
 ) -> Arc<RwLock<Box<dyn StateEstimator>>> {
     return match config {

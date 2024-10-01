@@ -33,6 +33,7 @@ use crate::utils::time_ordered_data::TimeOrderedData;
 // Configuration for Turtlebot
 extern crate confy;
 use log::{debug, info, warn};
+use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
@@ -161,6 +162,7 @@ impl MessageHandler for TurtlebotGenericMessageHandler {
 /// from the past. [`Turtlebot::run_next_time_step`] does the necessary
 /// so that the required time is reached taking into account all past messages.
 #[derive(Debug)]
+#[pyclass]
 pub struct Turtlebot {
     /// Name of the robot. Should be unique among all [`Simulator`](crate::simulator::Simulator)
     /// robots.
@@ -222,7 +224,7 @@ impl Turtlebot {
     /// The new robot is return as a reference counter to be shared among threads.
     pub fn from_config(
         config: &TurtlebotConfig,
-        plugin_api: &Option<Box<dyn PluginAPI>>,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
     ) -> Arc<RwLock<Self>> {
         let turtle = Arc::new(RwLock::new(Self {

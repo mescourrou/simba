@@ -99,7 +99,7 @@ impl TrajectoryFollower {
     /// path of the config, used as relative reference for the trajectory path.
     pub fn from_config(
         config: &TrajectoryFollowerConfig,
-        _plugin_api: &Option<Box<dyn PluginAPI>>,
+        _plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
     ) -> Self {
         let mut path = Path::new(&config.trajectory_path);

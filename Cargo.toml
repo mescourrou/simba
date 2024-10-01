@@ -35,8 +35,7 @@ log = "^0.4.22"
 
 [dependencies.pyo3]
 version = "^0.22"
-[features]
-extension-module = ["pyo3/extension-module"]
+features = ["extension-module"]
 
 [dependencies.confy]
 version = "^0.5"

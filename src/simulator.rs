@@ -207,7 +207,7 @@ impl Simulator {
     /// Returns a [`Simulator`] ready to be run.
     pub fn from_config_path(
         config_path: &Path,
-        plugin_api: Option<Box<dyn PluginAPI>>,
+        plugin_api: Option<Box<&dyn PluginAPI>>,
         result_path: Option<Box<Path>>,
         compute_results: bool,
         no_gui: bool,
@@ -240,7 +240,7 @@ impl Simulator {
     /// Returns a [`Simulator`] ready to be run.
     pub fn from_config(
         config: &SimulatorConfig,
-        plugin_api: Option<Box<dyn PluginAPI>>,
+        plugin_api: Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
     ) -> Simulator {
         let mut simulator = Simulator::new();
@@ -278,21 +278,19 @@ impl Simulator {
     fn add_turtlebot(
         &mut self,
         turtle_config: &TurtlebotConfig,
-        plugin_api: &Option<Box<dyn PluginAPI>>,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
     ) {
         self.turtles.push(Turtlebot::from_config(
             turtle_config,
-            &plugin_api,
+            plugin_api,
             meta_config,
         ));
-        
+
         self.network_manager
             .write()
             .unwrap()
-            .register_turtle_network(
-                self.turtles.last().unwrap().clone()
-            );
+            .register_turtle_network(self.turtles.last().unwrap().clone());
         let last_turtle_write = self
             .turtles
             .last()
@@ -308,9 +306,9 @@ impl Simulator {
 
     /// Simply print the Simulator state, using the info channel and the debug print.
     pub fn show(&self) {
-        info!("Simulator:");
+        println!("Simulator:");
         for turtle in &self.turtles {
-            info!("- {:?}", turtle);
+            println!("- {:?}", turtle);
         }
     }
 
@@ -531,14 +529,21 @@ def show():
 "#;
         let res = Python::with_gil(|py| -> PyResult<()> {
             let result_json: Py<PyAny> = PyModule::from_code_bound(py, open_json_py, "", "")?
-            .getattr("load_json")?
-            .into();
-            let config_record = result_json.call_bound(py, (result_filename.to_str().unwrap(),), None)?;
+                .getattr("load_json")?
+                .into();
+            let config_record =
+                result_json.call_bound(py, (result_filename.to_str().unwrap(),), None)?;
 
-            run_python(&analyse_py, &py, &config_record, show_figures, Path::new(""), ".pdf")?;
+            run_python(
+                &analyse_py,
+                &py,
+                &config_record,
+                show_figures,
+                Path::new(""),
+                ".pdf",
+            )?;
             if show_figures {
-                PyModule::from_code_bound(py, show_figure_py, "", "")?
-                .getattr("show")?;
+                PyModule::from_code_bound(py, show_figure_py, "", "")?.getattr("show")?;
             }
             Ok(())
         });

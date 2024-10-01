@@ -13,6 +13,9 @@ type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
+use std::str::FromStr;
+
+use pyo3::{pyclass, pymethods, types::PyDict};
 use serde_json::Value;
 
 use super::state_estimator::{State, StateEstimator};
@@ -64,6 +67,14 @@ pub struct ExternalEstimatorRecord {
     pub record: Value,
 }
 
+impl Default for ExternalEstimatorRecord {
+    fn default() -> Self {
+        Self {
+            record: Value::Null,
+        }
+    }
+}
+
 use crate::turtlebot::Turtlebot;
 
 /// External estimator strategy, which does the bridge with your own strategy.
@@ -92,7 +103,7 @@ impl ExternalEstimator {
     /// * `meta_config` -- Simulator config.
     pub fn from_config(
         config: &ExternalEstimatorConfig,
-        plugin_api: &Option<Box<dyn PluginAPI>>,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
     ) -> Self {
         println!("Config given: {:?}", config);

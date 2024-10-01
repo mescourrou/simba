@@ -39,7 +39,7 @@ pub trait Navigator:
 
 pub fn make_navigator_from_config(
     config: &NavigatorConfig,
-    plugin_api: &Option<Box<dyn PluginAPI>>,
+    plugin_api: &Option<Box<&dyn PluginAPI>>,
     meta_config: SimulatorMetaConfig,
 ) -> Arc<RwLock<Box<dyn Navigator>>> {
     Arc::new(RwLock::new(Box::new(match config {
