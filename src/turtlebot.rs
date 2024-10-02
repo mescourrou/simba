@@ -30,6 +30,36 @@ use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
+pub struct BenchStateEstimatorConfig {
+    name: String,
+    config: StateEstimatorConfig
+}
+
+impl Default for BenchStateEstimatorConfig {
+    fn default() -> Self {
+        Self {
+            name: String::from("bench_state_estimator"),
+            config: StateEstimatorConfig::Perfect(Box::new(
+                perfect_estimator::PerfectEstimatorConfig::default(),
+            ))
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BenchStateEstimatorRecord {
+    name: String,
+    record: StateEstimatorRecord
+}
+
+#[derive(Debug)]
+pub struct BenchStateEstimator {
+    name: String,
+    state_estimator: Arc<RwLock<Box<dyn StateEstimator>>>
+}
+
 // Configuration for Turtlebot
 extern crate confy;
 use log::{debug, info, warn};
@@ -58,7 +88,7 @@ pub struct TurtlebotConfig {
 
     /// Additional [`StateEstimator`] to be evaluated but without a feedback
     /// loop with the [`Navigator`]
-    pub state_estimator_bench: Vec<StateEstimatorConfig>,
+    pub state_estimator_bench: Vec<BenchStateEstimatorConfig>,
 }
 
 impl Default for TurtlebotConfig {
@@ -103,7 +133,7 @@ pub struct TurtlebotRecord {
     /// Record of the [`StateEstimator`] module.
     pub state_estimator: StateEstimatorRecord,
     /// Record of the additionnal [`StateEstimator`]s, only to evaluate them.
-    pub state_estimator_bench: Vec<StateEstimatorRecord>,
+    pub state_estimator_bench: Vec<BenchStateEstimatorRecord>,
 }
 
 /// Structure to manage the messages for no specific modules of the robot.
@@ -185,7 +215,7 @@ pub struct Turtlebot {
     /// in a past state.
     state_history: TimeOrderedData<TurtlebotRecord>,
     /// Additional [`StateEstimator`] to be evaluated.
-    state_estimator_bench: Arc<RwLock<Vec<Box<dyn StateEstimator>>>>,
+    state_estimator_bench: Arc<RwLock<Vec<BenchStateEstimator>>>,
 }
 
 impl Turtlebot {
@@ -261,8 +291,17 @@ impl Turtlebot {
             ))),
             message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
-            state_estimator_bench: Arc::new(RwLock::new(Vec::new())),
+            state_estimator_bench: Arc::new(RwLock::new(Vec::with_capacity(config.state_estimator_bench.len()))),
         }));
+
+        for state_estimator_config in &config.state_estimator_bench {
+            turtle.write().unwrap().state_estimator_bench.write().unwrap().push(
+                BenchStateEstimator {
+                    name: state_estimator_config.name.clone(),
+                    state_estimator: state_estimator::make_state_estimator_from_config(&state_estimator_config.config, plugin_api, meta_config.clone())
+                }
+            )
+        }
 
         {
             let mut writable_turtle = turtle.write().unwrap();
@@ -332,6 +371,10 @@ impl Turtlebot {
                 .write()
                 .unwrap()
                 .correction_step(self, &observations, time);
+
+            for state_estimator in self.state_estimator_bench().read().unwrap().iter() {
+                state_estimator.state_estimator.write().unwrap().correction_step(self, &observations, time);
+            }
         }
 
         // If it is time for the state estimator to do the prediction
@@ -355,6 +398,11 @@ impl Turtlebot {
 
             // Apply the command to the physics
             self.physic.write().unwrap().apply_command(&command, time);
+        }
+        for state_estimator in self.state_estimator_bench().read().unwrap().iter() {
+            if time >= state_estimator.state_estimator.read().unwrap().next_time_step() {
+                state_estimator.state_estimator.write().unwrap().prediction_step(self, time);
+            }
         }
 
         // Treat messages synchronously
@@ -389,6 +437,9 @@ impl Turtlebot {
                 self.name(),
                 next_time_step
             );
+        }
+        for state_estimator in self.state_estimator_bench.read().unwrap().iter() {
+            next_time_step = next_time_step.min(state_estimator.state_estimator.read().unwrap().next_time_step());
         }
         debug!("[{}] next_time_step: {}", self.name(), next_time_step);
         next_time_step
@@ -442,6 +493,11 @@ impl Turtlebot {
         Arc::clone(&self.state_estimator)
     }
 
+    /// Get a Arc clone of state estimator module.
+    pub fn state_estimator_bench(&self) -> Arc<RwLock<Vec<BenchStateEstimator>>> {
+        Arc::clone(&self.state_estimator_bench)
+    }
+
     /// Get a Arc clone of navigator module.
     pub fn navigator(&self) -> Arc<RwLock<Box<dyn Navigator>>> {
         Arc::clone(&self.navigator)
@@ -490,7 +546,10 @@ impl Stateful<TurtlebotRecord> for Turtlebot {
         for additional_state_estimator in other_state_estimators.read().unwrap().iter() {
             record
                 .state_estimator_bench
-                .push(additional_state_estimator.record());
+                .push(BenchStateEstimatorRecord {
+                    name: additional_state_estimator.name.clone(),
+                    record: additional_state_estimator.state_estimator.read().unwrap().record()
+        });
         }
         record
     }
@@ -520,7 +579,7 @@ impl Stateful<TurtlebotRecord> for Turtlebot {
             .iter_mut()
             .enumerate()
         {
-            additional_state_estimator.from_record(record.state_estimator_bench[i].clone());
+            additional_state_estimator.state_estimator.write().unwrap().from_record(record.state_estimator_bench[i].record.clone());
         }
     }
 }
