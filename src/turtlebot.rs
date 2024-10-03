@@ -28,13 +28,14 @@ use crate::sensors::sensor_manager::{SensorManager, SensorManagerConfig};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct BenchStateEstimatorConfig {
     name: String,
-    config: StateEstimatorConfig
+    config: StateEstimatorConfig,
 }
 
 impl Default for BenchStateEstimatorConfig {
@@ -43,7 +44,7 @@ impl Default for BenchStateEstimatorConfig {
             name: String::from("bench_state_estimator"),
             config: StateEstimatorConfig::Perfect(Box::new(
                 perfect_estimator::PerfectEstimatorConfig::default(),
-            ))
+            )),
         }
     }
 }
@@ -51,13 +52,13 @@ impl Default for BenchStateEstimatorConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BenchStateEstimatorRecord {
     name: String,
-    record: StateEstimatorRecord
+    record: StateEstimatorRecord,
 }
 
 #[derive(Debug)]
 pub struct BenchStateEstimator {
     name: String,
-    state_estimator: Arc<RwLock<Box<dyn StateEstimator>>>
+    state_estimator: Arc<RwLock<Box<dyn StateEstimator>>>,
 }
 
 // Configuration for Turtlebot
@@ -256,6 +257,7 @@ impl Turtlebot {
         config: &TurtlebotConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
+        va_factory: &DeterministRandomVariableFactory,
     ) -> Arc<RwLock<Self>> {
         let turtle = Arc::new(RwLock::new(Self {
             name: config.name.clone(),
@@ -263,44 +265,61 @@ impl Turtlebot {
                 &config.navigator,
                 plugin_api,
                 meta_config.clone(),
+                va_factory,
             ),
             controller: controller::make_controller_from_config(
                 &config.controller,
                 plugin_api,
                 meta_config.clone(),
+                va_factory,
             ),
             physic: physic::make_physic_from_config(
                 &config.physic,
                 plugin_api,
                 meta_config.clone(),
+                va_factory,
             ),
             state_estimator: state_estimator::make_state_estimator_from_config(
                 &config.state_estimator,
                 plugin_api,
                 meta_config.clone(),
+                va_factory,
             ),
             sensor_manager: Arc::new(RwLock::new(SensorManager::from_config(
                 &config.sensor_manager,
                 plugin_api,
                 meta_config.clone(),
+                va_factory,
             ))),
             network: Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),
                 &config.network,
                 meta_config.clone(),
+                va_factory,
             ))),
             message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
-            state_estimator_bench: Arc::new(RwLock::new(Vec::with_capacity(config.state_estimator_bench.len()))),
+            state_estimator_bench: Arc::new(RwLock::new(Vec::with_capacity(
+                config.state_estimator_bench.len(),
+            ))),
         }));
 
         for state_estimator_config in &config.state_estimator_bench {
-            turtle.write().unwrap().state_estimator_bench.write().unwrap().push(
-                BenchStateEstimator {
+            turtle
+                .write()
+                .unwrap()
+                .state_estimator_bench
+                .write()
+                .unwrap()
+                .push(BenchStateEstimator {
                     name: state_estimator_config.name.clone(),
-                    state_estimator: state_estimator::make_state_estimator_from_config(&state_estimator_config.config, plugin_api, meta_config.clone())
-                }
-            )
+                    state_estimator: state_estimator::make_state_estimator_from_config(
+                        &state_estimator_config.config,
+                        plugin_api,
+                        meta_config.clone(),
+                        va_factory,
+                    ),
+                })
         }
 
         {
@@ -373,7 +392,11 @@ impl Turtlebot {
                 .correction_step(self, &observations, time);
 
             for state_estimator in self.state_estimator_bench().read().unwrap().iter() {
-                state_estimator.state_estimator.write().unwrap().correction_step(self, &observations, time);
+                state_estimator
+                    .state_estimator
+                    .write()
+                    .unwrap()
+                    .correction_step(self, &observations, time);
             }
         }
 
@@ -400,8 +423,18 @@ impl Turtlebot {
             self.physic.write().unwrap().apply_command(&command, time);
         }
         for state_estimator in self.state_estimator_bench().read().unwrap().iter() {
-            if time >= state_estimator.state_estimator.read().unwrap().next_time_step() {
-                state_estimator.state_estimator.write().unwrap().prediction_step(self, time);
+            if time
+                >= state_estimator
+                    .state_estimator
+                    .read()
+                    .unwrap()
+                    .next_time_step()
+            {
+                state_estimator
+                    .state_estimator
+                    .write()
+                    .unwrap()
+                    .prediction_step(self, time);
             }
         }
 
@@ -439,7 +472,13 @@ impl Turtlebot {
             );
         }
         for state_estimator in self.state_estimator_bench.read().unwrap().iter() {
-            next_time_step = next_time_step.min(state_estimator.state_estimator.read().unwrap().next_time_step());
+            next_time_step = next_time_step.min(
+                state_estimator
+                    .state_estimator
+                    .read()
+                    .unwrap()
+                    .next_time_step(),
+            );
         }
         debug!("[{}] next_time_step: {}", self.name(), next_time_step);
         next_time_step
@@ -548,8 +587,12 @@ impl Stateful<TurtlebotRecord> for Turtlebot {
                 .state_estimator_bench
                 .push(BenchStateEstimatorRecord {
                     name: additional_state_estimator.name.clone(),
-                    record: additional_state_estimator.state_estimator.read().unwrap().record()
-        });
+                    record: additional_state_estimator
+                        .state_estimator
+                        .read()
+                        .unwrap()
+                        .record(),
+                });
         }
         record
     }
@@ -579,7 +622,11 @@ impl Stateful<TurtlebotRecord> for Turtlebot {
             .iter_mut()
             .enumerate()
         {
-            additional_state_estimator.state_estimator.write().unwrap().from_record(record.state_estimator_bench[i].record.clone());
+            additional_state_estimator
+                .state_estimator
+                .write()
+                .unwrap()
+                .from_record(record.state_estimator_bench[i].record.clone());
         }
     }
 }

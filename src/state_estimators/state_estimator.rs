@@ -138,10 +138,12 @@ impl fmt::Display for State {
 }
 
 use super::{external_estimator, perfect_estimator};
-use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
 use crate::turtlebot::Turtlebot;
+use crate::{
+    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 
 use std::sync::{Arc, RwLock};
 
@@ -173,14 +175,25 @@ pub fn make_state_estimator_from_config(
     config: &StateEstimatorConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     meta_config: SimulatorMetaConfig,
+    va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn StateEstimator>>> {
     return match config {
         StateEstimatorConfig::Perfect(c) => Arc::new(RwLock::new(Box::new(
-            perfect_estimator::PerfectEstimator::from_config(c, plugin_api, meta_config.clone()),
+            perfect_estimator::PerfectEstimator::from_config(
+                c,
+                plugin_api,
+                meta_config.clone(),
+                va_factory,
+            ),
         )
             as Box<dyn StateEstimator>)),
         StateEstimatorConfig::External(c) => Arc::new(RwLock::new(Box::new(
-            external_estimator::ExternalEstimator::from_config(c, plugin_api, meta_config.clone()),
+            external_estimator::ExternalEstimator::from_config(
+                c,
+                plugin_api,
+                meta_config.clone(),
+                va_factory,
+            ),
         )
             as Box<dyn StateEstimator>)),
     };

@@ -8,6 +8,7 @@ use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::stateful::Stateful;
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use serde_derive::{Deserialize, Serialize};
 
 extern crate nalgebra as na;
@@ -69,6 +70,7 @@ impl OdometrySensor {
             &OdometrySensorConfig::default(),
             &None,
             SimulatorMetaConfig::default(),
+            &DeterministRandomVariableFactory::default(),
         )
     }
 
@@ -77,6 +79,7 @@ impl OdometrySensor {
         config: &OdometrySensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
+        va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         Self {
             last_state: State::new(),

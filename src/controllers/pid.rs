@@ -12,6 +12,7 @@ Each component has a gain, which can be set in [`PIDConfig`].
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use log::error;
 use serde_derive::{Deserialize, Serialize};
 
@@ -113,7 +114,12 @@ pub struct PID {
 impl PID {
     /// Makes a new default PID.
     pub fn new() -> Self {
-        Self::from_config(&PIDConfig::default(), &None, SimulatorMetaConfig::default())
+        Self::from_config(
+            &PIDConfig::default(),
+            &None,
+            SimulatorMetaConfig::default(),
+            &DeterministRandomVariableFactory::default(),
+        )
     }
 
     /// Makes a new [`PID`] from the given `config`.
@@ -121,6 +127,7 @@ impl PID {
         config: &PIDConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
+        va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         PID {
             kp_v: config.kp_v,

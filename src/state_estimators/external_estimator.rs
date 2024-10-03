@@ -19,9 +19,11 @@ use pyo3::{pyclass, pymethods, types::PyDict};
 use serde_json::Value;
 
 use super::state_estimator::{State, StateEstimator};
-use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
+use crate::{
+    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 
 use super::state_estimator::StateEstimatorRecord;
 use crate::sensors::sensor::GenericObservation;
@@ -90,6 +92,7 @@ impl ExternalEstimator {
             &ExternalEstimatorConfig::default(),
             &None,
             SimulatorMetaConfig::default(),
+            &DeterministRandomVariableFactory::default(),
         )
     }
 
@@ -105,6 +108,7 @@ impl ExternalEstimator {
         config: &ExternalEstimatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
+        va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         println!("Config given: {:?}", config);
         Self {

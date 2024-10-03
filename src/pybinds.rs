@@ -1,8 +1,19 @@
 use log::{debug, error};
-use pyo3::{prelude::*, types::{PyList, PyTuple}};
+use pyo3::{
+    prelude::*,
+    types::{PyList, PyTuple},
+};
 use serde_json::Value;
 
-use crate::{plugin_api::PluginAPI, simulator::{Simulator, SimulatorMetaConfig}, state_estimators::{pybinds::{make_state_estimator_module, PythonStateEstimator}, state_estimator::StateEstimator}, stateful::Stateful};
+use crate::{
+    plugin_api::PluginAPI,
+    simulator::{Simulator, SimulatorMetaConfig},
+    state_estimators::{
+        pybinds::{make_state_estimator_module, PythonStateEstimator},
+        state_estimator::StateEstimator,
+    },
+    stateful::Stateful,
+};
 use std::path::Path;
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -43,7 +54,7 @@ impl SimulatorWrapper {
                 Path::new(config_path),
                 match api {
                     Some(py_api) => Some(Box::new(py_api)),
-                    None => None
+                    None => None,
                 },
                 Some(Path::new(result_path).into()),
                 analyse_results,
@@ -71,9 +82,7 @@ pub struct PythonAPI {
 impl PythonAPI {
     #[new]
     pub fn new(m: Py<PyAny>) -> PythonAPI {
-        PythonAPI {
-            api: m
-        }
+        PythonAPI { api: m }
     }
 }
 
@@ -83,14 +92,25 @@ impl PluginAPI for PythonAPI {
         config: &Value,
         meta_config: SimulatorMetaConfig,
     ) -> Box<dyn StateEstimator> {
-        let st = Box::new(PythonStateEstimator::new(
-            Python::with_gil(|py| {
-                self.api
-                    .bind(py)
-                    .call_method("get_state_estimator", (config.to_string(), meta_config.config_path.expect("Config path not set!").to_str().unwrap().to_string()), None)
-                    .expect("Error during execution of python method 'get_state_estimator'")
-                    .extract()
-                    .expect("Expecting function return of PythonStateEstimator but failed")
+        let st = Box::new(PythonStateEstimator::new(Python::with_gil(|py| {
+            self.api
+                .bind(py)
+                .call_method(
+                    "get_state_estimator",
+                    (
+                        config.to_string(),
+                        meta_config
+                            .config_path
+                            .expect("Config path not set!")
+                            .to_str()
+                            .unwrap()
+                            .to_string(),
+                    ),
+                    None,
+                )
+                .expect("Error during execution of python method 'get_state_estimator'")
+                .extract()
+                .expect("Expecting function return of PythonStateEstimator but failed")
         })));
         debug!("Got api {:?}", st);
         st

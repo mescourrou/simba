@@ -5,10 +5,12 @@ by the controller should be perfect.
 */
 
 use super::state_estimator::{State, StateRecord};
-use crate::plugin_api::PluginAPI;
 use crate::sensors::sensor::GenericObservation;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
+use crate::{
+    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 use log::error;
 use serde_derive::{Deserialize, Serialize};
 
@@ -53,6 +55,7 @@ impl PerfectEstimator {
             &PerfectEstimatorConfig::default(),
             &None,
             SimulatorMetaConfig::default(),
+            &DeterministRandomVariableFactory::default(),
         )
     }
 
@@ -61,6 +64,7 @@ impl PerfectEstimator {
         config: &PerfectEstimatorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
+        va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         Self {
             update_period: config.update_period,

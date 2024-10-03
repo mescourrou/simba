@@ -7,6 +7,7 @@ use super::sensor::{GenericObservation, Sensor, SensorRecord};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use serde_derive::{Deserialize, Serialize};
 
 use log::error;
@@ -249,6 +250,7 @@ impl OrientedLandmarkSensor {
             &OrientedLandmarkSensorConfig::default(),
             &None,
             SimulatorMetaConfig::default(),
+            &DeterministRandomVariableFactory::default(),
         )
     }
 
@@ -259,6 +261,7 @@ impl OrientedLandmarkSensor {
         config: &OrientedLandmarkSensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
+        va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut path = Path::new(&config.map_path);
 

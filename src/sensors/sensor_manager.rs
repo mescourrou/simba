@@ -8,6 +8,7 @@ use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
 use crate::turtlebot::Turtlebot;
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{simulator::SimulatorMetaConfig, stateful::Stateful};
 
 use super::odometry_sensor::OdometrySensor;
@@ -64,20 +65,26 @@ impl SensorManager {
         config: &SensorManagerConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
+        va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {
             manager
                 .sensors
                 .push(Arc::new(RwLock::new(match &sensor_config {
-                    SensorConfig::OrientedLandmarkSensor(c) => Box::new(
-                        OrientedLandmarkSensor::from_config(c, plugin_api, meta_config.clone()),
-                    )
-                        as Box<dyn Sensor>,
+                    SensorConfig::OrientedLandmarkSensor(c) => {
+                        Box::new(OrientedLandmarkSensor::from_config(
+                            c,
+                            plugin_api,
+                            meta_config.clone(),
+                            va_factory,
+                        )) as Box<dyn Sensor>
+                    }
                     SensorConfig::OdometrySensor(c) => Box::new(OdometrySensor::from_config(
                         c,
                         plugin_api,
                         meta_config.clone(),
+                        va_factory,
                     )) as Box<dyn Sensor>,
                 })));
         }

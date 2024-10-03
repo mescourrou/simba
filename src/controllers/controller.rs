@@ -2,7 +2,9 @@
 Module defining the [Controller]
 */
 
-use crate::stateful::Stateful;
+use crate::{
+    stateful::Stateful, utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 use std::sync::{Arc, RwLock};
 
 use crate::{physics::physic::Command, plugin_api::PluginAPI, simulator::SimulatorMetaConfig};
@@ -73,8 +75,11 @@ pub fn make_controller_from_config(
     config: &ControllerConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     meta_config: SimulatorMetaConfig,
+    va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn Controller>>> {
     Arc::new(RwLock::new(Box::new(match config {
-        ControllerConfig::PID(c) => pid::PID::from_config(c, plugin_api, meta_config.clone()),
+        ControllerConfig::PID(c) => {
+            pid::PID::from_config(c, plugin_api, meta_config.clone(), va_factory)
+        }
     })))
 }

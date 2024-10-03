@@ -8,6 +8,7 @@ use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 extern crate nalgebra as na;
 use libm::atan2;
@@ -101,6 +102,7 @@ impl TrajectoryFollower {
         config: &TrajectoryFollowerConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut path = Path::new(&config.trajectory_path);
         if config.trajectory_path == "" {

@@ -6,6 +6,7 @@ use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
 use crate::stateful::Stateful;
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use log::error;
 use serde_derive::{Deserialize, Serialize};
 
@@ -59,6 +60,7 @@ impl PerfectPhysic {
             &PerfectPhysicConfig::default(),
             &None,
             SimulatorMetaConfig::default(),
+            &DeterministRandomVariableFactory::default(),
         )
     }
 
@@ -72,6 +74,7 @@ impl PerfectPhysic {
         config: &PerfectPhysicConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
+        va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         PerfectPhysic {
             wheel_distance: config.wheel_distance,

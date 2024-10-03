@@ -2,12 +2,18 @@ use core::panic;
 use std::str::FromStr;
 
 use log::debug;
-use pyo3::{prelude::*, types::{PyDict, PyFloat, PyTuple}};
+use pyo3::{
+    prelude::*,
+    types::{PyDict, PyFloat, PyTuple},
+};
 use serde_json::Value;
 
 use crate::stateful::Stateful;
 
-use super::{external_estimator::ExternalEstimatorRecord, state_estimator::{State, StateEstimator, StateEstimatorRecord}};
+use super::{
+    external_estimator::ExternalEstimatorRecord,
+    state_estimator::{State, StateEstimator, StateEstimatorRecord},
+};
 
 pub fn make_state_estimator_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let module = PyModule::new_bound(m.py(), "state_estimators")?;
@@ -29,9 +35,7 @@ impl PythonStateEstimator {
         Python::with_gil(|py| {
             debug!("Model got: {}", py_model.bind(py).dir().unwrap());
         });
-        PythonStateEstimator { 
-            model: py_model
-        }
+        PythonStateEstimator { model: py_model }
     }
 }
 
@@ -108,7 +112,9 @@ impl Stateful<StateEstimatorRecord> for PythonStateEstimator {
         });
         debug!("Out of python record.");
         let record = ExternalEstimatorRecord {
-            record: Value::from_str(record_str.as_str()).expect("Impossible to get serde_json::Value from the input serialized python structure"),
+            record: Value::from_str(record_str.as_str()).expect(
+                "Impossible to get serde_json::Value from the input serialized python structure",
+            ),
         };
         // record.clone()
         // StateEstimatorRecord::External(PythonStateEstimator::record(&self))

@@ -43,9 +43,11 @@ use serde_derive::{Deserialize, Serialize};
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
 use crate::result_analyser::{self, run_python};
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 use super::turtlebot::{Turtlebot, TurtlebotConfig, TurtlebotRecord};
 use std::path::Path;
+use std::time::SystemTime;
 
 use serde_json;
 use std::default::Default;
@@ -105,6 +107,7 @@ impl SimulatorMetaConfig {
 #[serde(default)]
 pub struct SimulatorConfig {
     /// List of the turtles (robots) to run, with their specific configuration.
+    pub random_seed: Option<f32>,
     pub turtles: Vec<Box<TurtlebotConfig>>,
 }
 
@@ -112,6 +115,7 @@ impl Default for SimulatorConfig {
     /// Default scenario configuration: no turtles.
     fn default() -> Self {
         Self {
+            random_seed: None,
             turtles: Vec::new(),
         }
     }
@@ -181,6 +185,8 @@ pub struct Simulator {
     meta_config: SimulatorMetaConfig,
     /// Network Manager
     network_manager: Arc<RwLock<NetworkManager>>,
+    /// Factory for components to make random variables generators
+    determinist_va_factory: DeterministRandomVariableFactory,
 }
 
 impl Simulator {
@@ -191,6 +197,12 @@ impl Simulator {
             config: SimulatorConfig::default(),
             meta_config: SimulatorMetaConfig::default(),
             network_manager: Arc::new(RwLock::new(NetworkManager::new())),
+            determinist_va_factory: DeterministRandomVariableFactory::new(
+                SystemTime::now()
+                    .elapsed()
+                    .expect("Can't get the system time")
+                    .as_secs_f32(),
+            ),
         }
     }
 
@@ -246,6 +258,9 @@ impl Simulator {
         let mut simulator = Simulator::new();
         simulator.config = config.clone();
         simulator.meta_config = meta_config.clone();
+        if let Some(seed) = config.random_seed {
+            simulator.determinist_va_factory.global_seed = seed;
+        }
 
         // Create turtles
         for turtle_config in &config.turtles {
@@ -285,6 +300,7 @@ impl Simulator {
             turtle_config,
             plugin_api,
             meta_config,
+            &self.determinist_va_factory,
         ));
 
         self.network_manager

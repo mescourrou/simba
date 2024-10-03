@@ -28,6 +28,7 @@ pub enum NavigatorRecord {
 
 use crate::stateful::Stateful;
 use crate::turtlebot::Turtlebot;
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 /// Trait managing the path planning, and providing the error to the planned path.
 pub trait Navigator:
@@ -41,10 +42,16 @@ pub fn make_navigator_from_config(
     config: &NavigatorConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     meta_config: SimulatorMetaConfig,
+    va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn Navigator>>> {
     Arc::new(RwLock::new(Box::new(match config {
         NavigatorConfig::TrajectoryFollower(c) => {
-            trajectory_follower::TrajectoryFollower::from_config(c, plugin_api, meta_config.clone())
+            trajectory_follower::TrajectoryFollower::from_config(
+                c,
+                plugin_api,
+                meta_config.clone(),
+                va_factory,
+            )
         }
     })))
 }

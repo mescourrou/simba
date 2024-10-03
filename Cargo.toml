@@ -32,6 +32,10 @@ eframe = { git = "https://github.com/emilk/egui", tag = "0.27.2" , default-featu
     "persistence",   # Enable restoring app state when restarting the app.
 ] }
 log = "^0.4.22"
+rand = "0.8.5"
+rand_chacha = "0.3.1"
+statrs = "0.17.1"
+
 
 [dependencies.pyo3]
 version = "^0.22"
