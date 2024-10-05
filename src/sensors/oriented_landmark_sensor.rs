@@ -7,7 +7,7 @@ use super::sensor::{GenericObservation, Sensor, SensorRecord};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::determinist_random_variable::{DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig};
 use serde_derive::{Deserialize, Serialize};
 
 use log::error;
@@ -28,6 +28,9 @@ pub struct OrientedLandmarkSensorConfig {
     pub map_path: String,
     /// Observation period of the sensor.
     pub period: f32,
+    pub x_noise: RandomVariableTypeConfig,
+    pub y_noise: RandomVariableTypeConfig,
+    pub theta_noise: RandomVariableTypeConfig,
 }
 
 impl Default for OrientedLandmarkSensorConfig {
@@ -36,6 +39,9 @@ impl Default for OrientedLandmarkSensorConfig {
             detection_distance: 5.0,
             map_path: String::from(""),
             period: 0.1,
+            x_noise: RandomVariableTypeConfig::None,
+            y_noise: RandomVariableTypeConfig::None,
+            theta_noise: RandomVariableTypeConfig::None,
         }
     }
 }
@@ -241,6 +247,9 @@ pub struct OrientedLandmarkSensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
+    gen_x: Box<dyn DeterministRandomVariable>,
+    gen_y: Box<dyn DeterministRandomVariable>,
+    gen_theta: Box<dyn DeterministRandomVariable>,
 }
 
 impl OrientedLandmarkSensor {
@@ -270,6 +279,9 @@ impl OrientedLandmarkSensor {
             landmarks: Vec::new(),
             period: config.period,
             last_time: 0.,
+            gen_x: va_factory.make_variable(config.x_noise.clone()),
+            gen_y: va_factory.make_variable(config.y_noise.clone()),
+            gen_theta: va_factory.make_variable(config.theta_noise.clone()),
         };
 
         if config.map_path == "" {
@@ -332,9 +344,15 @@ impl Sensor for OrientedLandmarkSensor {
                 + (landmark.pose.y - state.pose.y).powi(2))
             .sqrt();
             if d <= self.detection_distance {
+                let landmark_seed = 1./(100.*self.period)*(landmark.id as f32);
+                let noisy_pose = na::Vector3::<f32>::from_vec(vec![
+                    self.gen_x.gen(time + landmark_seed),
+                    self.gen_y.gen(time + landmark_seed),
+                    self.gen_theta.gen(time + landmark_seed)
+                ]);
                 observation_list.push(Box::new(OrientedLandmarkObservation {
                     id: landmark.id,
-                    pose: rotation_matrix * landmark.pose + state.pose,
+                    pose: rotation_matrix * landmark.pose + state.pose + noisy_pose,
                 }));
             }
         }

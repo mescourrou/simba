@@ -11,6 +11,7 @@ use crate::turtlebot::Turtlebot;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{simulator::SimulatorMetaConfig, stateful::Stateful};
 
+use super::gnss_sensor::GNSSSensor;
 use super::odometry_sensor::OdometrySensor;
 use super::{
     oriented_landmark_sensor::OrientedLandmarkSensor,
@@ -79,8 +80,14 @@ impl SensorManager {
                             meta_config.clone(),
                             va_factory,
                         )) as Box<dyn Sensor>
-                    }
+                    },
                     SensorConfig::OdometrySensor(c) => Box::new(OdometrySensor::from_config(
+                        c,
+                        plugin_api,
+                        meta_config.clone(),
+                        va_factory,
+                    )) as Box<dyn Sensor>,
+                    SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
                         c,
                         plugin_api,
                         meta_config.clone(),

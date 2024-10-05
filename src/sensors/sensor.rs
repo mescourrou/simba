@@ -5,7 +5,7 @@ Provides the [`Sensor`] trait, which is the interface for all the sensors.
 extern crate confy;
 use serde_derive::{Deserialize, Serialize};
 
-use super::{odometry_sensor, oriented_landmark_sensor};
+use super::{gnss_sensor, odometry_sensor, oriented_landmark_sensor};
 
 /// Generic trait for the observations. Contains no information, the observation
 /// need to be tested for type after.
@@ -16,6 +16,7 @@ pub trait GenericObservation: std::fmt::Debug {}
 pub enum SensorConfig {
     OrientedLandmarkSensor(Box<oriented_landmark_sensor::OrientedLandmarkSensorConfig>),
     OdometrySensor(odometry_sensor::OdometrySensorConfig),
+    GNSSSensor(gnss_sensor::GNSSSensorConfig),
 }
 
 /// Enumerates all the sensor records.
@@ -23,6 +24,7 @@ pub enum SensorConfig {
 pub enum SensorRecord {
     OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorRecord),
     OdometrySensor(odometry_sensor::OdometrySensorRecord),
+    GNSSSensor(gnss_sensor::GNSSSensorRecord),
 }
 
 use crate::{stateful::Stateful, turtlebot::Turtlebot};

@@ -2,13 +2,18 @@
 Provides a [`Sensor`] which can provide linear velocity and angular velocity.
 */
 
+use std::sync::{Arc, RwLock};
+
 use super::sensor::{GenericObservation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::determinist_random_variable::{
+    DeterministFixedRandomVariable, DeterministRandomVariable, DeterministRandomVariableFactory,
+    FixedRandomVariableConfig, RandomVariableTypeConfig,
+};
 use serde_derive::{Deserialize, Serialize};
 
 extern crate nalgebra as na;
@@ -19,11 +24,17 @@ extern crate nalgebra as na;
 pub struct OdometrySensorConfig {
     /// Observation period of the sensor.
     pub period: f32,
+    pub angular_velocity_noise: RandomVariableTypeConfig,
+    pub linear_velocity_noise: RandomVariableTypeConfig,
 }
 
 impl Default for OdometrySensorConfig {
     fn default() -> Self {
-        Self { period: 0.1 }
+        Self {
+            period: 0.1,
+            angular_velocity_noise: RandomVariableTypeConfig::None,
+            linear_velocity_noise: RandomVariableTypeConfig::None,
+        }
     }
 }
 
@@ -61,6 +72,8 @@ pub struct OdometrySensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
+    gen_angular_velocity: Box<dyn DeterministRandomVariable>,
+    gen_linear_velocity: Box<dyn DeterministRandomVariable>,
 }
 
 impl OdometrySensor {
@@ -85,6 +98,8 @@ impl OdometrySensor {
             last_state: State::new(),
             period: config.period,
             last_time: 0.,
+            gen_angular_velocity: va_factory.make_variable(config.angular_velocity_noise.clone()),
+            gen_linear_velocity: va_factory.make_variable(config.linear_velocity_noise.clone()),
         }
     }
 }
@@ -112,8 +127,8 @@ impl Sensor for OdometrySensor {
         let dt = time - self.last_time;
 
         observation_list.push(Box::new(OdometryObservation {
-            linear_velocity: state.velocity,
-            angular_velocity: (state.pose.z - self.last_state.pose.z) / dt,
+            linear_velocity: state.velocity + self.gen_linear_velocity.gen(time),
+            angular_velocity: (state.pose.z - self.last_state.pose.z) / dt + self.gen_angular_velocity.gen(time),
         }));
 
         self.last_time = time;
