@@ -26,7 +26,7 @@ use crate::state_estimators::{perfect_estimator, state_estimator};
 use crate::sensors::sensor_manager::{SensorManager, SensorManagerConfig};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::{Simulator, SimulatorMetaConfig};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
@@ -343,11 +343,11 @@ impl Turtlebot {
     ///
     /// ## Return
     /// Next time step.
-    pub fn run_next_time_step(&mut self, time: f32) -> f32 {
+    pub fn run_next_time_step(&mut self, time: f32, turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>) -> f32 {
         let mut next_time_step = self.next_time_step();
         while next_time_step <= time {
             self.network().write().unwrap().process_messages();
-            self.run_time_step(next_time_step);
+            self.run_time_step(next_time_step, turtle_list);
             next_time_step = self.next_time_step();
         }
 
@@ -371,7 +371,7 @@ impl Turtlebot {
     /// 5. The network messages are handled
     ///
     /// Then, the robot state is saved.
-    fn run_time_step(&mut self, time: f32) {
+    fn run_time_step(&mut self, time: f32, turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>) {
         self.set_in_state(time);
         info!("[{}] Run time {}", self.name(), time);
         // Update the true state
@@ -382,7 +382,7 @@ impl Turtlebot {
             .sensor_manager()
             .write()
             .unwrap()
-            .get_observations(self, time);
+            .get_observations(self, time, turtle_list);
 
         if observations.len() > 0 {
             // Treat the observations

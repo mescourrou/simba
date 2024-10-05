@@ -7,7 +7,7 @@ use std::sync::{Arc, RwLock};
 use super::sensor::{GenericObservation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::{Simulator, SimulatorMetaConfig};
 use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
@@ -34,7 +34,7 @@ pub struct GNSSSensorConfig {
 impl Default for GNSSSensorConfig {
     fn default() -> Self {
         Self {
-            period: 0.1,
+            period: 1.,
             pose_x_noise: RandomVariableTypeConfig::None,
             pose_y_noise: RandomVariableTypeConfig::None,
             velocity_x_noise: RandomVariableTypeConfig::None,
@@ -46,11 +46,12 @@ impl Default for GNSSSensorConfig {
 /// Record of the [`GNSSSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GNSSSensorRecord {
+    last_time: f32,
 }
 
 impl Default for GNSSSensorRecord {
     fn default() -> Self {
-        Self {}
+        Self { last_time: 0. }
     }
 }
 
@@ -116,6 +117,7 @@ impl Sensor for GNSSSensor {
         &mut self,
         turtle: &mut Turtlebot,
         time: f32,
+        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
     ) -> Vec<Box<dyn GenericObservation>> {
         let arc_physic = turtle.physics();
         let physic = arc_physic.read().unwrap();
@@ -159,10 +161,14 @@ impl Sensor for GNSSSensor {
 
 impl Stateful<SensorRecord> for GNSSSensor {
     fn record(&self) -> SensorRecord {
-        SensorRecord::GNSSSensor(GNSSSensorRecord {})
+        SensorRecord::GNSSSensor(GNSSSensorRecord {
+            last_time: self.last_time,
+        })
     }
 
     fn from_record(&mut self, record: SensorRecord) {
-        if let SensorRecord::GNSSSensor(_gnss_record) = record {}
+        if let SensorRecord::GNSSSensor(gnss_record) = record {
+            self.last_time = gnss_record.last_time;
+        }
     }
 }

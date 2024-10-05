@@ -7,7 +7,7 @@ use std::sync::{Arc, RwLock};
 use super::sensor::{GenericObservation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::{Simulator, SimulatorMetaConfig};
 use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
@@ -115,6 +115,7 @@ impl Sensor for OdometrySensor {
         &mut self,
         turtle: &mut Turtlebot,
         time: f32,
+        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
     ) -> Vec<Box<dyn GenericObservation>> {
         let arc_physic = turtle.physics();
         let physic = arc_physic.read().unwrap();

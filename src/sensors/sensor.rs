@@ -3,9 +3,11 @@ Provides the [`Sensor`] trait, which is the interface for all the sensors.
 */
 
 extern crate confy;
+use std::sync::{Arc, RwLock};
+
 use serde_derive::{Deserialize, Serialize};
 
-use super::{gnss_sensor, odometry_sensor, oriented_landmark_sensor};
+use super::{gnss_sensor, odometry_sensor, oriented_landmark_sensor, turtle_sensor};
 
 /// Generic trait for the observations. Contains no information, the observation
 /// need to be tested for type after.
@@ -17,6 +19,7 @@ pub enum SensorConfig {
     OrientedLandmarkSensor(Box<oriented_landmark_sensor::OrientedLandmarkSensorConfig>),
     OdometrySensor(odometry_sensor::OdometrySensorConfig),
     GNSSSensor(gnss_sensor::GNSSSensorConfig),
+    TurtleSensor(turtle_sensor::TurtleSensorConfig)
 }
 
 /// Enumerates all the sensor records.
@@ -25,9 +28,10 @@ pub enum SensorRecord {
     OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorRecord),
     OdometrySensor(odometry_sensor::OdometrySensorRecord),
     GNSSSensor(gnss_sensor::GNSSSensorRecord),
+    TurtleSensor(turtle_sensor::TurtleSensorRecord),
 }
 
-use crate::{stateful::Stateful, turtlebot::Turtlebot};
+use crate::{simulator::Simulator, stateful::Stateful, turtlebot::Turtlebot};
 
 /// Sensor trait which need to be implemented by each sensors.
 pub trait Sensor:
@@ -50,6 +54,7 @@ pub trait Sensor:
         &mut self,
         turtle: &mut Turtlebot,
         time: f32,
+        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
     ) -> Vec<Box<dyn GenericObservation>>;
 
     /// Get the time of the next observation.

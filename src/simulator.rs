@@ -178,7 +178,7 @@ pub struct Record {
 /// ```
 pub struct Simulator {
     /// List of the [`Turtlebot`]. Using `Arc` and `RwLock` for multithreading.
-    turtles: Vec<Arc<RwLock<Turtlebot>>>,
+    turtles: Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
     /// Scenario configuration.
     config: SimulatorConfig,
     /// Simulation configuration.
@@ -193,7 +193,7 @@ impl Simulator {
     /// Create a new [`Simulator`] with no turtles, and empty config.
     pub fn new() -> Simulator {
         Simulator {
-            turtles: Vec::new(),
+            turtles: Arc::new(RwLock::new(Vec::new())),
             config: SimulatorConfig::default(),
             meta_config: SimulatorMetaConfig::default(),
             network_manager: Arc::new(RwLock::new(NetworkManager::new())),
@@ -296,20 +296,20 @@ impl Simulator {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
     ) {
-        self.turtles.push(Turtlebot::from_config(
+        self.turtles.write().unwrap().push(Turtlebot::from_config(
             turtle_config,
             plugin_api,
             meta_config,
             &self.determinist_va_factory,
         ));
 
+        let turtle_list = self.turtles.read().unwrap();
+
         self.network_manager
             .write()
             .unwrap()
-            .register_turtle_network(self.turtles.last().unwrap().clone());
-        let last_turtle_write = self
-            .turtles
-            .last()
+            .register_turtle_network(Arc::clone(&turtle_list.last().unwrap()));
+        let last_turtle_write = turtle_list.last()
             .expect("No turtle added to the vector, how is it possible ??")
             .write()
             .unwrap();
@@ -323,7 +323,8 @@ impl Simulator {
     /// Simply print the Simulator state, using the info channel and the debug print.
     pub fn show(&self) {
         println!("Simulator:");
-        for turtle in &self.turtles {
+        let turtle_list = self.turtles.read().unwrap();
+        for turtle in turtle_list.iter() {
             println!("- {:?}", turtle);
         }
     }
@@ -340,10 +341,11 @@ impl Simulator {
     pub fn run(&mut self, max_time: f32) {
         let mut handles = vec![];
 
-        for turtle in &self.turtles {
+        for turtle in self.turtles.read().unwrap().iter() {
             let new_turtle = Arc::clone(turtle);
             let new_max_time = max_time.clone();
-            let handle = thread::spawn(move || Self::run_one_turtle(new_turtle, new_max_time));
+            let turtle_list = Arc::clone(&self.turtles);
+            let handle = thread::spawn(move || Self::run_one_turtle(new_turtle, new_max_time, turtle_list));
             handles.push(handle);
         }
 
@@ -358,7 +360,7 @@ impl Simulator {
     /// Returns the list of all [`Record`]s produced by [`Simulator::run`].
     pub fn get_results(&self) -> Vec<Record> {
         let mut records = Vec::new();
-        for turtle in &self.turtles {
+        for turtle in self.turtles.read().unwrap().iter() {
             let turtle_r = turtle.read().expect("Turtle cannot be read");
             let turtle_history = turtle_r.record_history();
             for (time, record) in turtle_history.iter() {
@@ -412,7 +414,7 @@ impl Simulator {
     /// ## Arguments
     /// * `turtle` - Turtle to be run.
     /// * `max_time` - Time to stop the loop.
-    fn run_one_turtle(turtle: Arc<RwLock<Turtlebot>>, max_time: f32) {
+    fn run_one_turtle(turtle: Arc<RwLock<Turtlebot>>, max_time: f32, turtle_list: Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>) {
         info!("Start thread of turtle {}", turtle.read().unwrap().name());
 
         loop {
@@ -422,7 +424,7 @@ impl Simulator {
             }
 
             let mut turtle_open = turtle.write().unwrap();
-            turtle_open.run_next_time_step(next_time);
+            turtle_open.run_next_time_step(next_time, &turtle_list);
         }
     }
 
