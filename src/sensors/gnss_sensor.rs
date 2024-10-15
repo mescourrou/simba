@@ -4,7 +4,7 @@ Provides a [`Sensor`] which can provide position and velocity in the global fram
 
 use std::sync::{Arc, RwLock};
 
-use super::sensor::{GenericObservation, Sensor, SensorRecord};
+use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::{Simulator, SimulatorMetaConfig};
@@ -62,8 +62,6 @@ pub struct GNSSObservation {
     pub velocity: Vector2<f32>,
 }
 
-impl GenericObservation for GNSSObservation {}
-
 /// Sensor which observes the robot's odometry
 #[derive(Debug)]
 pub struct GNSSSensor {
@@ -117,11 +115,12 @@ impl Sensor for GNSSSensor {
         &mut self,
         turtle: &mut Turtlebot,
         time: f32,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-    ) -> Vec<Box<dyn GenericObservation>> {
+        _turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        _turtle_idx: usize,
+    ) -> Vec<Observation> {
         let arc_physic = turtle.physics();
         let physic = arc_physic.read().unwrap();
-        let mut observation_list = Vec::<Box<dyn GenericObservation>>::new();
+        let mut observation_list = Vec::<Observation>::new();
         if time < self.next_time_step() {
             return observation_list;
         }
@@ -142,11 +141,12 @@ impl Sensor for GNSSSensor {
             state.velocity * state.pose.z.sin(),
         ]);
 
-        observation_list.push(Box::new(GNSSObservation {
+        observation_list.push(Observation::GNSS(GNSSObservation {
             position: state.pose.fixed_view(0, 0) + pose_noise,
             velocity: velocity + velocity_noise,
         }));
 
+        self.last_time = time;
         observation_list
     }
 

@@ -54,7 +54,7 @@ impl StateEstimator for PythonStateEstimator {
     fn correction_step(
         &mut self,
         turtle: &mut crate::turtlebot::Turtlebot,
-        observations: &Vec<Box<dyn crate::sensors::sensor::GenericObservation>>,
+        observations: &Vec<crate::sensors::sensor::Observation>,
         time: f32,
     ) {
         debug!("Calling the pybind implementation of correction_step");

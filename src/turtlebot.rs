@@ -192,7 +192,7 @@ impl MessageHandler for TurtlebotGenericMessageHandler {
 /// In this way, it can get back to a past state, in order to treat a message sent
 /// from the past. [`Turtlebot::run_next_time_step`] does the necessary
 /// so that the required time is reached taking into account all past messages.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[pyclass]
 pub struct Turtlebot {
     /// Name of the robot. Should be unique among all [`Simulator`](crate::simulator::Simulator)
@@ -343,11 +343,11 @@ impl Turtlebot {
     ///
     /// ## Return
     /// Next time step.
-    pub fn run_next_time_step(&mut self, time: f32, turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>) -> f32 {
+    pub fn run_next_time_step(&mut self, time: f32, turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>, turtle_idx: usize) -> f32 {
         let mut next_time_step = self.next_time_step();
         while next_time_step <= time {
             self.network().write().unwrap().process_messages();
-            self.run_time_step(next_time_step, turtle_list);
+            self.run_time_step(next_time_step, turtle_list, turtle_idx);
             next_time_step = self.next_time_step();
         }
 
@@ -371,7 +371,7 @@ impl Turtlebot {
     /// 5. The network messages are handled
     ///
     /// Then, the robot state is saved.
-    fn run_time_step(&mut self, time: f32, turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>) {
+    pub fn run_time_step(&mut self, time: f32, turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>, turtle_idx: usize) {
         self.set_in_state(time);
         info!("[{}] Run time {}", self.name(), time);
         // Update the true state
@@ -382,8 +382,9 @@ impl Turtlebot {
             .sensor_manager()
             .write()
             .unwrap()
-            .get_observations(self, time, turtle_list);
+            .get_observations(self, time, turtle_list, turtle_idx);
 
+        debug!("[{}] Got {} observations", self.name, observations.len());
         if observations.len() > 0 {
             // Treat the observations
             self.state_estimator()

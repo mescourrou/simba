@@ -7,7 +7,6 @@ extern crate confy;
 use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
-use crate::simulator::Simulator;
 use crate::turtlebot::Turtlebot;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{simulator::SimulatorMetaConfig, stateful::Stateful};
@@ -17,7 +16,7 @@ use super::odometry_sensor::OdometrySensor;
 use super::turtle_sensor::TurtleSensor;
 use super::{
     oriented_landmark_sensor::OrientedLandmarkSensor,
-    sensor::{GenericObservation, Sensor, SensorConfig, SensorRecord},
+    sensor::{Observation, Sensor, SensorConfig, SensorRecord},
 };
 use crate::plugin_api::PluginAPI;
 
@@ -126,11 +125,12 @@ impl SensorManager {
         turtle: &mut Turtlebot,
         time: f32,
         turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-    ) -> Vec<Box<dyn GenericObservation>> {
-        let mut observations = Vec::<Box<dyn GenericObservation>>::new();
+        turtle_idx: usize,
+    ) -> Vec<Observation> {
+        let mut observations = Vec::<Observation>::new();
         let mut min_next_time = f32::INFINITY;
         for sensor in &mut self.sensors {
-            let sensor_observations = sensor.write().unwrap().get_observations(turtle, time, turtle_list);
+            let sensor_observations = sensor.write().unwrap().get_observations(turtle, time, turtle_list, turtle_idx);
             for obs in sensor_observations {
                 observations.push(obs);
             }

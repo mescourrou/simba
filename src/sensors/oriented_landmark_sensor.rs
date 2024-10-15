@@ -2,7 +2,7 @@
 Provides a [`Sensor`] which can observe oriented landmarks in the frame of the robot.
 */
 
-use super::sensor::{GenericObservation, Sensor, SensorRecord};
+use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::{Simulator, SimulatorMetaConfig};
@@ -229,8 +229,6 @@ pub struct OrientedLandmarkObservation {
     pub pose: Vector3<f32>,
 }
 
-impl GenericObservation for OrientedLandmarkObservation {}
-
 /// Map, containing multiple [`OrientedLandmark`], used for the map file.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Map {
@@ -328,11 +326,12 @@ impl Sensor for OrientedLandmarkSensor {
         &mut self,
         turtle: &mut Turtlebot,
         time: f32,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>
-    ) -> Vec<Box<dyn GenericObservation>> {
+        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        turtle_idx: usize,
+    ) -> Vec<Observation> {
         let arc_physic = turtle.physics();
         let physic = arc_physic.read().unwrap();
-        let mut observation_list = Vec::<Box<dyn GenericObservation>>::new();
+        let mut observation_list = Vec::<Observation>::new();
         if time < self.next_time_step() {
             return observation_list;
         }
@@ -352,7 +351,7 @@ impl Sensor for OrientedLandmarkSensor {
                     self.gen_y.gen(time + landmark_seed),
                     self.gen_theta.gen(time + landmark_seed)
                 ]);
-                observation_list.push(Box::new(OrientedLandmarkObservation {
+                observation_list.push(Observation::OrientedLandmark(OrientedLandmarkObservation {
                     id: landmark.id,
                     pose: rotation_matrix * landmark.pose + state.pose + noisy_pose,
                 }));

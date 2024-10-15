@@ -7,11 +7,17 @@ use std::sync::{Arc, RwLock};
 
 use serde_derive::{Deserialize, Serialize};
 
-use super::{gnss_sensor, odometry_sensor, oriented_landmark_sensor, turtle_sensor};
+use super::{gnss_sensor::{self, GNSSObservation}, odometry_sensor::{self, OdometryObservation}, oriented_landmark_sensor::{self, OrientedLandmarkObservation}, turtle_sensor::{self, OrientedTurtleObservation}};
 
 /// Generic trait for the observations. Contains no information, the observation
 /// need to be tested for type after.
-pub trait GenericObservation: std::fmt::Debug {}
+#[derive(Debug)]
+pub enum Observation {
+    OrientedLandmark(OrientedLandmarkObservation),
+    Odometry(OdometryObservation),
+    GNSS(GNSSObservation),
+    OrientedTurtle(OrientedTurtleObservation),
+}
 
 /// Enumerates all the possible sensors configurations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -55,7 +61,8 @@ pub trait Sensor:
         turtle: &mut Turtlebot,
         time: f32,
         turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-    ) -> Vec<Box<dyn GenericObservation>>;
+        turtle_idx: usize,
+    ) -> Vec<Observation>;
 
     /// Get the time of the next observation.
     fn next_time_step(&self) -> f32;

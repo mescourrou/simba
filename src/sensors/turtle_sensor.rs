@@ -2,7 +2,7 @@
 Provides a [`Sensor`] which can observe the other robots in the frame of the ego robot.
 */
 
-use super::sensor::{GenericObservation, Sensor, SensorRecord};
+use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::{Simulator, SimulatorMetaConfig};
@@ -10,7 +10,7 @@ use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig};
 use serde_derive::{Deserialize, Serialize};
 
-use log::error;
+use log::{debug, error};
 extern crate nalgebra as na;
 use na::Vector3;
 
@@ -225,8 +225,6 @@ pub struct OrientedTurtleObservation {
     pub pose: Vector3<f32>,
 }
 
-impl GenericObservation for OrientedTurtleObservation {}
-
 /// Sensor which observe the other turtles.
 #[derive(Debug)]
 pub struct TurtleSensor {
@@ -261,6 +259,7 @@ impl TurtleSensor {
         meta_config: SimulatorMetaConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
+        assert!(config.period != 0.);
         Self {
             detection_distance: config.detection_distance,
             period: config.period,
@@ -283,10 +282,12 @@ impl Sensor for TurtleSensor {
         turtle: &mut Turtlebot,
         time: f32,
         turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-    ) -> Vec<Box<dyn GenericObservation>> {
+        turtle_idx: usize,
+    ) -> Vec<Observation> {
+        debug!("[{}] Start looking for turtles", turtle.name());
         let arc_physic = turtle.physics();
         let physic = arc_physic.read().unwrap();
-        let mut observation_list = Vec::<Box<dyn GenericObservation>>::new();
+        let mut observation_list = Vec::<Observation>::new();
         if time < self.next_time_step() {
             return observation_list;
         }
@@ -294,21 +295,31 @@ impl Sensor for TurtleSensor {
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
+            debug!("[{}] Rotation matrix: {}", turtle.name(), rotation_matrix);
 
+        debug!("[{}] Reading turtle list...", turtle.name());
         let turtle_unlock_list = turtle_list.read().unwrap();
+        debug!("[{}] Reading turtle list... OK", turtle.name());
         let mut i = 0;
         for other_turtle in turtle_unlock_list.iter() {
-            i+= 1;
-            let turtle_unlocked = other_turtle.read().unwrap();
-            if turtle_unlocked.name() == turtle.name() {
+            if i == turtle_idx {
+                i += 1;
                 continue;
             }
-            let other_arc_physic = turtle_unlocked.physics();
+            i+= 1;
+            let turtle_unlocked = other_turtle.read().unwrap();
+            let mut turtle_clone = turtle_unlocked.clone();
+            turtle_clone.run_time_step(time, turtle_list, i);
+
+            debug!("[{}] Sensing turtle {}", turtle.name(), turtle_clone.name());
+            assert!(turtle_clone.name() != turtle.name());
+            let other_arc_physic = turtle_clone.physics();
             let other_physic = other_arc_physic.read().unwrap();
             let other_state = other_physic.state(time);
             let d = ((other_state.pose.x - state.pose.x).powi(2)
                 + (other_state.pose.y - state.pose.y).powi(2))
             .sqrt();
+            debug!("[{}] Distance is {d}", turtle.name());
             if d <= self.detection_distance {
                 let turtle_seed = 1./(100.*self.period)*(i as f32);
                 let noisy_pose = na::Vector3::<f32>::from_vec(vec![
@@ -316,9 +327,9 @@ impl Sensor for TurtleSensor {
                     self.gen_y.gen(time + turtle_seed),
                     self.gen_theta.gen(time + turtle_seed)
                 ]);
-                observation_list.push(Box::new(OrientedTurtleObservation {
+                observation_list.push(Observation::OrientedTurtle(OrientedTurtleObservation {
                     name: turtle_unlocked.name(),
-                    pose: rotation_matrix * other_state.pose + state.pose + noisy_pose,
+                    pose: rotation_matrix * (other_state.pose - state.pose) + noisy_pose,
                 }));
             }
         }

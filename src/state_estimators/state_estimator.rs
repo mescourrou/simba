@@ -199,7 +199,7 @@ pub fn make_state_estimator_from_config(
     };
 }
 
-use crate::sensors::sensor::GenericObservation;
+use crate::sensors::sensor::Observation;
 
 pub trait StateEstimator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<StateEstimatorRecord>
@@ -227,7 +227,7 @@ pub trait StateEstimator:
     fn correction_step(
         &mut self,
         turtle: &mut Turtlebot,
-        observations: &Vec<Box<dyn GenericObservation>>,
+        observations: &Vec<Observation>,
         time: f32,
     );
 

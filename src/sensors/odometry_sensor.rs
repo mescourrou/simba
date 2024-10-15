@@ -4,7 +4,7 @@ Provides a [`Sensor`] which can provide linear velocity and angular velocity.
 
 use std::sync::{Arc, RwLock};
 
-use super::sensor::{GenericObservation, Sensor, SensorRecord};
+use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::{Simulator, SimulatorMetaConfig};
@@ -61,8 +61,6 @@ pub struct OdometryObservation {
     pub angular_velocity: f32,
 }
 
-impl GenericObservation for OdometryObservation {}
-
 /// Sensor which observes the robot's odometry
 #[derive(Debug)]
 pub struct OdometrySensor {
@@ -116,10 +114,11 @@ impl Sensor for OdometrySensor {
         turtle: &mut Turtlebot,
         time: f32,
         turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-    ) -> Vec<Box<dyn GenericObservation>> {
+        turtle_idx: usize,
+    ) -> Vec<Observation> {
         let arc_physic = turtle.physics();
         let physic = arc_physic.read().unwrap();
-        let mut observation_list = Vec::<Box<dyn GenericObservation>>::new();
+        let mut observation_list = Vec::<Observation>::new();
         if time < self.next_time_step() {
             return observation_list;
         }
@@ -127,7 +126,7 @@ impl Sensor for OdometrySensor {
 
         let dt = time - self.last_time;
 
-        observation_list.push(Box::new(OdometryObservation {
+        observation_list.push(Observation::Odometry(OdometryObservation {
             linear_velocity: state.velocity + self.gen_linear_velocity.gen(time),
             angular_velocity: (state.pose.z - self.last_state.pose.z) / dt + self.gen_angular_velocity.gen(time),
         }));

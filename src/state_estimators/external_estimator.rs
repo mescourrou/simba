@@ -26,7 +26,7 @@ use crate::{
 };
 
 use super::state_estimator::StateEstimatorRecord;
-use crate::sensors::sensor::GenericObservation;
+use crate::sensors::sensor::Observation;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external state estimation (generic).
@@ -138,7 +138,7 @@ impl StateEstimator for ExternalEstimator {
     fn correction_step(
         &mut self,
         turtle: &mut Turtlebot,
-        observations: &Vec<Box<dyn GenericObservation>>,
+        observations: &Vec<Observation>,
         time: f32,
     ) {
         self.state_estimator
