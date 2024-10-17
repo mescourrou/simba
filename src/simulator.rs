@@ -309,7 +309,8 @@ impl Simulator {
             .write()
             .unwrap()
             .register_turtle_network(Arc::clone(&turtle_list.last().unwrap()));
-        let last_turtle_write = turtle_list.last()
+        let last_turtle_write = turtle_list
+            .last()
             .expect("No turtle added to the vector, how is it possible ??")
             .write()
             .unwrap();
@@ -346,7 +347,9 @@ impl Simulator {
             let new_turtle = Arc::clone(turtle);
             let new_max_time = max_time.clone();
             let turtle_list = Arc::clone(&self.turtles);
-            let handle = thread::spawn(move || Self::run_one_turtle(new_turtle, new_max_time, turtle_list, i));
+            let handle = thread::spawn(move || {
+                Self::run_one_turtle(new_turtle, new_max_time, turtle_list, i)
+            });
             handles.push(handle);
             i += 1;
         }
@@ -416,18 +419,27 @@ impl Simulator {
     /// ## Arguments
     /// * `turtle` - Turtle to be run.
     /// * `max_time` - Time to stop the loop.
-    fn run_one_turtle(turtle: Arc<RwLock<Turtlebot>>, max_time: f32, turtle_list: Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>, turtle_idx: usize) {
+    fn run_one_turtle(
+        turtle: Arc<RwLock<Turtlebot>>,
+        max_time: f32,
+        turtle_list: Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        turtle_idx: usize,
+    ) {
         info!("Start thread of turtle {}", turtle.read().unwrap().name());
 
+        info!("[{}] Finishing initialization", turtle.read().unwrap().name());
+        turtle.write().unwrap().post_creation_init(&turtle_list, turtle_idx);
+
         loop {
-            let next_time = turtle.read().unwrap().next_time_step();
+            let mut turtle_open = turtle.write().unwrap();
+            let next_time = turtle_open.next_time_step();
             if next_time > max_time {
                 break;
             }
-
-            let mut turtle_open = turtle.write().unwrap();
             turtle_open.run_next_time_step(next_time, &turtle_list, turtle_idx);
         }
+
+        service_handle.join();
     }
 
     /// Compute the results from the file where it was saved before.

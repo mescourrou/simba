@@ -19,9 +19,12 @@ impl DeterministRandomVariableFactory {
         config: RandomVariableTypeConfig,
     ) -> Box<dyn DeterministRandomVariable> {
         match config {
-            RandomVariableTypeConfig::None => Box::new(
-                DeterministFixedRandomVariable::from_config(self.global_seed, FixedRandomVariableConfig::default()),
-            ),
+            RandomVariableTypeConfig::None => {
+                Box::new(DeterministFixedRandomVariable::from_config(
+                    self.global_seed,
+                    FixedRandomVariableConfig::default(),
+                ))
+            }
             RandomVariableTypeConfig::Fixed(c) => Box::new(
                 DeterministFixedRandomVariable::from_config(self.global_seed, c),
             ),
@@ -95,17 +98,17 @@ impl DeterministRandomVariable for DeterministFixedRandomVariable {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UniformRandomVariableConfig {
-    unique_seed: f32, 
+    unique_seed: f32,
     min: f32,
     max: f32,
 }
 
 impl Default for UniformRandomVariableConfig {
     fn default() -> Self {
-        Self { 
+        Self {
             unique_seed: 0.,
             min: -1.,
-            max: 1.
+            max: 1.,
         }
     }
 }
@@ -141,7 +144,7 @@ impl DeterministRandomVariable for DeterministUniformRandomVariable {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NormalRandomVariableConfig {
-    unique_seed: f32, 
+    unique_seed: f32,
     mean: f32,
     variance: f32,
 }

@@ -41,6 +41,13 @@ impl Default for NetworkConfig {
     }
 }
 
+#[derive(Serialize, Deserialize, Clone, Default, PartialEq, Debug)]
+pub enum MessageMode {
+    #[default]
+    Default,
+    God,
+}
+
 /// Network interface for [`Turtlebot`].
 ///
 /// Each [`Turtlebot`] should have a [`Network`] instance. Through this interface,
@@ -59,13 +66,13 @@ pub struct Network {
     /// List of the other robots associated to their asynchronous Sender.
     ///
     /// Map[Name of the robot, Sender].
-    other_emitters: BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value, f32)>>>>,
+    other_emitters: BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value, f32, MessageMode)>>>>,
     /// List of handler. First handler returning Ok has priority.
     message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>,
     /// Asynchronous receiver for the current [`Network`].
-    channel_receiver: Arc<Mutex<mpsc::Receiver<(String, Value, f32)>>>,
+    channel_receiver: Arc<Mutex<mpsc::Receiver<(String, Value, f32, MessageMode)>>>,
     /// Asynchronous sender for the current [`Network`].
-    channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value, f32)>>>,
+    channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value, f32, MessageMode)>>>,
     /// Message list
     messages_buffer: TimeOrderedData<(String, Value)>,
 }
@@ -98,7 +105,7 @@ impl Network {
         _meta_config: SimulatorMetaConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Network {
-        let (tx, rx) = mpsc::channel::<(String, Value, f32)>();
+        let (tx, rx) = mpsc::channel::<(String, Value, f32, MessageMode)>();
         Network {
             from,
             range: config.range,
@@ -118,7 +125,7 @@ impl Network {
     }
 
     /// Get the Sender, to be able to send message to this [`Network`].
-    pub fn get_emitter(&mut self) -> mpsc::Sender<(String, Value, f32)> {
+    pub fn get_emitter(&mut self) -> mpsc::Sender<(String, Value, f32, MessageMode)> {
         self.channel_emitter.lock().unwrap().clone()
     }
 
@@ -126,14 +133,17 @@ impl Network {
     pub fn add_emitter(
         &mut self,
         turtle_name: String,
-        emitter: mpsc::Sender<(String, Value, f32)>,
+        emitter: mpsc::Sender<(String, Value, f32, MessageMode)>,
     ) {
         self.other_emitters
             .insert(turtle_name, Arc::new(Mutex::new(emitter)));
     }
 
     /// Check whether the recipient is in range or not.
-    fn can_send(&self, recipient: &String, time: f32) -> bool {
+    fn can_send(&self, recipient: &String, time: f32, message_mode: &MessageMode) -> bool {
+        if message_mode == &MessageMode::God {
+            return true;
+        }
         if self.range <= 0. {
             return true;
         }
@@ -149,29 +159,39 @@ impl Network {
 
     /// Send a `message` to the given `recipient`. `time` is the send message time, before delays.
     /// The message is sent if in range.
-    pub fn send_to(&mut self, recipient: String, message: Value, time: f32) {
-        if !self.can_send(&recipient, time) {
+    pub fn send_to(
+        &mut self,
+        recipient: String,
+        message: Value,
+        time: f32,
+        message_mode: MessageMode,
+    ) {
+        if !self.can_send(&recipient, time, &message_mode) {
             return;
         }
         let emitter_option = self.other_emitters.get(&recipient);
         if let Some(emitter) = emitter_option {
-            let _ = emitter
-                .lock()
-                .unwrap()
-                .send((self.from.clone(), message, time));
+            let _ = emitter.lock().unwrap().send((
+                self.from.clone(),
+                message,
+                time,
+                message_mode.clone(),
+            ));
         }
     }
 
     /// Send a `message` to all available robots. `time` is the send message time, before delays.
-    pub fn broadcast(&mut self, message: Value, time: f32) {
+    pub fn broadcast(&mut self, message: Value, time: f32, message_mode: MessageMode) {
         for (recipient, emitter) in &self.other_emitters {
-            if !self.can_send(&recipient, time) {
+            if !self.can_send(&recipient, time, &message_mode) {
                 continue;
             }
-            let _ = emitter
-                .lock()
-                .unwrap()
-                .send((self.from.clone(), message.clone(), time));
+            let _ = emitter.lock().unwrap().send((
+                self.from.clone(),
+                message.clone(),
+                time,
+                message_mode.clone(),
+            ));
         }
     }
 
@@ -179,8 +199,11 @@ impl Network {
     /// Adds the delay.
     pub fn process_messages(&mut self) {
         let rx = self.channel_receiver.lock().unwrap();
-        for (from, message, time) in rx.try_iter() {
-            let time = time + self.delay;
+        for (from, message, time, message_mode) in rx.try_iter() {
+            let time = match message_mode {
+                MessageMode::Default => time + self.delay,
+                MessageMode::God => time,
+            };
             debug!("[{}] Add new message from {from} at time {time}", self.from);
             self.messages_buffer.insert(time, (from, message), false);
         }

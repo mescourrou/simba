@@ -2,12 +2,17 @@
 Provide the implementation of the [`Physic`] trait without any noise added to the [`Command`].
 */
 
+use std::sync::{Arc, RwLock};
+use std::fmt;
+
+use crate::networking::service::{HasService, Service, ServiceClient, ServiceHandler};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
 use crate::stateful::Stateful;
+use crate::turtlebot::Turtlebot;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use log::error;
+use log::{debug, error};
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the [`PerfectPhysic`].
@@ -40,6 +45,29 @@ pub struct PerfectPhysicRecord {
     pub current_command: Command,
 }
 
+// Services
+struct RealStateHandler {
+    pub physics: Arc<RwLock<Box<dyn Physic>>>,
+}
+
+impl fmt::Debug for RealStateHandler {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "RealStateHandler {{ physics: ... }}")
+    }
+}
+
+impl ServiceHandler<GetRealStateReq, GetRealStateResp> for RealStateHandler {
+    fn treat_request(
+        &self,
+        _req: GetRealStateReq,
+        time: f32,
+    ) -> Result<GetRealStateResp, Box<dyn std::error::Error + Sync + Send>> {
+        let state = self.physics.read().unwrap().state(time).clone();
+        debug!("Treating request");
+        Ok(GetRealStateResp { state })
+    }
+}
+
 /// Implementation of [`Physic`] with the command perfectly applied.
 #[derive(Debug)]
 pub struct PerfectPhysic {
@@ -51,6 +79,9 @@ pub struct PerfectPhysic {
     last_time_update: f32,
     /// Current command applied.
     current_command: Command,
+
+    real_state_service: Service<GetRealStateReq, GetRealStateResp>,
+    real_state_handler: Option<Box<dyn ServiceHandler<GetRealStateReq, GetRealStateResp>>>,
 }
 
 impl PerfectPhysic {
@@ -84,6 +115,8 @@ impl PerfectPhysic {
                 left_wheel_speed: 0.,
                 right_wheel_speed: 0.,
             },
+            real_state_service: Service::new(),
+            real_state_handler: None,
         }
     }
 
@@ -116,7 +149,7 @@ impl PerfectPhysic {
     }
 }
 
-use super::physic::Command;
+use super::physic::{Command, GetRealStateReq, GetRealStateResp};
 use super::physic::{Physic, PhysicRecord};
 
 impl Physic for PerfectPhysic {
@@ -133,6 +166,37 @@ impl Physic for PerfectPhysic {
     /// Return the current state. Do not compute the state again.
     fn state(&self, _time: f32) -> &State {
         &self.state
+    }
+}
+
+impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
+    fn make_service(&mut self, turtle: Arc<RwLock<Turtlebot>>) {
+        debug!("[{}] Making service", turtle.read().unwrap().name());
+        self.real_state_handler = Some(Box::new(RealStateHandler {
+            physics: turtle.read().unwrap().physics().clone(),
+        }));
+        debug!("[{}] Service made", turtle.read().unwrap().name());
+    }
+
+    fn new_client(
+        &mut self,
+        client_name: &str,
+    ) -> ServiceClient<GetRealStateReq, GetRealStateResp> {
+        self.real_state_service
+            .new_client(client_name)
+    }
+
+    fn start(&self) {
+        match &self.real_state_handler {
+            Some(handler) => self.real_state_service.start(handler),
+            None => {
+                panic!("The service should be initialized (using make_service) before running it.")
+            }
+        };
+    }
+
+    fn service_next_time(&self) -> f32 {
+        self.real_state_service.next_time()
     }
 }
 

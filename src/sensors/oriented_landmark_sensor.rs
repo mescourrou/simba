@@ -7,7 +7,9 @@ use super::sensor::{Observation, Sensor, SensorRecord};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::{Simulator, SimulatorMetaConfig};
 use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::{DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig};
+use crate::utils::determinist_random_variable::{
+    DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
+};
 use serde_derive::{Deserialize, Serialize};
 
 use log::error;
@@ -320,7 +322,13 @@ impl OrientedLandmarkSensor {
 use crate::turtlebot::Turtlebot;
 
 impl Sensor for OrientedLandmarkSensor {
-    fn init(&mut self, _turtle: &mut Turtlebot) {}
+    fn init(
+        &mut self,
+        _turtle: &mut Turtlebot,
+        _turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        _turtle_idx: usize,
+    ) {
+    }
 
     fn get_observations(
         &mut self,
@@ -345,11 +353,11 @@ impl Sensor for OrientedLandmarkSensor {
                 + (landmark.pose.y - state.pose.y).powi(2))
             .sqrt();
             if d <= self.detection_distance {
-                let landmark_seed = 1./(100.*self.period)*(landmark.id as f32);
+                let landmark_seed = 1. / (100. * self.period) * (landmark.id as f32);
                 let noisy_pose = na::Vector3::<f32>::from_vec(vec![
                     self.gen_x.gen(time + landmark_seed),
                     self.gen_y.gen(time + landmark_seed),
-                    self.gen_theta.gen(time + landmark_seed)
+                    self.gen_theta.gen(time + landmark_seed),
                 ]);
                 observation_list.push(Observation::OrientedLandmark(OrientedLandmarkObservation {
                     id: landmark.id,

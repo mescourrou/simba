@@ -107,8 +107,12 @@ impl GNSSSensor {
 use crate::turtlebot::Turtlebot;
 
 impl Sensor for GNSSSensor {
-    fn init(&mut self, turtle: &mut Turtlebot) {
-        
+    fn init(
+        &mut self,
+        turtle: &mut Turtlebot,
+        _turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        _turtle_idx: usize,
+    ) {
     }
 
     fn get_observations(
@@ -126,14 +130,12 @@ impl Sensor for GNSSSensor {
         }
         let state = physic.state(time);
 
-        let pose_noise = Vector2::<f32>::from_vec(vec![
-            self.gen_x_pose.gen(time),
-            self.gen_y_pose.gen(time)
-        ]);
+        let pose_noise =
+            Vector2::<f32>::from_vec(vec![self.gen_x_pose.gen(time), self.gen_y_pose.gen(time)]);
 
         let velocity_noise = Vector2::<f32>::from_vec(vec![
             self.gen_x_velocity.gen(time),
-            self.gen_y_velocity.gen(time)
+            self.gen_y_velocity.gen(time),
         ]);
 
         let velocity = Vector2::<f32>::from_vec(vec![

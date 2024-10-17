@@ -105,7 +105,12 @@ impl OdometrySensor {
 use crate::turtlebot::Turtlebot;
 
 impl Sensor for OdometrySensor {
-    fn init(&mut self, turtle: &mut Turtlebot) {
+    fn init(
+        &mut self,
+        turtle: &mut Turtlebot,
+        _turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        _turtle_idx: usize,
+    ) {
         self.last_state = turtle.physics().read().unwrap().state(0.).clone();
     }
 
@@ -128,7 +133,8 @@ impl Sensor for OdometrySensor {
 
         observation_list.push(Observation::Odometry(OdometryObservation {
             linear_velocity: state.velocity + self.gen_linear_velocity.gen(time),
-            angular_velocity: (state.pose.z - self.last_state.pose.z) / dt + self.gen_angular_velocity.gen(time),
+            angular_velocity: (state.pose.z - self.last_state.pose.z) / dt
+                + self.gen_angular_velocity.gen(time),
         }));
 
         self.last_time = time;

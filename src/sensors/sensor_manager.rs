@@ -81,7 +81,7 @@ impl SensorManager {
                             meta_config.clone(),
                             va_factory,
                         )) as Box<dyn Sensor>
-                    },
+                    }
                     SensorConfig::OdometrySensor(c) => Box::new(OdometrySensor::from_config(
                         c,
                         plugin_api,
@@ -113,9 +113,17 @@ impl SensorManager {
 
     /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    pub fn init(&mut self, turtle: &mut Turtlebot) {
+    pub fn init(
+        &mut self,
+        turtle: &mut Turtlebot,
+        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        turtle_idx: usize,
+    ) {
         for sensor in &mut self.sensors {
-            sensor.write().unwrap().init(turtle);
+            sensor
+                .write()
+                .unwrap()
+                .init(turtle, turtle_list, turtle_idx);
         }
     }
 
@@ -130,7 +138,11 @@ impl SensorManager {
         let mut observations = Vec::<Observation>::new();
         let mut min_next_time = f32::INFINITY;
         for sensor in &mut self.sensors {
-            let sensor_observations = sensor.write().unwrap().get_observations(turtle, time, turtle_list, turtle_idx);
+            let sensor_observations =
+                sensor
+                    .write()
+                    .unwrap()
+                    .get_observations(turtle, time, turtle_list, turtle_idx);
             for obs in sensor_observations {
                 observations.push(obs);
             }

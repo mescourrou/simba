@@ -7,7 +7,12 @@ use std::sync::{Arc, RwLock};
 
 use serde_derive::{Deserialize, Serialize};
 
-use super::{gnss_sensor::{self, GNSSObservation}, odometry_sensor::{self, OdometryObservation}, oriented_landmark_sensor::{self, OrientedLandmarkObservation}, turtle_sensor::{self, OrientedTurtleObservation}};
+use super::{
+    gnss_sensor::{self, GNSSObservation},
+    odometry_sensor::{self, OdometryObservation},
+    oriented_landmark_sensor::{self, OrientedLandmarkObservation},
+    turtle_sensor::{self, OrientedTurtleObservation},
+};
 
 /// Generic trait for the observations. Contains no information, the observation
 /// need to be tested for type after.
@@ -25,7 +30,7 @@ pub enum SensorConfig {
     OrientedLandmarkSensor(Box<oriented_landmark_sensor::OrientedLandmarkSensorConfig>),
     OdometrySensor(odometry_sensor::OdometrySensorConfig),
     GNSSSensor(gnss_sensor::GNSSSensorConfig),
-    TurtleSensor(turtle_sensor::TurtleSensorConfig)
+    TurtleSensor(turtle_sensor::TurtleSensorConfig),
 }
 
 /// Enumerates all the sensor records.
@@ -45,7 +50,12 @@ pub trait Sensor:
 {
     /// Initialize the [`Sensor`]. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    fn init(&mut self, turtle: &mut Turtlebot);
+    fn init(
+        &mut self,
+        turtle: &mut Turtlebot,
+        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        turtle_idx: usize,
+    );
 
     /// Get the observations available at the given `time`.
     ///

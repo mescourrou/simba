@@ -4,6 +4,7 @@ Module providing the main robot manager, [`Turtlebot`], along with the configura
 */
 
 use std::sync::{Arc, RwLock};
+use std::thread::{self, JoinHandle};
 
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
 use super::navigators::trajectory_follower;
@@ -302,6 +303,7 @@ impl Turtlebot {
             state_estimator_bench: Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimator_bench.len(),
             ))),
+            // services_handles: Vec::new(),
         }));
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -330,8 +332,43 @@ impl Turtlebot {
                 &writable_turtle.message_handler
             ));
             writable_turtle.save_state(0.);
+
         }
+        debug!("[{}] Setup services", turtle.read().unwrap().name());
+        // Services
+        let physics = turtle.write().unwrap().physics();
+        debug!("Plop");
+        physics.write().unwrap().make_service(turtle.clone());
+
         turtle
+    }
+
+    pub fn post_creation_init(
+        &mut self,
+        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        turtle_idx: usize,
+    ) {
+        let sensor_manager = self.sensor_manager();
+        sensor_manager.write().unwrap().init(self, turtle_list, turtle_idx);
+
+
+        
+    }
+
+    pub fn service_handler(&self) {
+        // Start services
+        debug!("[{}] Start services", self.name);
+        let mut handles = Vec::new();
+        
+        let physics = self.physics();
+        handles.push(thread::spawn(move || {
+            physics.read().unwrap().start();
+        }));
+
+        for handle in handles {
+            handle.join();
+        }
+        debug!("[{}] Services finished", self.name);
     }
 
     /// Run the robot to reach the given time.
@@ -343,7 +380,12 @@ impl Turtlebot {
     ///
     /// ## Return
     /// Next time step.
-    pub fn run_next_time_step(&mut self, time: f32, turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>, turtle_idx: usize) -> f32 {
+    pub fn run_next_time_step(
+        &mut self,
+        time: f32,
+        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        turtle_idx: usize,
+    ) -> f32 {
         let mut next_time_step = self.next_time_step();
         while next_time_step <= time {
             self.network().write().unwrap().process_messages();
@@ -371,18 +413,24 @@ impl Turtlebot {
     /// 5. The network messages are handled
     ///
     /// Then, the robot state is saved.
-    pub fn run_time_step(&mut self, time: f32, turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>, turtle_idx: usize) {
+    pub fn run_time_step(
+        &mut self,
+        time: f32,
+        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        turtle_idx: usize,
+    ) {
         self.set_in_state(time);
         info!("[{}] Run time {}", self.name(), time);
         // Update the true state
         self.physic.write().unwrap().update_state(time);
 
         // Make observations (if it is the right time)
-        let observations = self
-            .sensor_manager()
-            .write()
-            .unwrap()
-            .get_observations(self, time, turtle_list, turtle_idx);
+        let observations = self.sensor_manager().write().unwrap().get_observations(
+            self,
+            time,
+            turtle_list,
+            turtle_idx,
+        );
 
         debug!("[{}] Got {} observations", self.name, observations.len());
         if observations.len() > 0 {

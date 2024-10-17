@@ -4,16 +4,21 @@ Provides a [`Sensor`] which can observe the other robots in the frame of the ego
 
 use super::sensor::{Observation, Sensor, SensorRecord};
 
+use crate::networking::service::ServiceClient;
+use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::{Simulator, SimulatorMetaConfig};
 use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::{DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig};
+use crate::utils::determinist_random_variable::{
+    DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
+};
 use serde_derive::{Deserialize, Serialize};
 
 use log::{debug, error};
 extern crate nalgebra as na;
 use na::Vector3;
 
+use std::collections::BTreeMap;
 use std::fmt;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
@@ -237,6 +242,7 @@ pub struct TurtleSensor {
     gen_x: Box<dyn DeterministRandomVariable>,
     gen_y: Box<dyn DeterministRandomVariable>,
     gen_theta: Box<dyn DeterministRandomVariable>,
+    turtle_real_state_services: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
 }
 
 impl TurtleSensor {
@@ -267,15 +273,32 @@ impl TurtleSensor {
             gen_x: va_factory.make_variable(config.x_noise.clone()),
             gen_y: va_factory.make_variable(config.y_noise.clone()),
             gen_theta: va_factory.make_variable(config.theta_noise.clone()),
+            turtle_real_state_services: BTreeMap::new(),
         }
     }
-
 }
 
 use crate::turtlebot::Turtlebot;
 
 impl Sensor for TurtleSensor {
-    fn init(&mut self, _turtle: &mut Turtlebot) {}
+    fn init(
+        &mut self,
+        turtle: &mut Turtlebot,
+        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+        turtle_idx: usize,
+    ) {
+        let turtle_unlock_list = turtle_list.read().unwrap();
+        let mut i = 0;
+        for other_turtle in turtle_unlock_list.iter() {
+            if i == turtle_idx {
+                i += 1;
+                continue;
+            }
+            let writable_turtle = other_turtle.write().unwrap();
+            self.turtle_real_state_services.insert(turtle.name(), writable_turtle.physics().write().unwrap().new_client(turtle.name().as_str()));
+            i += 1;
+        }
+    }
 
     fn get_observations(
         &mut self,
@@ -295,7 +318,7 @@ impl Sensor for TurtleSensor {
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
-            debug!("[{}] Rotation matrix: {}", turtle.name(), rotation_matrix);
+        debug!("[{}] Rotation matrix: {}", turtle.name(), rotation_matrix);
 
         debug!("[{}] Reading turtle list...", turtle.name());
         let turtle_unlock_list = turtle_list.read().unwrap();
@@ -306,26 +329,26 @@ impl Sensor for TurtleSensor {
                 i += 1;
                 continue;
             }
-            i+= 1;
+            i += 1;
             let turtle_unlocked = other_turtle.read().unwrap();
             let mut turtle_clone = turtle_unlocked.clone();
             turtle_clone.run_time_step(time, turtle_list, i);
 
             debug!("[{}] Sensing turtle {}", turtle.name(), turtle_clone.name());
             assert!(turtle_clone.name() != turtle.name());
-            let other_arc_physic = turtle_clone.physics();
-            let other_physic = other_arc_physic.read().unwrap();
-            let other_state = other_physic.state(time);
+            let real_state_service = self.turtle_real_state_services.get_mut(&turtle_clone.name()).expect("Unknown turtle...");
+            let other_state = real_state_service.make_request(turtle, GetRealStateReq {}).expect("Error during service request").state;
+            
             let d = ((other_state.pose.x - state.pose.x).powi(2)
                 + (other_state.pose.y - state.pose.y).powi(2))
             .sqrt();
             debug!("[{}] Distance is {d}", turtle.name());
             if d <= self.detection_distance {
-                let turtle_seed = 1./(100.*self.period)*(i as f32);
+                let turtle_seed = 1. / (100. * self.period) * (i as f32);
                 let noisy_pose = na::Vector3::<f32>::from_vec(vec![
                     self.gen_x.gen(time + turtle_seed),
                     self.gen_y.gen(time + turtle_seed),
-                    self.gen_theta.gen(time + turtle_seed)
+                    self.gen_theta.gen(time + turtle_seed),
                 ]);
                 observation_list.push(Observation::OrientedTurtle(OrientedTurtleObservation {
                     name: turtle_unlocked.name(),

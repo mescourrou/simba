@@ -36,16 +36,29 @@ pub enum PhysicRecord {
 }
 
 use crate::{
-    plugin_api::PluginAPI, simulator::SimulatorMetaConfig,
+    networking::service::HasService, plugin_api::PluginAPI, simulator::SimulatorMetaConfig,
     state_estimators::state_estimator::State, stateful::Stateful,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
+
+// Services
+#[derive(Debug)]
+pub struct GetRealStateReq {}
+
+#[derive(Debug)]
+pub struct GetRealStateResp {
+    pub state: State,
+}
 
 /// Physic simulation trait.
 ///
 /// Different implementation can either use real robots, add noise to command, etc.
 pub trait Physic:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<PhysicRecord>
+    std::fmt::Debug
+    + std::marker::Send
+    + std::marker::Sync
+    + Stateful<PhysicRecord>
+    + HasService<GetRealStateReq, GetRealStateResp>
 {
     /// Apply the given `command` to the internal state from the last update time
     /// to the given `time`
