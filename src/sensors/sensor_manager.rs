@@ -128,21 +128,11 @@ impl SensorManager {
     }
 
     /// Get the observations at the given `time`.
-    pub fn get_observations(
-        &mut self,
-        turtle: &mut Turtlebot,
-        time: f32,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
-    ) -> Vec<Observation> {
+    pub fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Observation> {
         let mut observations = Vec::<Observation>::new();
         let mut min_next_time = f32::INFINITY;
         for sensor in &mut self.sensors {
-            let sensor_observations =
-                sensor
-                    .write()
-                    .unwrap()
-                    .get_observations(turtle, time, turtle_list, turtle_idx);
+            let sensor_observations = sensor.write().unwrap().get_observations(turtle, time);
             for obs in sensor_observations {
                 observations.push(obs);
             }

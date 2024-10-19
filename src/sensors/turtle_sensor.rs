@@ -295,18 +295,24 @@ impl Sensor for TurtleSensor {
                 continue;
             }
             let writable_turtle = other_turtle.write().unwrap();
-            self.turtle_real_state_services.insert(turtle.name(), writable_turtle.physics().write().unwrap().new_client(turtle.name().as_str()));
+            debug!(
+                "[{}] Add service of {}",
+                turtle.name(),
+                writable_turtle.name()
+            );
+            self.turtle_real_state_services.insert(
+                writable_turtle.name(),
+                writable_turtle
+                    .physics()
+                    .write()
+                    .unwrap()
+                    .new_client(turtle.name().as_str()),
+            );
             i += 1;
         }
     }
 
-    fn get_observations(
-        &mut self,
-        turtle: &mut Turtlebot,
-        time: f32,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
-    ) -> Vec<Observation> {
+    fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Observation> {
         debug!("[{}] Start looking for turtles", turtle.name());
         let arc_physic = turtle.physics();
         let physic = arc_physic.read().unwrap();
@@ -320,25 +326,29 @@ impl Sensor for TurtleSensor {
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
         debug!("[{}] Rotation matrix: {}", turtle.name(), rotation_matrix);
 
-        debug!("[{}] Reading turtle list...", turtle.name());
-        let turtle_unlock_list = turtle_list.read().unwrap();
-        debug!("[{}] Reading turtle list... OK", turtle.name());
+        // debug!("[{}] Reading turtle list...", turtle.name());
+        // let turtle_unlock_list = turtle_list.read().unwrap();
+        // debug!("[{}] Reading turtle list... OK", turtle.name());
         let mut i = 0;
-        for other_turtle in turtle_unlock_list.iter() {
-            if i == turtle_idx {
-                i += 1;
-                continue;
-            }
+        // for other_turtle in turtle_unlock_list.iter() {
+        for (other_turtle_name, service) in self.turtle_real_state_services.iter_mut() {
+            // if i == turtle_idx {
+            //     i += 1;
+            //     continue;
+            // }
             i += 1;
-            let turtle_unlocked = other_turtle.read().unwrap();
-            let mut turtle_clone = turtle_unlocked.clone();
-            turtle_clone.run_time_step(time, turtle_list, i);
+            // let turtle_unlocked = other_turtle.read().unwrap();
+            // let mut turtle_clone = turtle_unlocked.clone();
+            // turtle_clone.run_time_step(time, turtle_list, i);
 
-            debug!("[{}] Sensing turtle {}", turtle.name(), turtle_clone.name());
-            assert!(turtle_clone.name() != turtle.name());
-            let real_state_service = self.turtle_real_state_services.get_mut(&turtle_clone.name()).expect("Unknown turtle...");
-            let other_state = real_state_service.make_request(turtle, GetRealStateReq {}).expect("Error during service request").state;
-            
+            debug!("[{}] Sensing turtle {}", turtle.name(), other_turtle_name);
+            assert!(*other_turtle_name != turtle.name());
+
+            let other_state = service
+                .make_request(turtle, GetRealStateReq {}, time)
+                .expect("Error during service request")
+                .state;
+
             let d = ((other_state.pose.x - state.pose.x).powi(2)
                 + (other_state.pose.y - state.pose.y).powi(2))
             .sqrt();
@@ -351,7 +361,7 @@ impl Sensor for TurtleSensor {
                     self.gen_theta.gen(time + turtle_seed),
                 ]);
                 observation_list.push(Observation::OrientedTurtle(OrientedTurtleObservation {
-                    name: turtle_unlocked.name(),
+                    name: other_turtle_name.clone(),
                     pose: rotation_matrix * (other_state.pose - state.pose) + noisy_pose,
                 }));
             }

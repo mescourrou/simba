@@ -53,7 +53,7 @@ use serde_json;
 use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Barrier, Condvar, Mutex, RwLock};
 use std::thread;
 
 use log::{debug, error, info};
@@ -187,6 +187,8 @@ pub struct Simulator {
     network_manager: Arc<RwLock<NetworkManager>>,
     /// Factory for components to make random variables generators
     determinist_va_factory: DeterministRandomVariableFactory,
+
+    time_cv: Arc<(Mutex<usize>, Condvar)>,
 }
 
 impl Simulator {
@@ -203,6 +205,7 @@ impl Simulator {
                     .expect("Can't get the system time")
                     .as_secs_f32(),
             ),
+            time_cv: Arc::new((Mutex::new(0), Condvar::new())),
         }
     }
 
@@ -301,6 +304,7 @@ impl Simulator {
             plugin_api,
             meta_config,
             &self.determinist_va_factory,
+            self.time_cv.clone(),
         ));
 
         let turtle_list = self.turtles.read().unwrap();
@@ -347,8 +351,9 @@ impl Simulator {
             let new_turtle = Arc::clone(turtle);
             let new_max_time = max_time.clone();
             let turtle_list = Arc::clone(&self.turtles);
+            let time_cv = self.time_cv.clone();
             let handle = thread::spawn(move || {
-                Self::run_one_turtle(new_turtle, new_max_time, turtle_list, i)
+                Self::run_one_turtle(new_turtle, new_max_time, turtle_list, i, time_cv)
             });
             handles.push(handle);
             i += 1;
@@ -414,6 +419,40 @@ impl Simulator {
         let _ = recording_file.write(b"\n]}");
     }
 
+    fn wait_the_end(
+        turtle: &Arc<RwLock<Turtlebot>>,
+        max_time: f32,
+        cv_mtx: &Mutex<usize>,
+        cv: &Condvar,
+        nb_turtles: usize,
+    ) -> bool {
+        let mut finished_turtle = cv_mtx.lock().unwrap();
+        *finished_turtle = *finished_turtle + 1;
+        if *finished_turtle == nb_turtles {
+            cv.notify_all();
+            return true;
+        }
+        loop {
+            let buffered_msgs = turtle.read().unwrap().process_messages();
+            if buffered_msgs > 0 {
+                *finished_turtle = *finished_turtle - 1;
+                return false;
+            }
+            finished_turtle = cv.wait(finished_turtle).unwrap();
+            if *finished_turtle == nb_turtles {
+                return true;
+            } else {
+                *finished_turtle = *finished_turtle - 1;
+                let turtle_open = turtle.read().unwrap();
+                turtle_open.process_messages();
+                let next_time = turtle_open.next_time_step();
+                if next_time < max_time {
+                    return false;
+                }
+                *finished_turtle = *finished_turtle + 1;
+            }
+        }
+    }
     /// Run the loop for the given `turtle` until reaching `max_time`.
     ///
     /// ## Arguments
@@ -424,22 +463,37 @@ impl Simulator {
         max_time: f32,
         turtle_list: Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
         turtle_idx: usize,
+        time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) {
         info!("Start thread of turtle {}", turtle.read().unwrap().name());
+        let nb_turtles = turtle_list.read().unwrap().len();
+        info!(
+            "[{}] Finishing initialization",
+            turtle.read().unwrap().name()
+        );
+        turtle
+            .write()
+            .unwrap()
+            .post_creation_init(&turtle_list, turtle_idx);
 
-        info!("[{}] Finishing initialization", turtle.read().unwrap().name());
-        turtle.write().unwrap().post_creation_init(&turtle_list, turtle_idx);
+        let (cv_mtx, cv) = &*time_cv;
 
         loop {
             let mut turtle_open = turtle.write().unwrap();
             let next_time = turtle_open.next_time_step();
             if next_time > max_time {
-                break;
+                std::mem::drop(turtle_open);
+                if Self::wait_the_end(&turtle, max_time, &cv_mtx, &cv, nb_turtles) {
+                    break;
+                }
+                let mut turtle_open = turtle.write().unwrap();
+                let next_time = turtle_open.next_time_step();
+                info!("[{}] Return to time {next_time}", turtle_open.name());
+                turtle_open.run_next_time_step(next_time);
+            } else {
+                turtle_open.run_next_time_step(next_time);
             }
-            turtle_open.run_next_time_step(next_time, &turtle_list, turtle_idx);
         }
-
-        service_handle.join();
     }
 
     /// Compute the results from the file where it was saved before.

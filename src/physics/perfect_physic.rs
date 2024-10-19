@@ -2,8 +2,8 @@
 Provide the implementation of the [`Physic`] trait without any noise added to the [`Command`].
 */
 
-use std::sync::{Arc, RwLock};
 use std::fmt;
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use crate::networking::service::{HasService, Service, ServiceClient, ServiceHandler};
 use crate::plugin_api::PluginAPI;
@@ -47,7 +47,7 @@ pub struct PerfectPhysicRecord {
 
 // Services
 struct RealStateHandler {
-    pub physics: Arc<RwLock<Box<dyn Physic>>>,
+    pub physics: Box<dyn Physic>,
 }
 
 impl fmt::Debug for RealStateHandler {
@@ -57,13 +57,10 @@ impl fmt::Debug for RealStateHandler {
 }
 
 impl ServiceHandler<GetRealStateReq, GetRealStateResp> for RealStateHandler {
-    fn treat_request(
-        &self,
-        _req: GetRealStateReq,
-        time: f32,
-    ) -> Result<GetRealStateResp, Box<dyn std::error::Error + Sync + Send>> {
-        let state = self.physics.read().unwrap().state(time).clone();
-        debug!("Treating request");
+    fn treat_request(&self, _req: GetRealStateReq, time: f32) -> Result<GetRealStateResp, String> {
+        debug!("Treating request...");
+        let state = self.physics.state(time).clone();
+        debug!("Treating request...OK");
         Ok(GetRealStateResp { state })
     }
 }
@@ -86,12 +83,13 @@ pub struct PerfectPhysic {
 
 impl PerfectPhysic {
     /// Makes a new [`PerfectPhysic`] situated at (0,0,0) and 25cm between wheels.
-    pub fn new() -> Self {
+    pub fn new(time_cv: Arc<(Mutex<usize>, Condvar)>) -> Self {
         Self::from_config(
             &PerfectPhysicConfig::default(),
             &None,
             SimulatorMetaConfig::default(),
             &DeterministRandomVariableFactory::default(),
+            time_cv,
         )
     }
 
@@ -106,6 +104,7 @@ impl PerfectPhysic {
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
         va_factory: &DeterministRandomVariableFactory,
+        time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) -> Self {
         PerfectPhysic {
             wheel_distance: config.wheel_distance,
@@ -115,7 +114,7 @@ impl PerfectPhysic {
                 left_wheel_speed: 0.,
                 right_wheel_speed: 0.,
             },
-            real_state_service: Service::new(),
+            real_state_service: Service::new(time_cv),
             real_state_handler: None,
         }
     }
@@ -172,9 +171,6 @@ impl Physic for PerfectPhysic {
 impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
     fn make_service(&mut self, turtle: Arc<RwLock<Turtlebot>>) {
         debug!("[{}] Making service", turtle.read().unwrap().name());
-        self.real_state_handler = Some(Box::new(RealStateHandler {
-            physics: turtle.read().unwrap().physics().clone(),
-        }));
         debug!("[{}] Service made", turtle.read().unwrap().name());
     }
 
@@ -182,17 +178,20 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
         &mut self,
         client_name: &str,
     ) -> ServiceClient<GetRealStateReq, GetRealStateResp> {
-        self.real_state_service
-            .new_client(client_name)
+        self.real_state_service.new_client(client_name)
     }
 
-    fn start(&self) {
-        match &self.real_state_handler {
-            Some(handler) => self.real_state_service.start(handler),
-            None => {
-                panic!("The service should be initialized (using make_service) before running it.")
-            }
-        };
+    fn process_service_requests(&self) -> usize {
+        self.real_state_service.process_requests()
+    }
+
+    fn handle_service_requests(&mut self, time: f32) {
+        self.real_state_service
+            .handle_service_requests(time, &|msg, t| {
+                Ok(GetRealStateResp {
+                    state: self.state(t).clone(),
+                })
+            });
     }
 
     fn service_next_time(&self) -> f32 {

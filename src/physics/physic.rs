@@ -8,7 +8,7 @@ However, the [`Physic::state`] should provide the real [`State`].
 */
 
 extern crate confy;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -80,6 +80,7 @@ pub fn make_physic_from_config(
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     meta_config: SimulatorMetaConfig,
     va_factory: &DeterministRandomVariableFactory,
+    time_cv: Arc<(Mutex<usize>, Condvar)>,
 ) -> Arc<RwLock<Box<dyn Physic>>> {
     Arc::new(RwLock::new(Box::new(match &config {
         PhysicConfig::Perfect(c) => perfect_physic::PerfectPhysic::from_config(
@@ -87,6 +88,7 @@ pub fn make_physic_from_config(
             plugin_api,
             meta_config.clone(),
             va_factory,
+            time_cv,
         ),
     })))
 }

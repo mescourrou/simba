@@ -6,7 +6,7 @@ the configuration struct [`NetworkConfig`].
 extern crate confy;
 use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::{mpsc, Arc, Condvar, Mutex, RwLock};
 
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
@@ -75,6 +75,8 @@ pub struct Network {
     channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value, f32, MessageMode)>>>,
     /// Message list
     messages_buffer: TimeOrderedData<(String, Value)>,
+
+    time_cv: Arc<(Mutex<usize>, Condvar)>,
 }
 
 impl fmt::Debug for Network {
@@ -89,12 +91,13 @@ impl fmt::Debug for Network {
 
 impl Network {
     /// Create a new default Network.
-    pub fn new(from: String) -> Network {
+    pub fn new(from: String, time_cv: Arc<(Mutex<usize>, Condvar)>) -> Network {
         Network::from_config(
             from,
             &NetworkConfig::default(),
             SimulatorMetaConfig::default(),
             &DeterministRandomVariableFactory::default(),
+            time_cv,
         )
     }
 
@@ -104,6 +107,7 @@ impl Network {
         config: &NetworkConfig,
         _meta_config: SimulatorMetaConfig,
         _va_factory: &DeterministRandomVariableFactory,
+        time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) -> Network {
         let (tx, rx) = mpsc::channel::<(String, Value, f32, MessageMode)>();
         Network {
@@ -116,6 +120,7 @@ impl Network {
             channel_receiver: Arc::new(Mutex::new(rx)),
             channel_emitter: Arc::new(Mutex::new(tx)),
             messages_buffer: TimeOrderedData::new(),
+            time_cv,
         }
     }
 
@@ -171,12 +176,14 @@ impl Network {
         }
         let emitter_option = self.other_emitters.get(&recipient);
         if let Some(emitter) = emitter_option {
+            let _lk = self.time_cv.0.lock().unwrap();
             let _ = emitter.lock().unwrap().send((
                 self.from.clone(),
                 message,
                 time,
                 message_mode.clone(),
             ));
+            self.time_cv.1.notify_all();
         }
     }
 
@@ -186,18 +193,20 @@ impl Network {
             if !self.can_send(&recipient, time, &message_mode) {
                 continue;
             }
+            let _lk = self.time_cv.0.lock().unwrap();
             let _ = emitter.lock().unwrap().send((
                 self.from.clone(),
                 message.clone(),
                 time,
                 message_mode.clone(),
             ));
+            self.time_cv.1.notify_all();
         }
     }
 
     /// Unstack the waiting messages in the asynchronous receiver and put them in the buffer.
     /// Adds the delay.
-    pub fn process_messages(&mut self) {
+    pub fn process_messages(&mut self) -> usize {
         let rx = self.channel_receiver.lock().unwrap();
         for (from, message, time, message_mode) in rx.try_iter() {
             let time = match message_mode {
@@ -207,6 +216,7 @@ impl Network {
             debug!("[{}] Add new message from {from} at time {time}", self.from);
             self.messages_buffer.insert(time, (from, message), false);
         }
+        self.messages_buffer.len()
     }
 
     /// Get the minimal time among all waiting messages.

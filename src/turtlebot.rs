@@ -3,7 +3,7 @@ Module providing the main robot manager, [`Turtlebot`], along with the configura
 [`TurtlebotConfig`] and the record [`TurtlebotRecord`] structures.
 */
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread::{self, JoinHandle};
 
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
@@ -222,19 +222,21 @@ pub struct Turtlebot {
 
 impl Turtlebot {
     /// Creates a new [`Turtlebot`] with the given name.
-    pub fn new(name: String) -> Arc<RwLock<Self>> {
+    pub fn new(name: String, time_cv: Arc<(Mutex<usize>, Condvar)>) -> Arc<RwLock<Self>> {
         let turtle = Arc::new(RwLock::new(Self {
             name: name.clone(),
             navigator: Arc::new(RwLock::new(Box::new(
                 trajectory_follower::TrajectoryFollower::new(),
             ))),
             controller: Arc::new(RwLock::new(Box::new(pid::PID::new()))),
-            physic: Arc::new(RwLock::new(Box::new(perfect_physic::PerfectPhysic::new()))),
+            physic: Arc::new(RwLock::new(Box::new(perfect_physic::PerfectPhysic::new(
+                time_cv.clone(),
+            )))),
             state_estimator: Arc::new(RwLock::new(Box::new(
                 perfect_estimator::PerfectEstimator::new(),
             ))),
             sensor_manager: Arc::new(RwLock::new(SensorManager::new())),
-            network: Arc::new(RwLock::new(Network::new(name.clone()))),
+            network: Arc::new(RwLock::new(Network::new(name.clone(), time_cv.clone()))),
             message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
             state_estimator_bench: Arc::new(RwLock::new(Vec::new())),
@@ -259,6 +261,7 @@ impl Turtlebot {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
         va_factory: &DeterministRandomVariableFactory,
+        time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) -> Arc<RwLock<Self>> {
         let turtle = Arc::new(RwLock::new(Self {
             name: config.name.clone(),
@@ -279,6 +282,7 @@ impl Turtlebot {
                 plugin_api,
                 meta_config.clone(),
                 va_factory,
+                time_cv.clone(),
             ),
             state_estimator: state_estimator::make_state_estimator_from_config(
                 &config.state_estimator,
@@ -297,6 +301,7 @@ impl Turtlebot {
                 &config.network,
                 meta_config.clone(),
                 va_factory,
+                time_cv.clone(),
             ))),
             message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
@@ -332,12 +337,10 @@ impl Turtlebot {
                 &writable_turtle.message_handler
             ));
             writable_turtle.save_state(0.);
-
         }
         debug!("[{}] Setup services", turtle.read().unwrap().name());
         // Services
         let physics = turtle.write().unwrap().physics();
-        debug!("Plop");
         physics.write().unwrap().make_service(turtle.clone());
 
         turtle
@@ -349,26 +352,10 @@ impl Turtlebot {
         turtle_idx: usize,
     ) {
         let sensor_manager = self.sensor_manager();
-        sensor_manager.write().unwrap().init(self, turtle_list, turtle_idx);
-
-
-        
-    }
-
-    pub fn service_handler(&self) {
-        // Start services
-        debug!("[{}] Start services", self.name);
-        let mut handles = Vec::new();
-        
-        let physics = self.physics();
-        handles.push(thread::spawn(move || {
-            physics.read().unwrap().start();
-        }));
-
-        for handle in handles {
-            handle.join();
-        }
-        debug!("[{}] Services finished", self.name);
+        sensor_manager
+            .write()
+            .unwrap()
+            .init(self, turtle_list, turtle_idx);
     }
 
     /// Run the robot to reach the given time.
@@ -380,20 +367,20 @@ impl Turtlebot {
     ///
     /// ## Return
     /// Next time step.
-    pub fn run_next_time_step(
-        &mut self,
-        time: f32,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
-    ) -> f32 {
+    pub fn run_next_time_step(&mut self, time: f32) -> f32 {
         let mut next_time_step = self.next_time_step();
         while next_time_step <= time {
-            self.network().write().unwrap().process_messages();
-            self.run_time_step(next_time_step, turtle_list, turtle_idx);
+            self.process_messages();
+            self.run_time_step(next_time_step);
             next_time_step = self.next_time_step();
         }
 
         next_time_step
+    }
+
+    pub fn process_messages(&self) -> usize {
+        self.network().write().unwrap().process_messages()
+            + self.physics().write().unwrap().process_service_requests()
     }
 
     /// Run only one time step.
@@ -413,24 +400,18 @@ impl Turtlebot {
     /// 5. The network messages are handled
     ///
     /// Then, the robot state is saved.
-    pub fn run_time_step(
-        &mut self,
-        time: f32,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
-    ) {
+    pub fn run_time_step(&mut self, time: f32) {
         self.set_in_state(time);
         info!("[{}] Run time {}", self.name(), time);
         // Update the true state
         self.physic.write().unwrap().update_state(time);
 
         // Make observations (if it is the right time)
-        let observations = self.sensor_manager().write().unwrap().get_observations(
-            self,
-            time,
-            turtle_list,
-            turtle_idx,
-        );
+        let observations = self
+            .sensor_manager()
+            .write()
+            .unwrap()
+            .get_observations(self, time);
 
         debug!("[{}] Got {} observations", self.name, observations.len());
         if observations.len() > 0 {
@@ -493,6 +474,11 @@ impl Turtlebot {
             .unwrap()
             .handle_message_at_time(self, time);
 
+        self.physics()
+            .write()
+            .unwrap()
+            .handle_service_requests(time);
+
         // Save state (replace if needed)
         self.save_state(time);
     }
@@ -529,6 +515,9 @@ impl Turtlebot {
                     .next_time_step(),
             );
         }
+
+        next_time_step = next_time_step.min(self.physic.read().unwrap().service_next_time());
+
         debug!("[{}] next_time_step: {}", self.name(), next_time_step);
         next_time_step
     }

@@ -66,13 +66,7 @@ pub trait Sensor:
     /// ## Return
     /// List of [`GenericObservation`]s, could be empty if no [`Sensor`] provided observation
     /// at this `time`.
-    fn get_observations(
-        &mut self,
-        turtle: &mut Turtlebot,
-        time: f32,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
-    ) -> Vec<Observation>;
+    fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Observation>;
 
     /// Get the time of the next observation.
     fn next_time_step(&self) -> f32;

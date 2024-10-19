@@ -114,13 +114,7 @@ impl Sensor for OdometrySensor {
         self.last_state = turtle.physics().read().unwrap().state(0.).clone();
     }
 
-    fn get_observations(
-        &mut self,
-        turtle: &mut Turtlebot,
-        time: f32,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
-    ) -> Vec<Observation> {
+    fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Observation> {
         let arc_physic = turtle.physics();
         let physic = arc_physic.read().unwrap();
         let mut observation_list = Vec::<Observation>::new();
