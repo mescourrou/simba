@@ -4,7 +4,6 @@ Module providing the main robot manager, [`Turtlebot`], along with the configura
 */
 
 use std::sync::{Arc, Condvar, Mutex, RwLock};
-use std::thread::{self, JoinHandle};
 
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
 use super::navigators::trajectory_follower;
@@ -27,7 +26,7 @@ use crate::state_estimators::{perfect_estimator, state_estimator};
 use crate::sensors::sensor_manager::{SensorManager, SensorManagerConfig};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::{Simulator, SimulatorMetaConfig};
+use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;

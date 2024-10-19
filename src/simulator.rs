@@ -42,7 +42,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
-use crate::result_analyser::{self, run_python};
+use crate::result_analyser::{run_python};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 use super::turtlebot::{Turtlebot, TurtlebotConfig, TurtlebotRecord};
@@ -51,9 +51,9 @@ use std::time::SystemTime;
 
 use serde_json;
 use std::default::Default;
-use std::fs::{self, File};
+use std::fs::{File};
 use std::io::prelude::*;
-use std::sync::{Arc, Barrier, Condvar, Mutex, RwLock};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread;
 
 use log::{debug, error, info};

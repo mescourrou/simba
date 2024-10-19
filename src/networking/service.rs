@@ -2,14 +2,13 @@ use core::f32;
 use std::{
     collections::BTreeMap,
     fmt::Debug,
-    marker::PhantomData,
     sync::{mpsc, Arc, Condvar, Mutex, RwLock},
 };
 
 use log::debug;
 
 use crate::{
-    sensors::turtle_sensor, turtlebot::Turtlebot, utils::time_ordered_data::TimeOrderedData,
+    turtlebot::Turtlebot, utils::time_ordered_data::TimeOrderedData,
 };
 
 use super::network::MessageMode;

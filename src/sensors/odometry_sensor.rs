@@ -7,12 +7,11 @@ use std::sync::{Arc, RwLock};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::{Simulator, SimulatorMetaConfig};
+use crate::simulator::SimulatorMetaConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
-    DeterministFixedRandomVariable, DeterministRandomVariable, DeterministRandomVariableFactory,
-    FixedRandomVariableConfig, RandomVariableTypeConfig,
+    DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
 };
 use serde_derive::{Deserialize, Serialize};
 

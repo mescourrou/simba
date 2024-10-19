@@ -5,7 +5,7 @@ Provides a [`Sensor`] which can observe oriented landmarks in the frame of the r
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::{Simulator, SimulatorMetaConfig};
+use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,

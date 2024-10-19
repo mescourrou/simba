@@ -14,9 +14,7 @@ use serde_json::Value;
 
 use crate::simulator::SimulatorMetaConfig;
 use crate::turtlebot::Turtlebot;
-use crate::utils::determinist_random_variable::{
-    DeterministRandomVariable, DeterministRandomVariableFactory,
-};
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
 use super::message_handler::MessageHandler;

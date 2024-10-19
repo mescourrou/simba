@@ -42,7 +42,7 @@ pub enum SensorRecord {
     TurtleSensor(turtle_sensor::TurtleSensorRecord),
 }
 
-use crate::{simulator::Simulator, stateful::Stateful, turtlebot::Turtlebot};
+use crate::{stateful::Stateful, turtlebot::Turtlebot};
 
 /// Sensor trait which need to be implemented by each sensors.
 pub trait Sensor:

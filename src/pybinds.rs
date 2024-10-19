@@ -1,8 +1,5 @@
-use log::{debug, error};
-use pyo3::{
-    prelude::*,
-    types::{PyList, PyTuple},
-};
+use log::debug;
+use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
@@ -12,7 +9,6 @@ use crate::{
         pybinds::{make_state_estimator_module, PythonStateEstimator},
         state_estimator::StateEstimator,
     },
-    stateful::Stateful,
 };
 use std::path::Path;
 

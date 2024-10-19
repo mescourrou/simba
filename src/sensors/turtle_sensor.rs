@@ -7,20 +7,19 @@ use super::sensor::{Observation, Sensor, SensorRecord};
 use crate::networking::service::ServiceClient;
 use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
-use crate::simulator::{Simulator, SimulatorMetaConfig};
+use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
 };
 use serde_derive::{Deserialize, Serialize};
 
-use log::{debug, error};
+use log::debug;
 extern crate nalgebra as na;
 use na::Vector3;
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::Path;
 use std::sync::{Arc, RwLock};
 
 /// Configuration of the [`TurtleSensor`].
