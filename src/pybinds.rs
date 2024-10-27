@@ -3,18 +3,17 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    plugin_api::PluginAPI,
-    simulator::{Simulator, SimulatorMetaConfig},
-    state_estimators::{
+    physics::physic::PhysicRecord, plugin_api::PluginAPI, simulator::{Record, Simulator, SimulatorMetaConfig}, state_estimators::{
         pybinds::{make_state_estimator_module, PythonStateEstimator},
-        state_estimator::StateEstimator,
-    },
+        state_estimator::{StateEstimator, StateEstimatorRecord},
+    }
 };
 use std::path::Path;
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SimulatorWrapper>()?;
     m.add_class::<PythonAPI>()?;
+    m.add_class::<Record>()?;
     make_state_estimator_module(m)?;
     Ok(())
 }
@@ -28,7 +27,7 @@ struct SimulatorWrapper {
 #[pymethods]
 impl SimulatorWrapper {
     #[staticmethod]
-    #[pyo3(signature = (config_path, api=None, analyse_results=true, gui=true, result_path="result.json", loglevel="off"))]
+    #[pyo3(signature = (config_path, api=None, analyse_results=true, gui=true, result_path="result.json", loglevel="off", analyse_script=None))]
     pub fn from_config(
         config_path: &str,
         api: Option<&PythonAPI>,
@@ -36,6 +35,7 @@ impl SimulatorWrapper {
         gui: bool,
         result_path: &str,
         loglevel: &str,
+        analyse_script: Option<&str>,
     ) -> SimulatorWrapper {
         Simulator::init_environment(match loglevel.to_lowercase().as_str() {
             "debug" => log::LevelFilter::Debug,
@@ -55,6 +55,10 @@ impl SimulatorWrapper {
                 Some(Path::new(result_path).into()),
                 analyse_results,
                 gui,
+                match analyse_script {
+                    Some(s) => Some(Path::new(s).into()),
+                    None => None,
+                },
             ),
         }
     }

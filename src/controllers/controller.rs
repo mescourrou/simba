@@ -10,10 +10,12 @@ use std::sync::{Arc, RwLock};
 use crate::{physics::physic::Command, plugin_api::PluginAPI, simulator::SimulatorMetaConfig};
 
 extern crate confy;
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 /// Errors used by the controllers: lateral, orientation and velocity.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub struct ControllerError {
     /// Lateral error.
     pub lateral: f32,
@@ -43,6 +45,7 @@ pub enum ControllerConfig {
 
 /// Enumerates the strategies records.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub enum ControllerRecord {
     PID(pid::PIDRecord),
 }

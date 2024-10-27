@@ -13,6 +13,7 @@ use crate::stateful::Stateful;
 use crate::turtlebot::Turtlebot;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use log::{debug, error};
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the [`PerfectPhysic`].
@@ -36,6 +37,7 @@ impl Default for PerfectPhysicConfig {
 
 /// Record for the [`PerfectPhysic`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub struct PerfectPhysicRecord {
     /// State at the time `last_time_update`
     pub state: StateRecord,

@@ -38,6 +38,8 @@ fn main() {
 
 // Configuration for Simulator
 extern crate confy;
+use pyo3::types::PyList;
+use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
 use crate::networking::network_manager::NetworkManager;
@@ -51,10 +53,10 @@ use std::time::SystemTime;
 
 use serde_json;
 use std::default::Default;
-use std::fs::{File};
+use std::fs::{self, File};
 use std::io::prelude::*;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
-use std::thread;
+use std::{result, thread};
 
 use log::{debug, error, info};
 
@@ -77,6 +79,10 @@ pub struct SimulatorMetaConfig {
     pub compute_results: bool,
     /// Do not show GUI (restricted for now to the result figures).
     pub no_gui: bool,
+    /// Path to the python analyse scrit.
+    /// This script should have the following entry point:
+    /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
+    pub analyse_script: Option<Box<Path>>,
 }
 
 impl SimulatorMetaConfig {
@@ -87,6 +93,7 @@ impl SimulatorMetaConfig {
             result_path: None,
             compute_results: false,
             no_gui: true,
+            analyse_script: None,
         }
     }
 }
@@ -126,6 +133,7 @@ impl Default for SimulatorConfig {
 ///
 /// This is a line for one turtle ([`TurtlebotRecord`]) at a given time.
 #[derive(Debug, Serialize, Deserialize)]
+#[pyclass(get_all)]
 pub struct Record {
     /// Time of the record.
     pub time: f32,
@@ -226,6 +234,7 @@ impl Simulator {
         result_path: Option<Box<Path>>,
         compute_results: bool,
         no_gui: bool,
+        analyse_script: Option<Box<Path>>,
     ) -> Simulator {
         let config: SimulatorConfig = match confy::load_path(&config_path) {
             Ok(config) => config,
@@ -240,6 +249,7 @@ impl Simulator {
             result_path,
             compute_results,
             no_gui,
+            analyse_script,
         };
         Simulator::from_config(&config, plugin_api, meta_config)
     }
@@ -500,112 +510,18 @@ impl Simulator {
     ///
     /// If the [`Simulator`] config disabled the computation of the results, this function
     /// does nothing.
-    ///
-    /// The results are analysed using a python script, through [`result_analyser::execute_python_analyser`].
     fn compute_results(&self) {
         if !self.meta_config.compute_results {
             return;
         }
 
-        let result_filename = match &self.meta_config.result_path {
-            Some(f) => f,
-            None => return,
-        };
-
         info!("Starting result analyse...");
         let show_figures = !self.meta_config.no_gui;
-        // match result_analyser::execute_python_analyser(
-        //     result_filename.as_ref(),
-        //     show_figures,
-        //     result_filename.parent().unwrap_or(Path::new(".")),
-        //     String::from(".pdf"),
-        // ) {
-        //     Ok(()) => info!("Results analysed!"),
-        //     Err(e) => error!("Error during python execution: {e}"),
-        // };
+        
         prepare_freethreaded_python();
-        let open_json_py = r#"
-import json
-
-def load_json(result_filename):
-    with open(result_filename) as file:
-        data = json.load(file)
-    return data["config"], data["record"]
-"#;
-
-        let analyse_py = r#"
-import numpy as np
-import matplotlib.pyplot as plt
-
-def analyse(data, show_figures, figure_path, figure_type):
-    class TurtleData:
-        def __init__(self) -> None:
-            self.times = list()
-            self.errors = list()
-            self.estimated_poses = list()
-            self.real_poses = list()
-
-    all_turtles_data = dict()
-    config, record = data
-    for row in record:
-        turtle = row["turtle"]["name"]
-        if not turtle in all_turtles_data:
-            all_turtles_data[turtle] = TurtleData()
-            
-        turtle_data = all_turtles_data[turtle]
-            
-        turtle_data.times.append(row["time"])
         
-        physics = row["turtle"]["physic"]
-        if "Perfect" in physics:
-            real_pose = np.array(physics["Perfect"]["state"]["pose"])
-            turtle_data.real_poses.append(real_pose)
-        else:
-            raise Exception(f"Physics module not known: {physics}")
-        
-        state_estimator = row["turtle"]["state_estimator"]
-        if "Perfect" in state_estimator:
-            estimated_pose = np.array(state_estimator["Perfect"]["state"]["pose"])
-            turtle_data.estimated_poses.append(estimated_pose)
-        elif "External" in state_estimator:
-            estimated_pose = np.array(state_estimator["External"]["state"]["pose"])
-            turtle_data.estimated_poses.append(estimated_pose)
-        else:
-            raise Exception(f"State Estimator module not known: {state_estimator}")
-        
-
-        position_error = np.linalg.norm(real_pose[0:2] - estimated_pose[0:2])
-        
-        turtle_data.errors.append(position_error)
-        
-        
-        
-    f, ax = plt.subplots()
-
-    for turtle, data in all_turtles_data.items():
-        ax.plot(data.times, data.errors, label=turtle)
-
-    ax.set_title("Localization errors")
-    ax.legend()
-    if figure_path != "":
-        f.savefig(f"{figure_path}/LocalizationError_all{figure_type}", bbox_inches='tight')
-
-    f, ax = plt.subplots()
-    for turtle, data in all_turtles_data.items():
-        estimated_pose_np = np.array(data.estimated_poses)
-        ax.plot(estimated_pose_np[:,0], estimated_pose_np[:,1], label=f"{turtle} - Estimated")
-        real_pose_np = np.array(data.real_poses)
-        ax.plot(real_pose_np[:,0], real_pose_np[:,1], label=f"{turtle} - Real")
-
-    ax.set_title("Trajectories")
-    ax.legend()
-
-    if figure_path != "":
-        f.savefig(f"{figure_path}/Trajectories_all{figure_type}", bbox_inches='tight')
-
-    #if show_figures:
-    #   plt.show()
-"#;
+        let results = self.get_results();
+        let json_results = serde_json::to_string(&results).expect("Error during converting results to json");
 
         let show_figure_py = r#"
 import matplotlib.pyplot as plt
@@ -613,23 +529,31 @@ import matplotlib.pyplot as plt
 def show():
     plt.show()
 "#;
-        let res = Python::with_gil(|py| -> PyResult<()> {
-            let result_json: Py<PyAny> = PyModule::from_code_bound(py, open_json_py, "", "")?
-                .getattr("load_json")?
-                .into();
-            let config_record =
-                result_json.call_bound(py, (result_filename.to_str().unwrap(),), None)?;
 
-            run_python(
-                &analyse_py,
-                &py,
-                &config_record,
-                show_figures,
-                Path::new(""),
-                ".pdf",
-            )?;
+        let convert_to_dict = r#"
+import json
+
+def convert(records):
+    return json.loads(records)
+"#;
+
+
+        let script_path = self.meta_config.analyse_script.clone().unwrap_or(Path::new(concat!(env!("CARGO_MANIFEST_DIR"),"/python_scripts/analyse_results.py")).into());
+        let python_script = fs::read_to_string(script_path).expect("File not found");
+        let res = Python::with_gil(|py| -> PyResult<()> {
+            let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
+            let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
+            let result_dict = convert_fn.call_bound(py, (json_results,), None)?;
+            let script = PyModule::from_code_bound(py, &python_script, "", "")?;
+            let analyse_fn: Py<PyAny> = script.getattr("analyse")?.into();
+            info!("Analyse the results...");
+            analyse_fn.call_bound(py, (result_dict, Path::new(""), ".pdf"), None)?;
+
             if show_figures {
-                PyModule::from_code_bound(py, show_figure_py, "", "")?.getattr("show")?;
+                info!("Showing figures...");
+                let show_script = PyModule::from_code_bound(py, &show_figure_py, "", "")?;
+                let show_fn: Py<PyAny> = show_script.getattr("show")?.into();
+                show_fn.call_bound(py, (), None)?;
             }
             Ok(())
         });
@@ -658,7 +582,7 @@ mod tests {
 
         let config_path = Path::new("config_example/config.yaml");
         for i in 0..nb_replications {
-            let mut simulator = Simulator::from_config_path(config_path, None, None, false, false);
+            let mut simulator = Simulator::from_config_path(config_path, None, None, false, false, None);
 
             simulator.show();
 

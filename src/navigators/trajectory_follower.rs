@@ -15,6 +15,7 @@ use libm::atan2;
 use log::error;
 use na::Vector3;
 
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 use std::f32::consts::PI;
@@ -44,6 +45,7 @@ impl Default for TrajectoryFollowerConfig {
 
 /// Record of the [`TrajectoryFollower`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub struct TrajectoryFollowerRecord {
     /// Current error
     pub error: ControllerError,

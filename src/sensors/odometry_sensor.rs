@@ -13,6 +13,7 @@ use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
 };
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 extern crate nalgebra as na;
@@ -39,6 +40,7 @@ impl Default for OdometrySensorConfig {
 
 /// Record of the [`OdometrySensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub struct OdometrySensorRecord {
     last_time: f32,
     last_state: StateRecord,

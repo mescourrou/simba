@@ -50,6 +50,7 @@ impl Default for BenchStateEstimatorConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub struct BenchStateEstimatorRecord {
     name: String,
     record: StateEstimatorRecord,
@@ -122,6 +123,7 @@ impl Default for TurtlebotConfig {
 ///
 /// It contains the dynamic elements and the elements we want to save.
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[pyclass(get_all)]
 pub struct TurtlebotRecord {
     /// Name of the robot.
     pub name: String,

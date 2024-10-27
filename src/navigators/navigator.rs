@@ -5,6 +5,7 @@ Provide the [`Navigator`] trait and the configuration and record enumerations.
 extern crate confy;
 use std::sync::{Arc, RwLock};
 
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 use super::trajectory_follower;
@@ -22,6 +23,7 @@ pub enum NavigatorConfig {
 
 /// Enumeration of the record of the different strategies.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub enum NavigatorRecord {
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerRecord),
 }

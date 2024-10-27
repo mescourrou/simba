@@ -12,6 +12,7 @@ use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
 };
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 use log::debug;
@@ -49,6 +50,7 @@ impl Default for TurtleSensorConfig {
 
 /// Record of the [`TurtleSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub struct TurtleSensorRecord {
     last_time: f32,
 }

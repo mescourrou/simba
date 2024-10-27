@@ -10,10 +10,12 @@ However, the [`Physic::state`] should provide the real [`State`].
 extern crate confy;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 /// Command struct, to control both wheel speed, in m/s.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub struct Command {
     /// Left wheel speed.
     pub left_wheel_speed: f32,
@@ -31,6 +33,7 @@ pub enum PhysicConfig {
 
 /// Enumeration of the records by physic implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub enum PhysicRecord {
     Perfect(perfect_physic::PerfectPhysicRecord),
 }

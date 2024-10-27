@@ -15,6 +15,8 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 
 use std::str::FromStr;
 
+use pyo3::types::PyDict;
+use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
 use super::state_estimator::{State, StateEstimator};
@@ -62,6 +64,7 @@ impl Default for ExternalEstimatorConfig {
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct ExternalEstimatorRecord {
     /// Record serialized.
     #[serde(flatten)]
@@ -73,6 +76,14 @@ impl Default for ExternalEstimatorRecord {
         Self {
             record: Value::Null,
         }
+    }
+}
+
+#[pymethods]
+impl ExternalEstimatorRecord {
+    #[getter]
+    fn record(&self) -> String {
+        self.record.to_string()
     }
 }
 

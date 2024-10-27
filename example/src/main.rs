@@ -14,6 +14,7 @@ fn main() {
         Some(Box::from(Path::new("result.json"))), //<- path to save the results (None to not save)
         true,                                      //<- Analyse the results
         false,                                     //<- Show the figures after analyse
+        None,
     );
 
     // Show the simulator loaded configuration
