@@ -98,6 +98,11 @@ impl State {
         state.velocity = config.velocity;
         return state;
     }
+
+    pub fn theta_modulo(mut self) -> Self {
+        self.pose.z = mod2pi(self.pose.z);
+        self
+    }
 }
 
 impl Stateful<StateRecord> for State {
@@ -141,6 +146,7 @@ use super::{external_estimator, perfect_estimator};
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
 use crate::turtlebot::Turtlebot;
+use crate::utils::geometry::mod2pi;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };

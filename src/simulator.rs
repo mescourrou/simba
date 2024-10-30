@@ -65,7 +65,7 @@ use pyo3::prepare_freethreaded_python;
 
 /// Meta configuration of [`Simulator`], to configure how the simulation
 /// is run, outside of the scenario to run.
-#[derive(Clone)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SimulatorMetaConfig {
     /// Path to the [`SimulatorConfig`] file, containing the configuration
     /// of the scebarui to run
@@ -139,6 +139,12 @@ pub struct Record {
     pub time: f32,
     /// Record of a turtle.
     pub turtle: TurtlebotRecord,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Results {
+    pub config: SimulatorConfig,
+    pub records: Vec<Record>,
 }
 
 /// This is the central structure which manages the run of the scenario.
@@ -374,7 +380,8 @@ impl Simulator {
         }
 
         self.save_results();
-        self.compute_results();
+        let results  = self.get_results();
+        self.compute_results(results, &self.config);
     }
 
     /// Returns the list of all [`Record`]s produced by [`Simulator::run`].
@@ -406,7 +413,7 @@ impl Simulator {
         let _ = recording_file.write(b"{\"config\": ");
         serde_json::to_writer(&recording_file, &self.config)
             .expect("Error during json serialization");
-        let _ = recording_file.write(b",\n\"record\": [\n");
+        let _ = recording_file.write(b",\n\"records\": [\n");
 
         let results = self.get_results();
 
@@ -427,6 +434,18 @@ impl Simulator {
             .expect("Error during json serialization");
         }
         let _ = recording_file.write(b"\n]}");
+    }
+
+    pub fn load_results_and_analyse(&mut self, filename: &Path) {
+        let mut recording_file = File::open(filename).expect("Impossible to open record file");
+        let mut content = String::new();
+        recording_file
+            .read_to_string(&mut content)
+            .expect("Impossible to read record file");
+
+        let results: Results = serde_json::from_str(&content).expect("Error during json parsing");
+
+        self.compute_results(results.records, &results.config);
     }
 
     fn wait_the_end(
@@ -510,7 +529,7 @@ impl Simulator {
     ///
     /// If the [`Simulator`] config disabled the computation of the results, this function
     /// does nothing.
-    fn compute_results(&self) {
+    fn compute_results(&self, results: Vec<Record>, config: &SimulatorConfig) {
         if !self.meta_config.compute_results {
             return;
         }
@@ -520,8 +539,9 @@ impl Simulator {
         
         prepare_freethreaded_python();
         
-        let results = self.get_results();
         let json_results = serde_json::to_string(&results).expect("Error during converting results to json");
+        let json_config = serde_json::to_string(&config).expect("Error during converting results to json");
+        let json_metaconfig = serde_json::to_string(&self.meta_config).expect("Error during converting results to json");
 
         let show_figure_py = r#"
 import matplotlib.pyplot as plt
@@ -544,11 +564,16 @@ def convert(records):
             let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
             let result_dict = convert_fn.call_bound(py, (json_results,), None)?;
+            let config_dict = convert_fn.call_bound(py, (json_config,), None)?;
+            let metaconfig_dict = convert_fn.call_bound(py, (json_metaconfig,), None)?;
             let script = PyModule::from_code_bound(py, &python_script, "", "")?;
             let analyse_fn: Py<PyAny> = script.getattr("analyse")?.into();
             info!("Analyse the results...");
-            analyse_fn.call_bound(py, (result_dict, Path::new(""), ".pdf"), None)?;
-
+            let res = analyse_fn.call_bound(py, (result_dict, config_dict, metaconfig_dict, Path::new(""), ".pdf"), None);
+            if let Err(err) = res {
+                err.display(py);
+                return Err(err);
+            }
             if show_figures {
                 info!("Showing figures...");
                 let show_script = PyModule::from_code_bound(py, &show_figure_py, "", "")?;

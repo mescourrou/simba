@@ -3,6 +3,8 @@ Provide geometry tools.
 */
 
 extern crate nalgebra as na;
+use std::f32::consts::PI;
+
 use na::SVector;
 
 /// Computes the projection of a point on a segment.
@@ -37,4 +39,47 @@ pub fn project_point(
         x_1 + projected_point_distance * x_n,
         y_1 + projected_point_distance * y_n,
     )
+}
+
+
+pub fn mod2pi(f: f32) -> f32 {
+    let mut f = f;
+    while f > PI {
+        f -= 2. * PI;
+    }
+    while f <= -PI {
+        f += 2. * PI;
+    }
+    f
+}
+
+pub fn smallest_theta_diff(a: f32, b: f32) -> f32 {
+    let mut diff = a - b;
+    if diff > PI {
+        diff = a - (b + 2.*PI);
+    } else if diff <= -PI {
+        diff = a + 2.*PI - b;
+    }
+    diff
+}
+
+#[cfg(test)]
+mod tests {
+    use std::f32::consts::PI;
+
+    #[test]
+    pub fn test_smalles_theta_diff() {
+        let a = 0.1;
+        let b = 0.2;
+        let diff = super::smallest_theta_diff(a, b);
+        assert_eq!(diff, -0.1);
+        let a = PI - 0.1;
+        let b = -PI + 0.2;
+        let diff = super::smallest_theta_diff(a, b);
+        assert!((diff - 0.3).abs() < 1e-6);
+        let a = -PI + 0.1;
+        let b = PI - 0.2;
+        let diff = super::smallest_theta_diff(a, b);
+        assert!((diff - (-0.3)).abs() < 1e-6);
+    }
 }

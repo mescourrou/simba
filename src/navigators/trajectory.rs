@@ -3,8 +3,10 @@ Trajectory tool.
 */
 
 extern crate nalgebra as na;
+use libm::atan2;
 use log::debug;
 use na::{DMatrix, SVector};
+use nalgebra::Vector2;
 use pyo3::pyclass;
 
 use crate::stateful::Stateful;
@@ -131,43 +133,84 @@ impl Trajectory {
     ///
     /// ## Arguments
     /// * `point` - Point to match
+    /// * `forward_distance` - Curvilinear distance to add
     ///
     /// ## Return
     /// * Matched segment, as a tuple of two points.
     /// * Projected point.
+    /// * If the point is on the last segment.
     pub fn map_matching(
         &mut self,
         point: SVector<f32, 2>,
-    ) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>) {
-        let pt1 = self
+        forward_distance: f32,
+    ) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>, bool) {
+        let mut forward_distance = forward_distance;
+        let (mut pt1, mut pt2, mut projected_point) = self.project(&point);
+        while (projected_point - pt2).norm() < 1e-6 {
+            if self.current_segment + 1 == self.point_list.nrows() {
+                if !self.do_loop {
+                    debug!("No loop so give last point");
+                    return ((pt1, pt2), pt2, true);
+                } else {
+                    self.current_segment = 0;
+                    (pt1, pt2, projected_point) = self.project(&point);
+                }
+            }
+            else {
+                self.current_segment += 1;
+                (pt1, pt2, projected_point) = self.project(&point);
+            }
+        }
+
+        let mut d =
+            ((pt2.x - projected_point.x).powf(2.) + (pt2.y - projected_point.y).powf(2.)).sqrt();
+        debug!("distance: {} / forward distance: {}", d, forward_distance);
+        let mut start_point = projected_point;
+        let mut segment = self.current_segment;
+        while d < forward_distance {
+            forward_distance -= d;
+            segment += 1;
+            if segment >= self.point_list.nrows() && self.do_loop {
+                segment = 0;
+            }
+            if segment + 1 == self.point_list.nrows() && !self.do_loop {
+                debug!("No loop so give last point");
+                return ((pt1, pt2), pt2, true);
+            }
+            pt1 = pt2;
+            start_point = pt1;
+            pt2 = if segment + 1 >= self.point_list.nrows() {
+                self.point_list.fixed_view::<1, 2>(0, 0).transpose()
+            } else {
+                self.point_list
+                    .fixed_view::<1, 2>(segment + 1, 0)
+                    .transpose()
+            };
+            d = ((pt2.x - pt1.x).powf(2.) + (pt2.y - pt1.y).powf(2.)).sqrt();
+            debug!("distance: {} / forward distance: {}", d, forward_distance);
+        }
+        let segment_direction = atan2(
+            (pt2.y - pt1.y).into(),
+            (pt2.x - pt1.x).into(),
+        ) as f32;
+        let projected_point = start_point + forward_distance * Vector2::new(segment_direction.cos(), segment_direction.sin());
+        return ((pt1, pt2), projected_point, false);
+    }
+
+    fn project(&self, point: &SVector<f32, 2>) -> (SVector<f32, 2>, SVector<f32, 2>, SVector<f32, 2>) {
+        let mut pt1 = self
             .point_list
             .fixed_view::<1, 2>(self.current_segment, 0)
             .transpose();
-        let pt2 = if self.current_segment + 1 >= self.point_list.nrows() {
+        let mut pt2 = if self.current_segment + 1 >= self.point_list.nrows() {
             self.point_list.fixed_view::<1, 2>(0, 0).transpose()
         } else {
             self.point_list
                 .fixed_view::<1, 2>(self.current_segment + 1, 0)
                 .transpose()
         };
-        let projected_point = project_point(point, pt1, pt2);
-
-        let d =
-            ((pt2.x - projected_point.x).powf(2.) + (pt2.y - projected_point.y).powf(2.)).sqrt();
-        let d_pt1_pt2 = ((pt2.x - pt1.x).powf(2.) + (pt2.y - pt1.y).powf(2.)).sqrt();
-        if d > 0.01 * d_pt1_pt2 {
-            return ((pt1, pt2), projected_point);
-        } else if self.current_segment + 1 == self.point_list.nrows() && !self.do_loop {
-            debug!("No loop so give last point");
-            return ((pt1, pt2), pt2);
-        } else {
-            debug!("Next segment: {}", self.current_segment);
-            self.current_segment += 1;
-            if self.current_segment == self.point_list.nrows() {
-                self.current_segment = 0;
-            }
-            return self.map_matching(point);
-        }
+        let projected_point = project_point(point.clone(), pt1, pt2);
+        (pt1, pt2, projected_point)
     }
 }
 

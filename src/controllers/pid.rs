@@ -34,16 +34,16 @@ pub struct PIDConfig {
 impl Default for PIDConfig {
     /// Defaut PID configuration.
     ///
-    /// - Velocity: Proportionnal 1, other 0
-    /// - Orientation: P=0.8, D=0.3
+    /// - Velocity: Proportionnal 1, others 0
+    /// - Orientation: P=1., D=0.1
     /// - Wheel distance: 0.25
     fn default() -> Self {
         Self {
             kp_v: 1.0,
             kd_v: 0.,
             ki_v: 0.,
-            kp_theta: 0.8,
-            kd_theta: 0.3,
+            kp_theta: 1.,
+            kd_theta: 0.1,
             ki_theta: 0.,
             wheel_distance: 0.25,
         }

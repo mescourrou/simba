@@ -9,10 +9,11 @@ use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::geometry::{mod2pi, smallest_theta_diff};
 
 extern crate nalgebra as na;
 use libm::atan2;
-use log::error;
+use log::{debug, error};
 use na::Vector3;
 
 use pyo3::pyclass;
@@ -51,6 +52,7 @@ pub struct TrajectoryFollowerRecord {
     pub error: ControllerError,
     /// Trajectory dynamic record.
     pub trajectory: TrajectoryRecord,
+    pub projected_point: [f32; 2],
 }
 
 impl Default for TrajectoryFollowerRecord {
@@ -58,6 +60,7 @@ impl Default for TrajectoryFollowerRecord {
         Self {
             error: ControllerError::default(),
             trajectory: TrajectoryRecord::default(),
+            projected_point: [0., 0.],
         }
     }
 }
@@ -80,6 +83,7 @@ pub struct TrajectoryFollower {
     target_speed: f32,
     /// Last error, stored to make the [`TrajectoryFollowerRecord`]
     error: ControllerError,
+    projected_point: [f32; 2],
 }
 
 impl TrajectoryFollower {
@@ -90,6 +94,7 @@ impl TrajectoryFollower {
             forward_distance: 0.2,
             target_speed: 0.5,
             error: ControllerError::default(),
+            projected_point: [0., 0.],
         }
     }
 
@@ -123,6 +128,7 @@ impl TrajectoryFollower {
             forward_distance: config.forward_distance,
             target_speed: config.target_speed,
             error: ControllerError::default(),
+            projected_point: [0., 0.],
         }
     }
 
@@ -159,41 +165,49 @@ impl Navigator for TrajectoryFollower {
     /// 4. Compute the lateral error
     /// 5. Compute the velocity error
     fn compute_error(&mut self, _turtle: &mut Turtlebot, state: State) -> ControllerError {
-        let forward_pose = state.pose
-            + self.forward_distance * Vector3::new(state.pose.z.cos(), state.pose.z.sin(), 0.);
-        let (segment, projected_point) = self
+        let state = state.theta_modulo();
+        
+        // let forward_pose = state.pose
+        //     + self.forward_distance * Vector3::new(state.pose.z.cos(), state.pose.z.sin(), 0.);
+        let (segment, projected_point, end) = self
             .trajectory
-            .map_matching(forward_pose.fixed_view::<2, 1>(0, 0).into());
+            .map_matching(state.pose.fixed_view::<2, 1>(0, 0).into(), self.forward_distance);
+        if end {
+            self.target_speed = self.target_speed.min((state.pose.fixed_view::<2, 1>(0, 0) - projected_point).norm());
+        }
         let segment_angle: f32 = atan2(
             (segment.1.y - segment.0.y).into(),
             (segment.1.x - segment.0.x).into(),
         ) as f32;
         let projected_point = Vector3::new(projected_point.x, projected_point.y, segment_angle);
-
+        debug!("State: {:?} => projected point: {:?}", state, projected_point);
         // Compute the orientation error
-        let projected_point_direction = atan2(
+        let mut projected_point_direction = atan2(
             (projected_point.y - state.pose.y).into(),
             (projected_point.x - state.pose.x).into(),
         ) as f32;
 
-        let mut theta_error = projected_point_direction - state.pose.z;
-        while theta_error > PI {
-            theta_error -= 2. * PI;
-        }
-        while theta_error <= -PI {
-            theta_error += 2. * PI;
-        }
+        self.projected_point = [projected_point.x, projected_point.y];
+
+        projected_point_direction = mod2pi(projected_point_direction);
+
+        let theta_error = smallest_theta_diff(projected_point_direction, state.pose.z);
+        // let theta_error = projected_point_direction - state.pose.z;
+        debug!("Theta error: {projected_point_direction} - {} = {theta_error}", state.pose.z);
+        
+        let theta_error = mod2pi(theta_error);
+        // assert!(theta_error.abs() < PI);
         self.error.theta = theta_error;
 
         // Compute the lateral error
-        let forward_pose_with_segment: f32 = segment_angle
+        let pose_with_segment: f32 = segment_angle
             - atan2(
-                (forward_pose.y - segment.0.y).into(),
-                (forward_pose.x - segment.0.x).into(),
+                (state.pose.y - segment.0.y).into(),
+                (state.pose.x - segment.0.x).into(),
             ) as f32;
-        self.error.lateral = forward_pose_with_segment / forward_pose_with_segment.abs()
-            * ((forward_pose.x - projected_point.x).powf(2.)
-                + (forward_pose.y - projected_point.y).powf(2.))
+        self.error.lateral = pose_with_segment / pose_with_segment.abs()
+            * ((state.pose.x - projected_point.x).powf(2.)
+                + (state.pose.y - projected_point.y).powf(2.))
             .sqrt();
 
         // Compute the velocity error
@@ -210,6 +224,7 @@ impl Stateful<NavigatorRecord> for TrajectoryFollower {
         NavigatorRecord::TrajectoryFollower(TrajectoryFollowerRecord {
             error: self.error.clone(),
             trajectory: self.trajectory.record(),
+            projected_point: self.projected_point,
         })
     }
 

@@ -24,7 +24,7 @@ use super::network_manager::NetworkManager;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct NetworkConfig {
-    /// Limit range communication, 0 or `f32::INFINITY` for no limit.
+    /// Limit range communication, 0 for no limit.
     pub range: f32,
     /// Communication delay (fixed). 0 for no delay.
     pub delay: f32,
@@ -33,7 +33,7 @@ pub struct NetworkConfig {
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
-            range: f32::INFINITY,
+            range: 0.,
             delay: 0.,
         }
     }
