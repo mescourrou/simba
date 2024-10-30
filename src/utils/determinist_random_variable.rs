@@ -1,4 +1,3 @@
-
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};

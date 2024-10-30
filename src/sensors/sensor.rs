@@ -5,7 +5,7 @@ Provides the [`Sensor`] trait, which is the interface for all the sensors.
 extern crate confy;
 use std::sync::{Arc, RwLock};
 
-use pyo3::{pyclass, FromPyObject};
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 use super::{

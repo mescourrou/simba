@@ -3,10 +3,12 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    physics::physic::PhysicRecord, plugin_api::PluginAPI, simulator::{Record, Simulator, SimulatorMetaConfig}, state_estimators::{
+    plugin_api::PluginAPI,
+    simulator::{Record, Simulator, SimulatorMetaConfig},
+    state_estimators::{
         pybinds::{make_state_estimator_module, PythonStateEstimator},
-        state_estimator::{StateEstimator, StateEstimatorRecord},
-    }
+        state_estimator::StateEstimator,
+    },
 };
 use std::path::Path;
 

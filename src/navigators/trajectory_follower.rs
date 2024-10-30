@@ -13,13 +13,12 @@ use crate::utils::geometry::{mod2pi, smallest_theta_diff};
 
 extern crate nalgebra as na;
 use libm::atan2;
-use log::{debug, error};
+use log::error;
 use na::Vector3;
 
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
-use std::f32::consts::PI;
 use std::path::Path;
 
 /// Configuration of the [`TrajectoryFollower`] strategy.
@@ -166,21 +165,23 @@ impl Navigator for TrajectoryFollower {
     /// 5. Compute the velocity error
     fn compute_error(&mut self, _turtle: &mut Turtlebot, state: State) -> ControllerError {
         let state = state.theta_modulo();
-        
+
         // let forward_pose = state.pose
         //     + self.forward_distance * Vector3::new(state.pose.z.cos(), state.pose.z.sin(), 0.);
-        let (segment, projected_point, end) = self
-            .trajectory
-            .map_matching(state.pose.fixed_view::<2, 1>(0, 0).into(), self.forward_distance);
+        let (segment, projected_point, end) = self.trajectory.map_matching(
+            state.pose.fixed_view::<2, 1>(0, 0).into(),
+            self.forward_distance,
+        );
         if end {
-            self.target_speed = self.target_speed.min((state.pose.fixed_view::<2, 1>(0, 0) - projected_point).norm());
+            self.target_speed = self
+                .target_speed
+                .min((state.pose.fixed_view::<2, 1>(0, 0) - projected_point).norm());
         }
         let segment_angle: f32 = atan2(
             (segment.1.y - segment.0.y).into(),
             (segment.1.x - segment.0.x).into(),
         ) as f32;
         let projected_point = Vector3::new(projected_point.x, projected_point.y, segment_angle);
-        debug!("State: {:?} => projected point: {:?}", state, projected_point);
         // Compute the orientation error
         let mut projected_point_direction = atan2(
             (projected_point.y - state.pose.y).into(),
@@ -192,11 +193,8 @@ impl Navigator for TrajectoryFollower {
         projected_point_direction = mod2pi(projected_point_direction);
 
         let theta_error = smallest_theta_diff(projected_point_direction, state.pose.z);
-        // let theta_error = projected_point_direction - state.pose.z;
-        debug!("Theta error: {projected_point_direction} - {} = {theta_error}", state.pose.z);
-        
+
         let theta_error = mod2pi(theta_error);
-        // assert!(theta_error.abs() < PI);
         self.error.theta = theta_error;
 
         // Compute the lateral error

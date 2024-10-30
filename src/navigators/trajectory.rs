@@ -155,8 +155,7 @@ impl Trajectory {
                     self.current_segment = 0;
                     (pt1, pt2, projected_point) = self.project(&point);
                 }
-            }
-            else {
+            } else {
                 self.current_segment += 1;
                 (pt1, pt2, projected_point) = self.project(&point);
             }
@@ -164,7 +163,6 @@ impl Trajectory {
 
         let mut d =
             ((pt2.x - projected_point.x).powf(2.) + (pt2.y - projected_point.y).powf(2.)).sqrt();
-        debug!("distance: {} / forward distance: {}", d, forward_distance);
         let mut start_point = projected_point;
         let mut segment = self.current_segment;
         while d < forward_distance {
@@ -174,7 +172,6 @@ impl Trajectory {
                 segment = 0;
             }
             if segment + 1 == self.point_list.nrows() && !self.do_loop {
-                debug!("No loop so give last point");
                 return ((pt1, pt2), pt2, true);
             }
             pt1 = pt2;
@@ -187,22 +184,22 @@ impl Trajectory {
                     .transpose()
             };
             d = ((pt2.x - pt1.x).powf(2.) + (pt2.y - pt1.y).powf(2.)).sqrt();
-            debug!("distance: {} / forward distance: {}", d, forward_distance);
         }
-        let segment_direction = atan2(
-            (pt2.y - pt1.y).into(),
-            (pt2.x - pt1.x).into(),
-        ) as f32;
-        let projected_point = start_point + forward_distance * Vector2::new(segment_direction.cos(), segment_direction.sin());
+        let segment_direction = atan2((pt2.y - pt1.y).into(), (pt2.x - pt1.x).into()) as f32;
+        let projected_point = start_point
+            + forward_distance * Vector2::new(segment_direction.cos(), segment_direction.sin());
         return ((pt1, pt2), projected_point, false);
     }
 
-    fn project(&self, point: &SVector<f32, 2>) -> (SVector<f32, 2>, SVector<f32, 2>, SVector<f32, 2>) {
-        let mut pt1 = self
+    fn project(
+        &self,
+        point: &SVector<f32, 2>,
+    ) -> (SVector<f32, 2>, SVector<f32, 2>, SVector<f32, 2>) {
+        let pt1 = self
             .point_list
             .fixed_view::<1, 2>(self.current_segment, 0)
             .transpose();
-        let mut pt2 = if self.current_segment + 1 >= self.point_list.nrows() {
+        let pt2 = if self.current_segment + 1 >= self.point_list.nrows() {
             self.point_list.fixed_view::<1, 2>(0, 0).transpose()
         } else {
             self.point_list

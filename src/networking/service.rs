@@ -7,9 +7,7 @@ use std::{
 
 use log::debug;
 
-use crate::{
-    turtlebot::Turtlebot, utils::time_ordered_data::TimeOrderedData,
-};
+use crate::{turtlebot::Turtlebot, utils::time_ordered_data::TimeOrderedData};
 
 use super::network::MessageMode;
 

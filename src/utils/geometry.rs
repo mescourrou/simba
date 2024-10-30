@@ -41,7 +41,6 @@ pub fn project_point(
     )
 }
 
-
 pub fn mod2pi(f: f32) -> f32 {
     let mut f = f;
     while f > PI {
@@ -56,9 +55,9 @@ pub fn mod2pi(f: f32) -> f32 {
 pub fn smallest_theta_diff(a: f32, b: f32) -> f32 {
     let mut diff = a - b;
     if diff > PI {
-        diff = a - (b + 2.*PI);
+        diff = a - (b + 2. * PI);
     } else if diff <= -PI {
-        diff = a + 2.*PI - b;
+        diff = a + 2. * PI - b;
     }
     diff
 }

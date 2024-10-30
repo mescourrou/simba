@@ -38,13 +38,11 @@ fn main() {
 
 // Configuration for Simulator
 extern crate confy;
-use pyo3::types::PyList;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
-use crate::result_analyser::{run_python};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 use super::turtlebot::{Turtlebot, TurtlebotConfig, TurtlebotRecord};
@@ -56,11 +54,10 @@ use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
-use std::{result, thread};
+use std::thread;
 
 use log::{debug, error, info};
 
-use pyo3::prelude::*;
 use pyo3::prepare_freethreaded_python;
 
 /// Meta configuration of [`Simulator`], to configure how the simulation
@@ -380,7 +377,7 @@ impl Simulator {
         }
 
         self.save_results();
-        let results  = self.get_results();
+        let results = self.get_results();
         self.compute_results(results, &self.config);
     }
 
@@ -536,12 +533,15 @@ impl Simulator {
 
         info!("Starting result analyse...");
         let show_figures = !self.meta_config.no_gui;
-        
+
         prepare_freethreaded_python();
-        
-        let json_results = serde_json::to_string(&results).expect("Error during converting results to json");
-        let json_config = serde_json::to_string(&config).expect("Error during converting results to json");
-        let json_metaconfig = serde_json::to_string(&self.meta_config).expect("Error during converting results to json");
+
+        let json_results =
+            serde_json::to_string(&results).expect("Error during converting results to json");
+        let json_config =
+            serde_json::to_string(&config).expect("Error during converting results to json");
+        let json_metaconfig = serde_json::to_string(&self.meta_config)
+            .expect("Error during converting results to json");
 
         let show_figure_py = r#"
 import matplotlib.pyplot as plt
@@ -557,8 +557,13 @@ def convert(records):
     return json.loads(records)
 "#;
 
-
-        let script_path = self.meta_config.analyse_script.clone().unwrap_or(Path::new(concat!(env!("CARGO_MANIFEST_DIR"),"/python_scripts/analyse_results.py")).into());
+        let script_path = self.meta_config.analyse_script.clone().unwrap_or(
+            Path::new(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/python_scripts/analyse_results.py"
+            ))
+            .into(),
+        );
         let python_script = fs::read_to_string(script_path).expect("File not found");
         let res = Python::with_gil(|py| -> PyResult<()> {
             let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
@@ -569,7 +574,17 @@ def convert(records):
             let script = PyModule::from_code_bound(py, &python_script, "", "")?;
             let analyse_fn: Py<PyAny> = script.getattr("analyse")?.into();
             info!("Analyse the results...");
-            let res = analyse_fn.call_bound(py, (result_dict, config_dict, metaconfig_dict, Path::new(""), ".pdf"), None);
+            let res = analyse_fn.call_bound(
+                py,
+                (
+                    result_dict,
+                    config_dict,
+                    metaconfig_dict,
+                    Path::new(""),
+                    ".pdf",
+                ),
+                None,
+            );
             if let Err(err) = res {
                 err.display(py);
                 return Err(err);
@@ -607,7 +622,8 @@ mod tests {
 
         let config_path = Path::new("config_example/config.yaml");
         for i in 0..nb_replications {
-            let mut simulator = Simulator::from_config_path(config_path, None, None, false, false, None);
+            let mut simulator =
+                Simulator::from_config_path(config_path, None, None, false, false, None);
 
             simulator.show();
 
