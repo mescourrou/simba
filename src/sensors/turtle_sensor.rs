@@ -314,13 +314,13 @@ impl Sensor for TurtleSensor {
     }
 
     fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Observation> {
-        debug!("[{}] Start looking for turtles", turtle.name());
-        let arc_physic = turtle.physics();
-        let physic = arc_physic.read().unwrap();
         let mut observation_list = Vec::<Observation>::new();
         if time < self.next_time_step() {
             return observation_list;
         }
+        debug!("[{}] Start looking for turtles", turtle.name());
+        let arc_physic = turtle.physics();
+        let physic = arc_physic.read().unwrap();
         let state = physic.state(time);
 
         let rotation_matrix =
@@ -363,7 +363,7 @@ impl Sensor for TurtleSensor {
                 ]);
                 observation_list.push(Observation::OrientedTurtle(OrientedTurtleObservation {
                     name: other_turtle_name.clone(),
-                    pose: rotation_matrix * (other_state.pose - state.pose) + noisy_pose,
+                    pose: rotation_matrix.transpose() * (other_state.pose - state.pose) + noisy_pose,
                 }));
             }
         }
