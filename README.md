@@ -1,5 +1,12 @@
 # Multi robot simulator
 
+## Documentation
+You can compile the documentation using Cargo:
+```
+cargo doc --no-deps --document-private-items
+```
+
+The last documentation is available [here](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/turtlebot_simulator/index.html).
 
 ## Python bindings
 To make python bindings, we use `PyO3`.
