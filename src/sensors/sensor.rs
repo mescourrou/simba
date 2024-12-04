@@ -9,10 +9,10 @@ use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 use super::{
-    gnss_sensor::{self, GNSSObservation},
-    odometry_sensor::{self, OdometryObservation},
-    oriented_landmark_sensor::{self, OrientedLandmarkObservation},
-    turtle_sensor::{self, OrientedTurtleObservation},
+    gnss_sensor::{self, GNSSObservation, GNSSObservationRecord},
+    odometry_sensor::{self, OdometryObservation, OdometryObservationRecord},
+    oriented_landmark_sensor::{self, OrientedLandmarkObservation, OrientedLandmarkObservationRecord},
+    turtle_sensor::{self, OrientedTurtleObservation, OrientedTurtleObservationRecord},
 };
 
 /// Generic trait for the observations. Contains no information, the observation
@@ -23,6 +23,51 @@ pub enum Observation {
     Odometry(OdometryObservation),
     GNSS(GNSSObservation),
     OrientedTurtle(OrientedTurtleObservation),
+}
+
+impl Stateful<ObservationRecord> for Observation {
+    fn record(&self) -> ObservationRecord {
+        match self {
+            Observation::OrientedLandmark(o) => ObservationRecord::OrientedLandmark(o.record()),
+            Observation::Odometry(o) => ObservationRecord::Odometry(o.record()),
+            Observation::GNSS(o) => ObservationRecord::GNSS(o.record()),
+            Observation::OrientedTurtle(o) => ObservationRecord::OrientedTurtle(o.record()),
+        }
+    }
+
+    fn from_record(&mut self, record: ObservationRecord) {
+        match record {
+            ObservationRecord::OrientedLandmark(o) => {
+                if let Observation::OrientedLandmark(ref mut obs) = self {
+                    obs.from_record(o);
+                }
+            }
+            ObservationRecord::Odometry(o) => {
+                if let Observation::Odometry(ref mut obs) = self {
+                    obs.from_record(o);
+                }
+            }
+            ObservationRecord::GNSS(o) => {
+                if let Observation::GNSS(ref mut obs) = self {
+                    obs.from_record(o);
+                }
+            }
+            ObservationRecord::OrientedTurtle(o) => {
+                if let Observation::OrientedTurtle(ref mut obs) = self {
+                    obs.from_record(o);
+                }
+            }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
+pub enum ObservationRecord {
+    OrientedLandmark(OrientedLandmarkObservationRecord),
+    Odometry(OdometryObservationRecord),
+    GNSS(GNSSObservationRecord),
+    OrientedTurtle(OrientedTurtleObservationRecord),
 }
 
 /// Enumerates all the possible sensors configurations.

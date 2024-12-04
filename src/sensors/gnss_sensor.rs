@@ -62,6 +62,27 @@ pub struct GNSSObservation {
     pub velocity: Vector2<f32>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[pyclass(get_all)]
+pub struct GNSSObservationRecord {
+    pub position: [f32; 2],
+    pub velocity: [f32; 2],
+}
+
+impl Stateful<GNSSObservationRecord> for GNSSObservation {
+    fn record(&self) -> GNSSObservationRecord {
+        GNSSObservationRecord {
+            position: [self.position.x, self.position.y],
+            velocity: [self.velocity.x, self.velocity.y],
+        }
+    }
+
+    fn from_record(&mut self, record: GNSSObservationRecord) {
+        self.position = Vector2::from_vec(record.position.to_vec());
+        self.velocity = Vector2::from_vec(record.velocity.to_vec());
+    }
+}
+
 /// Sensor which observes the robot's odometry
 #[derive(Debug)]
 pub struct GNSSSensor {

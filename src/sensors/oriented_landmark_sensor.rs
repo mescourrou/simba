@@ -233,6 +233,29 @@ pub struct OrientedLandmarkObservation {
     pub pose: Vector3<f32>,
 }
 
+impl Stateful<OrientedLandmarkObservationRecord> for OrientedLandmarkObservation {
+    fn record(&self) -> OrientedLandmarkObservationRecord {
+        OrientedLandmarkObservationRecord {
+            id: self.id,
+            pose: self.pose.into(),
+        }
+    }
+
+    fn from_record(&mut self, record: OrientedLandmarkObservationRecord) {
+        self.id = record.id;
+        self.pose = Vector3::from_vec(record.pose.to_vec());
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[pyclass(get_all)]
+pub struct OrientedLandmarkObservationRecord {
+    /// Id of the landmark
+    pub id: i32,
+    /// Pose of the landmark
+    pub pose: [f32; 3],
+}
+
 /// Map, containing multiple [`OrientedLandmark`], used for the map file.
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Map {

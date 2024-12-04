@@ -203,10 +203,12 @@ impl Navigator for TrajectoryFollower {
                 (state.pose.y - segment.0.y).into(),
                 (state.pose.x - segment.0.x).into(),
             ) as f32;
-        self.error.lateral = pose_with_segment / pose_with_segment.abs()
-            * ((state.pose.x - projected_point.x).powf(2.)
-                + (state.pose.y - projected_point.y).powf(2.))
-            .sqrt();
+        self.error.lateral = ((state.pose.x - projected_point.x).powf(2.)
+            + (state.pose.y - projected_point.y).powf(2.))
+        .sqrt();
+        if pose_with_segment < 0. {
+            self.error.lateral *= -1.;
+        }
 
         // Compute the velocity error
         self.error.velocity = self.target_speed - state.velocity;

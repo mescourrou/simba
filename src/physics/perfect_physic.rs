@@ -147,6 +147,7 @@ impl PerfectPhysic {
         self.state.pose.z += rotation;
 
         self.state.velocity = translation / dt;
+        self.state = self.state.clone().theta_modulo();
     }
 }
 

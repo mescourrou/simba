@@ -405,6 +405,7 @@ impl Simulator {
             Some(f) => f,
             None => return,
         };
+        info!("Saving results to {}", filename.to_str().unwrap_or_default());
         let mut recording_file = File::create(filename).expect("Impossible to create record file");
 
         let _ = recording_file.write(b"{\"config\": ");
@@ -552,9 +553,20 @@ def show():
 
         let convert_to_dict = r#"
 import json
+class NoneDict(dict):
+    """ dict subclass that returns a value of None for missing keys instead
+        of raising a KeyError. Note: doesn't add item to dictionary.
+    """
+    def __missing__(self, key):
+        return None
+
+
+def converter(decoded_dict):
+    """ Convert any None values in decoded dict into empty NoneDict's. """
+    return {k: NoneDict() if v is None else v for k,v in decoded_dict.items()}
 
 def convert(records):
-    return json.loads(records)
+    return json.loads(records, object_hook=converter)
 "#;
 
         let script_path = self.meta_config.analyse_script.clone().unwrap_or(

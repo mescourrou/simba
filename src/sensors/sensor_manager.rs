@@ -4,7 +4,9 @@ available observations.
 */
 
 extern crate confy;
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
+use core::f32;
 use std::sync::{Arc, RwLock};
 
 use crate::turtlebot::Turtlebot;
@@ -13,6 +15,7 @@ use crate::{simulator::SimulatorMetaConfig, stateful::Stateful};
 
 use super::gnss_sensor::GNSSSensor;
 use super::odometry_sensor::OdometrySensor;
+use super::sensor::ObservationRecord;
 use super::turtle_sensor::TurtleSensor;
 use super::{
     oriented_landmark_sensor::OrientedLandmarkSensor,
@@ -36,16 +39,19 @@ impl Default for SensorManagerConfig {
 
 /// Record listing all the [`SensorRecord`]s and the next observation time.
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
 pub struct SensorManagerRecord {
     pub sensors: Vec<SensorRecord>,
-    pub next_time: f32,
+    pub next_time: Option<f32>,
+    pub last_observations: Vec<ObservationRecord>,
 }
 
 /// Sensor manager which manages all the robot's [`Sensor`]s.
 #[derive(Debug)]
 pub struct SensorManager {
     sensors: Vec<Arc<RwLock<Box<dyn Sensor>>>>,
-    next_time: f32,
+    next_time: Option<f32>,
+    last_observations: Vec<ObservationRecord>,
 }
 
 impl SensorManager {
@@ -53,7 +59,8 @@ impl SensorManager {
     pub fn new() -> Self {
         Self {
             sensors: Vec::new(),
-            next_time: f32::INFINITY,
+            next_time: None,
+            last_observations: Vec::new(),
         }
     }
 
@@ -102,11 +109,11 @@ impl SensorManager {
                     )) as Box<dyn Sensor>,
                 })));
         }
-        manager.next_time = f32::INFINITY;
+        manager.next_time = None;
         for sensor in &manager.sensors {
-            manager.next_time = manager
-                .next_time
-                .min(sensor.read().unwrap().next_time_step());
+            manager.next_time = Some(manager
+                .next_time.unwrap_or(f32::INFINITY)
+                .min(sensor.read().unwrap().next_time_step()));
         }
         manager
     }
@@ -130,20 +137,21 @@ impl SensorManager {
     /// Get the observations at the given `time`.
     pub fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Observation> {
         let mut observations = Vec::<Observation>::new();
-        let mut min_next_time = f32::INFINITY;
+        let mut min_next_time = None;
         for sensor in &mut self.sensors {
             let sensor_observations = sensor.write().unwrap().get_observations(turtle, time);
             for obs in sensor_observations {
                 observations.push(obs);
             }
-            min_next_time = min_next_time.min(sensor.read().unwrap().next_time_step());
+            min_next_time = Some(min_next_time.unwrap_or(f32::INFINITY).min(sensor.read().unwrap().next_time_step()));
         }
         self.next_time = min_next_time;
+        self.last_observations = observations.iter().map(|obs| obs.record()).collect();
         observations
     }
 
     /// Get the time of the next observation.
-    pub fn next_time_step(&self) -> f32 {
+    pub fn next_time_step(&self) -> Option<f32> {
         self.next_time
     }
 }
@@ -153,6 +161,7 @@ impl Stateful<SensorManagerRecord> for SensorManager {
         let mut record = SensorManagerRecord {
             next_time: self.next_time,
             sensors: Vec::new(),
+            last_observations: self.last_observations.clone(),
         };
         for sensor in &self.sensors {
             record.sensors.push(sensor.read().unwrap().record());

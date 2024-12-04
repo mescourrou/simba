@@ -23,7 +23,7 @@ use crate::state_estimators::state_estimator::{
 };
 use crate::state_estimators::{perfect_estimator, state_estimator};
 
-use crate::sensors::sensor_manager::{SensorManager, SensorManagerConfig};
+use crate::sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord};
 
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
@@ -137,6 +137,8 @@ pub struct TurtlebotRecord {
     pub state_estimator: StateEstimatorRecord,
     /// Record of the additionnal [`StateEstimator`]s, only to evaluate them.
     pub state_estimator_bench: Vec<BenchStateEstimatorRecord>,
+
+    pub sensors: SensorManagerRecord,
 }
 
 /// Structure to manage the messages for no specific modules of the robot.
@@ -491,7 +493,7 @@ impl Turtlebot {
             .read()
             .unwrap()
             .next_time_step()
-            .min(self.sensor_manager.read().unwrap().next_time_step());
+            .min(self.sensor_manager.read().unwrap().next_time_step().unwrap_or(f32::INFINITY));
 
         let message_next_time = self.network().read().unwrap().next_message_time();
         debug!(
@@ -619,6 +621,7 @@ impl Stateful<TurtlebotRecord> for Turtlebot {
             physic: self.physic.read().unwrap().record(),
             state_estimator: self.state_estimator.read().unwrap().record(),
             state_estimator_bench: Vec::new(),
+            sensors: self.sensor_manager.read().unwrap().record(),
         };
         let other_state_estimators = self.state_estimator_bench.clone();
         for additional_state_estimator in other_state_estimators.read().unwrap().iter() {

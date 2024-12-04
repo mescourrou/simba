@@ -231,6 +231,29 @@ pub struct OrientedTurtleObservation {
     pub pose: Vector3<f32>,
 }
 
+impl Stateful<OrientedTurtleObservationRecord> for OrientedTurtleObservation {
+    fn record(&self) -> OrientedTurtleObservationRecord {
+        OrientedTurtleObservationRecord {
+            name: self.name.clone(),
+            pose: self.pose.to_owned().into()
+        }
+    }
+
+    fn from_record(&mut self, record: OrientedTurtleObservationRecord) {
+        self.name = record.name;
+        self.pose = Vector3::from(record.pose);
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass(get_all)]
+pub struct OrientedTurtleObservationRecord {
+    /// Name of the turtle
+    pub name: String,
+    /// Pose of the turtle
+    pub pose: [f32; 3],
+}
+
 /// Sensor which observe the other turtles.
 #[derive(Debug)]
 pub struct TurtleSensor {

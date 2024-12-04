@@ -56,8 +56,29 @@ impl Default for OdometrySensorRecord {
 }
 
 /// Observation of the odometry.
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct OdometryObservation {
+    pub linear_velocity: f32,
+    pub angular_velocity: f32,
+}
+
+impl Stateful<OdometryObservationRecord> for OdometryObservation {
+    fn record(&self) -> OdometryObservationRecord {
+        OdometryObservationRecord {
+            linear_velocity: self.linear_velocity,
+            angular_velocity: self.angular_velocity,
+        }
+    }
+
+    fn from_record(&mut self, record: OdometryObservationRecord) {
+        self.linear_velocity = record.linear_velocity;
+        self.angular_velocity = record.angular_velocity;
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[pyclass(get_all)]
+pub struct OdometryObservationRecord {
     pub linear_velocity: f32,
     pub angular_velocity: f32,
 }
