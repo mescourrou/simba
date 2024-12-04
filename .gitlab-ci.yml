@@ -1,0 +1,27 @@
+stages:
+  - build
+
+# build:
+#   stage: build
+#   image: rust:latest
+#   script:
+#     -
+#     - cargo build --verbose
+#     - cargo test --verbose
+
+doc:
+  stage: build
+  image: rust:latest
+  before_script:
+  ## Source: https://docs.gitlab.com/ee/ci/jobs/ssh_keys.html
+    - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - mkdir -p ~/.ssh
+    - chmod 700 ~/.ssh
+    - cp "$SSH_KNOWN_HOSTS" ~/.ssh/known_hosts
+    - chmod 644 ~/.ssh/known_hosts
+    - chmod 400 "$SSH_KEY"
+    - ssh-add "$SSH_KEY"
+  script:
+    - cargo doc --no-deps --document-private-items
+    - scp -i $SSH_KEY -r target/doc/ $DOC_USER@$DOC_HOST:$DOC_PATH
