@@ -24,9 +24,13 @@ extern crate nalgebra as na;
 pub struct GNSSSensorConfig {
     /// Observation period of the sensor.
     pub period: f32,
+    /// Noise on the x position.
     pub pose_x_noise: RandomVariableTypeConfig,
+    /// Noise on the y position.
     pub pose_y_noise: RandomVariableTypeConfig,
+    /// Noise on the x  velocity.
     pub velocity_x_noise: RandomVariableTypeConfig,
+    /// Noise on the y velocity.
     pub velocity_y_noise: RandomVariableTypeConfig,
 }
 
@@ -90,9 +94,13 @@ pub struct GNSSSensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
+    /// Generator for the noise on the x position.
     gen_x_pose: Box<dyn DeterministRandomVariable>,
+    /// Generator for the noise on the y position.
     gen_y_pose: Box<dyn DeterministRandomVariable>,
+    /// Generator for the noise on the x velocity.
     gen_x_velocity: Box<dyn DeterministRandomVariable>,
+    /// Generator for the noise on the y velocity.
     gen_y_velocity: Box<dyn DeterministRandomVariable>,
 }
 

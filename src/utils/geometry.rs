@@ -52,6 +52,8 @@ pub fn mod2pi(f: f32) -> f32 {
     f
 }
 
+/// Computes the smallest difference between two angles,
+/// i.e. the difference between `a` and `b` in the range `[-PI/2, PI/2]`.
 pub fn smallest_theta_diff(a: f32, b: f32) -> f32 {
     let mut diff = a - b;
     if diff > PI {

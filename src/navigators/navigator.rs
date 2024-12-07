@@ -40,6 +40,13 @@ pub trait Navigator:
     fn compute_error(&mut self, turtle: &mut Turtlebot, state: State) -> ControllerError;
 }
 
+/// Helper function to create a navigator from the given configuration.
+/// 
+/// ## Arguments
+/// - `config`: The configuration of the navigator.
+/// - `plugin_api`: The plugin API, to be used by the navigator.
+/// - `meta_config`: The meta configuration of the simulator.
+/// - `va_factory`: Random variables factory for determinist behavior.
 pub fn make_navigator_from_config(
     config: &NavigatorConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,

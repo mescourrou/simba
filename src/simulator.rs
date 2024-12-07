@@ -446,6 +446,8 @@ impl Simulator {
         self.compute_results(results.records, &results.config);
     }
 
+    /// Wait the end of the simulation. If other turtle send messages, the simulation
+    /// will go back to the time of the last message received.
     fn wait_the_end(
         turtle: &Arc<RwLock<Turtlebot>>,
         max_time: f32,

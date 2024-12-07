@@ -78,6 +78,14 @@ pub trait Physic:
     fn state(&self, time: f32) -> &State;
 }
 
+/// Helper function to create a physic from the given configuration.
+/// 
+/// ## Arguments
+/// - `config`: The configuration of the physic.
+/// - `plugin_api`: The plugin API, to be used by the physic (if needed).
+/// - `meta_config`: The meta configuration of the simulator.
+/// - `va_factory`: Random variables factory for determinist behavior.
+/// - `time_cv`: Simulator time condition variable, used by services.
 pub fn make_physic_from_config(
     config: &PhysicConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,

@@ -266,6 +266,7 @@ pub struct TurtleSensor {
     gen_x: Box<dyn DeterministRandomVariable>,
     gen_y: Box<dyn DeterministRandomVariable>,
     gen_theta: Box<dyn DeterministRandomVariable>,
+    /// Services to get the real state of the turtles.
     turtle_real_state_services: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
 }
 
@@ -286,7 +287,7 @@ impl TurtleSensor {
     pub fn from_config(
         config: &TurtleSensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        _meta_config: SimulatorMetaConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         assert!(config.period != 0.);
@@ -350,20 +351,9 @@ impl Sensor for TurtleSensor {
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
         debug!("[{}] Rotation matrix: {}", turtle.name(), rotation_matrix);
 
-        // debug!("[{}] Reading turtle list...", turtle.name());
-        // let turtle_unlock_list = turtle_list.read().unwrap();
-        // debug!("[{}] Reading turtle list... OK", turtle.name());
         let mut i = 0;
-        // for other_turtle in turtle_unlock_list.iter() {
         for (other_turtle_name, service) in self.turtle_real_state_services.iter_mut() {
-            // if i == turtle_idx {
-            //     i += 1;
-            //     continue;
-            // }
             i += 1;
-            // let turtle_unlocked = other_turtle.read().unwrap();
-            // let mut turtle_clone = turtle_unlocked.clone();
-            // turtle_clone.run_time_step(time, turtle_list, i);
 
             debug!("[{}] Sensing turtle {}", turtle.name(), other_turtle_name);
             assert!(*other_turtle_name != turtle.name());

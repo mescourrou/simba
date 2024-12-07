@@ -96,7 +96,7 @@ impl State {
             i += 1;
         }
         state.velocity = config.velocity;
-        return state;
+        state
     }
 
     pub fn theta_modulo(mut self) -> Self {

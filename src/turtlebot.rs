@@ -349,6 +349,9 @@ impl Turtlebot {
         turtle
     }
 
+    /// Initialize the robot after its creation.
+    /// 
+    /// It is used to initialize the sensor manager, which need to know the list of all robots.
     pub fn post_creation_init(
         &mut self,
         turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
@@ -381,6 +384,7 @@ impl Turtlebot {
         next_time_step
     }
 
+    /// Process all the messages: one-way (network) and two-way (services).
     pub fn process_messages(&self) -> usize {
         self.network().write().unwrap().process_messages()
             + self.physics().write().unwrap().process_service_requests()

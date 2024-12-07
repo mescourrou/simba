@@ -66,7 +66,7 @@ impl PerfectEstimator {
         config: &PerfectEstimatorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
-        va_factory: &DeterministRandomVariableFactory,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         Self {
             update_period: config.update_period,

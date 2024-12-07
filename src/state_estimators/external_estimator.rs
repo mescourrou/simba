@@ -13,8 +13,6 @@ type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
-use std::str::FromStr;
-
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
@@ -117,7 +115,7 @@ impl ExternalEstimator {
         config: &ExternalEstimatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
-        va_factory: &DeterministRandomVariableFactory,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         println!("Config given: {:?}", config);
         Self {

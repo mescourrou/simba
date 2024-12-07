@@ -191,6 +191,15 @@ impl Trajectory {
         return ((pt1, pt2), projected_point, false);
     }
 
+    /// Handle the projection of a point on the current segment. Get to the next segment if needed.
+    /// 
+    /// ## Arguments
+    /// * `point` - Point to project.
+    /// 
+    /// ## Return
+    /// * First point of the segment.
+    /// * Second point of the segment.
+    /// * Projected point.
     fn project(
         &self,
         point: &SVector<f32, 2>,

@@ -74,6 +74,13 @@ pub trait Controller:
     ) -> Command;
 }
 
+/// Helper function to make the right [`Controller`] from the given configuration.
+/// 
+/// ## Arguments
+/// * `config` - Configuration to use to make the controller.
+/// * `plugin_api` - Optional PluginAPI to transmit to the controller.
+/// * `meta_config` - Meta configuration of the simulator.
+/// * `va_factory` - Random variables factory for determinist behavior.
 pub fn make_controller_from_config(
     config: &ControllerConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,

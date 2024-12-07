@@ -39,10 +39,13 @@ impl Default for NetworkConfig {
     }
 }
 
+/// Transmission mode for messages.
 #[derive(Serialize, Deserialize, Clone, Default, PartialEq, Debug)]
 pub enum MessageMode {
+    /// Default mode, with restrictions in range and delay.
     #[default]
     Default,
+    /// God mode, messages are instaneous.
     God,
 }
 

@@ -48,6 +48,9 @@ pub struct PerfectPhysicRecord {
 }
 
 // Services
+
+/// Request to get the real state of the robot.
+/// (not used yet)
 struct RealStateHandler {
     pub physics: Box<dyn Physic>,
 }
@@ -78,8 +81,9 @@ pub struct PerfectPhysic {
     last_time_update: f32,
     /// Current command applied.
     current_command: Command,
-
+    /// Service to get the real state of the robot.
     real_state_service: Service<GetRealStateReq, GetRealStateResp>,
+    /// [`ServiceHandler`] for the real state service (not used yet)
     real_state_handler: Option<Box<dyn ServiceHandler<GetRealStateReq, GetRealStateResp>>>,
 }
 
@@ -105,7 +109,7 @@ impl PerfectPhysic {
         config: &PerfectPhysicConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
-        va_factory: &DeterministRandomVariableFactory,
+        _va_factory: &DeterministRandomVariableFactory,
         time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) -> Self {
         PerfectPhysic {
