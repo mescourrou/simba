@@ -405,7 +405,10 @@ impl Simulator {
             Some(f) => f,
             None => return,
         };
-        info!("Saving results to {}", filename.to_str().unwrap_or_default());
+        info!(
+            "Saving results to {}",
+            filename.to_str().unwrap_or_default()
+        );
         let mut recording_file = File::create(filename).expect("Impossible to create record file");
 
         let _ = recording_file.write(b"{\"config\": ");

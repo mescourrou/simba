@@ -11,7 +11,7 @@ There are two main ways to communicate between robots.
 [`Network::send_to`](network::Network::send_to) and
 [`Network::broadcast`](network::Network::broadcast) methods. The message is sent to the
 receiver [`Network`](network::Network) and is stored in a time ordered buffer. The receiver
-unwraps the message when it reaches the time of the message. If the message is sent in the 
+unwraps the message when it reaches the time of the message. If the message is sent in the
 past, the receiver will go back in time to unwrap the message. The message treatment is done
 in [`run_time_step`](crate::turtlebot::Turtlebot::run_time_step), at the end. The message is
 then passed from one [`MessageHandler`](message_handler::MessageHandler) to the next until

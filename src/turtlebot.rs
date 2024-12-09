@@ -350,7 +350,7 @@ impl Turtlebot {
     }
 
     /// Initialize the robot after its creation.
-    /// 
+    ///
     /// It is used to initialize the sensor manager, which need to know the list of all robots.
     pub fn post_creation_init(
         &mut self,
@@ -492,12 +492,13 @@ impl Turtlebot {
 
     /// Computes the next time step, using state estimator, sensors and received messages.
     pub fn next_time_step(&self) -> f32 {
-        let mut next_time_step = self
-            .state_estimator
-            .read()
-            .unwrap()
-            .next_time_step()
-            .min(self.sensor_manager.read().unwrap().next_time_step().unwrap_or(f32::INFINITY));
+        let mut next_time_step = self.state_estimator.read().unwrap().next_time_step().min(
+            self.sensor_manager
+                .read()
+                .unwrap()
+                .next_time_step()
+                .unwrap_or(f32::INFINITY),
+        );
 
         let message_next_time = self.network().read().unwrap().next_message_time();
         debug!(

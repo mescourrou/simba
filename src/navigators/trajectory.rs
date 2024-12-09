@@ -192,10 +192,10 @@ impl Trajectory {
     }
 
     /// Handle the projection of a point on the current segment. Get to the next segment if needed.
-    /// 
+    ///
     /// ## Arguments
     /// * `point` - Point to project.
-    /// 
+    ///
     /// ## Return
     /// * First point of the segment.
     /// * Second point of the segment.

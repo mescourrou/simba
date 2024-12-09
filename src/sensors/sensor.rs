@@ -11,7 +11,9 @@ use serde_derive::{Deserialize, Serialize};
 use super::{
     gnss_sensor::{self, GNSSObservation, GNSSObservationRecord},
     odometry_sensor::{self, OdometryObservation, OdometryObservationRecord},
-    oriented_landmark_sensor::{self, OrientedLandmarkObservation, OrientedLandmarkObservationRecord},
+    oriented_landmark_sensor::{
+        self, OrientedLandmarkObservation, OrientedLandmarkObservationRecord,
+    },
     turtle_sensor::{self, OrientedTurtleObservation, OrientedTurtleObservationRecord},
 };
 
