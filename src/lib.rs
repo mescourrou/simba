@@ -68,6 +68,8 @@ pub mod utils;
 pub mod plugin_api;
 pub mod pybinds;
 
+pub mod time_analysis;
+
 pub mod gui;
 
 #[pymodule]
