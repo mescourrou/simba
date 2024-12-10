@@ -25,7 +25,7 @@ use crate::{turtlebot::Turtlebot, utils::time_ordered_data::TimeOrderedData};
 use super::network::MessageMode;
 
 /// Client to make requests to a service.
-///
+/// 
 /// The client is linked to a server, and can make requests to it. The client is blocked until the
 /// server sends a response.
 #[derive(Debug)]
@@ -41,16 +41,16 @@ pub struct ServiceClient<RequestMsg, ResponseMsg> {
 
 impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
     /// Make a request to the server.
-    ///
+    /// 
     /// The client is blocked until the server sends a response. The client is linked to a server,
     /// and is made by it through the [`Service::new_client`](crate::networking::service::Service::new_client)
     /// method.
-    ///
+    /// 
     /// ## Arguments
     /// * `turtle` - Reference to the [`Turtlebot`](crate::turtlebot::Turtlebot) making the request.
     /// * `req` - Request message to send to the server.
     /// * `time` - Time at which the request is made.
-    ///
+    /// 
     /// ## Returns
     /// The response from the server, or an error message if the request failed.
     pub fn make_request(
@@ -86,7 +86,7 @@ impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
 }
 
 /// Service to handle requests from clients.
-///
+/// 
 /// Handles requests from clients, and send responses to them. The server should handle
 /// the requests in [`run_time_step`](crate::turtlebot::Turtlebot::run_time_step).
 #[derive(Debug)]
@@ -106,7 +106,7 @@ pub struct Service<RequestMsg, ResponseMsg> {
 
 impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
     /// Create a new service.
-    ///
+    /// 
     /// ## Arguments
     /// * `time_cv` - Condition variable of the simulator, to wait the end of the robots.
     pub fn new(time_cv: Arc<(Mutex<usize>, Condvar)>) -> Self {
@@ -121,10 +121,10 @@ impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
     }
 
     /// Process the requests received from the clients.
-    ///
+    /// 
     /// The requests are added to the buffer, to be treated later by
     /// [`handle_service_requests`](Service::handle_service_requests).
-    ///
+    /// 
     /// ## Returns
     /// The number of requests remaining in the buffer.
     pub fn process_requests(&self) -> usize {
@@ -143,7 +143,7 @@ impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
     }
 
     /// Handle the requests received from the clients at the given `time`.
-    ///
+    /// 
     /// The `closure` is called for each request matching the given `time`, and should
     /// return the response to send to the client. The request is then removed from the
     /// buffer. If no request is matching the given `time`, the method does nothing.
@@ -173,7 +173,7 @@ impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
     }
 
     /// Makes a new client to the service, with the channels already setup.
-    ///
+    /// 
     /// ## Arguments
     /// * `turtle_name` - Name of the client turtle, to be able to send responses to it.
     pub fn new_client(&mut self, turtle_name: &str) -> ServiceClient<RequestMsg, ResponseMsg> {

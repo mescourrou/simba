@@ -41,7 +41,7 @@ pub trait Navigator:
 }
 
 /// Helper function to create a navigator from the given configuration.
-///
+/// 
 /// ## Arguments
 /// - `config`: The configuration of the navigator.
 /// - `plugin_api`: The plugin API, to be used by the navigator.

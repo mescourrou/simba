@@ -179,7 +179,7 @@ impl DeterministRandomVariable for DeterministUniformRandomVariable {
  * Normal
  *******************************************************************/
 
-/// Configuration for a normal random variable.
+ /// Configuration for a normal random variable.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NormalRandomVariableConfig {
     /// Random seed for this random variable.

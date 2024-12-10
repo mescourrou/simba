@@ -235,7 +235,7 @@ impl Stateful<OrientedTurtleObservationRecord> for OrientedTurtleObservation {
     fn record(&self) -> OrientedTurtleObservationRecord {
         OrientedTurtleObservationRecord {
             name: self.name.clone(),
-            pose: self.pose.to_owned().into(),
+            pose: self.pose.to_owned().into()
         }
     }
 
@@ -376,8 +376,7 @@ impl Sensor for TurtleSensor {
                 ]);
                 observation_list.push(Observation::OrientedTurtle(OrientedTurtleObservation {
                     name: other_turtle_name.clone(),
-                    pose: rotation_matrix.transpose() * (other_state.pose - state.pose)
-                        + noisy_pose,
+                    pose: rotation_matrix.transpose() * (other_state.pose - state.pose) + noisy_pose,
                 }));
             }
         }
