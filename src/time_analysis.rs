@@ -1,16 +1,31 @@
+use egui::epaint::tessellator::path;
 #[macro_use]
 use lazy_static::lazy_static;
-use serde::de;
+use serde::{de, Serialize};
 
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::thread::ThreadId;
 use std::{thread, time};
 use std::collections::HashMap;
 
 #[derive(Debug)]
+struct ExecutionProfile {
+    name: String,
+    begin: time::Instant,
+    end: time::Instant,
+    depth: usize,
+    duration: time::Duration,
+}
+
+#[derive(Debug)]
 pub struct TimeAnalysisFactory {
     turtles_names: HashMap<ThreadId, String>,
     turtles_depth: HashMap<ThreadId, usize>,
+    execution_profiles: HashMap<String, Vec<ExecutionProfile>>,
+    exporter: Box<dyn ProfilerExporter>,
+    begin: time::Instant,
+
 }
 
 impl TimeAnalysisFactory {
@@ -18,8 +33,11 @@ impl TimeAnalysisFactory {
         lazy_static! {
             static ref FACTORY: Mutex<TimeAnalysisFactory> = {
                 let m = Mutex::new(TimeAnalysisFactory {
+                    begin: time::Instant::now(),
                     turtles_names: HashMap::new(),
                     turtles_depth: HashMap::new(),
+                    execution_profiles: HashMap::new(),
+                    exporter: Box::new(TraceEventExporter {}),
                 });
                 m
             };
@@ -34,8 +52,9 @@ impl TimeAnalysisFactory {
     }
 
     fn _set_turtle_name(&mut self, name: String) {
-        self.turtles_names.insert(thread::current().id(), name);
+        self.turtles_names.insert(thread::current().id(), name.clone());
         self.turtles_depth.insert(thread::current().id(), 0);
+        self.execution_profiles.insert(name, Vec::new());
     }
 
     pub fn time_analysis(name: String) -> TimeAnalysis {
@@ -63,15 +82,38 @@ impl TimeAnalysisFactory {
     }
 
     fn _finished_time_analysis(&mut self, ta: TimeAnalysis, elapsed: time::Duration) {
+        let turtle_name = self.turtles_names.get(&thread::current().id()).unwrap();
         *self.turtles_depth.get_mut(&thread::current().id()).unwrap() -= 1;
         // let indent = ta.depth*2;
-        println!(
-            "{:indent$}{}: {}ms",
-            "",
-            ta.name,
-            elapsed.as_millis(),
-            indent = ta.depth * 2
-        );
+        self.execution_profiles.get_mut(turtle_name).unwrap().push(ExecutionProfile {
+            name: ta.name,
+            begin: ta.begin,
+            end: ta.begin + elapsed,
+            depth: ta.depth,
+            duration: elapsed,
+        });
+    }
+
+    pub fn save_results(path: &Path) {
+        let factory = TimeAnalysisFactory::get_instance();
+        let factory = factory.lock().unwrap();
+        factory._save_results(path);
+    }
+
+    fn _save_results(&self, path: &Path) {
+        for (turtle_name, profiles) in self.execution_profiles.iter() {
+            println!("Turtle: {}", turtle_name);
+            for profile in profiles {
+                println!(
+                    "  {:indent$}{}: {}ms",
+                    "",
+                    profile.name,
+                    profile.duration.as_millis(),
+                    indent = profile.depth * 2
+                );
+            }
+        }
+        self.exporter.export(self, path);
     }
 }
 
@@ -81,3 +123,63 @@ pub struct TimeAnalysis {
     name: String,
     depth: usize,
 }
+
+trait ProfilerExporter: std::fmt::Debug + Sync + Send {
+    fn export(&self, taf: &TimeAnalysisFactory, path: &Path);
+}
+
+#[derive(Debug)]
+struct TraceEventExporter {}
+
+#[derive(Serialize, Debug)]
+struct TraceEvent {
+    name: String,
+    cat: String,
+    ph: String,
+    ts: i64,
+    dur: i64,
+    tid: i64,
+    pid: i64,
+    args: Option<serde_json::Value>,
+    sf: i64,
+}
+
+#[derive(Serialize, Debug)]
+struct TraceEventRoot {
+    traceEvents: Vec<TraceEvent>,
+    displayTimeUnit: String,
+    otherData: serde_json::Value,
+
+}
+
+impl ProfilerExporter for TraceEventExporter {
+
+    fn export(&self, taf: &TimeAnalysisFactory, path: &Path) {
+        let mut trace_events = Vec::new();
+        let mut turtle_names = Vec::new();
+        for (turtle_name, profiles) in taf.execution_profiles.iter() {
+            turtle_names.push(turtle_name);
+            for profile in profiles {
+                trace_events.push(TraceEvent {
+                    name: profile.name.clone(),
+                    cat: "PERF".to_string(),
+                    ph: "X".to_string(),
+                    ts: profile.begin.duration_since(taf.begin).as_micros() as i64,
+                    dur: profile.duration.as_micros() as i64,
+                    tid: turtle_names.len() as i64 - 1,
+                    pid: 0,
+                    args: None,
+                    sf: 0,
+                });
+            }
+        }
+        let json = serde_json::to_string(&TraceEventRoot{
+            traceEvents: trace_events,
+            displayTimeUnit: "ns".to_string(),
+            otherData: serde_json::Value::Null,
+        }
+        ).unwrap();
+        std::fs::write(path, json).unwrap();
+    }
+}
+

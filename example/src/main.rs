@@ -23,6 +23,10 @@ fn main() {
     test_time_analysis();
     time_analysis::TimeAnalysisFactory::finished_time_analysis(ta);
 
+    let ta = time_analysis::TimeAnalysisFactory::time_analysis("main2".to_string());
+    std::thread::sleep(std::time::Duration::from_secs(1));
+    time_analysis::TimeAnalysisFactory::finished_time_analysis(ta);
+
     // // Initialize the environment, essentially the logging part
     // Simulator::init_environment(log::LevelFilter::Debug);
     // info!("Load configuration...");
@@ -44,4 +48,6 @@ fn main() {
     // // It also save the results to "result.json",
     // // compute the results and show the figures.
     // simulator.run(60.);
+
+    time_analysis::TimeAnalysisFactory::save_results(Path::new("time_performance.json"));
 }
