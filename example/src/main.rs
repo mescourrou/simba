@@ -1,4 +1,3 @@
-use log::info;
 use std::path::Path;
 use turtlebot_simulator::simulator::Simulator;
 
@@ -9,23 +8,23 @@ pub fn test_time_analysis() {
     // sleep 1 sec
     let one_sec = std::time::Duration::from_secs(1);
     std::thread::sleep(one_sec);
-    let ta = time_analysis::TimeAnalysisFactory::time_analysis("test".to_string());
+    let ta = time_analysis::time_analysis("test".to_string());
     println!("Still doing some stuff...");
     std::thread::sleep(one_sec);
-    time_analysis::TimeAnalysisFactory::finished_time_analysis(ta);
+    time_analysis::finished_time_analysis(ta);
     println!("One last thing...");
     std::thread::sleep(one_sec);
 }
 
 fn main() {
-    time_analysis::TimeAnalysisFactory::set_turtle_name("main".to_string());
-    let ta = time_analysis::TimeAnalysisFactory::time_analysis("main1".to_string());
+    time_analysis::set_turtle_name("main".to_string());
+    let ta = time_analysis::time_analysis("main1".to_string());
     test_time_analysis();
-    time_analysis::TimeAnalysisFactory::finished_time_analysis(ta);
+    time_analysis::finished_time_analysis(ta);
 
-    let ta = time_analysis::TimeAnalysisFactory::time_analysis("main2".to_string());
+    let ta = time_analysis::time_analysis("main2".to_string());
     std::thread::sleep(std::time::Duration::from_secs(1));
-    time_analysis::TimeAnalysisFactory::finished_time_analysis(ta);
+    time_analysis::finished_time_analysis(ta);
 
     // // Initialize the environment, essentially the logging part
     // Simulator::init_environment(log::LevelFilter::Debug);
@@ -49,5 +48,5 @@ fn main() {
     // // compute the results and show the figures.
     // simulator.run(60.);
 
-    time_analysis::TimeAnalysisFactory::save_results(Path::new("time_performance.json"));
+    time_analysis::save_results(Path::new("time_performance.json"));
 }

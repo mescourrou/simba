@@ -9,6 +9,9 @@ edition = "2021"
 crate-type = ["cdylib"]
 doctest = false
 
+[features]
+time-analysis = [] # Enable time analysis features. May slow down the simulation (shared memory).
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -1,14 +1,25 @@
-use egui::epaint::tessellator::path;
-#[macro_use]
+#[cfg_attr(not(feature = "time-analysis"), allow(dead_code))]
+
+#[cfg(feature = "time-analysis")]
 use lazy_static::lazy_static;
-use serde::{de, Serialize};
+#[cfg(feature = "time-analysis")]
+use serde::Serialize;
 
 use std::path::Path;
-use std::sync::{Arc, Mutex};
+#[cfg(feature = "time-analysis")]
+use std::sync::Mutex;
+#[cfg(feature = "time-analysis")]
 use std::thread::ThreadId;
-use std::{thread, time};
-use std::collections::HashMap;
 
+use std::time;
+#[cfg(feature = "time-analysis")]
+use std::thread;
+#[cfg(feature = "time-analysis")]
+use std::collections::HashMap;
+#[cfg(feature = "time-analysis")]
+use log::info;
+
+#[cfg(feature = "time-analysis")]
 #[derive(Debug)]
 struct ExecutionProfile {
     name: String,
@@ -18,8 +29,9 @@ struct ExecutionProfile {
     duration: time::Duration,
 }
 
+#[cfg(feature = "time-analysis")]
 #[derive(Debug)]
-pub struct TimeAnalysisFactory {
+struct TimeAnalysisFactory {
     turtles_names: HashMap<ThreadId, String>,
     turtles_depth: HashMap<ThreadId, usize>,
     execution_profiles: HashMap<String, Vec<ExecutionProfile>>,
@@ -28,6 +40,7 @@ pub struct TimeAnalysisFactory {
 
 }
 
+#[cfg(feature = "time-analysis")]
 impl TimeAnalysisFactory {
     fn get_instance() -> &'static Mutex<TimeAnalysisFactory> {
         lazy_static! {
@@ -101,21 +114,53 @@ impl TimeAnalysisFactory {
     }
 
     fn _save_results(&self, path: &Path) {
-        for (turtle_name, profiles) in self.execution_profiles.iter() {
-            println!("Turtle: {}", turtle_name);
-            for profile in profiles {
-                println!(
-                    "  {:indent$}{}: {}ms",
-                    "",
-                    profile.name,
-                    profile.duration.as_millis(),
-                    indent = profile.depth * 2
-                );
-            }
-        }
+        info!("Saving Time Analysis results to {:?}", path);
         self.exporter.export(self, path);
     }
 }
+
+// Expose the function depending on the compilation feature "time-analysis"
+// Feature enabled
+#[cfg(feature = "time-analysis")]
+pub fn set_turtle_name(name: String) {
+    TimeAnalysisFactory::set_turtle_name(name);
+}
+
+#[cfg(feature = "time-analysis")]
+pub fn time_analysis(name: String) -> TimeAnalysis {
+    TimeAnalysisFactory::time_analysis(name)
+}
+
+#[cfg(feature = "time-analysis")]
+pub fn finished_time_analysis(ta: TimeAnalysis) {
+    TimeAnalysisFactory::finished_time_analysis(ta);
+}
+
+#[cfg(feature = "time-analysis")]
+pub fn save_results(path: &Path) {
+    TimeAnalysisFactory::save_results(path);
+}
+
+// Feature disabled
+#[cfg(not(feature = "time-analysis"))]
+pub fn set_turtle_name(_name: String) {}
+
+#[cfg(not(feature = "time-analysis"))]
+pub fn time_analysis(name: String) -> TimeAnalysis {
+    TimeAnalysis {
+        begin: time::Instant::now(),
+        name,
+        depth: 0,
+    }
+}
+
+#[cfg(not(feature = "time-analysis"))]
+pub fn finished_time_analysis(_ta: TimeAnalysis) {}
+
+#[cfg(not(feature = "time-analysis"))]
+pub fn save_results(_path: &Path) {}
+
+//////////////////////////////////////////////////
 
 #[derive(Clone, Debug)]
 pub struct TimeAnalysis {
@@ -124,13 +169,15 @@ pub struct TimeAnalysis {
     depth: usize,
 }
 
+#[cfg(feature = "time-analysis")]
 trait ProfilerExporter: std::fmt::Debug + Sync + Send {
     fn export(&self, taf: &TimeAnalysisFactory, path: &Path);
 }
-
+#[cfg(feature = "time-analysis")]
 #[derive(Debug)]
 struct TraceEventExporter {}
 
+#[cfg(feature = "time-analysis")]
 #[derive(Serialize, Debug)]
 struct TraceEvent {
     name: String,
@@ -144,6 +191,7 @@ struct TraceEvent {
     sf: i64,
 }
 
+#[cfg(feature = "time-analysis")]
 #[derive(Serialize, Debug)]
 struct TraceEventRoot {
     traceEvents: Vec<TraceEvent>,
@@ -152,6 +200,7 @@ struct TraceEventRoot {
 
 }
 
+#[cfg(feature = "time-analysis")]
 impl ProfilerExporter for TraceEventExporter {
 
     fn export(&self, taf: &TimeAnalysisFactory, path: &Path) {
