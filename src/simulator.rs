@@ -43,6 +43,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
+use crate::time_analysis;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 use super::turtlebot::{Turtlebot, TurtlebotConfig, TurtlebotRecord};
@@ -295,6 +296,7 @@ impl Simulator {
             .target(env_logger::Target::Stdout)
             .filter_level(level)
             .init();
+        time_analysis::set_turtle_name("simulator".to_string());
     }
 
     /// Add a [`Turtlebot`] to the [`Simulator`].
@@ -405,7 +407,12 @@ impl Simulator {
             Some(f) => f,
             None => return,
         };
-        info!("Saving results to {}", filename.to_str().unwrap_or_default());
+
+        time_analysis::save_results(Path::new("time_performance.json"));
+        info!(
+            "Saving results to {}",
+            filename.to_str().unwrap_or_default()
+        );
         let mut recording_file = File::create(filename).expect("Impossible to create record file");
 
         let _ = recording_file.write(b"{\"config\": ");
@@ -495,6 +502,7 @@ impl Simulator {
         time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) {
         info!("Start thread of turtle {}", turtle.read().unwrap().name());
+        time_analysis::set_turtle_name(turtle.read().unwrap().name());
         let nb_turtles = turtle_list.read().unwrap().len();
         info!(
             "[{}] Finishing initialization",
@@ -504,7 +512,7 @@ impl Simulator {
             .write()
             .unwrap()
             .post_creation_init(&turtle_list, turtle_idx);
-
+        
         let (cv_mtx, cv) = &*time_cv;
 
         loop {

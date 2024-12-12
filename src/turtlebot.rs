@@ -28,6 +28,7 @@ use crate::sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorM
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
+use crate::time_analysis;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
@@ -423,38 +424,48 @@ impl Turtlebot {
         debug!("[{}] Got {} observations", self.name, observations.len());
         if observations.len() > 0 {
             // Treat the observations
+            let ta = time_analysis::time_analysis("control_loop_state_estimator_correction_step".to_string());
             self.state_estimator()
                 .write()
                 .unwrap()
                 .correction_step(self, &observations, time);
+            time_analysis::finished_time_analysis(ta);
 
             for state_estimator in self.state_estimator_bench().read().unwrap().iter() {
+                let ta = time_analysis::time_analysis(state_estimator.name.clone() + "_correction_step");
                 state_estimator
                     .state_estimator
                     .write()
                     .unwrap()
                     .correction_step(self, &observations, time);
+                time_analysis::finished_time_analysis(ta);
             }
         }
 
         // If it is time for the state estimator to do the prediction
         if time >= self.state_estimator.read().unwrap().next_time_step() {
             // Prediction step
+            let ta = time_analysis::time_analysis("control_loop_state_estimator_prediction_step".to_string());
             self.state_estimator()
                 .write()
                 .unwrap()
                 .prediction_step(self, time);
+            time_analysis::finished_time_analysis(ta);
             let state = self.state_estimator.read().unwrap().state();
 
             // Compute the error to the planned path
+            let ta = time_analysis::time_analysis("control_loop_navigator_compute_error".to_string());
             let error = self.navigator().write().unwrap().compute_error(self, state);
+            time_analysis::finished_time_analysis(ta);
 
             // Compute the command from the error
+            let ta = time_analysis::time_analysis("control_loop_controller_make_command".to_string());
             let command = self
                 .controller()
                 .write()
                 .unwrap()
                 .make_command(self, &error, time);
+            time_analysis::finished_time_analysis(ta);
 
             // Apply the command to the physics
             self.physic.write().unwrap().apply_command(&command, time);
@@ -467,11 +478,13 @@ impl Turtlebot {
                     .unwrap()
                     .next_time_step()
             {
+                let ta = time_analysis::time_analysis(state_estimator.name.clone() + "_prediction_step");
                 state_estimator
                     .state_estimator
                     .write()
                     .unwrap()
                     .prediction_step(self, time);
+                time_analysis::finished_time_analysis(ta);
             }
         }
 

@@ -80,10 +80,29 @@ impl TimeAnalysisFactory {
     fn _time_analysis(&mut self, name: String) -> TimeAnalysis {
         let ta = TimeAnalysis {
             begin: time::Instant::now(),
-            name,
+            name: self.turtles_names.get(&thread::current().id()).unwrap().clone() + "_" + &name,
             depth: *self.turtles_depth.get(&thread::current().id()).unwrap(),
         };
         *self.turtles_depth.get_mut(&thread::current().id()).unwrap() += 1;
+        ta
+    }
+
+    pub fn time_analysis_robot_name(name: String, robot_name: String) -> TimeAnalysis {
+        let factory = TimeAnalysisFactory::get_instance();
+        let mut factory = factory.lock().unwrap();
+        let ta = factory._time_analysis_robot_name(name, robot_name).clone();
+        ta
+    }
+
+    fn _time_analysis_robot_name(&mut self, name: String, robot_name: String) -> TimeAnalysis {
+        let robot_id = self.turtles_names.iter()
+                    .find_map(|(key, &ref val)| if val == &robot_name { Some(key.clone()) } else { None }).expect("Robot name not found");
+        let ta = TimeAnalysis {
+            begin: time::Instant::now(),
+            name: robot_name + "_" + &name,
+            depth: *self.turtles_depth.get(&robot_id).unwrap(),
+        };
+        *self.turtles_depth.get_mut(&robot_id).unwrap() += 1;
         ta
     }
 
@@ -99,7 +118,7 @@ impl TimeAnalysisFactory {
         *self.turtles_depth.get_mut(&thread::current().id()).unwrap() -= 1;
         // let indent = ta.depth*2;
         self.execution_profiles.get_mut(turtle_name).unwrap().push(ExecutionProfile {
-            name: ta.name,
+            name: ta.name.clone(),
             begin: ta.begin,
             end: ta.begin + elapsed,
             depth: ta.depth,
@@ -132,6 +151,11 @@ pub fn time_analysis(name: String) -> TimeAnalysis {
 }
 
 #[cfg(feature = "time-analysis")]
+pub fn time_analysis_robot_name(name: String, robot_name: String) -> TimeAnalysis {
+    TimeAnalysisFactory::time_analysis_robot_name(name, robot_name)
+}
+
+#[cfg(feature = "time-analysis")]
 pub fn finished_time_analysis(ta: TimeAnalysis) {
     TimeAnalysisFactory::finished_time_analysis(ta);
 }
@@ -147,6 +171,15 @@ pub fn set_turtle_name(_name: String) {}
 
 #[cfg(not(feature = "time-analysis"))]
 pub fn time_analysis(name: String) -> TimeAnalysis {
+    TimeAnalysis {
+        begin: time::Instant::now(),
+        name,
+        depth: 0,
+    }
+}
+
+#[cfg(not(feature = "time-analysis"))]
+pub fn time_analysis_robot_name(name: String, _robot_name: String) -> TimeAnalysis {
     TimeAnalysis {
         begin: time::Instant::now(),
         name,
@@ -194,9 +227,12 @@ struct TraceEvent {
 #[cfg(feature = "time-analysis")]
 #[derive(Serialize, Debug)]
 struct TraceEventRoot {
-    traceEvents: Vec<TraceEvent>,
-    displayTimeUnit: String,
-    otherData: serde_json::Value,
+    #[serde(rename = "traceEvents")]
+    trace_events: Vec<TraceEvent>,
+    #[serde(rename = "displayTimeUnit")]
+    display_time_unit: String,
+    #[serde(rename = "otherData")]
+    other_data: serde_json::Value,
 
 }
 
@@ -223,9 +259,9 @@ impl ProfilerExporter for TraceEventExporter {
             }
         }
         let json = serde_json::to_string(&TraceEventRoot{
-            traceEvents: trace_events,
-            displayTimeUnit: "ns".to_string(),
-            otherData: serde_json::Value::Null,
+            trace_events: trace_events,
+            display_time_unit: "ns".to_string(),
+            other_data: serde_json::Value::Null,
         }
         ).unwrap();
         std::fs::write(path, json).unwrap();
