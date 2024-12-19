@@ -43,7 +43,7 @@ use serde_derive::{Deserialize, Serialize};
 
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
-use crate::time_analysis;
+use crate::time_analysis::{self, TimeAnalysisConfig};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 use super::turtlebot::{Turtlebot, TurtlebotConfig, TurtlebotRecord};
@@ -63,6 +63,7 @@ use pyo3::prepare_freethreaded_python;
 
 /// Meta configuration of [`Simulator`], to configure how the simulation
 /// is run, outside of the scenario to run.
+#[pyclass]
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SimulatorMetaConfig {
     /// Path to the [`SimulatorConfig`] file, containing the configuration
@@ -81,17 +82,28 @@ pub struct SimulatorMetaConfig {
     /// This script should have the following entry point:
     /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
     pub analyse_script: Option<Box<Path>>,
+
+    pub time_analysis_config: TimeAnalysisConfig,
 }
 
 impl SimulatorMetaConfig {
+    fn default_with_config_path(config_path: &Path) -> Self {
+        let mut meta_config = SimulatorMetaConfig::default();
+        meta_config.config_path = Some(Box::from(config_path));
+        meta_config
+    }
+}
+
+impl Default for SimulatorMetaConfig {
     /// Default [`SimulatorMetaConfig`], doing nothing.
-    pub fn default() -> Self {
+    fn default() -> Self {
         Self {
             config_path: None,
             result_path: None,
             compute_results: false,
             no_gui: true,
             analyse_script: None,
+            time_analysis_config: TimeAnalysisConfig::default(),
         }
     }
 }
@@ -161,30 +173,41 @@ pub struct Results {
 ///
 /// ## Example
 /// ```
-/// use std::path::Path;
-/// use turtlebot_simulator::simulator::Simulator;
-///
 /// fn main() {
+/// 
 ///     // Initialize the environment, essentially the logging part
-///     Simulator::init_environment();
-///
-///     // Load the configuration
-///     let config_path = Path::new("config_example/config.yaml");
+///     Simulator::init_environment(log::LevelFilter::Debug);
+///     info!("Load configuration...");
 ///     let mut simulator = Simulator::from_config_path(
-///         config_path,              //<- configuration path
-///         None,                     //<- plugin API, to load external modules
-///         Some(Box::from(Path::new("result.json"))), //<- path to save the results (None to not save)
-///         true,                     //<- Analyse the results
-///         false,                    //<- Show the figures after analyse
+///         SimulatorMetaConfig{
+///             config_path: Some(Box::from(Path::new("config_example/config.yaml"))),
+///             result_path: Some(Box::from(Path::new("result.json"))),
+///             compute_results: true,
+///             no_gui: false,
+///             analyse_script: Some(
+///                 Path::new(concat!(
+///                     env!("CARGO_MANIFEST_DIR"),
+///                     "/python_scripts/analyse_results.py"
+///                 ))
+///                 .into(),
+///             ),
+///             time_analysis_config: TimeAnalysisConfig {
+///                 exporter: turtlebot_simulator::time_analysis::ProfileExporterConfig::TraceEventExporter,
+///                 output_path: "time_performance".to_string(),
+///                 keep_last: true,
+///             }
+///         },
+///         None,                                      //<- plugin API, to load external modules
 ///     );
-///
+/// 
 ///     // Show the simulator loaded configuration
 ///     simulator.show();
-///
+/// 
 ///     // Run the simulation for 60 seconds.
 ///     // It also save the results to "result.json",
 ///     // compute the results and show the figures.
 ///     simulator.run(60.);
+/// 
 /// }
 ///
 /// ```
@@ -233,14 +256,11 @@ impl Simulator {
     /// ## Return
     /// Returns a [`Simulator`] ready to be run.
     pub fn from_config_path(
-        config_path: &Path,
+        meta_config: SimulatorMetaConfig,
         plugin_api: Option<Box<&dyn PluginAPI>>,
-        result_path: Option<Box<Path>>,
-        compute_results: bool,
-        no_gui: bool,
-        analyse_script: Option<Box<Path>>,
     ) -> Simulator {
-        let config: SimulatorConfig = match confy::load_path(&config_path) {
+        info!("Load configuration from {:?}", meta_config.config_path.clone().expect("No config path set"));
+        let config: SimulatorConfig = match confy::load_path(meta_config.config_path.clone().expect("No config path set").as_ref()) {
             Ok(config) => config,
             Err(error) => {
                 error!("Error from Confy while loading the config file : {}", error);
@@ -248,13 +268,6 @@ impl Simulator {
             }
         };
         debug!("Config: {:?}", config);
-        let meta_config = SimulatorMetaConfig {
-            config_path: Some(Box::from(config_path)),
-            result_path,
-            compute_results,
-            no_gui,
-            analyse_script,
-        };
         Simulator::from_config(&config, plugin_api, meta_config)
     }
 
@@ -408,7 +421,7 @@ impl Simulator {
             None => return,
         };
 
-        time_analysis::save_results(Path::new("time_performance.json"));
+        time_analysis::save_results();
         info!(
             "Saving results to {}",
             filename.to_str().unwrap_or_default()
@@ -586,7 +599,7 @@ def convert(records):
             ))
             .into(),
         );
-        let python_script = fs::read_to_string(script_path).expect("File not found");
+        let python_script = fs::read_to_string(script_path.clone()).expect(format!("File not found: {}", script_path.to_str().unwrap()).as_str());
         let res = Python::with_gil(|py| -> PyResult<()> {
             let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
@@ -642,10 +655,11 @@ mod tests {
 
         let mut results: Vec<Vec<Record>> = Vec::new();
 
-        let config_path = Path::new("config_example/config.yaml");
+        let mut config = SimulatorMetaConfig::default();
+        config.config_path = Some(Path::new("config_example/config.yaml").into());
         for i in 0..nb_replications {
             let mut simulator =
-                Simulator::from_config_path(config_path, None, None, false, false, None);
+                Simulator::from_config_path(config.clone(), None);
 
             simulator.show();
 

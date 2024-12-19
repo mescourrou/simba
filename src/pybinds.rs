@@ -13,6 +13,7 @@ use crate::{
 use std::path::Path;
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<SimulatorMetaConfig>()?;
     m.add_class::<SimulatorWrapper>()?;
     m.add_class::<PythonAPI>()?;
     m.add_class::<Record>()?;
@@ -29,15 +30,11 @@ struct SimulatorWrapper {
 #[pymethods]
 impl SimulatorWrapper {
     #[staticmethod]
-    #[pyo3(signature = (config_path, api=None, analyse_results=true, gui=true, result_path="result.json", loglevel="off", analyse_script=None))]
+    #[pyo3(signature = (meta_config, api=None, loglevel="off"))]
     pub fn from_config(
-        config_path: &str,
+        meta_config: SimulatorMetaConfig,
         api: Option<&PythonAPI>,
-        analyse_results: bool,
-        gui: bool,
-        result_path: &str,
         loglevel: &str,
-        analyse_script: Option<&str>,
     ) -> SimulatorWrapper {
         Simulator::init_environment(match loglevel.to_lowercase().as_str() {
             "debug" => log::LevelFilter::Debug,
@@ -49,16 +46,9 @@ impl SimulatorWrapper {
         });
         SimulatorWrapper {
             simulator: Simulator::from_config_path(
-                Path::new(config_path),
+                meta_config,
                 match api {
                     Some(py_api) => Some(Box::new(py_api)),
-                    None => None,
-                },
-                Some(Path::new(result_path).into()),
-                analyse_results,
-                gui,
-                match analyse_script {
-                    Some(s) => Some(Path::new(s).into()),
                     None => None,
                 },
             ),

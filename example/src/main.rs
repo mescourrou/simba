@@ -1,5 +1,6 @@
 use std::path::Path;
-use turtlebot_simulator::simulator::Simulator;
+use turtlebot_simulator::simulator::{Simulator, SimulatorMetaConfig};
+use turtlebot_simulator::time_analysis::TimeAnalysisConfig;
 use log::info;
 
 fn main() {
@@ -7,15 +8,26 @@ fn main() {
     // Initialize the environment, essentially the logging part
     Simulator::init_environment(log::LevelFilter::Debug);
     info!("Load configuration...");
-    // Load the configuration
-    let config_path = Path::new("config_example/config.yaml");
     let mut simulator = Simulator::from_config_path(
-        config_path,                               //<- configuration path
+        SimulatorMetaConfig{
+            config_path: Some(Box::from(Path::new("example/config_example/config.yaml"))),
+            result_path: Some(Box::from(Path::new("result.json"))),
+            compute_results: true,
+            no_gui: false,
+            analyse_script: Some(
+                Path::new(concat!(
+                    env!("CARGO_MANIFEST_DIR"),
+                    "/../python_scripts/analyse_results.py"
+                ))
+                .into(),
+            ),
+            time_analysis_config: TimeAnalysisConfig {
+                exporter: turtlebot_simulator::time_analysis::ProfileExporterConfig::TraceEventExporter,
+                output_path: "time_performance".to_string(),
+                keep_last: true,
+            }
+        },
         None,                                      //<- plugin API, to load external modules
-        Some(Box::from(Path::new("result.json"))), //<- path to save the results (None to not save)
-        true,                                      //<- Analyse the results
-        false,                                     //<- Show the figures after analyse
-        None,
     );
 
     // Show the simulator loaded configuration
