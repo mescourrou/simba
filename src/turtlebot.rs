@@ -351,7 +351,7 @@ impl Turtlebot {
     }
 
     /// Initialize the robot after its creation.
-    /// 
+    ///
     /// It is used to initialize the sensor manager, which need to know the list of all robots.
     pub fn post_creation_init(
         &mut self,
@@ -424,7 +424,10 @@ impl Turtlebot {
         debug!("[{}] Got {} observations", self.name, observations.len());
         if observations.len() > 0 {
             // Treat the observations
-            let ta = time_analysis::time_analysis(time, "control_loop_state_estimator_correction_step".to_string());
+            let ta = time_analysis::time_analysis(
+                time,
+                "control_loop_state_estimator_correction_step".to_string(),
+            );
             self.state_estimator()
                 .write()
                 .unwrap()
@@ -432,7 +435,10 @@ impl Turtlebot {
             time_analysis::finished_time_analysis(ta);
 
             for state_estimator in self.state_estimator_bench().read().unwrap().iter() {
-                let ta = time_analysis::time_analysis(time, state_estimator.name.clone() + "_correction_step");
+                let ta = time_analysis::time_analysis(
+                    time,
+                    state_estimator.name.clone() + "_correction_step",
+                );
                 state_estimator
                     .state_estimator
                     .write()
@@ -445,7 +451,10 @@ impl Turtlebot {
         // If it is time for the state estimator to do the prediction
         if time >= self.state_estimator.read().unwrap().next_time_step() {
             // Prediction step
-            let ta = time_analysis::time_analysis(time, "control_loop_state_estimator_prediction_step".to_string());
+            let ta = time_analysis::time_analysis(
+                time,
+                "control_loop_state_estimator_prediction_step".to_string(),
+            );
             self.state_estimator()
                 .write()
                 .unwrap()
@@ -454,12 +463,18 @@ impl Turtlebot {
             let state = self.state_estimator.read().unwrap().state();
 
             // Compute the error to the planned path
-            let ta = time_analysis::time_analysis(time, "control_loop_navigator_compute_error".to_string());
+            let ta = time_analysis::time_analysis(
+                time,
+                "control_loop_navigator_compute_error".to_string(),
+            );
             let error = self.navigator().write().unwrap().compute_error(self, state);
             time_analysis::finished_time_analysis(ta);
 
             // Compute the command from the error
-            let ta = time_analysis::time_analysis(time, "control_loop_controller_make_command".to_string());
+            let ta = time_analysis::time_analysis(
+                time,
+                "control_loop_controller_make_command".to_string(),
+            );
             let command = self
                 .controller()
                 .write()
@@ -478,7 +493,10 @@ impl Turtlebot {
                     .unwrap()
                     .next_time_step()
             {
-                let ta = time_analysis::time_analysis(time, state_estimator.name.clone() + "_prediction_step");
+                let ta = time_analysis::time_analysis(
+                    time,
+                    state_estimator.name.clone() + "_prediction_step",
+                );
                 state_estimator
                     .state_estimator
                     .write()
@@ -505,12 +523,13 @@ impl Turtlebot {
 
     /// Computes the next time step, using state estimator, sensors and received messages.
     pub fn next_time_step(&self) -> f32 {
-        let mut next_time_step = self
-            .state_estimator
-            .read()
-            .unwrap()
-            .next_time_step()
-            .min(self.sensor_manager.read().unwrap().next_time_step().unwrap_or(f32::INFINITY));
+        let mut next_time_step = self.state_estimator.read().unwrap().next_time_step().min(
+            self.sensor_manager
+                .read()
+                .unwrap()
+                .next_time_step()
+                .unwrap_or(f32::INFINITY),
+        );
 
         let message_next_time = self.network().read().unwrap().next_message_time();
         debug!(

@@ -5,8 +5,8 @@ stages:
 #   stage: build
 #   image: rust:latest
 #   script:
-#     -
 #     - cargo build --verbose
+#     - cargo build --all-features --verbose
 #     - cargo test --verbose
 
 doc:

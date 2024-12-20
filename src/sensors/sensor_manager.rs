@@ -4,9 +4,9 @@ available observations.
 */
 
 extern crate confy;
+use core::f32;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
-use core::f32;
 use std::sync::{Arc, RwLock};
 
 use crate::turtlebot::Turtlebot;
@@ -111,9 +111,12 @@ impl SensorManager {
         }
         manager.next_time = None;
         for sensor in &manager.sensors {
-            manager.next_time = Some(manager
-                .next_time.unwrap_or(f32::INFINITY)
-                .min(sensor.read().unwrap().next_time_step()));
+            manager.next_time = Some(
+                manager
+                    .next_time
+                    .unwrap_or(f32::INFINITY)
+                    .min(sensor.read().unwrap().next_time_step()),
+            );
         }
         manager
     }
@@ -143,7 +146,11 @@ impl SensorManager {
             for obs in sensor_observations {
                 observations.push(obs);
             }
-            min_next_time = Some(min_next_time.unwrap_or(f32::INFINITY).min(sensor.read().unwrap().next_time_step()));
+            min_next_time = Some(
+                min_next_time
+                    .unwrap_or(f32::INFINITY)
+                    .min(sensor.read().unwrap().next_time_step()),
+            );
         }
         self.next_time = min_next_time;
         self.last_observations = observations.iter().map(|obs| obs.record()).collect();

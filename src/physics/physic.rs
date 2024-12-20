@@ -79,7 +79,7 @@ pub trait Physic:
 }
 
 /// Helper function to create a physic from the given configuration.
-/// 
+///
 /// ## Arguments
 /// - `config`: The configuration of the physic.
 /// - `plugin_api`: The plugin API, to be used by the physic (if needed).

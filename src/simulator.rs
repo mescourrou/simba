@@ -87,6 +87,7 @@ pub struct SimulatorMetaConfig {
 }
 
 impl SimulatorMetaConfig {
+    #[allow(dead_code)]
     fn default_with_config_path(config_path: &Path) -> Self {
         let mut meta_config = SimulatorMetaConfig::default();
         meta_config.config_path = Some(Box::from(config_path));
@@ -174,7 +175,7 @@ pub struct Results {
 /// ## Example
 /// ```
 /// fn main() {
-/// 
+///
 ///     // Initialize the environment, essentially the logging part
 ///     Simulator::init_environment(log::LevelFilter::Debug);
 ///     info!("Load configuration...");
@@ -199,15 +200,15 @@ pub struct Results {
 ///         },
 ///         None,                                      //<- plugin API, to load external modules
 ///     );
-/// 
+///
 ///     // Show the simulator loaded configuration
 ///     simulator.show();
-/// 
+///
 ///     // Run the simulation for 60 seconds.
 ///     // It also save the results to "result.json",
 ///     // compute the results and show the figures.
 ///     simulator.run(60.);
-/// 
+///
 /// }
 ///
 /// ```
@@ -259,8 +260,17 @@ impl Simulator {
         meta_config: SimulatorMetaConfig,
         plugin_api: Option<Box<&dyn PluginAPI>>,
     ) -> Simulator {
-        info!("Load configuration from {:?}", meta_config.config_path.clone().expect("No config path set"));
-        let config: SimulatorConfig = match confy::load_path(meta_config.config_path.clone().expect("No config path set").as_ref()) {
+        info!(
+            "Load configuration from {:?}",
+            meta_config.config_path.clone().expect("No config path set")
+        );
+        let config: SimulatorConfig = match confy::load_path(
+            meta_config
+                .config_path
+                .clone()
+                .expect("No config path set")
+                .as_ref(),
+        ) {
             Ok(config) => config,
             Err(error) => {
                 error!("Error from Confy while loading the config file : {}", error);
@@ -525,7 +535,7 @@ impl Simulator {
             .write()
             .unwrap()
             .post_creation_init(&turtle_list, turtle_idx);
-        
+
         let (cv_mtx, cv) = &*time_cv;
 
         loop {
@@ -599,7 +609,8 @@ def convert(records):
             ))
             .into(),
         );
-        let python_script = fs::read_to_string(script_path.clone()).expect(format!("File not found: {}", script_path.to_str().unwrap()).as_str());
+        let python_script = fs::read_to_string(script_path.clone())
+            .expect(format!("File not found: {}", script_path.to_str().unwrap()).as_str());
         let res = Python::with_gil(|py| -> PyResult<()> {
             let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
@@ -658,8 +669,7 @@ mod tests {
         let mut config = SimulatorMetaConfig::default();
         config.config_path = Some(Path::new("config_example/config.yaml").into());
         for i in 0..nb_replications {
-            let mut simulator =
-                Simulator::from_config_path(config.clone(), None);
+            let mut simulator = Simulator::from_config_path(config.clone(), None);
 
             simulator.show();
 

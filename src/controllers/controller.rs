@@ -75,7 +75,7 @@ pub trait Controller:
 }
 
 /// Helper function to make the right [`Controller`] from the given configuration.
-/// 
+///
 /// ## Arguments
 /// * `config` - Configuration to use to make the controller.
 /// * `plugin_api` - Optional PluginAPI to transmit to the controller.

@@ -1,31 +1,29 @@
-#[cfg_attr(not(feature = "time-analysis"), allow(dead_code))]
-
+#[cfg_attr(not(feature = "time-analysis"), allow(dead_code, unused_variables))]
 #[cfg(feature = "time-analysis")]
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
-use std::borrow::BorrowMut;
 use std::path::Path;
-use std::process::Child;
 #[cfg(feature = "time-analysis")]
 use std::sync::Mutex;
 #[cfg(feature = "time-analysis")]
 use std::thread::ThreadId;
 
-use std::time::{self, Duration};
 #[cfg(feature = "time-analysis")]
-use std::thread;
+use log::info;
 #[cfg(feature = "time-analysis")]
 use std::collections::HashMap;
 #[cfg(feature = "time-analysis")]
-use log::info;
+use std::thread;
+use std::time::{self, Duration};
 
 #[cfg(feature = "time-analysis")]
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct ExecutionProfile {
     name: String,
     begin: i64, // micro
-    end: i64, // micro
+    end: i64,   // micro
     depth: usize,
     duration: time::Duration,
 }
@@ -78,7 +76,7 @@ impl ExecutionNode {
 #[derive(Debug)]
 struct ExecutionTree {
     top_time_nodes: Vec<Box<ExecutionNode>>,
-    keep_last: bool
+    keep_last: bool,
 }
 
 #[cfg(feature = "time-analysis")]
@@ -94,7 +92,10 @@ impl ExecutionTree {
         let depth = coordinates.len();
 
         // Get the right timed node:
-        let current = self.top_time_nodes.iter_mut().find(|node| node.begin == time_int);
+        let current = self
+            .top_time_nodes
+            .iter_mut()
+            .find(|node| node.begin == time_int);
 
         if let Some(mut current) = current {
             if coordinates[0] == 0 {
@@ -105,38 +106,47 @@ impl ExecutionTree {
                     panic!("Keep_last = false not implemented yet for Execution Tree");
                 }
             }
-            for i in 0..depth-1 {
+            for i in 0..depth - 1 {
                 for _j in 0..coordinates[i] {
                     current = current.next.as_mut().unwrap();
                 }
                 if current.as_mut().subdepth_child.is_none() {
                     let time_int = current.begin;
-                    current.subdepth_child = Some(Box::new(ExecutionNode::from(name.clone(), time_int, depth)));
+                    current.subdepth_child =
+                        Some(Box::new(ExecutionNode::from(name.clone(), time_int, depth)));
                     return;
                 } else {
                     current = current.subdepth_child.as_mut().unwrap();
                 }
             }
-            for _j in 0..coordinates[depth-1]-1 {
+            for _j in 0..coordinates[depth - 1] - 1 {
                 current = current.next.as_mut().unwrap();
             }
             let time_int = current.end;
             current.next = Some(Box::new(ExecutionNode::from(name, time_int, depth)));
-
         } else {
-            self.top_time_nodes.push(Box::new(ExecutionNode::from(name, time_int, depth)));
+            self.top_time_nodes
+                .push(Box::new(ExecutionNode::from(name, time_int, depth)));
         }
     }
 
-    pub fn get_node(&mut self, name: String, time_int: i64, coordinates: Vec<usize>) -> Option<&mut ExecutionNode> {
+    pub fn get_node(
+        &mut self,
+        _name: String,
+        time_int: i64,
+        coordinates: Vec<usize>,
+    ) -> Option<&mut ExecutionNode> {
         let depth = coordinates.len();
-        
+
         // Get the right timed node:
-        let current = self.top_time_nodes.iter_mut().find(|node| node.begin == time_int);
+        let current = self
+            .top_time_nodes
+            .iter_mut()
+            .find(|node| node.begin == time_int);
 
         if let Some(mut current) = current {
             if depth >= 2 {
-                for i in 0..depth-1 {
+                for i in 0..depth - 1 {
                     for _j in 0..coordinates[i] {
                         current = current.next.as_mut().unwrap();
                     }
@@ -166,7 +176,6 @@ impl ExecutionTree {
             nodes.push(current.clone().unwrap());
             if let Some(child) = current.clone().unwrap().subdepth_child.as_ref() {
                 nodes.append(&mut self.recusive_iter(child));
-                
             }
             current = current.unwrap().next.clone();
         }
@@ -174,9 +183,9 @@ impl ExecutionTree {
     }
 
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = Box<ExecutionNode>> + 'a {
-        self.top_time_nodes.iter().flat_map(move |node| {
-            self.recusive_iter(node).into_iter()
-        })
+        self.top_time_nodes
+            .iter()
+            .flat_map(move |node| self.recusive_iter(node).into_iter())
     }
 }
 
@@ -197,25 +206,105 @@ mod test {
         exe_tree.add("test1".to_string(), 1, vec![1]);
         assert!(exe_tree.top_time_nodes.len() == 1);
         assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().name == "test1");
-        assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().next.is_none());
-        assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().subdepth_child.is_none());
+        assert!(exe_tree.top_time_nodes[0]
+            .next
+            .as_ref()
+            .unwrap()
+            .next
+            .is_none());
+        assert!(exe_tree.top_time_nodes[0]
+            .next
+            .as_ref()
+            .unwrap()
+            .subdepth_child
+            .is_none());
         println!("{:?}", exe_tree);
         exe_tree.add("test2".to_string(), 1, vec![1, 0]);
         assert!(exe_tree.top_time_nodes.len() == 1);
         assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().name == "test1");
-        assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().subdepth_child.as_ref().unwrap().name == "test2");
-        assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().subdepth_child.as_ref().unwrap().next.is_none());
-        assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().subdepth_child.as_ref().unwrap().subdepth_child.is_none());
+        assert!(
+            exe_tree.top_time_nodes[0]
+                .next
+                .as_ref()
+                .unwrap()
+                .subdepth_child
+                .as_ref()
+                .unwrap()
+                .name
+                == "test2"
+        );
+        assert!(exe_tree.top_time_nodes[0]
+            .next
+            .as_ref()
+            .unwrap()
+            .subdepth_child
+            .as_ref()
+            .unwrap()
+            .next
+            .is_none());
+        assert!(exe_tree.top_time_nodes[0]
+            .next
+            .as_ref()
+            .unwrap()
+            .subdepth_child
+            .as_ref()
+            .unwrap()
+            .subdepth_child
+            .is_none());
         println!("{:?}", exe_tree);
         exe_tree.add("test3".to_string(), 1, vec![1, 1]);
         assert!(exe_tree.top_time_nodes.len() == 1);
         assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().name == "test1");
-        assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().subdepth_child.as_ref().unwrap().name == "test2");
-        assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().subdepth_child.as_ref().unwrap().next.as_ref().unwrap().name == "test3");
-        assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().subdepth_child.as_ref().unwrap().next.as_ref().unwrap().next.is_none());
-        assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().subdepth_child.as_ref().unwrap().next.as_ref().unwrap().subdepth_child.is_none());
+        assert!(
+            exe_tree.top_time_nodes[0]
+                .next
+                .as_ref()
+                .unwrap()
+                .subdepth_child
+                .as_ref()
+                .unwrap()
+                .name
+                == "test2"
+        );
+        assert!(
+            exe_tree.top_time_nodes[0]
+                .next
+                .as_ref()
+                .unwrap()
+                .subdepth_child
+                .as_ref()
+                .unwrap()
+                .next
+                .as_ref()
+                .unwrap()
+                .name
+                == "test3"
+        );
+        assert!(exe_tree.top_time_nodes[0]
+            .next
+            .as_ref()
+            .unwrap()
+            .subdepth_child
+            .as_ref()
+            .unwrap()
+            .next
+            .as_ref()
+            .unwrap()
+            .next
+            .is_none());
+        assert!(exe_tree.top_time_nodes[0]
+            .next
+            .as_ref()
+            .unwrap()
+            .subdepth_child
+            .as_ref()
+            .unwrap()
+            .next
+            .as_ref()
+            .unwrap()
+            .subdepth_child
+            .is_none());
         println!("{:?}", exe_tree);
-
     }
 
     #[test]
@@ -241,10 +330,8 @@ mod test {
         assert!(node.is_some());
         let name = &node.unwrap().name;
         assert!(name == "test3", "Name: {:?} instead of test3", name);
-
     }
 }
-
 
 #[cfg(feature = "time-analysis")]
 #[derive(Debug)]
@@ -254,9 +341,7 @@ struct TimeAnalysisFactory {
     execution_tree: HashMap<String, ExecutionTree>,
     current_coordinates: HashMap<ThreadId, (i64, Vec<usize>)>,
     exporter: Box<dyn ProfilerExporter>,
-    begin: time::Instant,
     config: TimeAnalysisConfig,
-
 }
 
 #[cfg(feature = "time-analysis")]
@@ -265,7 +350,6 @@ impl TimeAnalysisFactory {
         lazy_static! {
             static ref FACTORY: Mutex<TimeAnalysisFactory> = {
                 let m = Mutex::new(TimeAnalysisFactory {
-                    begin: time::Instant::now(),
                     turtles_names: HashMap::new(),
                     turtles_depth: HashMap::new(),
                     current_coordinates: HashMap::new(),
@@ -301,9 +385,11 @@ impl TimeAnalysisFactory {
     }
 
     fn _set_turtle_name(&mut self, name: String) {
-        self.turtles_names.insert(thread::current().id(), name.clone());
+        self.turtles_names
+            .insert(thread::current().id(), name.clone());
         self.turtles_depth.insert(thread::current().id(), 0);
-        self.current_coordinates.insert(thread::current().id(), (0, Vec::new()));
+        self.current_coordinates
+            .insert(thread::current().id(), (0, Vec::new()));
         self.execution_tree.insert(name, ExecutionTree::new());
     }
 
@@ -315,22 +401,44 @@ impl TimeAnalysisFactory {
     }
 
     fn _time_analysis(&mut self, time: f32, name: String) -> TimeAnalysis {
-        self._time_analysis_robot_name(time, name, self.turtles_names.get(&thread::current().id()).unwrap().clone())
+        self._time_analysis_robot_name(
+            time,
+            name,
+            self.turtles_names
+                .get(&thread::current().id())
+                .unwrap()
+                .clone(),
+        )
     }
 
     pub fn time_analysis_robot_name(time: f32, name: String, robot_name: String) -> TimeAnalysis {
         let factory = TimeAnalysisFactory::get_instance();
         let mut factory = factory.lock().unwrap();
-        let ta = factory._time_analysis_robot_name(time, name, robot_name).clone();
+        let ta = factory
+            ._time_analysis_robot_name(time, name, robot_name)
+            .clone();
         ta
     }
 
-    fn _time_analysis_robot_name(&mut self, time: f32, name: String, robot_name: String) -> TimeAnalysis {
-        let robot_id = self.turtles_names.iter()
-                    .find_map(|(key, &ref val)| if val == &robot_name { Some(key.clone()) } else { None }).expect("Robot name not found");
+    fn _time_analysis_robot_name(
+        &mut self,
+        time: f32,
+        name: String,
+        robot_name: String,
+    ) -> TimeAnalysis {
+        let robot_id = self
+            .turtles_names
+            .iter()
+            .find_map(|(key, &ref val)| {
+                if val == &robot_name {
+                    Some(key.clone())
+                } else {
+                    None
+                }
+            })
+            .expect("Robot name not found");
 
-        let mut time = time;
-        let mut time_int = Duration::from_secs_f32(time).as_micros() as i64;
+        let time_int = Duration::from_secs_f32(time).as_micros() as i64;
         let depth = *self.turtles_depth.get(&thread::current().id()).unwrap();
         let current_coordinates = self.current_coordinates.get_mut(&robot_id).unwrap();
         if current_coordinates.0 != time_int {
@@ -343,14 +451,16 @@ impl TimeAnalysisFactory {
             current_coordinates.1[depth] += 1;
         }
 
-        self.execution_tree.get_mut(&robot_name).unwrap().add(name.clone(), time_int, current_coordinates.1.clone());
+        self.execution_tree.get_mut(&robot_name).unwrap().add(
+            name.clone(),
+            time_int,
+            current_coordinates.1.clone(),
+        );
 
         let ta = TimeAnalysis {
             simulated_time: time,
-            simulated_cumulative_time: time_int,
             begin: time::Instant::now(),
             name: robot_name.clone() + "_" + &name,
-            depth,
             coordinates: current_coordinates.1.clone(),
         };
         *self.turtles_depth.get_mut(&thread::current().id()).unwrap() += 1;
@@ -369,13 +479,18 @@ impl TimeAnalysisFactory {
         *self.turtles_depth.get_mut(&thread::current().id()).unwrap() -= 1;
         // let indent = ta.depth*2;
         let time_int = Duration::from_secs_f32(ta.simulated_time).as_micros() as i64;
-        let coordinates = self.current_coordinates.get_mut(&thread::current().id()).unwrap();
+        // let coordinates = self.current_coordinates.get_mut(&thread::current().id()).unwrap();
+        let coordinates = &ta.coordinates;
 
-        let node = self.execution_tree.get_mut(&turtle_name.clone()).unwrap().get_node(ta.name.clone(), time_int, coordinates.1.clone());
+        let node = self
+            .execution_tree
+            .get_mut(&turtle_name.clone())
+            .unwrap()
+            .get_node(ta.name.clone(), time_int, coordinates.clone());
         if node.is_none() {
             panic!("Node not found: should not happen");
         }
-        let mut node = node.unwrap();
+        let node = node.unwrap();
         node.end = node.begin + elapsed.as_micros() as i64;
         node.duration = elapsed;
     }
@@ -386,7 +501,9 @@ impl TimeAnalysisFactory {
         factory._save_results();
     }
 
-    pub fn iter_execution_profiles(&self) -> impl Iterator<Item = (&String, Vec<ExecutionProfile>)> {
+    pub fn iter_execution_profiles(
+        &self,
+    ) -> impl Iterator<Item = (&String, Vec<ExecutionProfile>)> {
         self.execution_tree.iter().map(|(k, v)| {
             let mut profiles = Vec::new();
             for node in v.iter() {
@@ -409,9 +526,7 @@ impl TimeAnalysisFactory {
         self.real_time_analysis(path);
     }
 
-    fn real_time_analysis(&self, path: &Path) {
-
-    }
+    fn real_time_analysis(&self, _path: &Path) {}
 }
 
 // Expose the function depending on the compilation feature "time-analysis"
@@ -456,22 +571,20 @@ pub fn set_turtle_name(_name: String) {}
 #[cfg(not(feature = "time-analysis"))]
 pub fn time_analysis(time: f32, name: String) -> TimeAnalysis {
     TimeAnalysis {
-        simulated_cumulative_time: 0,
         simulated_time: time,
         begin: time::Instant::now(),
         name,
-        depth: 0,
+        coordinates: Vec::new(),
     }
 }
 
 #[cfg(not(feature = "time-analysis"))]
 pub fn time_analysis_robot_name(time: f32, name: String, _robot_name: String) -> TimeAnalysis {
     TimeAnalysis {
-        simulated_cumulative_time: 0,
         simulated_time: time,
         begin: time::Instant::now(),
         name,
-        depth: 0,
+        coordinates: Vec::new(),
     }
 }
 
@@ -491,10 +604,8 @@ pub enum ProfileExporterConfig {
 #[derive(Clone, Debug)]
 pub struct TimeAnalysis {
     simulated_time: f32,
-    simulated_cumulative_time: i64,
     begin: time::Instant,
     name: String,
-    depth: usize,
     coordinates: Vec<usize>,
 }
 
@@ -529,12 +640,10 @@ struct TraceEventRoot {
     display_time_unit: String,
     #[serde(rename = "otherData")]
     other_data: serde_json::Value,
-
 }
 
 #[cfg(feature = "time-analysis")]
 impl ProfilerExporter for TraceEventExporter {
-
     fn export(&self, taf: &TimeAnalysisFactory, path: &Path) {
         let mut trace_events = Vec::new();
         let mut turtle_names = Vec::new();
@@ -567,14 +676,13 @@ impl ProfilerExporter for TraceEventExporter {
                 });
             }
         }
-        let json = serde_json::to_string(&TraceEventRoot{
+        let json = serde_json::to_string(&TraceEventRoot {
             trace_events: trace_events,
             display_time_unit: "us".to_string(),
             other_data: serde_json::Value::Null,
-        }
-        ).unwrap();
+        })
+        .unwrap();
         let json_path = path.with_extension("json");
         std::fs::write(json_path, json).unwrap();
     }
 }
-
