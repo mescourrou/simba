@@ -1,7 +1,7 @@
 use log::info;
+use simba::simulator::{Simulator, SimulatorMetaConfig};
+use simba::time_analysis::TimeAnalysisConfig;
 use std::path::Path;
-use turtlebot_simulator::simulator::{Simulator, SimulatorMetaConfig};
-use turtlebot_simulator::time_analysis::TimeAnalysisConfig;
 
 fn main() {
     // Initialize the environment, essentially the logging part
@@ -21,8 +21,7 @@ fn main() {
                 .into(),
             ),
             time_analysis_config: TimeAnalysisConfig {
-                exporter:
-                    turtlebot_simulator::time_analysis::ProfileExporterConfig::TraceEventExporter,
+                exporter: simba::time_analysis::ProfileExporterConfig::TraceEventExporter,
                 output_path: "time_performance".to_string(),
                 keep_last: true,
             },

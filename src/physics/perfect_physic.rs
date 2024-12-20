@@ -7,10 +7,10 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use crate::networking::service::{HasService, Service, ServiceClient, ServiceHandler};
 use crate::plugin_api::PluginAPI;
+use crate::robot::Robot;
 use crate::simulator::SimulatorMetaConfig;
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
 use crate::stateful::Stateful;
-use crate::turtlebot::Turtlebot;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use log::{debug, error};
 use pyo3::pyclass;
@@ -176,9 +176,9 @@ impl Physic for PerfectPhysic {
 }
 
 impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
-    fn make_service(&mut self, turtle: Arc<RwLock<Turtlebot>>) {
-        debug!("[{}] Making service", turtle.read().unwrap().name());
-        debug!("[{}] Service made", turtle.read().unwrap().name());
+    fn make_service(&mut self, robot: Arc<RwLock<Robot>>) {
+        debug!("[{}] Making service", robot.read().unwrap().name());
+        debug!("[{}] Service made", robot.read().unwrap().name());
     }
 
     fn new_client(

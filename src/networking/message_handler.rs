@@ -2,7 +2,7 @@
 Provide the [`MessageHandler`] trait.
 */
 
-use crate::turtlebot::Turtlebot;
+use crate::robot::Robot;
 use serde_json::Value;
 
 /// Trait which add a method to handle a message. If the message cannot be handled,
@@ -11,7 +11,7 @@ pub trait MessageHandler: std::marker::Send + std::marker::Sync {
     /// Handle the given `message` or not.
     ///
     /// ## Arguments
-    /// * `turtle` - Reference to the [`Turtlebot`], to access the modules.
+    /// * `robot` - Reference to the [`Robot`], to access the modules.
     /// * `from` - Emitter of the message.
     /// * `message` - Serialized message using [`serde_json::Value`]/
     /// * `time` - Time of the message.
@@ -21,7 +21,7 @@ pub trait MessageHandler: std::marker::Send + std::marker::Sync {
     /// * `Err` - The message was not handled and should be sent to the next handler.
     fn handle_message(
         &mut self,
-        turtle: &mut Turtlebot,
+        robot: &mut Robot,
         from: &String,
         message: &Value,
         time: f32,

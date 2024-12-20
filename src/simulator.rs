@@ -5,7 +5,7 @@ The [`Simulator`] is the primary struct to be called to start the simulator,
 the simulator can be used as follows:
 ```
 use std::path::Path;
-use turtlebot_simulator::simulator::Simulator;
+use simba::simulator::Simulator;
 
 fn main() {
     // Initialize the environment, essentially the logging part
@@ -46,7 +46,7 @@ use crate::plugin_api::PluginAPI;
 use crate::time_analysis::{self, TimeAnalysisConfig};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
-use super::turtlebot::{Turtlebot, TurtlebotConfig, TurtlebotRecord};
+use crate::robot::{Robot, RobotConfig, RobotRecord};
 use std::path::Path;
 use std::time::SystemTime;
 
@@ -63,8 +63,8 @@ use pyo3::prepare_freethreaded_python;
 
 /// Meta configuration of [`Simulator`], to configure how the simulation
 /// is run, outside of the scenario to run.
-#[pyclass]
 #[derive(Serialize, Deserialize, Clone)]
+#[pyclass]
 pub struct SimulatorMetaConfig {
     /// Path to the [`SimulatorConfig`] file, containing the configuration
     /// of the scebarui to run
@@ -86,11 +86,13 @@ pub struct SimulatorMetaConfig {
     pub time_analysis_config: TimeAnalysisConfig,
 }
 
+#[pymethods]
 impl SimulatorMetaConfig {
     #[allow(dead_code)]
-    fn default_with_config_path(config_path: &Path) -> Self {
+    #[staticmethod]
+    fn default_with_config_path(config_path: &str) -> Self {
         let mut meta_config = SimulatorMetaConfig::default();
-        meta_config.config_path = Some(Box::from(config_path));
+        meta_config.config_path = Some(Box::from(Path::new(config_path)));
         meta_config
     }
 }
@@ -112,44 +114,44 @@ impl Default for SimulatorMetaConfig {
 /// Scenario configuration for the simulator.
 /// The Simulator configuration is the root of the scenario configuration.
 ///
-/// This config contains an item, `turtles`, which list the robots [`TurtlebotConfig`].
+/// This config contains an item, `robots`, which list the robots [`RobotConfig`].
 ///
 /// ## Example in yaml:
 /// ```
-/// turtles:
-///     - TurtlebotConfig 1
-///     - TurtlebotConfig 2
+/// robots:
+///     - RobotConfig 1
+///     - RobotConfig 2
 /// ```
 ///
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct SimulatorConfig {
-    /// List of the turtles (robots) to run, with their specific configuration.
+    /// List of the robots to run, with their specific configuration.
     pub random_seed: Option<f32>,
-    pub turtles: Vec<Box<TurtlebotConfig>>,
+    pub robots: Vec<Box<RobotConfig>>,
 }
 
 impl Default for SimulatorConfig {
-    /// Default scenario configuration: no turtles.
+    /// Default scenario configuration: no robots.
     fn default() -> Self {
         Self {
             random_seed: None,
-            turtles: Vec::new(),
+            robots: Vec::new(),
         }
     }
 }
 
-/// One time record of a turtle. The record is the state of the turtle with the
+/// One time record of a robot. The record is the state of the robot with the
 /// associated time.
 ///
-/// This is a line for one turtle ([`TurtlebotRecord`]) at a given time.
+/// This is a line for one robot ([`RobotRecord`]) at a given time.
 #[derive(Debug, Serialize, Deserialize)]
 #[pyclass(get_all)]
 pub struct Record {
     /// Time of the record.
     pub time: f32,
-    /// Record of a turtle.
-    pub turtle: TurtlebotRecord,
+    /// Record of a robot.
+    pub robot: RobotRecord,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -193,7 +195,7 @@ pub struct Results {
 ///                 .into(),
 ///             ),
 ///             time_analysis_config: TimeAnalysisConfig {
-///                 exporter: turtlebot_simulator::time_analysis::ProfileExporterConfig::TraceEventExporter,
+///                 exporter: simba::time_analysis::ProfileExporterConfig::TraceEventExporter,
 ///                 output_path: "time_performance".to_string(),
 ///                 keep_last: true,
 ///             }
@@ -213,8 +215,8 @@ pub struct Results {
 ///
 /// ```
 pub struct Simulator {
-    /// List of the [`Turtlebot`]. Using `Arc` and `RwLock` for multithreading.
-    turtles: Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
+    /// List of the [`Robot`]. Using `Arc` and `RwLock` for multithreading.
+    robots: Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
     /// Scenario configuration.
     config: SimulatorConfig,
     /// Simulation configuration.
@@ -228,10 +230,10 @@ pub struct Simulator {
 }
 
 impl Simulator {
-    /// Create a new [`Simulator`] with no turtles, and empty config.
+    /// Create a new [`Simulator`] with no robots, and empty config.
     pub fn new() -> Simulator {
         Simulator {
-            turtles: Arc::new(RwLock::new(Vec::new())),
+            robots: Arc::new(RwLock::new(Vec::new())),
             config: SimulatorConfig::default(),
             meta_config: SimulatorMetaConfig::default(),
             network_manager: Arc::new(RwLock::new(NetworkManager::new())),
@@ -302,11 +304,11 @@ impl Simulator {
             simulator.determinist_va_factory.global_seed = seed;
         }
 
-        // Create turtles
-        for turtle_config in &config.turtles {
-            simulator.add_turtlebot(turtle_config, &plugin_api, meta_config.clone());
-            // simulator.turtles.push(Box::new(Turtlebot::from_config(turtle_config, &plugin_api)));
-            // simulator.network_manager.register_turtle_network(simulator.turtles.last().expect("No turtle added to the vector, how is it possible ??").name(), simulator.turtles.last().expect("No turtle added to the vector, how is it possible ??").network());
+        // Create robots
+        for robot_config in &config.robots {
+            simulator.add_robot(robot_config, &plugin_api, meta_config.clone());
+            // simulator.robots.push(Box::new(Robot::from_config(robot_config, &plugin_api)));
+            // simulator.network_manager.register_robot_network(simulator.robots.last().expect("No robot added to the vector, how is it possible ??").name(), simulator.robots.last().expect("No robot added to the vector, how is it possible ??").network());
         }
         simulator
     }
@@ -319,44 +321,44 @@ impl Simulator {
             .target(env_logger::Target::Stdout)
             .filter_level(level)
             .init();
-        time_analysis::set_turtle_name("simulator".to_string());
+        time_analysis::set_robot_name("simulator".to_string());
     }
 
-    /// Add a [`Turtlebot`] to the [`Simulator`].
+    /// Add a [`Robot`] to the [`Simulator`].
     ///
-    /// This function add the [`Turtlebot`] to the [`Simulator`] list and to the [`NetworkManager`].
-    /// It also adds the [`NetworkManager`] to the new [`Turtlebot`].
+    /// This function add the [`Robot`] to the [`Simulator`] list and to the [`NetworkManager`].
+    /// It also adds the [`NetworkManager`] to the new [`Robot`].
     ///
     /// ## Argumants
-    /// * `turtle_config` - Configuration of the [`Turtlebot`].
+    /// * `robot_config` - Configuration of the [`Robot`].
     /// * `plugin_api` - Implementation of [`PluginAPI`] for the use of external modules.
     /// * `meta_config` - Configuration of the simulation run.
-    fn add_turtlebot(
+    fn add_robot(
         &mut self,
-        turtle_config: &TurtlebotConfig,
+        robot_config: &RobotConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
     ) {
-        self.turtles.write().unwrap().push(Turtlebot::from_config(
-            turtle_config,
+        self.robots.write().unwrap().push(Robot::from_config(
+            robot_config,
             plugin_api,
             meta_config,
             &self.determinist_va_factory,
             self.time_cv.clone(),
         ));
 
-        let turtle_list = self.turtles.read().unwrap();
+        let robot_list = self.robots.read().unwrap();
 
         self.network_manager
             .write()
             .unwrap()
-            .register_turtle_network(Arc::clone(&turtle_list.last().unwrap()));
-        let last_turtle_write = turtle_list
+            .register_robot_network(Arc::clone(&robot_list.last().unwrap()));
+        let last_robot_write = robot_list
             .last()
-            .expect("No turtle added to the vector, how is it possible ??")
+            .expect("No robot added to the vector, how is it possible ??")
             .write()
             .unwrap();
-        last_turtle_write
+        last_robot_write
             .network()
             .write()
             .unwrap()
@@ -366,15 +368,15 @@ impl Simulator {
     /// Simply print the Simulator state, using the info channel and the debug print.
     pub fn show(&self) {
         println!("Simulator:");
-        let turtle_list = self.turtles.read().unwrap();
-        for turtle in turtle_list.iter() {
-            println!("- {:?}", turtle);
+        let robot_list = self.robots.read().unwrap();
+        for robot in robot_list.iter() {
+            println!("- {:?}", robot);
         }
     }
 
     /// Run the scenario until the given time.
     ///
-    /// This function starts one thread by [`Turtlebot`]. It waits that the thread finishes.
+    /// This function starts one thread by [`Robot`]. It waits that the thread finishes.
     ///
     /// After the scenario is done, the results are saved, and they are analysed, following
     /// the configuration give ([`SimulatorMetaConfig`]).
@@ -385,13 +387,13 @@ impl Simulator {
         let mut handles = vec![];
 
         let mut i = 0;
-        for turtle in self.turtles.read().unwrap().iter() {
-            let new_turtle = Arc::clone(turtle);
+        for robot in self.robots.read().unwrap().iter() {
+            let new_robot = Arc::clone(robot);
             let new_max_time = max_time.clone();
-            let turtle_list = Arc::clone(&self.turtles);
+            let robot_list = Arc::clone(&self.robots);
             let time_cv = self.time_cv.clone();
             let handle = thread::spawn(move || {
-                Self::run_one_turtle(new_turtle, new_max_time, turtle_list, i, time_cv)
+                Self::run_one_robot(new_robot, new_max_time, robot_list, i, time_cv)
             });
             handles.push(handle);
             i += 1;
@@ -409,13 +411,13 @@ impl Simulator {
     /// Returns the list of all [`Record`]s produced by [`Simulator::run`].
     pub fn get_results(&self) -> Vec<Record> {
         let mut records = Vec::new();
-        for turtle in self.turtles.read().unwrap().iter() {
-            let turtle_r = turtle.read().expect("Turtle cannot be read");
-            let turtle_history = turtle_r.record_history();
-            for (time, record) in turtle_history.iter() {
+        for robot in self.robots.read().unwrap().iter() {
+            let robot_r = robot.read().expect("Robot cannot be read");
+            let robot_history = robot_r.record_history();
+            for (time, record) in robot_history.iter() {
                 records.push(Record {
                     time: time.clone(),
-                    turtle: record.clone(),
+                    robot: record.clone(),
                 });
             }
         }
@@ -456,7 +458,7 @@ impl Simulator {
                 &recording_file,
                 &Record {
                     time: row.time.clone(),
-                    turtle: row.turtle.clone(),
+                    robot: row.robot.clone(),
                 },
             )
             .expect("Error during json serialization");
@@ -476,82 +478,82 @@ impl Simulator {
         self.compute_results(results.records, &results.config);
     }
 
-    /// Wait the end of the simulation. If other turtle send messages, the simulation
+    /// Wait the end of the simulation. If other robot send messages, the simulation
     /// will go back to the time of the last message received.
     fn wait_the_end(
-        turtle: &Arc<RwLock<Turtlebot>>,
+        robot: &Arc<RwLock<Robot>>,
         max_time: f32,
         cv_mtx: &Mutex<usize>,
         cv: &Condvar,
-        nb_turtles: usize,
+        nb_robots: usize,
     ) -> bool {
-        let mut finished_turtle = cv_mtx.lock().unwrap();
-        *finished_turtle = *finished_turtle + 1;
-        if *finished_turtle == nb_turtles {
+        let mut finished_robot = cv_mtx.lock().unwrap();
+        *finished_robot = *finished_robot + 1;
+        if *finished_robot == nb_robots {
             cv.notify_all();
             return true;
         }
         loop {
-            let buffered_msgs = turtle.read().unwrap().process_messages();
+            let buffered_msgs = robot.read().unwrap().process_messages();
             if buffered_msgs > 0 {
-                *finished_turtle = *finished_turtle - 1;
+                *finished_robot = *finished_robot - 1;
                 return false;
             }
-            finished_turtle = cv.wait(finished_turtle).unwrap();
-            if *finished_turtle == nb_turtles {
+            finished_robot = cv.wait(finished_robot).unwrap();
+            if *finished_robot == nb_robots {
                 return true;
             } else {
-                *finished_turtle = *finished_turtle - 1;
-                let turtle_open = turtle.read().unwrap();
-                turtle_open.process_messages();
-                let next_time = turtle_open.next_time_step();
+                *finished_robot = *finished_robot - 1;
+                let robot_open = robot.read().unwrap();
+                robot_open.process_messages();
+                let next_time = robot_open.next_time_step();
                 if next_time < max_time {
                     return false;
                 }
-                *finished_turtle = *finished_turtle + 1;
+                *finished_robot = *finished_robot + 1;
             }
         }
     }
-    /// Run the loop for the given `turtle` until reaching `max_time`.
+    /// Run the loop for the given `robot` until reaching `max_time`.
     ///
     /// ## Arguments
-    /// * `turtle` - Turtle to be run.
+    /// * `robot` - Robot to be run.
     /// * `max_time` - Time to stop the loop.
-    fn run_one_turtle(
-        turtle: Arc<RwLock<Turtlebot>>,
+    fn run_one_robot(
+        robot: Arc<RwLock<Robot>>,
         max_time: f32,
-        turtle_list: Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
+        robot_list: Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
+        robot_idx: usize,
         time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) {
-        info!("Start thread of turtle {}", turtle.read().unwrap().name());
-        time_analysis::set_turtle_name(turtle.read().unwrap().name());
-        let nb_turtles = turtle_list.read().unwrap().len();
+        info!("Start thread of robot {}", robot.read().unwrap().name());
+        time_analysis::set_robot_name(robot.read().unwrap().name());
+        let nb_robots = robot_list.read().unwrap().len();
         info!(
             "[{}] Finishing initialization",
-            turtle.read().unwrap().name()
+            robot.read().unwrap().name()
         );
-        turtle
+        robot
             .write()
             .unwrap()
-            .post_creation_init(&turtle_list, turtle_idx);
+            .post_creation_init(&robot_list, robot_idx);
 
         let (cv_mtx, cv) = &*time_cv;
 
         loop {
-            let mut turtle_open = turtle.write().unwrap();
-            let next_time = turtle_open.next_time_step();
+            let mut robot_open = robot.write().unwrap();
+            let next_time = robot_open.next_time_step();
             if next_time > max_time {
-                std::mem::drop(turtle_open);
-                if Self::wait_the_end(&turtle, max_time, &cv_mtx, &cv, nb_turtles) {
+                std::mem::drop(robot_open);
+                if Self::wait_the_end(&robot, max_time, &cv_mtx, &cv, nb_robots) {
                     break;
                 }
-                let mut turtle_open = turtle.write().unwrap();
-                let next_time = turtle_open.next_time_step();
-                info!("[{}] Return to time {next_time}", turtle_open.name());
-                turtle_open.run_next_time_step(next_time);
+                let mut robot_open = robot.write().unwrap();
+                let next_time = robot_open.next_time_step();
+                info!("[{}] Return to time {next_time}", robot_open.name());
+                robot_open.run_next_time_step(next_time);
             } else {
-                turtle_open.run_next_time_step(next_time);
+                robot_open.run_next_time_step(next_time);
             }
         }
     }

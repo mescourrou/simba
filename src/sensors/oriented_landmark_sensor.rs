@@ -344,19 +344,19 @@ impl OrientedLandmarkSensor {
     }
 }
 
-use crate::turtlebot::Turtlebot;
+use crate::robot::Robot;
 
 impl Sensor for OrientedLandmarkSensor {
     fn init(
         &mut self,
-        _turtle: &mut Turtlebot,
-        _turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        _turtle_idx: usize,
+        _robot: &mut Robot,
+        _robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
+        _robot_idx: usize,
     ) {
     }
 
-    fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Observation> {
-        let arc_physic = turtle.physics();
+    fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
+        let arc_physic = robot.physics();
         let physic = arc_physic.read().unwrap();
         let mut observation_list = Vec::<Observation>::new();
         if time < self.next_time_step() {

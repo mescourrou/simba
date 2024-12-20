@@ -36,7 +36,7 @@ impl PythonStateEstimator {
 }
 
 impl StateEstimator for PythonStateEstimator {
-    fn prediction_step(&mut self, turtle: &mut crate::turtlebot::Turtlebot, time: f32) {
+    fn prediction_step(&mut self, robot: &mut crate::robot::Robot, time: f32) {
         debug!("Calling the pybind implementation of prediction_step");
         debug!("Calling python implementation of prediction_step");
         Python::with_gil(|py| {
@@ -49,7 +49,7 @@ impl StateEstimator for PythonStateEstimator {
 
     fn correction_step(
         &mut self,
-        turtle: &mut crate::turtlebot::Turtlebot,
+        robot: &mut crate::robot::Robot,
         observations: &Vec<crate::sensors::sensor::Observation>,
         time: f32,
     ) {

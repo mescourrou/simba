@@ -1,6 +1,6 @@
 #!/bin/env python3
 
-import turtlebot_simulator
+import simba
 import json
 
 
@@ -44,10 +44,11 @@ class SimulatorAPI:
 
 def main():
 
-    simulator_api = turtlebot_simulator.PythonAPI(SimulatorAPI())
+    simulator_api = simba.PythonAPI(SimulatorAPI())
+    meta_config = simba.SimulatorMetaConfig.default_with_config_path("config/config.yaml")
 
-    simulator = turtlebot_simulator.Simulator.from_config(
-        "config/config.yaml", simulator_api, loglevel="debug"
+    simulator = simba.Simulator.from_config(
+        meta_config, simulator_api, loglevel="debug"
     )
     simulator.show()
     simulator.run(60.0)

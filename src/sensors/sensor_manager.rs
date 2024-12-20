@@ -9,14 +9,14 @@ use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
-use crate::turtlebot::Turtlebot;
+use crate::robot::Robot;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{simulator::SimulatorMetaConfig, stateful::Stateful};
 
 use super::gnss_sensor::GNSSSensor;
 use super::odometry_sensor::OdometrySensor;
+use super::robot_sensor::RobotSensor;
 use super::sensor::ObservationRecord;
-use super::turtle_sensor::TurtleSensor;
 use super::{
     oriented_landmark_sensor::OrientedLandmarkSensor,
     sensor::{Observation, Sensor, SensorConfig, SensorRecord},
@@ -101,7 +101,7 @@ impl SensorManager {
                         meta_config.clone(),
                         va_factory,
                     )) as Box<dyn Sensor>,
-                    SensorConfig::TurtleSensor(c) => Box::new(TurtleSensor::from_config(
+                    SensorConfig::RobotSensor(c) => Box::new(RobotSensor::from_config(
                         c,
                         plugin_api,
                         meta_config.clone(),
@@ -125,24 +125,21 @@ impl SensorManager {
     /// the initialization of the modules.
     pub fn init(
         &mut self,
-        turtle: &mut Turtlebot,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
+        robot: &mut Robot,
+        robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
+        robot_idx: usize,
     ) {
         for sensor in &mut self.sensors {
-            sensor
-                .write()
-                .unwrap()
-                .init(turtle, turtle_list, turtle_idx);
+            sensor.write().unwrap().init(robot, robot_list, robot_idx);
         }
     }
 
     /// Get the observations at the given `time`.
-    pub fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Observation> {
+    pub fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
         let mut observations = Vec::<Observation>::new();
         let mut min_next_time = None;
         for sensor in &mut self.sensors {
-            let sensor_observations = sensor.write().unwrap().get_observations(turtle, time);
+            let sensor_observations = sensor.write().unwrap().get_observations(robot, time);
             for obs in sensor_observations {
                 observations.push(obs);
             }

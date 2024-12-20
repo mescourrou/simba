@@ -23,10 +23,10 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::{Arc, RwLock};
 
-/// Configuration of the [`TurtleSensor`].
+/// Configuration of the [`RobotSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
-pub struct TurtleSensorConfig {
+pub struct RobotSensorConfig {
     /// Max distance of detection.
     pub detection_distance: f32,
     /// Observation period of the sensor.
@@ -36,7 +36,7 @@ pub struct TurtleSensorConfig {
     pub theta_noise: RandomVariableTypeConfig,
 }
 
-impl Default for TurtleSensorConfig {
+impl Default for RobotSensorConfig {
     fn default() -> Self {
         Self {
             detection_distance: 5.0,
@@ -48,14 +48,14 @@ impl Default for TurtleSensorConfig {
     }
 }
 
-/// Record of the [`TurtleSensor`], which contains nothing for now.
+/// Record of the [`RobotSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all)]
-pub struct TurtleSensorRecord {
+pub struct RobotSensorRecord {
     last_time: f32,
 }
 
-impl Default for TurtleSensorRecord {
+impl Default for RobotSensorRecord {
     fn default() -> Self {
         Self { last_time: 0. }
     }
@@ -63,20 +63,20 @@ impl Default for TurtleSensorRecord {
 
 /// Landmark struct, with an `id` and a `pose`, used to read the map file.
 #[derive(Debug)]
-pub struct OrientedTurtle {
+pub struct OrientedRobot {
     pub name: String,
     pub pose: Vector3<f32>,
 }
 
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 
-impl Serialize for OrientedTurtle {
+impl Serialize for OrientedRobot {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         // 3 is the number of fields in the struct.
-        let mut state = serializer.serialize_struct("OrientedTurtle", 4)?;
+        let mut state = serializer.serialize_struct("OrientedRobot", 4)?;
         state.serialize_field("name", self.name.as_str())?;
         state.serialize_field("x", &self.pose.x)?;
         state.serialize_field("y", &self.pose.y)?;
@@ -87,7 +87,7 @@ impl Serialize for OrientedTurtle {
 
 use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
 
-impl<'de> Deserialize<'de> for OrientedTurtle {
+impl<'de> Deserialize<'de> for OrientedRobot {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: Deserializer<'de>,
@@ -137,16 +137,16 @@ impl<'de> Deserialize<'de> for OrientedTurtle {
             }
         }
 
-        struct OrientedTurtleVisitor;
+        struct OrientedRobotVisitor;
 
-        impl<'de> Visitor<'de> for OrientedTurtleVisitor {
-            type Value = OrientedTurtle;
+        impl<'de> Visitor<'de> for OrientedRobotVisitor {
+            type Value = OrientedRobot;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct OrientedTurtle")
+                formatter.write_str("struct OrientedRobot")
             }
 
-            fn visit_seq<V>(self, mut seq: V) -> Result<OrientedTurtle, V::Error>
+            fn visit_seq<V>(self, mut seq: V) -> Result<OrientedRobot, V::Error>
             where
                 V: SeqAccess<'de>,
             {
@@ -162,13 +162,13 @@ impl<'de> Deserialize<'de> for OrientedTurtle {
                 let theta: f32 = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
-                Ok(OrientedTurtle {
+                Ok(OrientedRobot {
                     name: name.to_string(),
                     pose: Vector3::from_vec(vec![x, y, theta]),
                 })
             }
 
-            fn visit_map<V>(self, mut map: V) -> Result<OrientedTurtle, V::Error>
+            fn visit_map<V>(self, mut map: V) -> Result<OrientedRobot, V::Error>
             where
                 V: MapAccess<'de>,
             {
@@ -210,7 +210,7 @@ impl<'de> Deserialize<'de> for OrientedTurtle {
                 let x = x.ok_or_else(|| de::Error::missing_field("x"))?;
                 let y = y.ok_or_else(|| de::Error::missing_field("y"))?;
                 let theta = theta.ok_or_else(|| de::Error::missing_field("theta"))?;
-                Ok(OrientedTurtle {
+                Ok(OrientedRobot {
                     name,
                     pose: Vector3::from_vec(vec![x, y, theta]),
                 })
@@ -218,28 +218,28 @@ impl<'de> Deserialize<'de> for OrientedTurtle {
         }
 
         const FIELDS: &'static [&'static str] = &["name", "x", "y", "theta"];
-        deserializer.deserialize_struct("OrientedTurtle", FIELDS, OrientedTurtleVisitor)
+        deserializer.deserialize_struct("OrientedRobot", FIELDS, OrientedRobotVisitor)
     }
 }
 
-/// Observation of an [`OrientedTurtle`].
+/// Observation of an [`OrientedRobot`].
 #[derive(Debug)]
-pub struct OrientedTurtleObservation {
-    /// Name of the turtle
+pub struct OrientedRobotObservation {
+    /// Name of the Robot
     pub name: String,
-    /// Pose of the turtle
+    /// Pose of the Robot
     pub pose: Vector3<f32>,
 }
 
-impl Stateful<OrientedTurtleObservationRecord> for OrientedTurtleObservation {
-    fn record(&self) -> OrientedTurtleObservationRecord {
-        OrientedTurtleObservationRecord {
+impl Stateful<OrientedRobotObservationRecord> for OrientedRobotObservation {
+    fn record(&self) -> OrientedRobotObservationRecord {
+        OrientedRobotObservationRecord {
             name: self.name.clone(),
             pose: self.pose.to_owned().into(),
         }
     }
 
-    fn from_record(&mut self, record: OrientedTurtleObservationRecord) {
+    fn from_record(&mut self, record: OrientedRobotObservationRecord) {
         self.name = record.name;
         self.pose = Vector3::from(record.pose);
     }
@@ -247,16 +247,16 @@ impl Stateful<OrientedTurtleObservationRecord> for OrientedTurtleObservation {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all)]
-pub struct OrientedTurtleObservationRecord {
-    /// Name of the turtle
+pub struct OrientedRobotObservationRecord {
+    /// Name of the Robot
     pub name: String,
-    /// Pose of the turtle
+    /// Pose of the Robot
     pub pose: [f32; 3],
 }
 
-/// Sensor which observe the other turtles.
+/// Sensor which observe the other Robots.
 #[derive(Debug)]
-pub struct TurtleSensor {
+pub struct RobotSensor {
     /// Detection distance
     detection_distance: f32,
     /// Observation period
@@ -266,26 +266,26 @@ pub struct TurtleSensor {
     gen_x: Box<dyn DeterministRandomVariable>,
     gen_y: Box<dyn DeterministRandomVariable>,
     gen_theta: Box<dyn DeterministRandomVariable>,
-    /// Services to get the real state of the turtles.
-    turtle_real_state_services: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
+    /// Services to get the real state of the Robots.
+    robot_real_state_services: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
 }
 
-impl TurtleSensor {
-    /// Makes a new [`TurtleSensor`].
+impl RobotSensor {
+    /// Makes a new [`RobotSensor`].
     pub fn new() -> Self {
-        TurtleSensor::from_config(
-            &TurtleSensorConfig::default(),
+        RobotSensor::from_config(
+            &RobotSensorConfig::default(),
             &None,
             SimulatorMetaConfig::default(),
             &DeterministRandomVariableFactory::default(),
         )
     }
 
-    /// Makes a new [`TurtleSensor`] from the given config.
+    /// Makes a new [`RobotSensor`] from the given config.
     ///
     /// The map path is relative to the config path of the simulator.
     pub fn from_config(
-        config: &TurtleSensorConfig,
+        config: &RobotSensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _meta_config: SimulatorMetaConfig,
         va_factory: &DeterministRandomVariableFactory,
@@ -298,84 +298,84 @@ impl TurtleSensor {
             gen_x: va_factory.make_variable(config.x_noise.clone()),
             gen_y: va_factory.make_variable(config.y_noise.clone()),
             gen_theta: va_factory.make_variable(config.theta_noise.clone()),
-            turtle_real_state_services: BTreeMap::new(),
+            robot_real_state_services: BTreeMap::new(),
         }
     }
 }
 
-use crate::turtlebot::Turtlebot;
+use crate::robot::Robot;
 
-impl Sensor for TurtleSensor {
+impl Sensor for RobotSensor {
     fn init(
         &mut self,
-        turtle: &mut Turtlebot,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
+        robot: &mut Robot,
+        robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
+        robot_idx: usize,
     ) {
-        let turtle_unlock_list = turtle_list.read().unwrap();
+        let robot_unlock_list = robot_list.read().unwrap();
         let mut i = 0;
-        for other_turtle in turtle_unlock_list.iter() {
-            if i == turtle_idx {
+        for other_robot in robot_unlock_list.iter() {
+            if i == robot_idx {
                 i += 1;
                 continue;
             }
-            let writable_turtle = other_turtle.write().unwrap();
+            let writable_robot = other_robot.write().unwrap();
             debug!(
                 "[{}] Add service of {}",
-                turtle.name(),
-                writable_turtle.name()
+                robot.name(),
+                writable_robot.name()
             );
-            self.turtle_real_state_services.insert(
-                writable_turtle.name(),
-                writable_turtle
+            self.robot_real_state_services.insert(
+                writable_robot.name(),
+                writable_robot
                     .physics()
                     .write()
                     .unwrap()
-                    .new_client(turtle.name().as_str()),
+                    .new_client(robot.name().as_str()),
             );
             i += 1;
         }
     }
 
-    fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Observation> {
+    fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
         let mut observation_list = Vec::<Observation>::new();
         if time < self.next_time_step() {
             return observation_list;
         }
-        debug!("[{}] Start looking for turtles", turtle.name());
-        let arc_physic = turtle.physics();
+        debug!("[{}] Start looking for robots", robot.name());
+        let arc_physic = robot.physics();
         let physic = arc_physic.read().unwrap();
         let state = physic.state(time);
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
-        debug!("[{}] Rotation matrix: {}", turtle.name(), rotation_matrix);
+        debug!("[{}] Rotation matrix: {}", robot.name(), rotation_matrix);
 
         let mut i = 0;
-        for (other_turtle_name, service) in self.turtle_real_state_services.iter_mut() {
+        for (other_robot_name, service) in self.robot_real_state_services.iter_mut() {
             i += 1;
 
-            debug!("[{}] Sensing turtle {}", turtle.name(), other_turtle_name);
-            assert!(*other_turtle_name != turtle.name());
+            debug!("[{}] Sensing robot {}", robot.name(), other_robot_name);
+            assert!(*other_robot_name != robot.name());
 
             let other_state = service
-                .make_request(turtle, GetRealStateReq {}, time)
+                .make_request(robot, GetRealStateReq {}, time)
                 .expect("Error during service request")
                 .state;
 
             let d = ((other_state.pose.x - state.pose.x).powi(2)
                 + (other_state.pose.y - state.pose.y).powi(2))
             .sqrt();
-            debug!("[{}] Distance is {d}", turtle.name());
+            debug!("[{}] Distance is {d}", robot.name());
             if d <= self.detection_distance {
-                let turtle_seed = 1. / (100. * self.period) * (i as f32);
+                let robot_seed = 1. / (100. * self.period) * (i as f32);
                 let noisy_pose = na::Vector3::<f32>::from_vec(vec![
-                    self.gen_x.gen(time + turtle_seed),
-                    self.gen_y.gen(time + turtle_seed),
-                    self.gen_theta.gen(time + turtle_seed),
+                    self.gen_x.gen(time + robot_seed),
+                    self.gen_y.gen(time + robot_seed),
+                    self.gen_theta.gen(time + robot_seed),
                 ]);
-                observation_list.push(Observation::OrientedTurtle(OrientedTurtleObservation {
-                    name: other_turtle_name.clone(),
+                observation_list.push(Observation::OrientedRobot(OrientedRobotObservation {
+                    name: other_robot_name.clone(),
                     pose: rotation_matrix.transpose() * (other_state.pose - state.pose)
                         + noisy_pose,
                 }));
@@ -396,16 +396,16 @@ impl Sensor for TurtleSensor {
     }
 }
 
-impl Stateful<SensorRecord> for TurtleSensor {
+impl Stateful<SensorRecord> for RobotSensor {
     fn record(&self) -> SensorRecord {
-        SensorRecord::TurtleSensor(TurtleSensorRecord {
+        SensorRecord::RobotSensor(RobotSensorRecord {
             last_time: self.last_time,
         })
     }
 
     fn from_record(&mut self, record: SensorRecord) {
-        if let SensorRecord::TurtleSensor(turtle_sensor_record) = record {
-            self.last_time = turtle_sensor_record.last_time;
+        if let SensorRecord::RobotSensor(robot_sensor_record) = record {
+            self.last_time = robot_sensor_record.last_time;
         }
     }
 }

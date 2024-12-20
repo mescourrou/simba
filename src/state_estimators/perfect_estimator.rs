@@ -77,11 +77,11 @@ impl PerfectEstimator {
 }
 
 use super::state_estimator::{StateEstimator, StateEstimatorRecord};
-use crate::turtlebot::Turtlebot;
+use crate::robot::Robot;
 
 impl StateEstimator for PerfectEstimator {
-    fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32) {
-        let arc_physic = turtle.physics();
+    fn prediction_step(&mut self, robot: &mut Robot, time: f32) {
+        let arc_physic = robot.physics();
         let physic = arc_physic.read().unwrap();
         if time < self.next_time_step() {
             error!("Error trying to update estimate too soon !");
@@ -93,7 +93,7 @@ impl StateEstimator for PerfectEstimator {
 
     fn correction_step(
         &mut self,
-        _turtle: &mut Turtlebot,
+        _robot: &mut Robot,
         _observations: &Vec<Observation>,
         _time: f32,
     ) {

@@ -15,6 +15,6 @@ To add a new [`Sensor`](sensor::Sensor), you should implement the
 pub mod gnss_sensor;
 pub mod odometry_sensor;
 pub mod oriented_landmark_sensor;
+pub mod robot_sensor;
 pub mod sensor;
 pub mod sensor_manager;
-pub mod turtle_sensor;

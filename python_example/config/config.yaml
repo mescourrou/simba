@@ -1,5 +1,5 @@
-turtles:
-  - name: "turtle1"
+robots:
+  - name: "robot1"
     navigator:
       TrajectoryFollower:
         trajectory_path: "paths/path1.yaml"
@@ -12,7 +12,7 @@ turtles:
     state_estimator:
       External:
         period: 0.1
-  - name: "turtle2"
+  - name: "robot2"
     navigator:
       TrajectoryFollower:
         trajectory_path: "paths/path1.yaml"

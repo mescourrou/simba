@@ -6,7 +6,7 @@ to save the state of a struct, and to set the struct in a given state.
 /// Trait providing save and resume state method.
 ///
 /// The generic `RecordType` is the Record which is produced and taken.
-/// See structs like [`TurtlebotRecord`](crate::turtlebot::TurtlebotRecord),
+/// See structs like [`RobotRecord`](crate::robot::RobotRecord),
 /// [`StateEstimatorRecord`](crate::state_estimators::state_estimator::StateEstimatorRecord) or
 /// [`PIDRecord`](crate::controllers::pid::PIDRecord).
 ///

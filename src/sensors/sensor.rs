@@ -14,7 +14,7 @@ use super::{
     oriented_landmark_sensor::{
         self, OrientedLandmarkObservation, OrientedLandmarkObservationRecord,
     },
-    turtle_sensor::{self, OrientedTurtleObservation, OrientedTurtleObservationRecord},
+    robot_sensor::{self, OrientedRobotObservation, OrientedRobotObservationRecord},
 };
 
 /// Generic trait for the observations. Contains no information, the observation
@@ -24,7 +24,7 @@ pub enum Observation {
     OrientedLandmark(OrientedLandmarkObservation),
     Odometry(OdometryObservation),
     GNSS(GNSSObservation),
-    OrientedTurtle(OrientedTurtleObservation),
+    OrientedRobot(OrientedRobotObservation),
 }
 
 impl Stateful<ObservationRecord> for Observation {
@@ -33,7 +33,7 @@ impl Stateful<ObservationRecord> for Observation {
             Observation::OrientedLandmark(o) => ObservationRecord::OrientedLandmark(o.record()),
             Observation::Odometry(o) => ObservationRecord::Odometry(o.record()),
             Observation::GNSS(o) => ObservationRecord::GNSS(o.record()),
-            Observation::OrientedTurtle(o) => ObservationRecord::OrientedTurtle(o.record()),
+            Observation::OrientedRobot(o) => ObservationRecord::OrientedRobot(o.record()),
         }
     }
 
@@ -54,8 +54,8 @@ impl Stateful<ObservationRecord> for Observation {
                     obs.from_record(o);
                 }
             }
-            ObservationRecord::OrientedTurtle(o) => {
-                if let Observation::OrientedTurtle(ref mut obs) = self {
+            ObservationRecord::OrientedRobot(o) => {
+                if let Observation::OrientedRobot(ref mut obs) = self {
                     obs.from_record(o);
                 }
             }
@@ -69,7 +69,7 @@ pub enum ObservationRecord {
     OrientedLandmark(OrientedLandmarkObservationRecord),
     Odometry(OdometryObservationRecord),
     GNSS(GNSSObservationRecord),
-    OrientedTurtle(OrientedTurtleObservationRecord),
+    OrientedRobot(OrientedRobotObservationRecord),
 }
 
 /// Enumerates all the possible sensors configurations.
@@ -78,7 +78,7 @@ pub enum SensorConfig {
     OrientedLandmarkSensor(Box<oriented_landmark_sensor::OrientedLandmarkSensorConfig>),
     OdometrySensor(odometry_sensor::OdometrySensorConfig),
     GNSSSensor(gnss_sensor::GNSSSensorConfig),
-    TurtleSensor(turtle_sensor::TurtleSensorConfig),
+    RobotSensor(robot_sensor::RobotSensorConfig),
 }
 
 /// Enumerates all the sensor records.
@@ -88,10 +88,10 @@ pub enum SensorRecord {
     OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorRecord),
     OdometrySensor(odometry_sensor::OdometrySensorRecord),
     GNSSSensor(gnss_sensor::GNSSSensorRecord),
-    TurtleSensor(turtle_sensor::TurtleSensorRecord),
+    RobotSensor(robot_sensor::RobotSensorRecord),
 }
 
-use crate::{stateful::Stateful, turtlebot::Turtlebot};
+use crate::{robot::Robot, stateful::Stateful};
 
 /// Sensor trait which need to be implemented by each sensors.
 pub trait Sensor:
@@ -101,21 +101,21 @@ pub trait Sensor:
     /// the initialization of the modules.
     fn init(
         &mut self,
-        turtle: &mut Turtlebot,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
+        robot: &mut Robot,
+        robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
+        robot_idx: usize,
     );
 
     /// Get the observations available at the given `time`.
     ///
     /// ## Arguments
-    /// * `turtle` - Reference to the robot to access the modules.
+    /// * `robot` - Reference to the robot to access the modules.
     /// * `time` - Time at which the observations are taken.
     ///
     /// ## Return
     /// List of [`GenericObservation`]s, could be empty if no [`Sensor`] provided observation
     /// at this `time`.
-    fn get_observations(&mut self, turtle: &mut Turtlebot, time: f32) -> Vec<Observation>;
+    fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation>;
 
     /// Get the time of the next observation.
     fn next_time_step(&self) -> f32;

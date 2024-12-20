@@ -21,7 +21,7 @@ struct to load a configuration, run the simulation, save the results and process
 For example, the simulator can be used as follows:
 ```
 use std::path::Path;
-use turtlebot_simulator::simulator::Simulator;
+use simba::simulator::Simulator;
 
 fn main() {
     // Initialize the environment, essentially the logging part
@@ -58,11 +58,11 @@ pub mod controllers;
 pub mod navigators;
 pub mod networking;
 pub mod physics;
+pub mod robot;
 pub mod sensors;
 pub mod simulator;
 pub mod state_estimators;
 pub mod stateful;
-pub mod turtlebot;
 pub mod utils;
 
 pub mod plugin_api;
@@ -73,7 +73,7 @@ pub mod time_analysis;
 pub mod gui;
 
 #[pymodule]
-fn turtlebot_simulator(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn simba(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pybinds::make_python_bindings(m)?;
     Ok(())
 }

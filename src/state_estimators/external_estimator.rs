@@ -84,7 +84,7 @@ impl ExternalEstimatorRecord {
     }
 }
 
-use crate::turtlebot::Turtlebot;
+use crate::robot::Robot;
 
 /// External estimator strategy, which does the bridge with your own strategy.
 pub struct ExternalEstimator {
@@ -134,22 +134,17 @@ impl std::fmt::Debug for ExternalEstimator {
 }
 
 impl StateEstimator for ExternalEstimator {
-    fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32) {
+    fn prediction_step(&mut self, robot: &mut Robot, time: f32) {
         if time < self.next_time_step() {
             println!("Error trying to update estimate too soon !");
             return;
         }
-        self.state_estimator.prediction_step(turtle, time);
+        self.state_estimator.prediction_step(robot, time);
     }
 
-    fn correction_step(
-        &mut self,
-        turtle: &mut Turtlebot,
-        observations: &Vec<Observation>,
-        time: f32,
-    ) {
+    fn correction_step(&mut self, robot: &mut Robot, observations: &Vec<Observation>, time: f32) {
         self.state_estimator
-            .correction_step(turtle, observations, time);
+            .correction_step(robot, observations, time);
     }
 
     fn state(&self) -> State {

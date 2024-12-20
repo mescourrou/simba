@@ -153,15 +153,10 @@ impl PID {
 use super::controller::{Controller, ControllerRecord};
 use crate::controllers::controller::ControllerError;
 use crate::physics::physic::Command;
-use crate::turtlebot::Turtlebot;
+use crate::robot::Robot;
 
 impl Controller for PID {
-    fn make_command(
-        &mut self,
-        _turtle: &mut Turtlebot,
-        error: &ControllerError,
-        time: f32,
-    ) -> Command {
+    fn make_command(&mut self, _robot: &mut Robot, error: &ControllerError, time: f32) -> Command {
         let dt = time - self.last_command_time;
         assert!(
             dt > 0.,

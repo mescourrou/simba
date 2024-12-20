@@ -12,8 +12,8 @@ use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::robot::Robot;
 use crate::simulator::SimulatorMetaConfig;
-use crate::turtlebot::Turtlebot;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
@@ -49,9 +49,9 @@ pub enum MessageMode {
     God,
 }
 
-/// Network interface for [`Turtlebot`].
+/// Network interface for [`Robot`].
 ///
-/// Each [`Turtlebot`] should have a [`Network`] instance. Through this interface,
+/// Each [`Robot`] should have a [`Network`] instance. Through this interface,
 /// the robots can send messages to other robots using pair-to-pair communication,
 /// or broadcast diffusion.
 #[derive(Clone)]
@@ -135,14 +135,14 @@ impl Network {
         self.channel_emitter.lock().unwrap().clone()
     }
 
-    /// Add a new `emitter`, to send messages to the robot `turtle_name`.
+    /// Add a new `emitter`, to send messages to the robot `robot_name`.
     pub fn add_emitter(
         &mut self,
-        turtle_name: String,
+        robot_name: String,
         emitter: mpsc::Sender<(String, Value, f32, MessageMode)>,
     ) {
         self.other_emitters
-            .insert(turtle_name, Arc::new(Mutex::new(emitter)));
+            .insert(robot_name, Arc::new(Mutex::new(emitter)));
     }
 
     /// Check whether the recipient is in range or not.
@@ -228,9 +228,9 @@ impl Network {
     /// Handle the messages which are received at the given `time`.
     ///
     /// ## Arguments
-    /// * `turtle` - Reference to the robot to give to the handlers.
+    /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
-    pub fn handle_message_at_time(&mut self, turtle: &mut Turtlebot, time: f32) {
+    pub fn handle_message_at_time(&mut self, robot: &mut Robot, time: f32) {
         while let Some((msg_time, (from, message))) = self.messages_buffer.remove(time) {
             debug!("[{}] Receive message from {from}: {:?}", self.from, message);
             debug!(
@@ -247,7 +247,7 @@ impl Network {
                 if handler
                     .write()
                     .unwrap()
-                    .handle_message(turtle, &from, &message, msg_time)
+                    .handle_message(robot, &from, &message, msg_time)
                     .is_ok()
                 {
                     debug!("[{}] Found handler", self.from);

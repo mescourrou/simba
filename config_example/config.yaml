@@ -1,5 +1,5 @@
-turtles:
-  - name: "turtle1"
+robots:
+  - name: "robot1"
     navigator:
       TrajectoryFollower:
         trajectory_path: "paths/path1.yaml"
@@ -14,7 +14,7 @@ turtles:
     #     - OrientedLandmarkSensor:
     #         map_path: "maps/landmarks_square.yaml"
     #         detection_distance: 6.0
-  - name: "turtle2"
+  - name: "robot2"
     navigator:
       TrajectoryFollower:
         trajectory_path: "paths/path1.yaml"

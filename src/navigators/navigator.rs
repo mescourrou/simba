@@ -28,8 +28,8 @@ pub enum NavigatorRecord {
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerRecord),
 }
 
+use crate::robot::Robot;
 use crate::stateful::Stateful;
-use crate::turtlebot::Turtlebot;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 /// Trait managing the path planning, and providing the error to the planned path.
@@ -37,7 +37,7 @@ pub trait Navigator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<NavigatorRecord>
 {
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
-    fn compute_error(&mut self, turtle: &mut Turtlebot, state: State) -> ControllerError;
+    fn compute_error(&mut self, robot: &mut Robot, state: State) -> ControllerError;
 }
 
 /// Helper function to create a navigator from the given configuration.

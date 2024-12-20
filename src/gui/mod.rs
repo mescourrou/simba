@@ -1,7 +1,7 @@
 #![warn(clippy::all)]
 
 mod app;
-pub use app::TurtlebotSimulatorApp;
+pub use app::SimbaApp;
 
 pub fn run_gui() {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
@@ -13,8 +13,8 @@ pub fn run_gui() {
         ..Default::default()
     };
     let _ = eframe::run_native(
-        "Turtlebot Simulator",
+        "SiMBA",
         native_options,
-        Box::new(|cc| Box::new(TurtlebotSimulatorApp::new(cc))),
+        Box::new(|cc| Box::new(SimbaApp::new(cc))),
     );
 }

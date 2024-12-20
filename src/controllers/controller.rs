@@ -50,7 +50,7 @@ pub enum ControllerRecord {
     PID(pid::PIDRecord),
 }
 
-use crate::turtlebot::Turtlebot;
+use crate::robot::Robot;
 
 /// Controller strategy, which compute the [`Command`] to be sent to the
 /// [`Physic`](crate::physics::physic::Physic) module, from the given `error`.
@@ -60,18 +60,13 @@ pub trait Controller:
     /// Compute the command from the given error.
     ///
     /// ## Arguments
-    /// * `turtle` - Reference to the robot to access modules.
+    /// * `robot` - Reference to the robot to access modules.
     /// * `error` - Error to be corrected.
     /// * `time` - Current time.
     ///
     /// ## Return
     /// Command to apply to the [`Physic`](crate::physics::physic::Physic).
-    fn make_command(
-        &mut self,
-        turtle: &mut Turtlebot,
-        error: &ControllerError,
-        time: f32,
-    ) -> Command;
+    fn make_command(&mut self, robot: &mut Robot, error: &ControllerError, time: f32) -> Command;
 }
 
 /// Helper function to make the right [`Controller`] from the given configuration.

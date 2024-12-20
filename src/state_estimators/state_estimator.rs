@@ -143,9 +143,9 @@ impl fmt::Display for State {
 }
 
 use super::{external_estimator, perfect_estimator};
+use crate::robot::Robot;
 use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
-use crate::turtlebot::Turtlebot;
 use crate::utils::geometry::mod2pi;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -216,10 +216,10 @@ pub trait StateEstimator:
     /// The prediction step should be able to compute the state of the robot at the given time.
     ///
     /// ## Arguments
-    /// * `turtle` -- mutable reference on the current [`Turtlebot`] to be able to interact with
+    /// * `robot` -- mutable reference on the current [`Robot`] to be able to interact with
     /// other modules.
     /// * `time` -- Time to reach.
-    fn prediction_step(&mut self, turtle: &mut Turtlebot, time: f32);
+    fn prediction_step(&mut self, robot: &mut Robot, time: f32);
 
     /// Correction step of the state estimator.
     ///
@@ -227,16 +227,11 @@ pub trait StateEstimator:
     /// types, the implementation should not assert a specific type.
     ///
     /// ## Arguments
-    /// * `turtle` -- mutable reference on the current [`Turtlebot`] to be able to interact with
+    /// * `robot` -- mutable reference on the current [`Robot`] to be able to interact with
     /// other modules.
     /// * `observations` -- Observation vector.
     /// * `time` -- Current time.
-    fn correction_step(
-        &mut self,
-        turtle: &mut Turtlebot,
-        observations: &Vec<Observation>,
-        time: f32,
-    );
+    fn correction_step(&mut self, robot: &mut Robot, observations: &Vec<Observation>, time: f32);
 
     /// Return the current estimated state.
     fn state(&self) -> State;

@@ -14,7 +14,7 @@ use std::vec::Vec;
 ///
 /// ## Example
 /// ```
-/// use turtlebot_simulator::utils::time_ordered_data::TimeOrderedData;
+/// use simba::utils::time_ordered_data::TimeOrderedData;
 ///
 /// let mut tod = TimeOrderedData::<String>::new();
 /// tod.insert(2.1, String::from("Hello1"), true);

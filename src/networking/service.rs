@@ -3,7 +3,7 @@ Provides a service system to handle two-way communication between robots, with t
 client robot beeing blocked until the server robot sends a response.
 
 The server robot should create a [`Service`] and handle the requests in
-[`run_time_step`](crate::turtlebot::Turtlebot::run_time_step). The client robot should get a
+[`run_time_step`](crate::robot::Robot::run_time_step). The client robot should get a
 [`ServiceClient`] instance to be able to make a request.
 
 To operate a service, two messages types should be defined:
@@ -20,7 +20,7 @@ use std::{
 
 use log::debug;
 
-use crate::{turtlebot::Turtlebot, utils::time_ordered_data::TimeOrderedData};
+use crate::{robot::Robot, utils::time_ordered_data::TimeOrderedData};
 
 use super::network::MessageMode;
 
@@ -47,7 +47,7 @@ impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
     /// method.
     ///
     /// ## Arguments
-    /// * `turtle` - Reference to the [`Turtlebot`](crate::turtlebot::Turtlebot) making the request.
+    /// * `robot` - Reference to the [`Robot`](crate::robot::Robot) making the request.
     /// * `req` - Request message to send to the server.
     /// * `time` - Time at which the request is made.
     ///
@@ -55,14 +55,14 @@ impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
     /// The response from the server, or an error message if the request failed.
     pub fn make_request(
         &mut self,
-        turtle: &mut Turtlebot,
+        robot: &mut Robot,
         req: RequestMsg,
         time: f32,
     ) -> Result<ResponseMsg, String> {
-        debug!("[{}] Sending a request...", turtle.name());
+        debug!("[{}] Sending a request...", robot.name());
         let lk = self.time_cv.0.lock().unwrap();
         match self.request_channel.lock().unwrap().send((
-            turtle.name(),
+            robot.name(),
             req,
             time,
             // To be changed when full support of the message mode will be implemented
@@ -71,16 +71,16 @@ impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
             Err(e) => return Err(e.to_string()),
             _ => (),
         }
-        debug!("[{}] Sending a request... OK", turtle.name());
-        // Needed to unlock the other turtle if it has finished and is waiting for messages.
+        debug!("[{}] Sending a request... OK", robot.name());
+        // Needed to unlock the other robot if it has finished and is waiting for messages.
         self.time_cv.1.notify_all();
         std::mem::drop(lk);
-        debug!("[{}] Waiting for result...", turtle.name());
+        debug!("[{}] Waiting for result...", robot.name());
         let result = match self.response_channel.lock().unwrap().recv() {
             Ok(result) => result,
             Err(e) => return Err(e.to_string()),
         };
-        debug!("[{}] Result received", turtle.name());
+        debug!("[{}] Result received", robot.name());
         result
     }
 }
@@ -88,7 +88,7 @@ impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
 /// Service to handle requests from clients.
 ///
 /// Handles requests from clients, and send responses to them. The server should handle
-/// the requests in [`run_time_step`](crate::turtlebot::Turtlebot::run_time_step).
+/// the requests in [`run_time_step`](crate::robot::Robot::run_time_step).
 #[derive(Debug)]
 pub struct Service<RequestMsg, ResponseMsg> {
     /// Channel to receive requests from clients.
@@ -175,11 +175,11 @@ impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
     /// Makes a new client to the service, with the channels already setup.
     ///
     /// ## Arguments
-    /// * `turtle_name` - Name of the client turtle, to be able to send responses to it.
-    pub fn new_client(&mut self, turtle_name: &str) -> ServiceClient<RequestMsg, ResponseMsg> {
+    /// * `robot_name` - Name of the client robot, to be able to send responses to it.
+    pub fn new_client(&mut self, robot_name: &str) -> ServiceClient<RequestMsg, ResponseMsg> {
         let (tx, rx) = mpsc::channel::<Result<ResponseMsg, String>>();
         self.clients
-            .insert(turtle_name.to_string(), Arc::new(Mutex::new(tx)));
+            .insert(robot_name.to_string(), Arc::new(Mutex::new(tx)));
         ServiceClient {
             request_channel: self.request_channel_give.clone(),
             response_channel: Arc::new(Mutex::new(rx)),
@@ -206,7 +206,7 @@ pub trait ServiceHandler<RequestMsg, ResponseMsg>: Sync + Send + Debug {
 /// Common interface for all struct which manages a service.
 pub trait HasService<RequestMsg, ResponseMsg> {
     /// Create the service: should be called only once, at the beginning.
-    fn make_service(&mut self, turtle: Arc<RwLock<Turtlebot>>);
+    fn make_service(&mut self, robot: Arc<RwLock<Robot>>);
     /// Create a new client to the service, should be called by client robots.
     fn new_client(&mut self, client_name: &str) -> ServiceClient<RequestMsg, ResponseMsg>;
     /// Handle the requests received from the clients at the given `time`.

@@ -336,8 +336,8 @@ mod test {
 #[cfg(feature = "time-analysis")]
 #[derive(Debug)]
 struct TimeAnalysisFactory {
-    turtles_names: HashMap<ThreadId, String>,
-    turtles_depth: HashMap<ThreadId, usize>,
+    robots_names: HashMap<ThreadId, String>,
+    robots_depth: HashMap<ThreadId, usize>,
     execution_tree: HashMap<String, ExecutionTree>,
     current_coordinates: HashMap<ThreadId, (i64, Vec<usize>)>,
     exporter: Box<dyn ProfilerExporter>,
@@ -350,8 +350,8 @@ impl TimeAnalysisFactory {
         lazy_static! {
             static ref FACTORY: Mutex<TimeAnalysisFactory> = {
                 let m = Mutex::new(TimeAnalysisFactory {
-                    turtles_names: HashMap::new(),
-                    turtles_depth: HashMap::new(),
+                    robots_names: HashMap::new(),
+                    robots_depth: HashMap::new(),
                     current_coordinates: HashMap::new(),
                     execution_tree: HashMap::new(),
                     exporter: Box::new(TraceEventExporter {}),
@@ -378,16 +378,16 @@ impl TimeAnalysisFactory {
         self.config = config;
     }
 
-    pub fn set_turtle_name(name: String) {
+    pub fn set_robot_name(name: String) {
         let factory = TimeAnalysisFactory::get_instance();
         let mut factory = factory.lock().unwrap();
-        factory._set_turtle_name(name);
+        factory._set_robot_name(name);
     }
 
-    fn _set_turtle_name(&mut self, name: String) {
-        self.turtles_names
+    fn _set_robot_name(&mut self, name: String) {
+        self.robots_names
             .insert(thread::current().id(), name.clone());
-        self.turtles_depth.insert(thread::current().id(), 0);
+        self.robots_depth.insert(thread::current().id(), 0);
         self.current_coordinates
             .insert(thread::current().id(), (0, Vec::new()));
         self.execution_tree.insert(name, ExecutionTree::new());
@@ -404,7 +404,7 @@ impl TimeAnalysisFactory {
         self._time_analysis_robot_name(
             time,
             name,
-            self.turtles_names
+            self.robots_names
                 .get(&thread::current().id())
                 .unwrap()
                 .clone(),
@@ -427,7 +427,7 @@ impl TimeAnalysisFactory {
         robot_name: String,
     ) -> TimeAnalysis {
         let robot_id = self
-            .turtles_names
+            .robots_names
             .iter()
             .find_map(|(key, &ref val)| {
                 if val == &robot_name {
@@ -439,7 +439,7 @@ impl TimeAnalysisFactory {
             .expect("Robot name not found");
 
         let time_int = Duration::from_secs_f32(time).as_micros() as i64;
-        let depth = *self.turtles_depth.get(&thread::current().id()).unwrap();
+        let depth = *self.robots_depth.get(&thread::current().id()).unwrap();
         let current_coordinates = self.current_coordinates.get_mut(&robot_id).unwrap();
         if current_coordinates.0 != time_int {
             current_coordinates.0 = time_int;
@@ -463,7 +463,7 @@ impl TimeAnalysisFactory {
             name: robot_name.clone() + "_" + &name,
             coordinates: current_coordinates.1.clone(),
         };
-        *self.turtles_depth.get_mut(&thread::current().id()).unwrap() += 1;
+        *self.robots_depth.get_mut(&thread::current().id()).unwrap() += 1;
         ta
     }
 
@@ -475,8 +475,8 @@ impl TimeAnalysisFactory {
     }
 
     fn _finished_time_analysis(&mut self, ta: TimeAnalysis, elapsed: time::Duration) {
-        let turtle_name = self.turtles_names.get(&thread::current().id()).unwrap();
-        *self.turtles_depth.get_mut(&thread::current().id()).unwrap() -= 1;
+        let robot_name = self.robots_names.get(&thread::current().id()).unwrap();
+        *self.robots_depth.get_mut(&thread::current().id()).unwrap() -= 1;
         // let indent = ta.depth*2;
         let time_int = Duration::from_secs_f32(ta.simulated_time).as_micros() as i64;
         // let coordinates = self.current_coordinates.get_mut(&thread::current().id()).unwrap();
@@ -484,7 +484,7 @@ impl TimeAnalysisFactory {
 
         let node = self
             .execution_tree
-            .get_mut(&turtle_name.clone())
+            .get_mut(&robot_name.clone())
             .unwrap()
             .get_node(ta.name.clone(), time_int, coordinates.clone());
         if node.is_none() {
@@ -537,8 +537,8 @@ pub fn init_from_config(config: TimeAnalysisConfig) {
 }
 
 #[cfg(feature = "time-analysis")]
-pub fn set_turtle_name(name: String) {
-    TimeAnalysisFactory::set_turtle_name(name);
+pub fn set_robot_name(name: String) {
+    TimeAnalysisFactory::set_robot_name(name);
 }
 
 #[cfg(feature = "time-analysis")]
@@ -566,7 +566,7 @@ pub fn save_results() {
 pub fn init_from_config(config: TimeAnalysisConfig) {}
 
 #[cfg(not(feature = "time-analysis"))]
-pub fn set_turtle_name(_name: String) {}
+pub fn set_robot_name(_name: String) {}
 
 #[cfg(not(feature = "time-analysis"))]
 pub fn time_analysis(time: f32, name: String) -> TimeAnalysis {
@@ -646,9 +646,9 @@ struct TraceEventRoot {
 impl ProfilerExporter for TraceEventExporter {
     fn export(&self, taf: &TimeAnalysisFactory, path: &Path) {
         let mut trace_events = Vec::new();
-        let mut turtle_names = Vec::new();
-        for (turtle_name, profiles) in taf.iter_execution_profiles() {
-            turtle_names.push(turtle_name);
+        let mut robot_names = Vec::new();
+        for (robot_name, profiles) in taf.iter_execution_profiles() {
+            robot_names.push(robot_name);
             trace_events.push(TraceEvent {
                 name: "thread_name".to_string(),
                 cat: "PERF".to_string(),
@@ -657,9 +657,9 @@ impl ProfilerExporter for TraceEventExporter {
                 dur: 0,
                 sf: 0,
                 ts: 0,
-                tid: turtle_names.len() as i64 - 1,
+                tid: robot_names.len() as i64 - 1,
                 args: Some(serde_json::json!({
-                    "name" : turtle_name.to_string()
+                    "name" : robot_name.to_string()
                 })),
             });
             for profile in profiles {
@@ -669,7 +669,7 @@ impl ProfilerExporter for TraceEventExporter {
                     ph: "X".to_string(),
                     ts: profile.begin,
                     dur: profile.duration.as_micros() as i64,
-                    tid: turtle_names.len() as i64 - 1,
+                    tid: robot_names.len() as i64 - 1,
                     pid: 0,
                     args: None,
                     sf: 0,

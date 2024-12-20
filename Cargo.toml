@@ -2,7 +2,7 @@
 members = ["example"]
 
 [package]
-name = "turtlebot_simulator"
+name = "simba"
 version = "0.2.0"
 edition = "2021"
 

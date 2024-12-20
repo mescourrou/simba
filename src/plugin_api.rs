@@ -3,8 +3,8 @@ Module providing the trait to link the simulator to external implementations.
 
 Example to use an external state estimator:
 ```
-use turtlebot_simulator::state_estimators::state_estimator::StateEstimator;
-use turtlebot_simulator::{plugin_api::PluginAPI, simulator::SimulatorMetaConfig};
+use simba::state_estimators::state_estimator::StateEstimator;
+use simba::{plugin_api::PluginAPI, simulator::SimulatorMetaConfig};
 
 use serde_json::Value;
 
@@ -26,7 +26,7 @@ impl PluginAPI for MyPlugin {
 
 You should use the simulator as a library. Your main.rs could be:
 ```compile_fail
-use turtlebot_simulator::simulator::Simulator;
+use simba::simulator::Simulator;
 use std::path::Path;
 
 fn main() {

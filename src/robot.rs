@@ -1,6 +1,6 @@
 /*!
-Module providing the main robot manager, [`Turtlebot`], along with the configuration
-[`TurtlebotConfig`] and the record [`TurtlebotRecord`] structures.
+Module providing the main robot manager, [`Robot`], along with the configuration
+[`RobotConfig`] and the record [`RobotRecord`] structures.
 */
 
 use std::sync::{Arc, Condvar, Mutex, RwLock};
@@ -63,17 +63,17 @@ pub struct BenchStateEstimator {
     state_estimator: Arc<RwLock<Box<dyn StateEstimator>>>,
 }
 
-// Configuration for Turtlebot
+// Configuration for Robot
 extern crate confy;
 use log::{debug, info, warn};
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
-/// Configuration of the [`Turtlebot`].
+/// Configuration of the [`Robot`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
-pub struct TurtlebotConfig {
+pub struct RobotConfig {
     /// Name of the robot.
     pub name: String,
     /// [`Navigator`] to use, and its configuration.
@@ -94,7 +94,7 @@ pub struct TurtlebotConfig {
     pub state_estimator_bench: Vec<BenchStateEstimatorConfig>,
 }
 
-impl Default for TurtlebotConfig {
+impl Default for RobotConfig {
     /// Default configuration, using:
     /// * Default [`TrajectoryFollower`](trajectory_follower::TrajectoryFollower) navigator.
     /// * Default [`PID`](pid::PID) controller.
@@ -103,7 +103,7 @@ impl Default for TurtlebotConfig {
     /// * Default [`SensorManager`] config (no sensors).
     /// * Default [`Network`] config.
     fn default() -> Self {
-        TurtlebotConfig {
+        RobotConfig {
             name: String::from("NoName"),
             navigator: NavigatorConfig::TrajectoryFollower(Box::new(
                 trajectory_follower::TrajectoryFollowerConfig::default(),
@@ -120,12 +120,12 @@ impl Default for TurtlebotConfig {
     }
 }
 
-/// State record of [`Turtlebot`].
+/// State record of [`Robot`].
 ///
 /// It contains the dynamic elements and the elements we want to save.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[pyclass(get_all)]
-pub struct TurtlebotRecord {
+pub struct RobotRecord {
     /// Name of the robot.
     pub name: String,
     /// Record of the [`Navigator`] module.
@@ -144,36 +144,36 @@ pub struct TurtlebotRecord {
 
 /// Structure to manage the messages for no specific modules of the robot.
 #[derive(Clone, Debug)]
-pub struct TurtlebotGenericMessageHandler {}
+pub struct RobotGenericMessageHandler {}
 
-impl TurtlebotGenericMessageHandler {
-    /// Create a new instance of [`TurtlebotGenericMessageHandler`].
+impl RobotGenericMessageHandler {
+    /// Create a new instance of [`RobotGenericMessageHandler`].
     pub fn new() -> Self {
-        TurtlebotGenericMessageHandler {}
+        RobotGenericMessageHandler {}
     }
 }
 
-impl MessageHandler for TurtlebotGenericMessageHandler {
+impl MessageHandler for RobotGenericMessageHandler {
     /// Handle the message or raise an error (to send the message to the next handler).
     ///
     /// See [`MessageHandler::handle_message`] for trait specification.
     fn handle_message(
         &mut self,
-        turtle: &mut Turtlebot,
+        robot: &mut Robot,
         _from: &String,
         message: &Value,
         _time: f32,
     ) -> Result<(), ()> {
-        if turtle.message_callback_str(&message).is_ok() {
+        if robot.message_callback_str(&message).is_ok() {
             return Ok(());
-        } else if turtle.message_callback_number(&message).is_ok() {
+        } else if robot.message_callback_number(&message).is_ok() {
             return Ok(());
         }
         Err(())
     }
 }
 
-// Turtlebot itself
+// Robot itself
 
 /// Structure managing one robot.
 ///
@@ -193,13 +193,13 @@ impl MessageHandler for TurtlebotGenericMessageHandler {
 /// the send of messages to other robots.
 /// * `message_handler` manages the messages that are not sent to a specific module.
 ///
-/// The [`Turtlebot`] internally manages a history of its states, using [`TimeOrderedData`].
+/// The [`Robot`] internally manages a history of its states, using [`TimeOrderedData`].
 /// In this way, it can get back to a past state, in order to treat a message sent
-/// from the past. [`Turtlebot::run_next_time_step`] does the necessary
+/// from the past. [`Robot::run_next_time_step`] does the necessary
 /// so that the required time is reached taking into account all past messages.
 #[derive(Debug, Clone)]
 #[pyclass]
-pub struct Turtlebot {
+pub struct Robot {
     /// Name of the robot. Should be unique among all [`Simulator`](crate::simulator::Simulator)
     /// robots.
     name: String,
@@ -216,18 +216,18 @@ pub struct Turtlebot {
     /// [`Network`] interface to receive and send messages with other robots.
     network: Arc<RwLock<Network>>,
     /// [`MessageHandler`] for messages which are not sent to a specific module.
-    message_handler: Arc<RwLock<TurtlebotGenericMessageHandler>>,
-    /// History of the states ([`TurtlebotRecord`]) of the robot, to set the [`Turtlebot`]
+    message_handler: Arc<RwLock<RobotGenericMessageHandler>>,
+    /// History of the states ([`RobotRecord`]) of the robot, to set the [`Robot`]
     /// in a past state.
-    state_history: TimeOrderedData<TurtlebotRecord>,
+    state_history: TimeOrderedData<RobotRecord>,
     /// Additional [`StateEstimator`] to be evaluated.
     state_estimator_bench: Arc<RwLock<Vec<BenchStateEstimator>>>,
 }
 
-impl Turtlebot {
-    /// Creates a new [`Turtlebot`] with the given name.
+impl Robot {
+    /// Creates a new [`Robot`] with the given name.
     pub fn new(name: String, time_cv: Arc<(Mutex<usize>, Condvar)>) -> Arc<RwLock<Self>> {
-        let turtle = Arc::new(RwLock::new(Self {
+        let robot = Arc::new(RwLock::new(Self {
             name: name.clone(),
             navigator: Arc::new(RwLock::new(Box::new(
                 trajectory_follower::TrajectoryFollower::new(),
@@ -241,33 +241,33 @@ impl Turtlebot {
             ))),
             sensor_manager: Arc::new(RwLock::new(SensorManager::new())),
             network: Arc::new(RwLock::new(Network::new(name.clone(), time_cv.clone()))),
-            message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
+            message_handler: Arc::new(RwLock::new(RobotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
             state_estimator_bench: Arc::new(RwLock::new(Vec::new())),
         }));
-        turtle.write().unwrap().save_state(0.);
-        turtle
+        robot.write().unwrap().save_state(0.);
+        robot
     }
 
-    /// Creates a new [`Turtlebot`] with the given configuration.
+    /// Creates a new [`Robot`] with the given configuration.
     ///
     /// During the creation of the new robot, each module is initialized with its own config.
     ///
     ///  ## Arguments
-    /// * `config` -- Scenario config of the robot, including all modules. See [`TurtlebotConfig`]
+    /// * `config` -- Scenario config of the robot, including all modules. See [`RobotConfig`]
     /// * `plugin_api` -- Optional [`PluginAPI`] implementation required to use external modules.
     /// * `meta_config` -- Simulator config.
     ///
     /// ## Return
     /// The new robot is return as a reference counter to be shared among threads.
     pub fn from_config(
-        config: &TurtlebotConfig,
+        config: &RobotConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         meta_config: SimulatorMetaConfig,
         va_factory: &DeterministRandomVariableFactory,
         time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) -> Arc<RwLock<Self>> {
-        let turtle = Arc::new(RwLock::new(Self {
+        let robot = Arc::new(RwLock::new(Self {
             name: config.name.clone(),
             navigator: navigator::make_navigator_from_config(
                 &config.navigator,
@@ -307,7 +307,7 @@ impl Turtlebot {
                 va_factory,
                 time_cv.clone(),
             ))),
-            message_handler: Arc::new(RwLock::new(TurtlebotGenericMessageHandler::new())),
+            message_handler: Arc::new(RwLock::new(RobotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
             state_estimator_bench: Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimator_bench.len(),
@@ -316,7 +316,7 @@ impl Turtlebot {
         }));
 
         for state_estimator_config in &config.state_estimator_bench {
-            turtle
+            robot
                 .write()
                 .unwrap()
                 .state_estimator_bench
@@ -334,20 +334,20 @@ impl Turtlebot {
         }
 
         {
-            let mut writable_turtle = turtle.write().unwrap();
-            writable_turtle.network.write().unwrap().subscribe(Arc::<
-                RwLock<TurtlebotGenericMessageHandler>,
+            let mut writable_robot = robot.write().unwrap();
+            writable_robot.network.write().unwrap().subscribe(Arc::<
+                RwLock<RobotGenericMessageHandler>,
             >::clone(
-                &writable_turtle.message_handler
+                &writable_robot.message_handler
             ));
-            writable_turtle.save_state(0.);
+            writable_robot.save_state(0.);
         }
-        debug!("[{}] Setup services", turtle.read().unwrap().name());
+        debug!("[{}] Setup services", robot.read().unwrap().name());
         // Services
-        let physics = turtle.write().unwrap().physics();
-        physics.write().unwrap().make_service(turtle.clone());
+        let physics = robot.write().unwrap().physics();
+        physics.write().unwrap().make_service(robot.clone());
 
-        turtle
+        robot
     }
 
     /// Initialize the robot after its creation.
@@ -355,14 +355,14 @@ impl Turtlebot {
     /// It is used to initialize the sensor manager, which need to know the list of all robots.
     pub fn post_creation_init(
         &mut self,
-        turtle_list: &Arc<RwLock<Vec<Arc<RwLock<Turtlebot>>>>>,
-        turtle_idx: usize,
+        robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
+        robot_idx: usize,
     ) {
         let sensor_manager = self.sensor_manager();
         sensor_manager
             .write()
             .unwrap()
-            .init(self, turtle_list, turtle_idx);
+            .init(self, robot_list, robot_idx);
     }
 
     /// Run the robot to reach the given time.
@@ -394,7 +394,7 @@ impl Turtlebot {
     /// Run only one time step.
     ///
     /// To run the given `time` step, the robot sets itself in the state of this moment
-    /// using [`Turtlebot::set_in_state`].
+    /// using [`Robot::set_in_state`].
     ///
     /// The update step is done in this order:
     /// 1. Update the physics
@@ -533,7 +533,7 @@ impl Turtlebot {
 
         let message_next_time = self.network().read().unwrap().next_message_time();
         debug!(
-            "[{}] In turtlebot: message_next_time: {}",
+            "[{}] In robot: message_next_time: {}",
             self.name(),
             message_next_time.unwrap_or(-1.)
         );
@@ -568,7 +568,7 @@ impl Turtlebot {
 
     /// Set the robot in the state just before `time` (but different).
     ///
-    /// It should be called for the minimal time before using [`Turtlebot::save_state`].
+    /// It should be called for the minimal time before using [`Robot::save_state`].
     fn set_in_state(&mut self, time: f32) {
         let state_at_time = self.state_history.get_data_before_time(time);
         if state_at_time.is_none() {
@@ -580,7 +580,7 @@ impl Turtlebot {
     }
 
     /// Returs the current state history.
-    pub fn record_history(&self) -> &TimeOrderedData<TurtlebotRecord> {
+    pub fn record_history(&self) -> &TimeOrderedData<RobotRecord> {
         &self.state_history
     }
 
@@ -647,10 +647,10 @@ impl Turtlebot {
     }
 }
 
-impl Stateful<TurtlebotRecord> for Turtlebot {
+impl Stateful<RobotRecord> for Robot {
     /// Generate the current state record.
-    fn record(&self) -> TurtlebotRecord {
-        let mut record = TurtlebotRecord {
+    fn record(&self) -> RobotRecord {
+        let mut record = RobotRecord {
             name: self.name.clone(),
             navigator: self.navigator.read().unwrap().record(),
             controller: self.controller.read().unwrap().record(),
@@ -676,7 +676,7 @@ impl Stateful<TurtlebotRecord> for Turtlebot {
     }
 
     /// Change the robot to be in the state of the given `record`.
-    fn from_record(&mut self, record: TurtlebotRecord) {
+    fn from_record(&mut self, record: RobotRecord) {
         self.navigator
             .write()
             .unwrap()
