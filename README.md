@@ -12,7 +12,7 @@ Here is a list of available and considered features. The order is not a priority
 - [X] Python bindings (for only one robot)
 - [ ] Synchronous robot run option
 - [ ] Back-in-time optimization: jump to present if no modification was made in the past to avoid unnecessary computation
-- [ ] Time performance analysis
+- [X] Time performance analysis (first version)
 - [ ] Possibility to read data from file instead of simulation: test state estimation algorithms on real data
 - [ ] ROS2 interface (rosbag reading)
 - [ ] Gazebo interface (maybe)
@@ -20,6 +20,9 @@ Here is a list of available and considered features. The order is not a priority
 - [ ] More complex noise addition (+ faults)
 - [ ] Graphical User Interface (real time + replay)
 - [ ] Extend PluginAPI to controller, navigators, physics and sensors
+
+## Cargo Features:
+- "time-analysis": enable time analysis features (with performance report compatible with [https://profiler.firefox.com/](https://profiler.firefox.com/)). May slow down the simulation (shared memory).
 
 ## Documentation
 You can compile the documentation using Cargo:
