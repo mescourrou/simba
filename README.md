@@ -38,6 +38,8 @@ The last documentation is available [here](https://homepages.laas.fr/mescourrou/
 ## Contribution
 You can contribute by submitting a Pull request. Discussion should occur in case of breaking changes (especially in the configuration structure).
 
+Don't forget to install git hooks: `./install-hooks.sh`
+
 ## Python bindings
 To make python bindings, we use `PyO3`.
 
