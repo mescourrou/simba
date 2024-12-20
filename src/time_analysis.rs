@@ -76,17 +76,17 @@ impl ExecutionNode {
 
 #[cfg(feature = "time-analysis")]
 #[derive(Debug)]
-struct ExecutionTree<'a> {
+struct ExecutionTree {
     top_time_nodes: Vec<Box<ExecutionNode>>,
-    last_added: Option<&'a ExecutionNode>,
+    keep_last: bool
 }
 
 #[cfg(feature = "time-analysis")]
-impl<'a> ExecutionTree<'a> {
+impl ExecutionTree {
     pub fn new() -> Self {
         ExecutionTree {
             top_time_nodes: Vec::new(),
-            last_added: None,
+            keep_last: true,
         }
     }
 
@@ -97,6 +97,14 @@ impl<'a> ExecutionTree<'a> {
         let current = self.top_time_nodes.iter_mut().find(|node| node.begin == time_int);
 
         if let Some(mut current) = current {
+            if coordinates[0] == 0 {
+                if self.keep_last {
+                    *current = Box::new(ExecutionNode::from(name, time_int, depth));
+                    return;
+                } else {
+                    panic!("Keep_last = false not implemented yet for Execution Tree");
+                }
+            }
             for i in 0..depth-1 {
                 for _j in 0..coordinates[i] {
                     current = current.next.as_mut().unwrap();
@@ -165,7 +173,7 @@ impl<'a> ExecutionTree<'a> {
         nodes
     }
 
-    pub fn iter(&'a self) -> impl Iterator<Item = Box<ExecutionNode>> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = Box<ExecutionNode>> + 'a {
         self.top_time_nodes.iter().flat_map(move |node| {
             self.recusive_iter(node).into_iter()
         })
@@ -240,10 +248,10 @@ mod test {
 
 #[cfg(feature = "time-analysis")]
 #[derive(Debug)]
-struct TimeAnalysisFactory<'a> {
+struct TimeAnalysisFactory {
     turtles_names: HashMap<ThreadId, String>,
     turtles_depth: HashMap<ThreadId, usize>,
-    execution_tree: HashMap<String, ExecutionTree<'a>>,
+    execution_tree: HashMap<String, ExecutionTree>,
     current_coordinates: HashMap<ThreadId, (i64, Vec<usize>)>,
     exporter: Box<dyn ProfilerExporter>,
     begin: time::Instant,
@@ -252,10 +260,10 @@ struct TimeAnalysisFactory<'a> {
 }
 
 #[cfg(feature = "time-analysis")]
-impl<'a> TimeAnalysisFactory<'a> {
-    fn get_instance() -> &'static Mutex<TimeAnalysisFactory<'static>> {
+impl TimeAnalysisFactory {
+    fn get_instance() -> &'static Mutex<TimeAnalysisFactory> {
         lazy_static! {
-            static ref FACTORY: Mutex<TimeAnalysisFactory<'static>> = {
+            static ref FACTORY: Mutex<TimeAnalysisFactory> = {
                 let m = Mutex::new(TimeAnalysisFactory {
                     begin: time::Instant::now(),
                     turtles_names: HashMap::new(),
