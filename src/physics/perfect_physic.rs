@@ -176,9 +176,9 @@ impl Physic for PerfectPhysic {
 }
 
 impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
-    fn make_service(&mut self, robot: Arc<RwLock<Robot>>) {
-        debug!("[{}] Making service", robot.read().unwrap().name());
-        debug!("[{}] Service made", robot.read().unwrap().name());
+    fn make_service(&mut self, _robot: Arc<RwLock<Robot>>) {
+        debug!("Making service");
+        debug!("Service made");
     }
 
     fn new_client(

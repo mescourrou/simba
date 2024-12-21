@@ -214,7 +214,7 @@ impl Network {
                 MessageMode::Default => time + self.delay,
                 MessageMode::God => time,
             };
-            debug!("[{}] Add new message from {from} at time {time}", self.from);
+            debug!("Add new message from {from} at time {time}");
             self.messages_buffer.insert(time, (from, message), false);
         }
         self.messages_buffer.len()
@@ -232,41 +232,28 @@ impl Network {
     /// * `time` - Time of the messages to handle.
     pub fn handle_message_at_time(&mut self, robot: &mut Robot, time: f32) {
         while let Some((msg_time, (from, message))) = self.messages_buffer.remove(time) {
-            debug!("[{}] Receive message from {from}: {:?}", self.from, message);
-            debug!(
-                "[{}] Handler list size: {}",
-                self.from,
-                self.message_handlers.len()
-            );
+            debug!("Receive message from {from}: {:?}", message);
+            debug!("Handler list size: {}", self.message_handlers.len());
             for handler in &self.message_handlers {
-                debug!(
-                    "[{}] Handler available: {:?}",
-                    self.from,
-                    handler.try_write().is_ok()
-                );
+                debug!("Handler available: {:?}", handler.try_write().is_ok());
                 if handler
                     .write()
                     .unwrap()
                     .handle_message(robot, &from, &message, msg_time)
                     .is_ok()
                 {
-                    debug!("[{}] Found handler", self.from);
+                    debug!("Found handler");
                     break;
                 }
             }
         }
 
         debug!(
-            "[{}] New next_message_time: {}",
-            self.from,
+            "New next_message_time: {}",
             self.messages_buffer.min_time().unwrap_or(-1.)
         );
 
-        debug!(
-            "[{}] Messages remaining: {}",
-            self.from,
-            self.messages_buffer.len()
-        );
+        debug!("Messages remaining: {}", self.messages_buffer.len());
     }
 
     /// Add a new handler to the [`Network`].

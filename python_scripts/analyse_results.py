@@ -17,14 +17,14 @@ def analyse(records: dict, config: dict, meta_config: dict, figure_path: str, fi
 
     for record in records:
         t = record["time"]
-        turtle_name = record["turtle"]["name"]
+        turtle_name = record["robot"]["name"]
         if not turtle_name in all_turtles_data:
             all_turtles_data[turtle_name] = TurtleData()
             
         turtle_data = all_turtles_data[turtle_name]
             
         turtle_data.times.append(t)
-        real_pose = record["turtle"]["physic"]["Perfect"]["state"]["pose"]
+        real_pose = record["robot"]["physic"]["Perfect"]["state"]["pose"]
         turtle_data.positions.append(real_pose)
         
     f, ax = plt.subplots()

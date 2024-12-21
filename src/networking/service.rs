@@ -59,7 +59,7 @@ impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
         req: RequestMsg,
         time: f32,
     ) -> Result<ResponseMsg, String> {
-        debug!("[{}] Sending a request...", robot.name());
+        debug!("Sending a request...");
         let lk = self.time_cv.0.lock().unwrap();
         match self.request_channel.lock().unwrap().send((
             robot.name(),
@@ -71,16 +71,16 @@ impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
             Err(e) => return Err(e.to_string()),
             _ => (),
         }
-        debug!("[{}] Sending a request... OK", robot.name());
+        debug!("Sending a request... OK");
         // Needed to unlock the other robot if it has finished and is waiting for messages.
         self.time_cv.1.notify_all();
         std::mem::drop(lk);
-        debug!("[{}] Waiting for result...", robot.name());
+        debug!("Waiting for result...");
         let result = match self.response_channel.lock().unwrap().recv() {
             Ok(result) => result,
             Err(e) => return Err(e.to_string()),
         };
-        debug!("[{}] Result received", robot.name());
+        debug!("Result received");
         result
     }
 }

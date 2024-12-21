@@ -320,11 +320,7 @@ impl Sensor for RobotSensor {
                 continue;
             }
             let writable_robot = other_robot.write().unwrap();
-            debug!(
-                "[{}] Add service of {}",
-                robot.name(),
-                writable_robot.name()
-            );
+            debug!("Add service of {}", writable_robot.name());
             self.robot_real_state_services.insert(
                 writable_robot.name(),
                 writable_robot
@@ -342,20 +338,20 @@ impl Sensor for RobotSensor {
         if time < self.next_time_step() {
             return observation_list;
         }
-        debug!("[{}] Start looking for robots", robot.name());
+        debug!("Start looking for robots");
         let arc_physic = robot.physics();
         let physic = arc_physic.read().unwrap();
         let state = physic.state(time);
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
-        debug!("[{}] Rotation matrix: {}", robot.name(), rotation_matrix);
+        debug!("Rotation matrix: {}", rotation_matrix);
 
         let mut i = 0;
         for (other_robot_name, service) in self.robot_real_state_services.iter_mut() {
             i += 1;
 
-            debug!("[{}] Sensing robot {}", robot.name(), other_robot_name);
+            debug!("Sensing robot {}", other_robot_name);
             assert!(*other_robot_name != robot.name());
 
             let other_state = service
@@ -366,7 +362,7 @@ impl Sensor for RobotSensor {
             let d = ((other_state.pose.x - state.pose.x).powi(2)
                 + (other_state.pose.y - state.pose.y).powi(2))
             .sqrt();
-            debug!("[{}] Distance is {d}", robot.name());
+            debug!("Distance is {d}");
             if d <= self.detection_distance {
                 let robot_seed = 1. / (100. * self.period) * (i as f32);
                 let noisy_pose = na::Vector3::<f32>::from_vec(vec![

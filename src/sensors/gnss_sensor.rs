@@ -138,7 +138,7 @@ use crate::robot::Robot;
 impl Sensor for GNSSSensor {
     fn init(
         &mut self,
-        robot: &mut Robot,
+        _robot: &mut Robot,
         _robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
         _robot_idx: usize,
     ) {

@@ -50,12 +50,13 @@ use crate::robot::{Robot, RobotConfig, RobotRecord};
 use std::path::Path;
 use std::time::SystemTime;
 
+use colored::Colorize;
 use serde_json;
 use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
-use std::thread;
+use std::thread::{self, ThreadId};
 
 use log::{debug, error, info};
 
@@ -159,6 +160,10 @@ pub struct Results {
     pub config: SimulatorConfig,
     pub records: Vec<Record>,
 }
+
+static THREAD_IDS: Mutex<Vec<ThreadId>> = Mutex::new(Vec::new());
+static THREAD_NAMES: Mutex<Vec<String>> = Mutex::new(Vec::new());
+static THREAD_TIMES: Mutex<Vec<f32>> = Mutex::new(Vec::new());
 
 /// This is the central structure which manages the run of the scenario.
 ///
@@ -317,8 +322,41 @@ impl Simulator {
     ///
     /// For now, only start the logging environment.
     pub fn init_environment(level: log::LevelFilter) {
+        THREAD_IDS.lock().unwrap().push(thread::current().id());
+        THREAD_NAMES.lock().unwrap().push("simulator".to_string());
+        THREAD_TIMES.lock().unwrap().push(0.);
         env_logger::builder()
             .target(env_logger::Target::Stdout)
+            .format(|buf, record| {
+                let thread_idx = THREAD_IDS
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .position(|&x| x == thread::current().id())
+                    .unwrap_or(0);
+                let mut time = "".to_string();
+                if thread_idx != 0 {
+                    let time_f32 = THREAD_TIMES.lock().unwrap()[thread_idx];
+                    time = format!("{:.4}", time_f32) + ", ";
+                };
+                writeln!(
+                    buf,
+                    "[{:5}][{}{}] {}",
+                    match record.level() {
+                        log::Level::Error => "ERROR".red(),
+                        log::Level::Warn => "WARN".yellow(),
+                        log::Level::Info => "INFO".green(),
+                        log::Level::Debug => "DEBUG".blue(),
+                        log::Level::Trace => "TRACE".black(),
+                    },
+                    time,
+                    THREAD_NAMES.lock().unwrap()[thread_idx],
+                    record.args()
+                )
+            })
+            .format_timestamp(None)
+            .format_module_path(false)
+            .format_target(false)
             .filter_level(level)
             .init();
         time_analysis::set_robot_name("simulator".to_string());
@@ -527,12 +565,18 @@ impl Simulator {
         time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) {
         info!("Start thread of robot {}", robot.read().unwrap().name());
+        let mut thread_ids = THREAD_IDS.lock().unwrap();
+        thread_ids.push(thread::current().id());
+        let thread_idx = thread_ids.len() - 1;
+        THREAD_NAMES
+            .lock()
+            .unwrap()
+            .push(robot.read().unwrap().name());
+        THREAD_TIMES.lock().unwrap().push(0.);
+        drop(thread_ids);
         time_analysis::set_robot_name(robot.read().unwrap().name());
         let nb_robots = robot_list.read().unwrap().len();
-        info!(
-            "[{}] Finishing initialization",
-            robot.read().unwrap().name()
-        );
+        info!("Finishing initialization");
         robot
             .write()
             .unwrap()
@@ -550,9 +594,11 @@ impl Simulator {
                 }
                 let mut robot_open = robot.write().unwrap();
                 let next_time = robot_open.next_time_step();
-                info!("[{}] Return to time {next_time}", robot_open.name());
+                THREAD_TIMES.lock().unwrap()[thread_idx] = next_time;
+                info!("Return to time {next_time}");
                 robot_open.run_next_time_step(next_time);
             } else {
+                THREAD_TIMES.lock().unwrap()[thread_idx] = next_time;
                 robot_open.run_next_time_step(next_time);
             }
         }

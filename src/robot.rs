@@ -342,7 +342,7 @@ impl Robot {
             ));
             writable_robot.save_state(0.);
         }
-        debug!("[{}] Setup services", robot.read().unwrap().name());
+        debug!("Setup services");
         // Services
         let physics = robot.write().unwrap().physics();
         physics.write().unwrap().make_service(robot.clone());
@@ -410,7 +410,7 @@ impl Robot {
     /// Then, the robot state is saved.
     pub fn run_time_step(&mut self, time: f32) {
         self.set_in_state(time);
-        info!("[{}] Run time {}", self.name(), time);
+        info!("Run time {}", time);
         // Update the true state
         self.physic.write().unwrap().update_state(time);
 
@@ -421,7 +421,7 @@ impl Robot {
             .unwrap()
             .get_observations(self, time);
 
-        debug!("[{}] Got {} observations", self.name, observations.len());
+        debug!("Got {} observations", observations.len());
         if observations.len() > 0 {
             // Treat the observations
             let ta = time_analysis::time_analysis(
@@ -533,17 +533,12 @@ impl Robot {
 
         let message_next_time = self.network().read().unwrap().next_message_time();
         debug!(
-            "[{}] In robot: message_next_time: {}",
-            self.name(),
+            "In robot: message_next_time: {}",
             message_next_time.unwrap_or(-1.)
         );
         if let Some(msg_next_time) = message_next_time {
             next_time_step = next_time_step.min(msg_next_time);
-            debug!(
-                "[{}] Time step changed with message: {}",
-                self.name(),
-                next_time_step
-            );
+            debug!("Time step changed with message: {}", next_time_step);
         }
         for state_estimator in self.state_estimator_bench.read().unwrap().iter() {
             next_time_step = next_time_step.min(
@@ -557,7 +552,7 @@ impl Robot {
 
         next_time_step = next_time_step.min(self.physic.read().unwrap().service_next_time());
 
-        debug!("[{}] next_time_step: {}", self.name(), next_time_step);
+        debug!("next_time_step: {}", next_time_step);
         next_time_step
     }
 
@@ -572,7 +567,7 @@ impl Robot {
     fn set_in_state(&mut self, time: f32) {
         let state_at_time = self.state_history.get_data_before_time(time);
         if state_at_time.is_none() {
-            warn!("[{}] No state to be set in at time {time}", self.name());
+            warn!("No state to be set in at time {time}");
             return;
         }
         let state_at_time = state_at_time.unwrap().1;
