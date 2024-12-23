@@ -18,6 +18,7 @@ use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 use crate::physics::{perfect_physic, physic};
 
 use crate::sensors::sensor::Sensor;
+use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{
     StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
 };
@@ -26,7 +27,6 @@ use crate::state_estimators::{perfect_estimator, state_estimator};
 use crate::sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorMetaConfig;
 use crate::stateful::Stateful;
 use crate::time_analysis;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -263,7 +263,7 @@ impl Robot {
     pub fn from_config(
         config: &RobotConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
         time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) -> Arc<RwLock<Self>> {
@@ -272,38 +272,38 @@ impl Robot {
             navigator: navigator::make_navigator_from_config(
                 &config.navigator,
                 plugin_api,
-                meta_config.clone(),
+                global_config,
                 va_factory,
             ),
             controller: controller::make_controller_from_config(
                 &config.controller,
                 plugin_api,
-                meta_config.clone(),
+                global_config,
                 va_factory,
             ),
             physic: physic::make_physic_from_config(
                 &config.physic,
                 plugin_api,
-                meta_config.clone(),
+                global_config,
                 va_factory,
                 time_cv.clone(),
             ),
             state_estimator: state_estimator::make_state_estimator_from_config(
                 &config.state_estimator,
                 plugin_api,
-                meta_config.clone(),
+                global_config,
                 va_factory,
             ),
             sensor_manager: Arc::new(RwLock::new(SensorManager::from_config(
                 &config.sensor_manager,
                 plugin_api,
-                meta_config.clone(),
+                global_config,
                 va_factory,
             ))),
             network: Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),
                 &config.network,
-                meta_config.clone(),
+                global_config,
                 va_factory,
                 time_cv.clone(),
             ))),
@@ -327,7 +327,7 @@ impl Robot {
                     state_estimator: state_estimator::make_state_estimator_from_config(
                         &state_estimator_config.config,
                         plugin_api,
-                        meta_config.clone(),
+                        global_config,
                         va_factory,
                     ),
                 })

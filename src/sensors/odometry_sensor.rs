@@ -7,7 +7,7 @@ use std::sync::{Arc, RwLock};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
@@ -102,7 +102,7 @@ impl OdometrySensor {
         OdometrySensor::from_config(
             &OdometrySensorConfig::default(),
             &None,
-            SimulatorMetaConfig::default(),
+            &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
         )
     }
@@ -111,7 +111,7 @@ impl OdometrySensor {
     pub fn from_config(
         config: &OdometrySensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        _meta_config: SimulatorMetaConfig,
+        _global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         Self {

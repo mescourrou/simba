@@ -7,7 +7,7 @@ use crate::{
 };
 use std::sync::{Arc, RwLock};
 
-use crate::{physics::physic::Command, plugin_api::PluginAPI, simulator::SimulatorMetaConfig};
+use crate::{physics::physic::Command, plugin_api::PluginAPI, simulator::SimulatorConfig};
 
 extern crate confy;
 use pyo3::pyclass;
@@ -79,12 +79,12 @@ pub trait Controller:
 pub fn make_controller_from_config(
     config: &ControllerConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
-    meta_config: SimulatorMetaConfig,
+    global_config: &SimulatorConfig,
     va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn Controller>>> {
     Arc::new(RwLock::new(Box::new(match config {
         ControllerConfig::PID(c) => {
-            pid::PID::from_config(c, plugin_api, meta_config.clone(), va_factory)
+            pid::PID::from_config(c, plugin_api, global_config, va_factory)
         }
     })))
 }

@@ -11,7 +11,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::robot::Robot;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::{simulator::SimulatorMetaConfig, stateful::Stateful};
+use crate::{simulator::SimulatorConfig, stateful::Stateful};
 
 use super::gnss_sensor::GNSSSensor;
 use super::odometry_sensor::OdometrySensor;
@@ -73,7 +73,7 @@ impl SensorManager {
     pub fn from_config(
         config: &SensorManagerConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut manager = Self::new();
@@ -85,26 +85,26 @@ impl SensorManager {
                         Box::new(OrientedLandmarkSensor::from_config(
                             c,
                             plugin_api,
-                            meta_config.clone(),
+                            global_config,
                             va_factory,
                         )) as Box<dyn Sensor>
                     }
                     SensorConfig::OdometrySensor(c) => Box::new(OdometrySensor::from_config(
                         c,
                         plugin_api,
-                        meta_config.clone(),
+                        global_config,
                         va_factory,
                     )) as Box<dyn Sensor>,
                     SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
                         c,
                         plugin_api,
-                        meta_config.clone(),
+                        global_config,
                         va_factory,
                     )) as Box<dyn Sensor>,
                     SensorConfig::RobotSensor(c) => Box::new(RobotSensor::from_config(
                         c,
                         plugin_api,
-                        meta_config.clone(),
+                        global_config,
                         va_factory,
                     )) as Box<dyn Sensor>,
                 })));

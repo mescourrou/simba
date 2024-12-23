@@ -62,56 +62,6 @@ use log::{debug, error, info};
 
 use pyo3::prepare_freethreaded_python;
 
-/// Meta configuration of [`Simulator`], to configure how the simulation
-/// is run, outside of the scenario to run.
-#[derive(Serialize, Deserialize, Clone)]
-#[pyclass]
-pub struct SimulatorMetaConfig {
-    /// Path to the [`SimulatorConfig`] file, containing the configuration
-    /// of the scebarui to run
-    pub config_path: Option<Box<Path>>,
-    /// Filename to save the results, in JSON format. The directory of this
-    /// file is used to save the figures if results are computed.
-    /// Use [`Option::None`] to disable result save.
-    pub result_path: Option<Box<Path>>,
-    /// Compute the results or not at the end of the run. It uses a python
-    /// script located in `python_scripts/analyse_results.py`.
-    pub compute_results: bool,
-    /// Do not show GUI (restricted for now to the result figures).
-    pub no_gui: bool,
-    /// Path to the python analyse scrit.
-    /// This script should have the following entry point:
-    /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
-    pub analyse_script: Option<Box<Path>>,
-
-    pub time_analysis_config: TimeAnalysisConfig,
-}
-
-#[pymethods]
-impl SimulatorMetaConfig {
-    #[allow(dead_code)]
-    #[staticmethod]
-    fn default_with_config_path(config_path: &str) -> Self {
-        let mut meta_config = SimulatorMetaConfig::default();
-        meta_config.config_path = Some(Box::from(Path::new(config_path)));
-        meta_config
-    }
-}
-
-impl Default for SimulatorMetaConfig {
-    /// Default [`SimulatorMetaConfig`], doing nothing.
-    fn default() -> Self {
-        Self {
-            config_path: None,
-            result_path: None,
-            compute_results: false,
-            no_gui: true,
-            analyse_script: None,
-            time_analysis_config: TimeAnalysisConfig::default(),
-        }
-    }
-}
-
 /// Scenario configuration for the simulator.
 /// The Simulator configuration is the root of the scenario configuration.
 ///
@@ -127,6 +77,22 @@ impl Default for SimulatorMetaConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(default)]
 pub struct SimulatorConfig {
+    pub base_path: Box<Path>,
+    /// Filename to save the results, in JSON format. The directory of this
+    /// file is used to save the figures if results are computed.
+    /// Use [`Option::None`] to disable result save.
+    pub result_path: Option<Box<Path>>,
+    /// Compute the results or not at the end of the run. It uses a python
+    /// script located in `python_scripts/analyse_results.py`.
+    pub compute_results: bool,
+    /// Do not show GUI (restricted for now to the result figures).
+    pub no_gui: bool,
+    /// Path to the python analyse scrit.
+    /// This script should have the following entry point:
+    /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
+    pub analyse_script: Option<Box<Path>>,
+
+    pub time_analysis: TimeAnalysisConfig,
     /// List of the robots to run, with their specific configuration.
     pub random_seed: Option<f32>,
     pub robots: Vec<Box<RobotConfig>>,
@@ -136,6 +102,12 @@ impl Default for SimulatorConfig {
     /// Default scenario configuration: no robots.
     fn default() -> Self {
         Self {
+            base_path: Box::from(Path::new(".")),
+            result_path: None,
+            compute_results: false,
+            no_gui: true,
+            analyse_script: None,
+            time_analysis: TimeAnalysisConfig::default(),
             random_seed: None,
             robots: Vec::new(),
         }
@@ -187,24 +159,7 @@ static THREAD_TIMES: Mutex<Vec<f32>> = Mutex::new(Vec::new());
 ///     Simulator::init_environment(log::LevelFilter::Debug);
 ///     info!("Load configuration...");
 ///     let mut simulator = Simulator::from_config_path(
-///         SimulatorMetaConfig{
-///             config_path: Some(Box::from(Path::new("config_example/config.yaml"))),
-///             result_path: Some(Box::from(Path::new("result.json"))),
-///             compute_results: true,
-///             no_gui: false,
-///             analyse_script: Some(
-///                 Path::new(concat!(
-///                     env!("CARGO_MANIFEST_DIR"),
-///                     "/python_scripts/analyse_results.py"
-///                 ))
-///                 .into(),
-///             ),
-///             time_analysis_config: TimeAnalysisConfig {
-///                 exporter: simba::time_analysis::ProfileExporterConfig::TraceEventExporter,
-///                 output_path: "time_performance".to_string(),
-///                 keep_last: true,
-///             }
-///         },
+///         Path::new("config_example/config.yaml"))), //<- configuration path
 ///         None,                                      //<- plugin API, to load external modules
 ///     );
 ///
@@ -224,8 +179,6 @@ pub struct Simulator {
     robots: Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
     /// Scenario configuration.
     config: SimulatorConfig,
-    /// Simulation configuration.
-    meta_config: SimulatorMetaConfig,
     /// Network Manager
     network_manager: Arc<RwLock<NetworkManager>>,
     /// Factory for components to make random variables generators
@@ -240,7 +193,6 @@ impl Simulator {
         Simulator {
             robots: Arc::new(RwLock::new(Vec::new())),
             config: SimulatorConfig::default(),
-            meta_config: SimulatorMetaConfig::default(),
             network_manager: Arc::new(RwLock::new(NetworkManager::new())),
             determinist_va_factory: DeterministRandomVariableFactory::new(
                 SystemTime::now()
@@ -264,19 +216,15 @@ impl Simulator {
     /// ## Return
     /// Returns a [`Simulator`] ready to be run.
     pub fn from_config_path(
-        meta_config: SimulatorMetaConfig,
+        config_path: &Path,
         plugin_api: Option<Box<&dyn PluginAPI>>,
     ) -> Simulator {
         info!(
             "Load configuration from {:?}",
-            meta_config.config_path.clone().expect("No config path set")
+            config_path
         );
-        let config: SimulatorConfig = match confy::load_path(
-            meta_config
-                .config_path
-                .clone()
-                .expect("No config path set")
-                .as_ref(),
+        let mut config: SimulatorConfig = match confy::load_path(
+            config_path,
         ) {
             Ok(config) => config,
             Err(error) => {
@@ -284,8 +232,10 @@ impl Simulator {
                 return Simulator::new();
             }
         };
+        config.base_path = Box::from(config_path.parent().unwrap());
+        config.time_analysis.output_path = config.base_path.as_ref().join(&config.time_analysis.output_path).to_str().unwrap().to_string();
         debug!("Config: {:?}", config);
-        Simulator::from_config(&config, plugin_api, meta_config)
+        Simulator::from_config(&config, plugin_api)
     }
 
     /// Load the config from structure instance.
@@ -300,18 +250,16 @@ impl Simulator {
     pub fn from_config(
         config: &SimulatorConfig,
         plugin_api: Option<Box<&dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
     ) -> Simulator {
         let mut simulator = Simulator::new();
         simulator.config = config.clone();
-        simulator.meta_config = meta_config.clone();
         if let Some(seed) = config.random_seed {
             simulator.determinist_va_factory.global_seed = seed;
         }
 
         // Create robots
         for robot_config in &config.robots {
-            simulator.add_robot(robot_config, &plugin_api, meta_config.clone());
+            simulator.add_robot(robot_config, &plugin_api, &simulator.config.clone());
             // simulator.robots.push(Box::new(Robot::from_config(robot_config, &plugin_api)));
             // simulator.network_manager.register_robot_network(simulator.robots.last().expect("No robot added to the vector, how is it possible ??").name(), simulator.robots.last().expect("No robot added to the vector, how is it possible ??").network());
         }
@@ -375,12 +323,12 @@ impl Simulator {
         &mut self,
         robot_config: &RobotConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        global_config: &SimulatorConfig,
     ) {
         self.robots.write().unwrap().push(Robot::from_config(
             robot_config,
             plugin_api,
-            meta_config,
+            &global_config,
             &self.determinist_va_factory,
             self.time_cv.clone(),
         ));
@@ -466,10 +414,11 @@ impl Simulator {
     ///
     /// If the configuration of the [`Simulator`] do not contain a result path, no results are saved.
     fn save_results(&mut self) {
-        let filename = match &self.meta_config.result_path {
+        let filename = match &self.config.result_path {
             Some(f) => f,
             None => return,
         };
+        let filename = self.config.base_path.as_ref().join(filename);
 
         time_analysis::save_results();
         info!(
@@ -504,7 +453,12 @@ impl Simulator {
         let _ = recording_file.write(b"\n]}");
     }
 
-    pub fn load_results_and_analyse(&mut self, filename: &Path) {
+    pub fn load_results_and_analyse(&mut self) {
+        let filename = match &self.config.result_path {
+            Some(f) => f,
+            None => return,
+        };
+        let filename = self.config.base_path.as_ref().join(filename);
         let mut recording_file = File::open(filename).expect("Impossible to open record file");
         let mut content = String::new();
         recording_file
@@ -609,12 +563,12 @@ impl Simulator {
     /// If the [`Simulator`] config disabled the computation of the results, this function
     /// does nothing.
     fn compute_results(&self, results: Vec<Record>, config: &SimulatorConfig) {
-        if !self.meta_config.compute_results {
+        if !self.config.compute_results {
             return;
         }
 
         info!("Starting result analyse...");
-        let show_figures = !self.meta_config.no_gui;
+        let show_figures = !self.config.no_gui;
 
         prepare_freethreaded_python();
 
@@ -622,8 +576,6 @@ impl Simulator {
             serde_json::to_string(&results).expect("Error during converting results to json");
         let json_config =
             serde_json::to_string(&config).expect("Error during converting results to json");
-        let json_metaconfig = serde_json::to_string(&self.meta_config)
-            .expect("Error during converting results to json");
 
         let show_figure_py = r#"
 import matplotlib.pyplot as plt
@@ -649,50 +601,45 @@ def converter(decoded_dict):
 def convert(records):
     return json.loads(records, object_hook=converter)
 "#;
+        
+        if let Some(script_path) = &self.config.analyse_script {
+            let script_path = self.config.base_path.as_ref().join(script_path);
+            let python_script = fs::read_to_string(script_path.clone())
+                .expect(format!("File not found: {}", script_path.to_str().unwrap()).as_str());
+            let res = Python::with_gil(|py| -> PyResult<()> {
+                let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
+                let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
+                let result_dict = convert_fn.call_bound(py, (json_results,), None)?;
+                let config_dict = convert_fn.call_bound(py, (json_config,), None)?;
+                let script = PyModule::from_code_bound(py, &python_script, "", "")?;
+                let analyse_fn: Py<PyAny> = script.getattr("analyse")?.into();
+                info!("Analyse the results...");
+                let res = analyse_fn.call_bound(
+                    py,
+                    (
+                        result_dict,
+                        config_dict,
+                        Path::new(""),
+                        ".pdf",
+                    ),
+                    None,
+                );
+                if let Err(err) = res {
+                    err.display(py);
+                    return Err(err);
+                }
+                if show_figures {
+                    info!("Showing figures...");
+                    let show_script = PyModule::from_code_bound(py, &show_figure_py, "", "")?;
+                    let show_fn: Py<PyAny> = show_script.getattr("show")?.into();
+                    show_fn.call_bound(py, (), None)?;
+                }
+                Ok(())
+            });
+            if let Some(err) = res.err() {
+                error!("{}", err);
+            }
 
-        let script_path = self.meta_config.analyse_script.clone().unwrap_or(
-            Path::new(concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/python_scripts/analyse_results.py"
-            ))
-            .into(),
-        );
-        let python_script = fs::read_to_string(script_path.clone())
-            .expect(format!("File not found: {}", script_path.to_str().unwrap()).as_str());
-        let res = Python::with_gil(|py| -> PyResult<()> {
-            let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
-            let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
-            let result_dict = convert_fn.call_bound(py, (json_results,), None)?;
-            let config_dict = convert_fn.call_bound(py, (json_config,), None)?;
-            let metaconfig_dict = convert_fn.call_bound(py, (json_metaconfig,), None)?;
-            let script = PyModule::from_code_bound(py, &python_script, "", "")?;
-            let analyse_fn: Py<PyAny> = script.getattr("analyse")?.into();
-            info!("Analyse the results...");
-            let res = analyse_fn.call_bound(
-                py,
-                (
-                    result_dict,
-                    config_dict,
-                    metaconfig_dict,
-                    Path::new(""),
-                    ".pdf",
-                ),
-                None,
-            );
-            if let Err(err) = res {
-                err.display(py);
-                return Err(err);
-            }
-            if show_figures {
-                info!("Showing figures...");
-                let show_script = PyModule::from_code_bound(py, &show_figure_py, "", "")?;
-                let show_fn: Py<PyAny> = show_script.getattr("show")?.into();
-                show_fn.call_bound(py, (), None)?;
-            }
-            Ok(())
-        });
-        if let Some(err) = res.err() {
-            error!("{}", err);
         }
     }
 }
@@ -714,10 +661,8 @@ mod tests {
 
         let mut results: Vec<Vec<Record>> = Vec::new();
 
-        let mut config = SimulatorMetaConfig::default();
-        config.config_path = Some(Path::new("config_example/config.yaml").into());
         for i in 0..nb_replications {
-            let mut simulator = Simulator::from_config_path(config.clone(), None);
+            let mut simulator = Simulator::from_config_path(Path::new("config_example/config.yaml"), None);
 
             simulator.show();
 

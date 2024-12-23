@@ -5,7 +5,7 @@ Provides a [`Sensor`] which can observe oriented landmarks in the frame of the r
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -284,7 +284,7 @@ impl OrientedLandmarkSensor {
         OrientedLandmarkSensor::from_config(
             &OrientedLandmarkSensorConfig::default(),
             &None,
-            SimulatorMetaConfig::default(),
+            &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
         )
     }
@@ -295,7 +295,7 @@ impl OrientedLandmarkSensor {
     pub fn from_config(
         config: &OrientedLandmarkSensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut path = Path::new(&config.map_path);
@@ -313,12 +313,7 @@ impl OrientedLandmarkSensor {
         if config.map_path == "" {
             return sensor;
         }
-        let joined_path = meta_config
-            .config_path
-            .unwrap()
-            .parent()
-            .unwrap_or(Path::new("."))
-            .join(path);
+        let joined_path = global_config.base_path.join(&config.map_path);
         if path.is_relative() {
             path = joined_path.as_path();
         }

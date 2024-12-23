@@ -4,7 +4,7 @@ Module providing the trait to link the simulator to external implementations.
 Example to use an external state estimator:
 ```
 use simba::state_estimators::state_estimator::StateEstimator;
-use simba::{plugin_api::PluginAPI, simulator::SimulatorMetaConfig};
+use simba::{plugin_api::PluginAPI, simulator::SimulatorConfig};
 
 use serde_json::Value;
 
@@ -14,7 +14,7 @@ impl PluginAPI for MyPlugin {
     fn get_state_estimator(
         &self,
         config: &Value,
-        meta_config: SimulatorMetaConfig,
+        global_config: &SimulatorConfig,
     ) -> Box<dyn StateEstimator> {
         Box::new(MyFilter::from_config(
             &serde_json::from_value(config.clone())
@@ -36,9 +36,7 @@ fn main() {
     let mut simulator = Simulator::from_config_path(
         config_path,
         Some(Box::new(plugin)),
-        Some(Box::from(Path::new("result.json"))),
-        false,
-        false);
+        );
 
     simulator.run(5.);
 
@@ -47,8 +45,7 @@ fn main() {
 ```
 */
 
-use crate::simulator::SimulatorMetaConfig;
-use crate::state_estimators::state_estimator::StateEstimator;
+use crate::{simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator};
 
 use serde_json::Value;
 
@@ -70,6 +67,6 @@ pub trait PluginAPI {
     fn get_state_estimator(
         &self,
         config: &Value,
-        meta_config: SimulatorMetaConfig,
+        global_config: &SimulatorConfig,
     ) -> Box<dyn StateEstimator>;
 }

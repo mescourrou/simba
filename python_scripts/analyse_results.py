@@ -3,7 +3,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-def analyse(records: dict, config: dict, meta_config: dict, figure_path: str, figure_type: str):
+def analyse(records: dict, config: dict, figure_path: str, figure_type: str):
 
     # config = data["config"]
     # record = data["record"]

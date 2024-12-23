@@ -8,7 +8,7 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 use crate::networking::service::{HasService, Service, ServiceClient, ServiceHandler};
 use crate::plugin_api::PluginAPI;
 use crate::robot::Robot;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -93,7 +93,7 @@ impl PerfectPhysic {
         Self::from_config(
             &PerfectPhysicConfig::default(),
             &None,
-            SimulatorMetaConfig::default(),
+            &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
             time_cv,
         )
@@ -104,11 +104,11 @@ impl PerfectPhysic {
     /// ## Arguments
     /// * `config` - Configuration of [`PerfectPhysic`].
     /// * `plugin_api` - [`PluginAPI`] not used there.
-    /// * `meta_config` - Configuration of the simulator.
+    /// * `global_config` - Configuration of the simulator.
     pub fn from_config(
         config: &PerfectPhysicConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        _meta_config: SimulatorMetaConfig,
+        _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
         time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) -> Self {

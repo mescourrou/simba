@@ -1,6 +1,7 @@
 #[cfg_attr(not(feature = "time-analysis"), allow(dead_code, unused_variables))]
 #[cfg(feature = "time-analysis")]
 use lazy_static::lazy_static;
+use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
 
 use std::path::Path;
@@ -29,6 +30,7 @@ struct ExecutionProfile {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(default)]
 pub struct TimeAnalysisConfig {
     pub exporter: ProfileExporterConfig,
     pub keep_last: bool,

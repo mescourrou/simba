@@ -1,10 +1,11 @@
 use log::debug;
 use pyo3::prelude::*;
+use serde::Serialize;
 use serde_json::Value;
 
 use crate::{
     plugin_api::PluginAPI,
-    simulator::{Record, Simulator, SimulatorMetaConfig},
+    simulator::{Record, Simulator, SimulatorConfig},
     state_estimators::{
         pybinds::{make_state_estimator_module, PythonStateEstimator},
         state_estimator::StateEstimator,
@@ -13,7 +14,6 @@ use crate::{
 use std::path::Path;
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<SimulatorMetaConfig>()?;
     m.add_class::<SimulatorWrapper>()?;
     m.add_class::<PythonAPI>()?;
     m.add_class::<Record>()?;
@@ -30,9 +30,9 @@ struct SimulatorWrapper {
 #[pymethods]
 impl SimulatorWrapper {
     #[staticmethod]
-    #[pyo3(signature = (meta_config, api=None, loglevel="off"))]
+    #[pyo3(signature = (config_path, api=None, loglevel="off"))]
     pub fn from_config(
-        meta_config: SimulatorMetaConfig,
+        config_path: String,
         api: Option<&PythonAPI>,
         loglevel: &str,
     ) -> SimulatorWrapper {
@@ -46,7 +46,7 @@ impl SimulatorWrapper {
         });
         SimulatorWrapper {
             simulator: Simulator::from_config_path(
-                meta_config,
+                Path::new(&config_path),
                 match api {
                     Some(py_api) => Some(Box::new(py_api)),
                     None => None,
@@ -82,7 +82,7 @@ impl PluginAPI for PythonAPI {
     fn get_state_estimator(
         &self,
         config: &Value,
-        meta_config: SimulatorMetaConfig,
+        global_config: &SimulatorConfig,
     ) -> Box<dyn StateEstimator> {
         let st = Box::new(PythonStateEstimator::new(Python::with_gil(|py| {
             self.api
@@ -91,12 +91,7 @@ impl PluginAPI for PythonAPI {
                     "get_state_estimator",
                     (
                         config.to_string(),
-                        meta_config
-                            .config_path
-                            .expect("Config path not set!")
-                            .to_str()
-                            .unwrap()
-                            .to_string(),
+                        serde_json::to_string(global_config).expect("Failed to serialize global_config"),
                     ),
                     None,
                 )

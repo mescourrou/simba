@@ -6,7 +6,7 @@ by the controller should be perfect.
 
 use super::state_estimator::{State, StateRecord};
 use crate::sensors::sensor::Observation;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -56,7 +56,7 @@ impl PerfectEstimator {
         Self::from_config(
             &PerfectEstimatorConfig::default(),
             &None,
-            SimulatorMetaConfig::default(),
+            &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
         )
     }
@@ -65,7 +65,7 @@ impl PerfectEstimator {
     pub fn from_config(
         config: &PerfectEstimatorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        _meta_config: SimulatorMetaConfig,
+        _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         Self {

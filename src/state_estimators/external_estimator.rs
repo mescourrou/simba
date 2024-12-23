@@ -17,7 +17,7 @@ use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
 use super::state_estimator::{State, StateEstimator};
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -98,7 +98,7 @@ impl ExternalEstimator {
         Self::from_config(
             &ExternalEstimatorConfig::default(),
             &None,
-            SimulatorMetaConfig::default(),
+            &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
         )
     }
@@ -114,7 +114,7 @@ impl ExternalEstimator {
     pub fn from_config(
         config: &ExternalEstimatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         println!("Config given: {:?}", config);
@@ -122,7 +122,7 @@ impl ExternalEstimator {
             state_estimator: plugin_api
                 .as_ref()
                 .expect("Plugin API not set!")
-                .get_state_estimator(&config.config, meta_config),
+                .get_state_estimator(&config.config, global_config),
         }
     }
 }

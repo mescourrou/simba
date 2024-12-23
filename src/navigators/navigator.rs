@@ -12,7 +12,7 @@ use super::trajectory_follower;
 
 use crate::controllers::controller::ControllerError;
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
 
 /// Enumerate the configuration of the different strategies.
@@ -50,7 +50,7 @@ pub trait Navigator:
 pub fn make_navigator_from_config(
     config: &NavigatorConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
-    meta_config: SimulatorMetaConfig,
+    global_config: &SimulatorConfig,
     va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn Navigator>>> {
     Arc::new(RwLock::new(Box::new(match config {
@@ -58,7 +58,7 @@ pub fn make_navigator_from_config(
             trajectory_follower::TrajectoryFollower::from_config(
                 c,
                 plugin_api,
-                meta_config.clone(),
+                global_config,
                 va_factory,
             )
         }

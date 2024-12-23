@@ -7,7 +7,7 @@ use super::sensor::{Observation, Sensor, SensorRecord};
 use crate::networking::service::ServiceClient;
 use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -276,7 +276,7 @@ impl RobotSensor {
         RobotSensor::from_config(
             &RobotSensorConfig::default(),
             &None,
-            SimulatorMetaConfig::default(),
+            &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
         )
     }
@@ -287,7 +287,7 @@ impl RobotSensor {
     pub fn from_config(
         config: &RobotSensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        _meta_config: SimulatorMetaConfig,
+        _global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         assert!(config.period != 0.);

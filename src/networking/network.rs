@@ -13,7 +13,7 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::robot::Robot;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
@@ -96,7 +96,7 @@ impl Network {
         Network::from_config(
             from,
             &NetworkConfig::default(),
-            SimulatorMetaConfig::default(),
+            &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
             time_cv,
         )
@@ -106,7 +106,7 @@ impl Network {
     pub fn from_config(
         from: String,
         config: &NetworkConfig,
-        _meta_config: SimulatorMetaConfig,
+        _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
         time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) -> Network {

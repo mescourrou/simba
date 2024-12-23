@@ -144,7 +144,7 @@ impl fmt::Display for State {
 
 use super::{external_estimator, perfect_estimator};
 use crate::robot::Robot;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::geometry::mod2pi;
 use crate::{
@@ -181,7 +181,7 @@ pub enum StateEstimatorRecord {
 pub fn make_state_estimator_from_config(
     config: &StateEstimatorConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
-    meta_config: SimulatorMetaConfig,
+    global_config: &SimulatorConfig,
     va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn StateEstimator>>> {
     return match config {
@@ -189,7 +189,7 @@ pub fn make_state_estimator_from_config(
             perfect_estimator::PerfectEstimator::from_config(
                 c,
                 plugin_api,
-                meta_config.clone(),
+                global_config,
                 va_factory,
             ),
         )
@@ -198,7 +198,7 @@ pub fn make_state_estimator_from_config(
             external_estimator::ExternalEstimator::from_config(
                 c,
                 plugin_api,
-                meta_config.clone(),
+                global_config,
                 va_factory,
             ),
         )

@@ -1,3 +1,11 @@
+result_path: "../result.json"
+compute_results: true
+no_gui: false
+analyse_script: "../../python_scripts/analyse_results.py"
+time_analysis:
+  exporter: TraceEventExporter
+  output_path: "time_performance"
+  keep_last: true
 robots:
   - name: "robot1"
     navigator:

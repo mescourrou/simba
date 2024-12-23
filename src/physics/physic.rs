@@ -39,7 +39,7 @@ pub enum PhysicRecord {
 }
 
 use crate::{
-    networking::service::HasService, plugin_api::PluginAPI, simulator::SimulatorMetaConfig,
+    networking::service::HasService, plugin_api::PluginAPI, simulator::SimulatorConfig,
     state_estimators::state_estimator::State, stateful::Stateful,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -89,7 +89,7 @@ pub trait Physic:
 pub fn make_physic_from_config(
     config: &PhysicConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
-    meta_config: SimulatorMetaConfig,
+    global_config: &SimulatorConfig,
     va_factory: &DeterministRandomVariableFactory,
     time_cv: Arc<(Mutex<usize>, Condvar)>,
 ) -> Arc<RwLock<Box<dyn Physic>>> {
@@ -97,7 +97,7 @@ pub fn make_physic_from_config(
         PhysicConfig::Perfect(c) => perfect_physic::PerfectPhysic::from_config(
             c,
             plugin_api,
-            meta_config.clone(),
+            global_config,
             va_factory,
             time_cv,
         ),

@@ -7,7 +7,7 @@ use std::sync::{Arc, RwLock};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -110,7 +110,7 @@ impl GNSSSensor {
         GNSSSensor::from_config(
             &GNSSSensorConfig::default(),
             &None,
-            SimulatorMetaConfig::default(),
+            &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
         )
     }
@@ -119,7 +119,7 @@ impl GNSSSensor {
     pub fn from_config(
         config: &GNSSSensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        _meta_config: SimulatorMetaConfig,
+        _global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         Self {

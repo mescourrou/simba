@@ -1,5 +1,5 @@
 use log::info;
-use simba::simulator::{Simulator, SimulatorMetaConfig};
+use simba::simulator::{Simulator, SimulatorConfig};
 use simba::time_analysis::TimeAnalysisConfig;
 use std::path::Path;
 
@@ -8,24 +8,7 @@ fn main() {
     Simulator::init_environment(log::LevelFilter::Debug);
     info!("Load configuration...");
     let mut simulator = Simulator::from_config_path(
-        SimulatorMetaConfig {
-            config_path: Some(Box::from(Path::new("example/config_example/config.yaml"))),
-            result_path: Some(Box::from(Path::new("result.json"))),
-            compute_results: true,
-            no_gui: false,
-            analyse_script: Some(
-                Path::new(concat!(
-                    env!("CARGO_MANIFEST_DIR"),
-                    "/../python_scripts/analyse_results.py"
-                ))
-                .into(),
-            ),
-            time_analysis_config: TimeAnalysisConfig {
-                exporter: simba::time_analysis::ProfileExporterConfig::TraceEventExporter,
-                output_path: "time_performance".to_string(),
-                keep_last: true,
-            },
-        },
+        Path::new("example/config_example/config.yaml"),
         None, //<- plugin API, to load external modules
     );
 

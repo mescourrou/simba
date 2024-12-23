@@ -7,7 +7,7 @@ use super::navigator::{Navigator, NavigatorRecord};
 use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
 
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorMetaConfig;
+use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::{mod2pi, smallest_theta_diff};
 
@@ -102,23 +102,19 @@ impl TrajectoryFollower {
     /// ## Arguments
     /// * `config` - Trajectory configuration
     /// * `plugin_api` - Not used there.
-    /// * `meta_config` - Meta configuration of the simulator. Used there to get the
+    /// * `global_config` - Global configuration of the simulator. Used there to get the
     /// path of the config, used as relative reference for the trajectory path.
     pub fn from_config(
         config: &TrajectoryFollowerConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        meta_config: SimulatorMetaConfig,
+        global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut path = Path::new(&config.trajectory_path);
         if config.trajectory_path == "" {
             return Self::new();
         }
-        let config_root_path = match &meta_config.config_path {
-            Some(p) => p.parent().unwrap(),
-            None => Path::new(""),
-        };
-        let joined_path = config_root_path.join(&config.trajectory_path);
+        let joined_path = global_config.base_path.join(&config.trajectory_path);
         if path.is_relative() {
             path = joined_path.as_path();
         }
