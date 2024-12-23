@@ -4,6 +4,7 @@ Provides a [`Sensor`] which can observe the other robots in the frame of the ego
 
 use super::sensor::{Observation, Sensor, SensorRecord};
 
+use crate::networking::network::MessageFlag;
 use crate::networking::service::ServiceClient;
 use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
@@ -355,7 +356,7 @@ impl Sensor for RobotSensor {
             assert!(*other_robot_name != robot.name());
 
             let other_state = service
-                .make_request(robot, GetRealStateReq {}, time)
+                .make_request(robot, GetRealStateReq {}, time, vec![MessageFlag::ReadOnly])
                 .expect("Error during service request")
                 .state;
 

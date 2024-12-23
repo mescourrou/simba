@@ -3,6 +3,7 @@ Module providing the main robot manager, [`Robot`], along with the configuration
 [`RobotConfig`] and the record [`RobotRecord`] structures.
 */
 
+use std::cell::BorrowError;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
@@ -374,15 +375,9 @@ impl Robot {
     ///
     /// ## Return
     /// Next time step.
-    pub fn run_next_time_step(&mut self, time: f32) -> f32 {
-        let mut next_time_step = self.next_time_step();
-        while next_time_step <= time {
-            self.process_messages();
-            self.run_time_step(next_time_step);
-            next_time_step = self.next_time_step();
-        }
-
-        next_time_step
+    pub fn run_next_time_step(&mut self, time: f32, read_only: bool) {
+        self.process_messages();
+        self.run_time_step(time, read_only);
     }
 
     /// Process all the messages: one-way (network) and two-way (services).
@@ -408,7 +403,7 @@ impl Robot {
     /// 5. The network messages are handled
     ///
     /// Then, the robot state is saved.
-    pub fn run_time_step(&mut self, time: f32) {
+    pub fn run_time_step(&mut self, time: f32, read_only: bool) {
         self.set_in_state(time);
         info!("Run time {}", time);
         // Update the true state
@@ -517,12 +512,14 @@ impl Robot {
             .unwrap()
             .handle_service_requests(time);
 
-        // Save state (replace if needed)
-        self.save_state(time);
+        if !read_only {
+            // Save state (replace if needed)
+            self.save_state(time);
+        }
     }
 
     /// Computes the next time step, using state estimator, sensors and received messages.
-    pub fn next_time_step(&self) -> f32 {
+    pub fn next_time_step(&self) -> (f32, bool) {
         let mut next_time_step = self.state_estimator.read().unwrap().next_time_step().min(
             self.sensor_manager
                 .read()
@@ -530,14 +527,21 @@ impl Robot {
                 .next_time_step()
                 .unwrap_or(f32::INFINITY),
         );
+        let mut read_only = false;
 
         let message_next_time = self.network().read().unwrap().next_message_time();
         debug!(
             "In robot: message_next_time: {}",
-            message_next_time.unwrap_or(-1.)
+            match message_next_time {
+                Some((time, _)) => time,
+                None => -1.,
+            }
         );
         if let Some(msg_next_time) = message_next_time {
-            next_time_step = next_time_step.min(msg_next_time);
+            if next_time_step > msg_next_time.0 {
+                read_only = msg_next_time.1;
+                next_time_step = msg_next_time.0;
+            }
             debug!("Time step changed with message: {}", next_time_step);
         }
         for state_estimator in self.state_estimator_bench.read().unwrap().iter() {
@@ -549,11 +553,14 @@ impl Robot {
                     .next_time_step(),
             );
         }
+        let tpl = self.physic.read().unwrap().service_next_time();
+        if next_time_step > tpl.0 {
+            read_only = tpl.1;
+            next_time_step = tpl.0;
+        }
 
-        next_time_step = next_time_step.min(self.physic.read().unwrap().service_next_time());
-
-        debug!("next_time_step: {}", next_time_step);
-        next_time_step
+        debug!("next_time_step: {} (read only: {read_only})", next_time_step);
+        (next_time_step, read_only)
     }
 
     /// Save the current state to the given `time`.
@@ -564,7 +571,7 @@ impl Robot {
     /// Set the robot in the state just before `time` (but different).
     ///
     /// It should be called for the minimal time before using [`Robot::save_state`].
-    fn set_in_state(&mut self, time: f32) {
+    pub fn set_in_state(&mut self, time: f32) {
         let state_at_time = self.state_history.get_data_before_time(time);
         if state_at_time.is_none() {
             warn!("No state to be set in at time {time}");

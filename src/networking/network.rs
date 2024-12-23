@@ -40,13 +40,12 @@ impl Default for NetworkConfig {
 }
 
 /// Transmission mode for messages.
-#[derive(Serialize, Deserialize, Clone, Default, PartialEq, Debug)]
-pub enum MessageMode {
-    /// Default mode, with restrictions in range and delay.
-    #[default]
-    Default,
+#[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+pub enum MessageFlag {
     /// God mode, messages are instaneous.
     God,
+    /// Read only: the recipient will do a quick jump in time, and will go back to its time
+    ReadOnly,
 }
 
 /// Network interface for [`Robot`].
@@ -67,15 +66,15 @@ pub struct Network {
     /// List of the other robots associated to their asynchronous Sender.
     ///
     /// Map[Name of the robot, Sender].
-    other_emitters: BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value, f32, MessageMode)>>>>,
+    other_emitters: BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value, f32, Vec<MessageFlag>)>>>>,
     /// List of handler. First handler returning Ok has priority.
     message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>,
     /// Asynchronous receiver for the current [`Network`].
-    channel_receiver: Arc<Mutex<mpsc::Receiver<(String, Value, f32, MessageMode)>>>,
+    channel_receiver: Arc<Mutex<mpsc::Receiver<(String, Value, f32, Vec<MessageFlag>)>>>,
     /// Asynchronous sender for the current [`Network`].
-    channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value, f32, MessageMode)>>>,
+    channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value, f32, Vec<MessageFlag>)>>>,
     /// Message list
-    messages_buffer: TimeOrderedData<(String, Value)>,
+    messages_buffer: TimeOrderedData<(String, Value, Vec<MessageFlag>)>,
 
     time_cv: Arc<(Mutex<usize>, Condvar)>,
 }
@@ -110,7 +109,7 @@ impl Network {
         _va_factory: &DeterministRandomVariableFactory,
         time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) -> Network {
-        let (tx, rx) = mpsc::channel::<(String, Value, f32, MessageMode)>();
+        let (tx, rx) = mpsc::channel::<(String, Value, f32, Vec<MessageFlag>)>();
         Network {
             from,
             range: config.range,
@@ -131,7 +130,7 @@ impl Network {
     }
 
     /// Get the Sender, to be able to send message to this [`Network`].
-    pub fn get_emitter(&mut self) -> mpsc::Sender<(String, Value, f32, MessageMode)> {
+    pub fn get_emitter(&mut self) -> mpsc::Sender<(String, Value, f32, Vec<MessageFlag>)> {
         self.channel_emitter.lock().unwrap().clone()
     }
 
@@ -139,15 +138,15 @@ impl Network {
     pub fn add_emitter(
         &mut self,
         robot_name: String,
-        emitter: mpsc::Sender<(String, Value, f32, MessageMode)>,
+        emitter: mpsc::Sender<(String, Value, f32, Vec<MessageFlag>)>,
     ) {
         self.other_emitters
             .insert(robot_name, Arc::new(Mutex::new(emitter)));
     }
 
     /// Check whether the recipient is in range or not.
-    fn can_send(&self, recipient: &String, time: f32, message_mode: &MessageMode) -> bool {
-        if message_mode == &MessageMode::God {
+    fn can_send(&self, recipient: &String, time: f32, message_flags: &Vec<MessageFlag>) -> bool {
+        if message_flags.contains(&MessageFlag::God) {
             return true;
         }
         if self.range <= 0. {
@@ -170,9 +169,9 @@ impl Network {
         recipient: String,
         message: Value,
         time: f32,
-        message_mode: MessageMode,
+        message_flags: Vec<MessageFlag>,
     ) {
-        if !self.can_send(&recipient, time, &message_mode) {
+        if !self.can_send(&recipient, time, &message_flags) {
             return;
         }
         let emitter_option = self.other_emitters.get(&recipient);
@@ -182,16 +181,16 @@ impl Network {
                 self.from.clone(),
                 message,
                 time,
-                message_mode.clone(),
+                message_flags.clone(),
             ));
             self.time_cv.1.notify_all();
         }
     }
 
     /// Send a `message` to all available robots. `time` is the send message time, before delays.
-    pub fn broadcast(&mut self, message: Value, time: f32, message_mode: MessageMode) {
+    pub fn broadcast(&mut self, message: Value, time: f32, message_flags: Vec<MessageFlag>) {
         for (recipient, emitter) in &self.other_emitters {
-            if !self.can_send(&recipient, time, &message_mode) {
+            if !self.can_send(&recipient, time, &message_flags) {
                 continue;
             }
             let _lk = self.time_cv.0.lock().unwrap();
@@ -199,7 +198,7 @@ impl Network {
                 self.from.clone(),
                 message.clone(),
                 time,
-                message_mode.clone(),
+                message_flags.clone(),
             ));
             self.time_cv.1.notify_all();
         }
@@ -209,20 +208,25 @@ impl Network {
     /// Adds the delay.
     pub fn process_messages(&mut self) -> usize {
         let rx = self.channel_receiver.lock().unwrap();
-        for (from, message, time, message_mode) in rx.try_iter() {
-            let time = match message_mode {
-                MessageMode::Default => time + self.delay,
-                MessageMode::God => time,
+        for (from, message, time, message_flags) in rx.try_iter() {
+            let time = if message_flags.contains(&MessageFlag::God) {
+                time
+            } else {
+                time + self.delay
             };
             debug!("Add new message from {from} at time {time}");
-            self.messages_buffer.insert(time, (from, message), false);
+            self.messages_buffer.insert(time, (from, message, message_flags), false);
         }
         self.messages_buffer.len()
     }
 
-    /// Get the minimal time among all waiting messages.
-    pub fn next_message_time(&self) -> Option<f32> {
-        self.messages_buffer.min_time()
+    /// Get the minimal time among all waiting messages. Bool is true if the message is read only.
+    pub fn next_message_time(&self) -> Option<(f32,bool)> {
+        let tpl_option = self.messages_buffer.min_time();
+        match tpl_option {
+            Some(tpl) => Some((tpl.0, tpl.1.2.contains(&MessageFlag::ReadOnly))),
+            None => None,
+        }
     }
 
     /// Handle the messages which are received at the given `time`.
@@ -231,7 +235,7 @@ impl Network {
     /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
     pub fn handle_message_at_time(&mut self, robot: &mut Robot, time: f32) {
-        while let Some((msg_time, (from, message))) = self.messages_buffer.remove(time) {
+        while let Some((msg_time, (from, message, message_flags))) = self.messages_buffer.remove(time) {
             debug!("Receive message from {from}: {:?}", message);
             debug!("Handler list size: {}", self.message_handlers.len());
             for handler in &self.message_handlers {
@@ -250,7 +254,10 @@ impl Network {
 
         debug!(
             "New next_message_time: {}",
-            self.messages_buffer.min_time().unwrap_or(-1.)
+            match self.messages_buffer.min_time() {
+                Some((time, _)) => time,
+                None => -1.,
+            }
         );
 
         debug!("Messages remaining: {}", self.messages_buffer.len());

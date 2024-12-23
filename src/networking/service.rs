@@ -22,7 +22,7 @@ use log::debug;
 
 use crate::{robot::Robot, utils::time_ordered_data::TimeOrderedData};
 
-use super::network::MessageMode;
+use super::network::MessageFlag;
 
 /// Client to make requests to a service.
 ///
@@ -33,7 +33,7 @@ pub struct ServiceClient<RequestMsg, ResponseMsg> {
     // Channel to send the request to the server (given by the server).
     response_channel: Arc<Mutex<mpsc::Receiver<Result<ResponseMsg, String>>>>,
     // Channel to receive the response from the server (given by the server).
-    request_channel: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32, MessageMode)>>>,
+    request_channel: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32, Vec<MessageFlag>)>>>,
     // Simulator condition variable needed so that all robots wait the end of other,
     // and continue to treat messages.
     time_cv: Arc<(Mutex<usize>, Condvar)>,
@@ -58,6 +58,7 @@ impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
         robot: &mut Robot,
         req: RequestMsg,
         time: f32,
+        message_flags: Vec<MessageFlag>,
     ) -> Result<ResponseMsg, String> {
         debug!("Sending a request...");
         let lk = self.time_cv.0.lock().unwrap();
@@ -66,7 +67,7 @@ impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
             req,
             time,
             // To be changed when full support of the message mode will be implemented
-            MessageMode::Default,
+            message_flags,
         )) {
             Err(e) => return Err(e.to_string()),
             _ => (),
@@ -92,13 +93,13 @@ impl<RequestMsg, ResponseMsg> ServiceClient<RequestMsg, ResponseMsg> {
 #[derive(Debug)]
 pub struct Service<RequestMsg, ResponseMsg> {
     /// Channel to receive requests from clients.
-    request_channel: Arc<Mutex<mpsc::Receiver<(String, RequestMsg, f32, MessageMode)>>>,
+    request_channel: Arc<Mutex<mpsc::Receiver<(String, RequestMsg, f32, Vec<MessageFlag>)>>>,
     /// Channel to send requests to the server, which is cloned to the clients.
-    request_channel_give: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32, MessageMode)>>>,
+    request_channel_give: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32, Vec<MessageFlag>)>>>,
     /// Map of the clients and their sender channel, to send responses.
     clients: BTreeMap<String, Arc<Mutex<mpsc::Sender<Result<ResponseMsg, String>>>>>,
     /// Buffer to store the requests until it is time to treat them.
-    request_buffer: Arc<RwLock<TimeOrderedData<(String, RequestMsg, MessageMode)>>>,
+    request_buffer: Arc<RwLock<TimeOrderedData<(String, RequestMsg, Vec<MessageFlag>)>>>,
     /// Simulator condition variable needed so that all robots wait the end of others,
     /// and continue to treat messages.
     time_cv: Arc<(Mutex<usize>, Condvar)>,
@@ -110,7 +111,7 @@ impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
     /// ## Arguments
     /// * `time_cv` - Condition variable of the simulator, to wait the end of the robots.
     pub fn new(time_cv: Arc<(Mutex<usize>, Condvar)>) -> Self {
-        let (tx, rx) = mpsc::channel::<(String, RequestMsg, f32, MessageMode)>();
+        let (tx, rx) = mpsc::channel::<(String, RequestMsg, f32, Vec<MessageFlag>)>();
         Self {
             request_channel_give: Arc::new(Mutex::new(tx)),
             request_channel: Arc::new(Mutex::new(rx)),
@@ -128,15 +129,15 @@ impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
     /// ## Returns
     /// The number of requests remaining in the buffer.
     pub fn process_requests(&self) -> usize {
-        debug!("Processing requests...");
-        for (from, message, time, message_mode) in self.request_channel.lock().unwrap().try_iter() {
+        debug!("Processing service requests...");
+        for (from, message, time, message_flags) in self.request_channel.lock().unwrap().try_iter() {
             self.request_buffer
                 .write()
                 .unwrap()
-                .insert(time, (from, message, message_mode), false);
+                .insert(time, (from, message, message_flags), false);
         }
         debug!(
-            "Processing requests... {} request in the buffer",
+            "Processing services requests... {} request in the buffer",
             self.request_buffer.read().unwrap().len()
         );
         self.request_buffer.read().unwrap().len()
@@ -152,12 +153,11 @@ impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
         time: f32,
         closure: &dyn Fn(RequestMsg, f32) -> Result<ResponseMsg, String>,
     ) {
-        while let Some((_msg_time, (from, message, _message_mode))) =
+        while let Some((_msg_time, (from, message, _message_flags))) =
             self.request_buffer.write().unwrap().remove(time)
         {
             debug!("Handling message from {from} at time {time}...");
             let result = closure(message, time);
-            debug!("Handling message from {from} at time {time}... Request treated, sending...");
             self.clients
                 .get(&from)
                 .expect(
@@ -188,12 +188,14 @@ impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
     }
 
     /// Get the minimal time among all waiting requests.
-    pub fn next_time(&self) -> f32 {
-        self.request_buffer
+    pub fn next_time(&self) -> (f32, bool) {
+        match self.request_buffer
             .read()
             .unwrap()
-            .min_time()
-            .unwrap_or(f32::INFINITY)
+            .min_time() {
+            Some((time, tpl)) => (time, tpl.2.contains(&MessageFlag::ReadOnly)),
+            None => (f32::INFINITY, false),
+            }
     }
 }
 
@@ -213,6 +215,6 @@ pub trait HasService<RequestMsg, ResponseMsg> {
     fn handle_service_requests(&mut self, time: f32);
     /// Process the requests received from the clients.
     fn process_service_requests(&self) -> usize;
-    /// Get the minimal time among all waiting requests.
-    fn service_next_time(&self) -> f32;
+    /// Get the minimal time among all waiting requests. BOol is for read only (no change in state, which does not requires a new computation)
+    fn service_next_time(&self) -> (f32, bool);
 }

@@ -498,7 +498,7 @@ impl Simulator {
                 *finished_robot = *finished_robot - 1;
                 let robot_open = robot.read().unwrap();
                 robot_open.process_messages();
-                let next_time = robot_open.next_time_step();
+                let next_time = robot_open.next_time_step().0;
                 if next_time < max_time {
                     return false;
                 }
@@ -538,22 +538,25 @@ impl Simulator {
 
         let (cv_mtx, cv) = &*time_cv;
 
+        let mut previous_time = 0.;
         loop {
             let mut robot_open = robot.write().unwrap();
-            let next_time = robot_open.next_time_step();
+            let (mut next_time, mut read_only) = robot_open.next_time_step();
             if next_time > max_time {
                 std::mem::drop(robot_open);
                 if Self::wait_the_end(&robot, max_time, &cv_mtx, &cv, nb_robots) {
                     break;
                 }
-                let mut robot_open = robot.write().unwrap();
-                let next_time = robot_open.next_time_step();
-                THREAD_TIMES.lock().unwrap()[thread_idx] = next_time;
+                robot_open = robot.write().unwrap();
+                (next_time, read_only) = robot_open.next_time_step();
                 info!("Return to time {next_time}");
-                robot_open.run_next_time_step(next_time);
+            }
+            THREAD_TIMES.lock().unwrap()[thread_idx] = next_time;
+            robot_open.run_next_time_step(next_time, read_only);
+            if read_only {
+                robot_open.set_in_state(previous_time);
             } else {
-                THREAD_TIMES.lock().unwrap()[thread_idx] = next_time;
-                robot_open.run_next_time_step(next_time);
+                previous_time = next_time;
             }
         }
     }

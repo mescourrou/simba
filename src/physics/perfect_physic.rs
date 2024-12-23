@@ -201,7 +201,7 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
             });
     }
 
-    fn service_next_time(&self) -> f32 {
+    fn service_next_time(&self) -> (f32, bool) {
         self.real_state_service.next_time()
     }
 }

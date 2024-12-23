@@ -289,20 +289,20 @@ impl<T> TimeOrderedData<T> {
     }
 
     /// Minimal time in the data structure.
-    pub fn min_time(&self) -> Option<f32> {
+    pub fn min_time(&self) -> Option<(f32, &T)> {
         if self.len() == 0 {
             None
         } else {
-            Some(self.data[0].0)
+            Some((self.data[0].0, &self.data[0].1))
         }
     }
 
     /// Maximal time in the data structure.
-    pub fn max_time(&self) -> Option<f32> {
+    pub fn max_time(&self) -> Option<(f32, &T)> {
         if self.len() == 0 {
             None
         } else {
-            Some(self.data[self.len() - 1].0)
+            Some((self.data[self.len() - 1].0, &self.data[self.len() - 1].1))
         }
     }
 }
