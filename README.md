@@ -11,7 +11,7 @@ Here is a list of available and considered features. The order is not a priority
 - [X] Determinist random variables for noise simulation
 - [X] Python bindings (for only one robot)
 - [ ] Synchronous robot run option
-- [ ] Back-in-time optimization: jump to present if no modification was made in the past to avoid unnecessary computation
+- [X] Back-in-time optimization: jump to present if no modification was made in the past to avoid unnecessary computation
 - [X] Time performance analysis (first version)
 - [ ] Possibility to read data from file instead of simulation: test state estimation algorithms on real data
 - [ ] ROS2 interface (rosbag reading)

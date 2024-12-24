@@ -70,6 +70,7 @@ pub mod pybinds;
 
 pub mod time_analysis;
 
+#[cfg(feature = "gui")]
 pub mod gui;
 
 #[pymodule]

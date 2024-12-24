@@ -1,20 +1,37 @@
+use std::{sync::{Arc, Mutex}, thread::{self, JoinHandle, Thread}};
+
+use crate::simulator::Simulator;
+
+struct PrivateParams {
+    simulator: Arc<Mutex<Simulator>>,
+    config_loaded: bool,
+    need_reset: bool,
+    simulator_thread: Option<std::thread::JoinHandle<()>>,
+}
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct SimbaApp {
     // Example stuff:
-    label: String,
-
-    #[serde(skip)] // This how you opt-out of serialization of a field
-    value: f32,
+    config_path: String,
+    duration: f32,
+    #[serde(skip)]
+    p: PrivateParams,
 }
 
 impl Default for SimbaApp {
     fn default() -> Self {
         Self {
             // Example stuff:
-            label: "Hello World!".to_owned(),
-            value: 2.7,
+            config_path: "".to_owned(),
+            duration: 60.,
+            p: PrivateParams {
+                simulator: Arc::new(Mutex::new(Simulator::new())),
+                config_loaded: false,
+                need_reset: false,
+                simulator_thread: None,
+            },
         }
     }
 }
@@ -33,6 +50,19 @@ impl SimbaApp {
 
         Default::default()
     }
+
+    fn run_simulation_threaded(simulator: Arc<Mutex<Simulator>>, duration: f32) {
+        simulator.lock().unwrap().run(duration);
+    }
+
+    fn run_simulation(&mut self) {
+        log::info!("Run simulation for {} seconds", self.duration);
+        let simu = Arc::clone(&self.p.simulator);
+        let duration = self.duration;
+        self.p.simulator_thread = Some(thread::spawn(move || {
+            Self::run_simulation_threaded(simu, duration);
+        }));
+    }
 }
 
 impl eframe::App for SimbaApp {
@@ -45,6 +75,12 @@ impl eframe::App for SimbaApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         // Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
+
+        if let Some(join_handle) = &self.p.simulator_thread {
+            if join_handle.is_finished() {
+                self.p.simulator_thread = None;
+            }
+        }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -67,24 +103,45 @@ impl eframe::App for SimbaApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
-            ui.heading("eframe template");
+            ui.heading("SiMBA: Simulator for Multi-Robot Backend Algorithms");
 
             ui.horizontal(|ui| {
-                ui.label("Write something: ");
-                ui.text_edit_singleline(&mut self.label);
+                ui.label("Config path: ");
+                ui.text_edit_singleline(&mut self.config_path);
             });
 
-            ui.add(egui::Slider::new(&mut self.value, 0.0..=10.0).text("value"));
-            if ui.button("Increment").clicked() {
-                self.value += 1.0;
+            ui.horizontal(|ui| {
+                ui.label("Duration: ");
+                ui.add(egui::DragValue::new(&mut self.duration).speed(0.1));
+            });
+
+            if ui.button("Load").clicked() {
+                log::info!("Load configuration");
+                self.p.simulator = Arc::new(Mutex::new(Simulator::from_config_path(
+                    std::path::Path::new(&self.config_path),
+                    None,
+                )));
+                self.p.config_loaded = true;
             }
 
-            ui.separator();
+            ui.horizontal(|ui|{
+                if ui.add_enabled(self.p.config_loaded && self.p.simulator_thread.is_none(), egui::Button::new("Run")).clicked() {
+                    if self.p.need_reset {
+                        log::info!("Load configuration");
+                        self.p.simulator = Arc::new(Mutex::new(Simulator::from_config_path(
+                            std::path::Path::new(&self.config_path),
+                            None,
+                        )));
+                    }
+                    self.run_simulation();
+                    self.p.need_reset = true;
+                }
+                if self.p.simulator_thread.is_some() {
+                    ui.add(egui::Spinner::new());
+                }
+            });
 
-            ui.add(egui::github_link_file!(
-                "https://github.com/emilk/eframe_template/blob/master/",
-                "Source code."
-            ));
+            ui.separator();
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
                 powered_by_egui_and_eframe(ui);
