@@ -69,6 +69,7 @@ pub mod plugin_api;
 pub mod pybinds;
 
 pub mod time_analysis;
+pub mod api;
 
 #[cfg(feature = "gui")]
 pub mod gui;

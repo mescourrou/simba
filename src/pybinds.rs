@@ -51,7 +51,7 @@ impl SimulatorWrapper {
         SimulatorWrapper {
             simulator: Simulator::from_config_path(
                 Path::new(&config_path),
-                match api {
+                &match api {
                     Some(py_api) => Some(Box::new(py_api)),
                     None => None,
                 },

@@ -42,6 +42,7 @@ use config_checker::ConfigCheckable;
 use pyo3::{prelude::*, AsPyPointer};
 use serde_derive::{Deserialize, Serialize};
 
+use crate::api::async_api::{AsyncApiRunner, AsyncApiServer};
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
 use crate::time_analysis::{self, TimeAnalysisConfig};
@@ -50,6 +51,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::robot::{Robot, RobotConfig, RobotRecord};
 use std::{os, path};
 use std::path::{Path, PathBuf};
+use std::collections::HashMap;
 use std::time::SystemTime;
 
 use colored::Colorize;
@@ -57,7 +59,7 @@ use serde_json::{self, Value};
 use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{mpsc, Arc, Condvar, Mutex, RwLock};
 use std::thread::{self, ThreadId};
 
 use log::{debug, error, info};
@@ -164,6 +166,15 @@ static THREAD_TIMES: RwLock<Vec<f32>> = RwLock::new(Vec::new());
 static EXCLUDE_ROBOTS: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static INCLUDE_ROBOTS: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
+pub struct SimulatorAsyncApi {
+    pub current_time: Arc<Mutex<HashMap<String,f32>>>,
+}
+
+#[derive(Clone)]
+struct SimulatorAsyncApiServer {
+    pub current_time: Arc<Mutex<HashMap<String,f32>>>,
+}
+
 /// This is the central structure which manages the run of the scenario.
 ///
 /// To run the scenario, there are two mandatory steps:
@@ -211,6 +222,9 @@ pub struct Simulator {
     determinist_va_factory: DeterministRandomVariableFactory,
 
     time_cv: Arc<(Mutex<usize>, Condvar)>,
+
+    async_api: Option<Arc<SimulatorAsyncApi>>,
+    async_api_server: Option<SimulatorAsyncApiServer>,
 }
 
 impl Simulator {
@@ -225,6 +239,8 @@ impl Simulator {
                 rng
             ),
             time_cv: Arc::new((Mutex::new(0), Condvar::new())),
+            async_api: None,
+            async_api_server: None,
         }
     }
 
@@ -241,26 +257,11 @@ impl Simulator {
     /// Returns a [`Simulator`] ready to be run.
     pub fn from_config_path(
         config_path: &Path,
-        plugin_api: Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
     ) -> Simulator {
-        info!("Load configuration from {:?}", config_path);
-        let mut config: SimulatorConfig = match confy::load_path(config_path) {
-            Ok(config) => config,
-            Err(error) => {
-                error!("Error from Confy while loading the config file : {}", error);
-                return Simulator::new();
-            }
-        };
-        config.base_path = Box::from(config_path.parent().unwrap());
-        config.time_analysis.output_path = config
-            .base_path
-            .as_ref()
-            .join(&config.time_analysis.output_path)
-            .to_str()
-            .unwrap()
-            .to_string();
-        debug!("Config: {:?}", config);
-        Simulator::from_config(&config, plugin_api)
+        let mut sim = Simulator::new();
+        sim.load_config_path(config_path, plugin_api);
+        sim
     }
 
     /// Load the config from structure instance.
@@ -274,7 +275,7 @@ impl Simulator {
     /// Returns a [`Simulator`] ready to be run.
     pub fn from_config(
         config: &SimulatorConfig,
-        plugin_api: Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
     ) -> Simulator {
         info!("Checking configuration:");
         if config.check() {
@@ -284,22 +285,52 @@ impl Simulator {
             return Simulator::new();
         }
         let mut simulator = Simulator::new();
-        simulator.config = config.clone();
-        if let Some(seed) = config.random_seed {
-            simulator.determinist_va_factory.global_seed = seed;
-        } else {
-            simulator.config.random_seed = Some(simulator.determinist_va_factory.global_seed);
-        }
+        simulator.load_config(config, plugin_api);
+        simulator
+    }
 
-        time_analysis::init_from_config(&simulator.config.time_analysis);
-
+    pub fn reset(&mut self, plugin_api: &Option<Box<&dyn PluginAPI>>,) {
+        self.robots = Arc::new(RwLock::new(Vec::new()));
+        self.network_manager = Arc::new(RwLock::new(NetworkManager::new()));
+        let config = self.config.clone();
+        self.time_cv = Arc::new((Mutex::new(0), Condvar::new()));
         // Create robots
         for robot_config in &config.robots {
-            simulator.add_robot(robot_config, &plugin_api, &simulator.config.clone());
-            // simulator.robots.push(Box::new(Robot::from_config(robot_config, &plugin_api)));
-            // simulator.network_manager.register_robot_network(simulator.robots.last().expect("No robot added to the vector, how is it possible ??").name(), simulator.robots.last().expect("No robot added to the vector, how is it possible ??").network());
+            self.add_robot(robot_config, plugin_api, &config);
         }
-        simulator
+    }
+
+    pub fn load_config_path(&mut self, config_path: &Path, plugin_api: &Option<Box<&dyn PluginAPI>>) {
+        info!(
+            "Load configuration from {:?}",
+            config_path
+        );
+        let mut config: SimulatorConfig = match confy::load_path(
+            config_path,
+        ) {
+            Ok(config) => config,
+            Err(error) => {
+                error!("Error from Confy while loading the config file : {}", error);
+                return;
+            }
+        };
+
+        config.base_path = Box::from(config_path.parent().unwrap());
+        config.time_analysis.output_path = config.base_path.as_ref().join(&config.time_analysis.output_path).to_str().unwrap().to_string();
+        self.load_config(&config, plugin_api);
+    }
+
+    pub fn load_config(&mut self, config: &SimulatorConfig, plugin_api: &Option<Box<&dyn PluginAPI>>) {
+        self.config = config.clone();
+        if let Some(seed) = config.random_seed {
+            self.determinist_va_factory.global_seed = seed;
+        } else {
+            self.config.random_seed = Some(self.determinist_va_factory.global_seed);
+        }
+
+        time_analysis::init_from_config(&self.config.time_analysis);
+        
+        self.reset(plugin_api);
     }
 
     /// Initialize the simulator environment.
@@ -416,6 +447,10 @@ impl Simulator {
         }
     }
 
+    pub fn set_max_time(&mut self, max_time: f32) {
+        self.config.max_time = max_time;
+    }
+
     /// Run the scenario until the given time.
     ///
     /// This function starts one thread by [`Robot`]. It waits that the thread finishes.
@@ -431,8 +466,9 @@ impl Simulator {
             let new_max_time = max_time.clone();
             let robot_list = Arc::clone(&self.robots);
             let time_cv = self.time_cv.clone();
+            let async_api_server = self.async_api_server.clone();
             let handle = thread::spawn(move || {
-                Self::run_one_robot(new_robot, new_max_time, robot_list, i, time_cv)
+                Self::run_one_robot(new_robot, new_max_time, robot_list, i, time_cv, async_api_server)
             });
             handles.push(handle);
             i += 1;
@@ -572,6 +608,7 @@ impl Simulator {
         robot_list: Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
         robot_idx: usize,
         time_cv: Arc<(Mutex<usize>, Condvar)>,
+        async_api_server: Option<SimulatorAsyncApiServer>,
     ) {
         info!("Start thread of robot {}", robot.read().unwrap().name());
         let mut thread_ids = THREAD_IDS.write().unwrap();
@@ -597,6 +634,9 @@ impl Simulator {
         loop {
             let mut robot_open = robot.write().unwrap();
             let (mut next_time, mut read_only) = robot_open.next_time_step();
+            if let Some(api) = &async_api_server {
+                api.current_time.lock().unwrap().insert(robot_open.name(), next_time);
+            }
             if next_time > max_time {
                 std::mem::drop(robot_open);
                 if Self::wait_the_end(&robot, max_time, &cv_mtx, &cv, nb_robots) {
@@ -702,6 +742,19 @@ def convert(records):
             error!("{}", err);
         }
     }
+
+    pub fn get_async_api(&mut self) -> Arc<SimulatorAsyncApi> {
+        if self.async_api_server.is_none() {
+            let map = Arc::new(Mutex::new(HashMap::new()));
+            self.async_api_server = Some(SimulatorAsyncApiServer {
+                current_time: Arc::clone(&map),
+            });
+            self.async_api = Some(Arc::new(SimulatorAsyncApi {
+                current_time: Arc::clone(&map),
+            }));
+        }
+        self.async_api.as_ref().unwrap().clone()
+    }
 }
 
 #[cfg(test)]
@@ -722,8 +775,7 @@ mod tests {
         let mut results: Vec<Vec<Record>> = Vec::new();
 
         for i in 0..nb_replications {
-            let mut simulator =
-                Simulator::from_config_path(Path::new("config_example/config.yaml"), None);
+            let mut simulator = Simulator::from_config_path(Path::new("config_example/config.yaml"), &None);
 
             simulator.show();
 

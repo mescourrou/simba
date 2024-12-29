@@ -1,12 +1,12 @@
-use std::{sync::{Arc, Mutex}, thread::{self, JoinHandle, Thread}};
+use std::{sync::{Arc, Mutex}, thread::{self, JoinHandle, Thread}, time::Duration};
 
-use crate::simulator::Simulator;
+
+use crate::{api::async_api::{AsyncApi, AsyncApiRunner}, plugin_api::PluginAPI};
 
 struct PrivateParams {
-    simulator: Arc<Mutex<Simulator>>,
+    server: Arc<Mutex<AsyncApiRunner>>,
+    api: AsyncApi,
     config_loaded: bool,
-    need_reset: bool,
-    simulator_thread: Option<std::thread::JoinHandle<()>>,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -22,15 +22,16 @@ pub struct SimbaApp {
 
 impl Default for SimbaApp {
     fn default() -> Self {
+        let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
+        let api = server.lock().unwrap().get_api();
+        server.lock().unwrap().run(None);
         Self {
-            // Example stuff:
             config_path: "".to_owned(),
             duration: 60.,
             p: PrivateParams {
-                simulator: Arc::new(Mutex::new(Simulator::new())),
+                server,
+                api,
                 config_loaded: false,
-                need_reset: false,
-                simulator_thread: None,
             },
         }
     }
@@ -38,30 +39,36 @@ impl Default for SimbaApp {
 
 impl SimbaApp {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_else(|| Self::new_full(plugin_api));
         }
 
-        Default::default()
+        Self::new_full(plugin_api)
     }
 
-    fn run_simulation_threaded(simulator: Arc<Mutex<Simulator>>, duration: f32) {
-        simulator.lock().unwrap().run(duration);
+    fn new_full(plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
+        let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
+        let api = server.lock().unwrap().get_api();
+        server.lock().unwrap().run(plugin_api);
+        Self {
+            config_path: "".to_owned(),
+            duration: 60.,
+            p: PrivateParams {
+                server,
+                api,
+                config_loaded: false,
+            },
+        }
     }
 
-    fn run_simulation(&mut self) {
-        log::info!("Run simulation for {} seconds", self.duration);
-        let simu = Arc::clone(&self.p.simulator);
-        let duration = self.duration;
-        self.p.simulator_thread = Some(thread::spawn(move || {
-            Self::run_simulation_threaded(simu, duration);
-        }));
+    fn quit(&mut self) {
+        self.p.server.lock().unwrap().stop();
     }
 }
 
@@ -76,12 +83,6 @@ impl eframe::App for SimbaApp {
         // Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
         // For inspiration and more examples, go to https://emilk.github.io/egui
 
-        if let Some(join_handle) = &self.p.simulator_thread {
-            if join_handle.is_finished() {
-                self.p.simulator_thread = None;
-            }
-        }
-
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
 
@@ -92,6 +93,7 @@ impl eframe::App for SimbaApp {
                     ui.menu_button("File", |ui| {
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                            self.quit();
                         }
                     });
                     ui.add_space(16.0);
@@ -117,28 +119,20 @@ impl eframe::App for SimbaApp {
 
             if ui.button("Load").clicked() {
                 log::info!("Load configuration");
-                self.p.simulator = Arc::new(Mutex::new(Simulator::from_config_path(
-                    std::path::Path::new(&self.config_path),
-                    None,
-                )));
+                self.p.api.load_config.send(self.config_path.clone()).unwrap();
                 self.p.config_loaded = true;
             }
 
             ui.horizontal(|ui|{
-                if ui.add_enabled(self.p.config_loaded && self.p.simulator_thread.is_none(), egui::Button::new("Run")).clicked() {
-                    if self.p.need_reset {
-                        log::info!("Load configuration");
-                        self.p.simulator = Arc::new(Mutex::new(Simulator::from_config_path(
-                            std::path::Path::new(&self.config_path),
-                            None,
-                        )));
+                if ui.add_enabled(self.p.config_loaded, egui::Button::new("Run")).clicked() {
+                    log::info!("Run simulation");
+                    self.p.api.run.send(self.duration).unwrap();
+                }
+                ui.vertical(|ui| {
+                    for (robot, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter() {
+                        ui.label(format!("Running: {robot}: {time}", ));
                     }
-                    self.run_simulation();
-                    self.p.need_reset = true;
-                }
-                if self.p.simulator_thread.is_some() {
-                    ui.add(egui::Spinner::new());
-                }
+                })
             });
 
             ui.separator();
@@ -148,6 +142,8 @@ impl eframe::App for SimbaApp {
                 egui::warn_if_debug_build(ui);
             });
         });
+
+        ctx.request_repaint_after(Duration::from_secs_f32(1.0 / 60.0));
     }
 }
 

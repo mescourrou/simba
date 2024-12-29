@@ -3,9 +3,9 @@
 mod app;
 pub use app::SimbaApp;
 
-use crate::simulator::Simulator;
+use crate::{plugin_api::{self, PluginAPI}, simulator::Simulator};
 
-pub fn run_gui(log_level: log::LevelFilter) {
+pub fn run_gui(log_level: log::LevelFilter, plugin_api: Option<Box<&'static dyn PluginAPI>>) {
     // Initialize the environment, essentially the logging part
     Simulator::init_environment(log_level);
         
@@ -18,6 +18,6 @@ pub fn run_gui(log_level: log::LevelFilter) {
     eframe::run_native(
         "SiMBA",
         native_options,
-        Box::new(|cc| Box::new(SimbaApp::new(cc))),
+        Box::new(|cc| Box::new(SimbaApp::new(cc, plugin_api))),
     ).expect("Error during GUI execution");
 }
