@@ -1,10 +1,12 @@
 #[cfg_attr(not(feature = "time-analysis"), allow(dead_code, unused_variables))]
 #[cfg(feature = "time-analysis")]
 use lazy_static::lazy_static;
+use libm::ceilf;
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 
-use std::path::Path;
+use std::{collections::hash_map, path::Path};
 #[cfg(feature = "time-analysis")]
 use std::sync::Mutex;
 #[cfg(feature = "time-analysis")]
@@ -17,6 +19,9 @@ use std::collections::HashMap;
 #[cfg(feature = "time-analysis")]
 use std::thread;
 use std::time::{self, Duration};
+
+
+use crate::robot;
 
 #[cfg(feature = "time-analysis")]
 #[allow(dead_code)]
@@ -337,6 +342,60 @@ mod test {
 
 #[cfg(feature = "time-analysis")]
 #[derive(Debug)]
+struct TimeAnalysisStatistics {
+    pub mean: f32,
+    pub median: f32,
+    pub min: f32,
+    pub max: f32,
+    pub n: u32,
+    pub q1: f32,
+    pub q3: f32,
+    pub q99: f32,
+    pub q01: f32,
+}
+
+#[cfg(feature = "time-analysis")]
+impl TimeAnalysisStatistics {
+    pub fn from_array(mut v: Vec<f32>) -> Self {
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let sum: f32 = v.iter().sum();
+        let n = v.len();
+        let nf32 = n as f32;
+        TimeAnalysisStatistics {
+            mean: sum/nf32,
+            median: if n % 2 == 0 {
+                (v[n/2] + v[n/2 - 1])/2.
+            } else {
+                v[(n-1)/2]
+            },
+            max: v.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(&f32::INFINITY).clone(),
+            min: v.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(&0.).clone(),
+            n: (n as u32),
+            q1: v[ceilf(nf32/4.) as usize],
+            q3: v[ceilf(nf32 * 0.75) as usize],
+            q01: v[ceilf(nf32 * 0.01) as usize],
+            q99: v[ceilf(nf32 * 0.99) as usize],
+        }
+    }
+
+    pub fn as_map(&self) -> HashMap<String, String> {
+        let mut map = HashMap::<String, String>::new();
+        map.insert("mean".to_string(), self.mean.to_string());
+        map.insert("median".to_string(), self.median.to_string());
+        map.insert("min".to_string(), self.min.to_string());
+        map.insert("max".to_string(), self.max.to_string());
+        map.insert("n".to_string(), self.n.to_string());
+        map.insert("q1".to_string(), self.q1.to_string());
+        map.insert("q3".to_string(), self.q3.to_string());
+        map.insert("q99".to_string(), self.q99.to_string());
+        map.insert("q01".to_string(), self.q01.to_string());
+        map
+        
+    }
+}
+
+#[cfg(feature = "time-analysis")]
+#[derive(Debug)]
 struct TimeAnalysisFactory {
     robots_names: HashMap<ThreadId, String>,
     robots_depth: HashMap<ThreadId, usize>,
@@ -528,7 +587,51 @@ impl TimeAnalysisFactory {
         self.real_time_analysis(path);
     }
 
-    fn real_time_analysis(&self, _path: &Path) {}
+    fn real_time_analysis(&self, path: &Path) {
+        let path = path.with_extension("report").with_extension("csv");
+
+        let mut stats = HashMap::<String, Vec<String>>::new();
+        let mut robot_headers = vec![String::new()];
+        let mut track_headers = vec![String::new()];
+        for (robot_name, profiles) in self.iter_execution_profiles() {
+            robot_headers.push(robot_name.clone());
+            let mut map: HashMap<String, Vec<f32>> = HashMap::new();
+            for profile in profiles {
+                let t = profile.duration.as_secs_f32();
+                if let Some(stat) = map.get_mut(&profile.name) {
+                    stat.push(t);
+                } else {
+                    map.insert(profile.name.clone(), vec![t]);
+                }
+            }
+            for (profile_name, samples) in map {
+                let ta_stats = TimeAnalysisStatistics::from_array(samples);
+                let ta_map = ta_stats.as_map();
+                for (key, value) in ta_map {
+                    if let Some(v) = stats.get_mut(&key) {
+                        v.push(value);
+                    } else {
+                        stats.insert(key, vec![value]);
+                    }
+                }
+                track_headers.push(profile_name);
+                robot_headers.push("".to_string());
+
+
+            }
+            robot_headers.pop();
+        }
+
+        let mut writer = csv::Writer::from_path(path).expect("Unknown path for time analysis report");
+        writer.write_record(robot_headers);
+        writer.write_record(track_headers);
+        for (row_name, mut values) in stats {
+            values.insert(0, row_name);
+            writer.write_record(values);
+        }
+        
+
+    }
 }
 
 // Expose the function depending on the compilation feature "time-analysis"
