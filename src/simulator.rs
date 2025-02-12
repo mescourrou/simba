@@ -136,6 +136,7 @@ pub struct Results {
 static THREAD_IDS: Mutex<Vec<ThreadId>> = Mutex::new(Vec::new());
 static THREAD_NAMES: Mutex<Vec<String>> = Mutex::new(Vec::new());
 static THREAD_TIMES: Mutex<Vec<f32>> = Mutex::new(Vec::new());
+static EXCLUDE_ROBOTS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 /// This is the central structure which manages the run of the scenario.
 ///
@@ -268,11 +269,13 @@ impl Simulator {
 
     /// Initialize the simulator environment.
     ///
-    /// For now, only start the logging environment.
-    pub fn init_environment(level: log::LevelFilter) {
+    /// - start the logging environment.
+    /// - Time analysis setup
+    pub fn init_environment(level: log::LevelFilter, exclude_robots: Vec<String>) {
         THREAD_IDS.lock().unwrap().push(thread::current().id());
         THREAD_NAMES.lock().unwrap().push("simulator".to_string());
         THREAD_TIMES.lock().unwrap().push(0.);
+        EXCLUDE_ROBOTS.lock().unwrap().clone_from(&exclude_robots);
         env_logger::builder()
             .target(env_logger::Target::Stdout)
             .format(|buf, record| {
@@ -282,6 +285,9 @@ impl Simulator {
                     .iter()
                     .position(|&x| x == thread::current().id())
                     .unwrap_or(0);
+                if EXCLUDE_ROBOTS.lock().unwrap().contains(&THREAD_NAMES.lock().unwrap()[thread_idx]) {
+                    return Ok(());
+                }
                 let mut time = "".to_string();
                 if thread_idx != 0 {
                     let time_f32 = THREAD_TIMES.lock().unwrap()[thread_idx];

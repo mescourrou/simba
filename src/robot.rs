@@ -404,8 +404,8 @@ impl Robot {
     ///
     /// Then, the robot state is saved.
     pub fn run_time_step(&mut self, time: f32, read_only: bool) {
-        self.set_in_state(time);
         info!("Run time {}", time);
+        self.set_in_state(time);
         // Update the true state
         self.physic.write().unwrap().update_state(time);
 

@@ -43,7 +43,7 @@ impl SimulatorWrapper {
             "error" => log::LevelFilter::Error,
             "off" => log::LevelFilter::Off,
             &_ => log::LevelFilter::Off,
-        });
+        }, Vec::new());
         SimulatorWrapper {
             simulator: Simulator::from_config_path(
                 Path::new(&config_path),
