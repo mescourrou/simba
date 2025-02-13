@@ -18,3 +18,5 @@ pub mod oriented_landmark_sensor;
 pub mod robot_sensor;
 pub mod sensor;
 pub mod sensor_manager;
+
+pub mod fault_models;

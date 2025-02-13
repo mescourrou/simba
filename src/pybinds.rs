@@ -36,14 +36,17 @@ impl SimulatorWrapper {
         api: Option<&PythonAPI>,
         loglevel: &str,
     ) -> SimulatorWrapper {
-        Simulator::init_environment(match loglevel.to_lowercase().as_str() {
-            "debug" => log::LevelFilter::Debug,
-            "info" => log::LevelFilter::Info,
-            "warn" => log::LevelFilter::Warn,
-            "error" => log::LevelFilter::Error,
-            "off" => log::LevelFilter::Off,
-            &_ => log::LevelFilter::Off,
-        }, Vec::new());
+        Simulator::init_environment(
+            match loglevel.to_lowercase().as_str() {
+                "debug" => log::LevelFilter::Debug,
+                "info" => log::LevelFilter::Info,
+                "warn" => log::LevelFilter::Warn,
+                "error" => log::LevelFilter::Error,
+                "off" => log::LevelFilter::Off,
+                &_ => log::LevelFilter::Off,
+            },
+            Vec::new(),
+        );
         SimulatorWrapper {
             simulator: Simulator::from_config_path(
                 Path::new(&config_path),
@@ -91,7 +94,8 @@ impl PluginAPI for PythonAPI {
                     "get_state_estimator",
                     (
                         config.to_string(),
-                        serde_json::to_string(global_config).expect("Failed to serialize global_config"),
+                        serde_json::to_string(global_config)
+                            .expect("Failed to serialize global_config"),
                     ),
                     None,
                 )

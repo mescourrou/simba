@@ -559,7 +559,10 @@ impl Robot {
             next_time_step = tpl.0;
         }
 
-        debug!("next_time_step: {} (read only: {read_only})", next_time_step);
+        debug!(
+            "next_time_step: {} (read only: {read_only})",
+            next_time_step
+        );
         (next_time_step, read_only)
     }
 

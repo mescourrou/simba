@@ -130,11 +130,13 @@ impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
     /// The number of requests remaining in the buffer.
     pub fn process_requests(&self) -> usize {
         debug!("Processing service requests...");
-        for (from, message, time, message_flags) in self.request_channel.lock().unwrap().try_iter() {
-            self.request_buffer
-                .write()
-                .unwrap()
-                .insert(time, (from, message, message_flags), false);
+        for (from, message, time, message_flags) in self.request_channel.lock().unwrap().try_iter()
+        {
+            self.request_buffer.write().unwrap().insert(
+                time,
+                (from, message, message_flags),
+                false,
+            );
         }
         debug!(
             "Processing services requests... {} request in the buffer",
@@ -189,13 +191,10 @@ impl<RequestMsg, ResponseMsg> Service<RequestMsg, ResponseMsg> {
 
     /// Get the minimal time among all waiting requests.
     pub fn next_time(&self) -> (f32, bool) {
-        match self.request_buffer
-            .read()
-            .unwrap()
-            .min_time() {
+        match self.request_buffer.read().unwrap().min_time() {
             Some((time, tpl)) => (time, tpl.2.contains(&MessageFlag::ReadOnly)),
             None => (f32::INFINITY, false),
-            }
+        }
     }
 }
 

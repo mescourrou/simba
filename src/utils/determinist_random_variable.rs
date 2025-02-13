@@ -19,7 +19,9 @@ Other types can be added in the future.
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use statrs::distribution::Normal;
+use statrs::distribution::{MultivariateNormal, Normal};
+
+use super::distributions::{fixed::{DeterministFixedRandomVariable, FixedRandomVariableConfig}, normal::{DeterministNormalRandomVariable, NormalRandomVariableConfig}, uniform::{DeterministUniformRandomVariable, UniformRandomVariableConfig}};
 
 /// Factory to create random variables with a deterministic behavior, using a global seed.
 pub struct DeterministRandomVariableFactory {
@@ -68,7 +70,7 @@ impl Default for DeterministRandomVariableFactory {
 pub trait DeterministRandomVariable:
     std::fmt::Debug + std::marker::Send + std::marker::Sync
 {
-    fn gen(&self, time: f32) -> f32;
+    fn gen(&self, time: f32) -> Vec<f32>;
 }
 
 /// Configuration of the random variable: fixed, uniform or normal.
@@ -84,144 +86,3 @@ pub enum RandomVariableTypeConfig {
     Normal(NormalRandomVariableConfig),
 }
 
-/*******************************************************************
- * Fixed
-*******************************************************************/
-
-/// Configuration for a fixed random variable.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct FixedRandomVariableConfig {
-    /// Fixed value to return.
-    value: f32,
-}
-
-impl Default for FixedRandomVariableConfig {
-    fn default() -> Self {
-        Self { value: 0. }
-    }
-}
-
-/// Random variable which always return the same value.
-#[derive(Debug)]
-pub struct DeterministFixedRandomVariable {
-    value: f32,
-}
-
-impl DeterministFixedRandomVariable {
-    pub fn from_config(_global_seed: f32, config: FixedRandomVariableConfig) -> Self {
-        Self {
-            value: config.value,
-        }
-    }
-}
-
-impl DeterministRandomVariable for DeterministFixedRandomVariable {
-    fn gen(&self, _time: f32) -> f32 {
-        self.value
-    }
-}
-
-/*******************************************************************
- * Uniform
- *******************************************************************/
-
-/// Configuration for a uniform random variable.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct UniformRandomVariableConfig {
-    /// Random seed for this random variable.
-    unique_seed: f32,
-    /// Minimum value of the uniform distribution.
-    min: f32,
-    /// Maximum value of the uniform distribution.
-    max: f32,
-}
-
-impl Default for UniformRandomVariableConfig {
-    fn default() -> Self {
-        Self {
-            unique_seed: 0.,
-            min: -1.,
-            max: 1.,
-        }
-    }
-}
-
-/// Random variable which return a random value between a min and a max, with a uniform distribution.
-#[derive(Debug)]
-pub struct DeterministUniformRandomVariable {
-    /// Seed used, which is the global seed from the factory + the unique seed from the configuration.
-    global_seed: f32,
-    /// Minimum value of the uniform distribution.
-    min: f32,
-    /// Maximum value of the uniform distribution.
-    max: f32,
-}
-
-impl DeterministUniformRandomVariable {
-    pub fn from_config(global_seed: f32, config: UniformRandomVariableConfig) -> Self {
-        assert!(config.min <= config.max);
-        Self {
-            global_seed: global_seed + config.unique_seed,
-            min: config.min,
-            max: config.max,
-        }
-    }
-}
-
-impl DeterministRandomVariable for DeterministUniformRandomVariable {
-    fn gen(&self, time: f32) -> f32 {
-        let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + time).to_bits() as u64);
-        self.min + rng.gen::<f32>() * (self.max - self.min)
-    }
-}
-
-/*******************************************************************
- * Normal
- *******************************************************************/
-
-/// Configuration for a normal random variable.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct NormalRandomVariableConfig {
-    /// Random seed for this random variable.
-    unique_seed: f32,
-    /// Mean of the normal distribution.
-    mean: f32,
-    /// Variance of the normal distribution.
-    variance: f32,
-}
-
-impl Default for NormalRandomVariableConfig {
-    fn default() -> Self {
-        Self {
-            unique_seed: 0.,
-            mean: 0.,
-            variance: 1.,
-        }
-    }
-}
-
-/// Random variable which return a random value following a normal distribution.
-#[derive(Debug)]
-pub struct DeterministNormalRandomVariable {
-    /// Seed used, which is the global seed from the factory + the unique seed from the configuration.
-    global_seed: f32,
-    /// Normal distribution.
-    nd: Normal,
-}
-
-impl DeterministNormalRandomVariable {
-    pub fn from_config(global_seed: f32, config: NormalRandomVariableConfig) -> Self {
-        Self {
-            global_seed: global_seed + config.unique_seed,
-            nd: Normal::new(config.mean.into(), config.variance.sqrt().into())
-                .expect("Impossible to create the normal distribution"),
-        }
-    }
-}
-
-impl DeterministRandomVariable for DeterministNormalRandomVariable {
-    fn gen(&self, time: f32) -> f32 {
-        let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + time).to_bits() as u64);
-        self.nd.sample(&mut rng) as f32
-    }
-}

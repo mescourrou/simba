@@ -83,8 +83,6 @@ pub fn make_controller_from_config(
     va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn Controller>>> {
     Arc::new(RwLock::new(Box::new(match config {
-        ControllerConfig::PID(c) => {
-            pid::PID::from_config(c, plugin_api, global_config, va_factory)
-        }
+        ControllerConfig::PID(c) => pid::PID::from_config(c, plugin_api, global_config, va_factory),
     })))
 }

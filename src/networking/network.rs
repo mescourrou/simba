@@ -66,7 +66,8 @@ pub struct Network {
     /// List of the other robots associated to their asynchronous Sender.
     ///
     /// Map[Name of the robot, Sender].
-    other_emitters: BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value, f32, Vec<MessageFlag>)>>>>,
+    other_emitters:
+        BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value, f32, Vec<MessageFlag>)>>>>,
     /// List of handler. First handler returning Ok has priority.
     message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>,
     /// Asynchronous receiver for the current [`Network`].
@@ -215,16 +216,17 @@ impl Network {
                 time + self.delay
             };
             debug!("Add new message from {from} at time {time}");
-            self.messages_buffer.insert(time, (from, message, message_flags), false);
+            self.messages_buffer
+                .insert(time, (from, message, message_flags), false);
         }
         self.messages_buffer.len()
     }
 
     /// Get the minimal time among all waiting messages. Bool is true if the message is read only.
-    pub fn next_message_time(&self) -> Option<(f32,bool)> {
+    pub fn next_message_time(&self) -> Option<(f32, bool)> {
         let tpl_option = self.messages_buffer.min_time();
         match tpl_option {
-            Some(tpl) => Some((tpl.0, tpl.1.2.contains(&MessageFlag::ReadOnly))),
+            Some(tpl) => Some((tpl.0, tpl.1 .2.contains(&MessageFlag::ReadOnly))),
             None => None,
         }
     }
@@ -235,7 +237,9 @@ impl Network {
     /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
     pub fn handle_message_at_time(&mut self, robot: &mut Robot, time: f32) {
-        while let Some((msg_time, (from, message, message_flags))) = self.messages_buffer.remove(time) {
+        while let Some((msg_time, (from, message, message_flags))) =
+            self.messages_buffer.remove(time)
+        {
             debug!("Receive message from {from}: {:?}", message);
             debug!("Handler list size: {}", self.message_handlers.len());
             for handler in &self.message_handlers {

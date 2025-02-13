@@ -2,6 +2,7 @@
 Provides a [`Sensor`] which can observe the other robots in the frame of the ego robot.
 */
 
+use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::networking::network::MessageFlag;
@@ -32,9 +33,7 @@ pub struct RobotSensorConfig {
     pub detection_distance: f32,
     /// Observation period of the sensor.
     pub period: f32,
-    pub x_noise: RandomVariableTypeConfig,
-    pub y_noise: RandomVariableTypeConfig,
-    pub theta_noise: RandomVariableTypeConfig,
+    pub faults: Vec<FaultModelConfig>,
 }
 
 impl Default for RobotSensorConfig {
@@ -42,9 +41,7 @@ impl Default for RobotSensorConfig {
         Self {
             detection_distance: 5.0,
             period: 0.1,
-            x_noise: RandomVariableTypeConfig::None,
-            y_noise: RandomVariableTypeConfig::None,
-            theta_noise: RandomVariableTypeConfig::None,
+            faults: Vec::new(),
         }
     }
 }
@@ -264,11 +261,9 @@ pub struct RobotSensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
-    gen_x: Box<dyn DeterministRandomVariable>,
-    gen_y: Box<dyn DeterministRandomVariable>,
-    gen_theta: Box<dyn DeterministRandomVariable>,
     /// Services to get the real state of the Robots.
     robot_real_state_services: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
+    faults: Vec<FaultModel>,
 }
 
 impl RobotSensor {
@@ -292,14 +287,16 @@ impl RobotSensor {
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         assert!(config.period != 0.);
+        let mut fault_models = Vec::new();
+        for fault_config in &config.faults {
+            fault_models.push(FaultModel::from_config(&fault_config, va_factory));
+        }
         Self {
             detection_distance: config.detection_distance,
             period: config.period,
             last_time: 0.,
-            gen_x: va_factory.make_variable(config.x_noise.clone()),
-            gen_y: va_factory.make_variable(config.y_noise.clone()),
-            gen_theta: va_factory.make_variable(config.theta_noise.clone()),
             robot_real_state_services: BTreeMap::new(),
+            faults: fault_models,
         }
     }
 }
@@ -366,16 +363,13 @@ impl Sensor for RobotSensor {
             debug!("Distance is {d}");
             if d <= self.detection_distance {
                 let robot_seed = 1. / (100. * self.period) * (i as f32);
-                let noisy_pose = na::Vector3::<f32>::from_vec(vec![
-                    self.gen_x.gen(time + robot_seed),
-                    self.gen_y.gen(time + robot_seed),
-                    self.gen_theta.gen(time + robot_seed),
-                ]);
                 observation_list.push(Observation::OrientedRobot(OrientedRobotObservation {
                     name: other_robot_name.clone(),
-                    pose: rotation_matrix.transpose() * (other_state.pose - state.pose)
-                        + noisy_pose,
+                    pose: rotation_matrix.transpose() * (other_state.pose - state.pose),
                 }));
+                for fault_model in &self.faults {
+                    fault_model.add_fault(time + robot_seed, observation_list.last_mut().unwrap());
+                }
             }
         }
         self.last_time = time;

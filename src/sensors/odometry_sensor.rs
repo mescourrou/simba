@@ -4,6 +4,7 @@ Provides a [`Sensor`] which can provide linear velocity and angular velocity.
 
 use std::sync::{Arc, RwLock};
 
+use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
@@ -24,16 +25,14 @@ extern crate nalgebra as na;
 pub struct OdometrySensorConfig {
     /// Observation period of the sensor.
     pub period: f32,
-    pub angular_velocity_noise: RandomVariableTypeConfig,
-    pub linear_velocity_noise: RandomVariableTypeConfig,
+    pub faults: Vec<FaultModelConfig>,
 }
 
 impl Default for OdometrySensorConfig {
     fn default() -> Self {
         Self {
             period: 0.1,
-            angular_velocity_noise: RandomVariableTypeConfig::None,
-            linear_velocity_noise: RandomVariableTypeConfig::None,
+            faults: Vec::new(),
         }
     }
 }
@@ -92,8 +91,7 @@ pub struct OdometrySensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
-    gen_angular_velocity: Box<dyn DeterministRandomVariable>,
-    gen_linear_velocity: Box<dyn DeterministRandomVariable>,
+    faults: Vec<FaultModel>,
 }
 
 impl OdometrySensor {
@@ -114,12 +112,15 @@ impl OdometrySensor {
         _global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
+        let mut fault_models = Vec::new();
+        for fault_config in &config.faults {
+            fault_models.push(FaultModel::from_config(&fault_config, va_factory));
+        }
         Self {
             last_state: State::new(),
             period: config.period,
             last_time: 0.,
-            gen_angular_velocity: va_factory.make_variable(config.angular_velocity_noise.clone()),
-            gen_linear_velocity: va_factory.make_variable(config.linear_velocity_noise.clone()),
+            faults: fault_models,
         }
     }
 }
@@ -148,10 +149,12 @@ impl Sensor for OdometrySensor {
         let dt = time - self.last_time;
 
         observation_list.push(Observation::Odometry(OdometryObservation {
-            linear_velocity: state.velocity + self.gen_linear_velocity.gen(time),
-            angular_velocity: (state.pose.z - self.last_state.pose.z) / dt
-                + self.gen_angular_velocity.gen(time),
+            linear_velocity: state.velocity,
+            angular_velocity: (state.pose.z - self.last_state.pose.z) / dt,
         }));
+        for fault_model in &self.faults {
+            fault_model.add_fault(time, observation_list.last_mut().unwrap());
+        }
 
         self.last_time = time;
         self.last_state = state.clone();

@@ -4,6 +4,7 @@ Provides a [`Sensor`] which can provide position and velocity in the global fram
 
 use std::sync::{Arc, RwLock};
 
+use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
@@ -24,24 +25,15 @@ extern crate nalgebra as na;
 pub struct GNSSSensorConfig {
     /// Observation period of the sensor.
     pub period: f32,
-    /// Noise on the x position.
-    pub pose_x_noise: RandomVariableTypeConfig,
-    /// Noise on the y position.
-    pub pose_y_noise: RandomVariableTypeConfig,
-    /// Noise on the x  velocity.
-    pub velocity_x_noise: RandomVariableTypeConfig,
-    /// Noise on the y velocity.
-    pub velocity_y_noise: RandomVariableTypeConfig,
+    /// Fault on the x, y positions, and on the x and y velocities
+    pub faults: Vec<FaultModelConfig>,
 }
 
 impl Default for GNSSSensorConfig {
     fn default() -> Self {
         Self {
             period: 1.,
-            pose_x_noise: RandomVariableTypeConfig::None,
-            pose_y_noise: RandomVariableTypeConfig::None,
-            velocity_x_noise: RandomVariableTypeConfig::None,
-            velocity_y_noise: RandomVariableTypeConfig::None,
+            faults: Vec::new(),
         }
     }
 }
@@ -94,14 +86,8 @@ pub struct GNSSSensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
-    /// Generator for the noise on the x position.
-    gen_x_pose: Box<dyn DeterministRandomVariable>,
-    /// Generator for the noise on the y position.
-    gen_y_pose: Box<dyn DeterministRandomVariable>,
-    /// Generator for the noise on the x velocity.
-    gen_x_velocity: Box<dyn DeterministRandomVariable>,
-    /// Generator for the noise on the y velocity.
-    gen_y_velocity: Box<dyn DeterministRandomVariable>,
+    /// Fault models for x and y positions and on x and y velocities
+    faults: Vec<FaultModel>,
 }
 
 impl GNSSSensor {
@@ -122,13 +108,14 @@ impl GNSSSensor {
         _global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
+        let mut fault_models = Vec::new();
+        for fault_config in &config.faults {
+            fault_models.push(FaultModel::from_config(&fault_config, va_factory));
+        }
         Self {
             period: config.period,
             last_time: 0.,
-            gen_x_pose: va_factory.make_variable(config.pose_x_noise.clone()),
-            gen_y_pose: va_factory.make_variable(config.pose_y_noise.clone()),
-            gen_x_velocity: va_factory.make_variable(config.velocity_x_noise.clone()),
-            gen_y_velocity: va_factory.make_variable(config.velocity_y_noise.clone()),
+            faults: fault_models,
         }
     }
 }
@@ -153,23 +140,18 @@ impl Sensor for GNSSSensor {
         }
         let state = physic.state(time);
 
-        let pose_noise =
-            Vector2::<f32>::from_vec(vec![self.gen_x_pose.gen(time), self.gen_y_pose.gen(time)]);
-
-        let velocity_noise = Vector2::<f32>::from_vec(vec![
-            self.gen_x_velocity.gen(time),
-            self.gen_y_velocity.gen(time),
-        ]);
-
         let velocity = Vector2::<f32>::from_vec(vec![
             state.velocity * state.pose.z.cos(),
             state.velocity * state.pose.z.sin(),
         ]);
 
         observation_list.push(Observation::GNSS(GNSSObservation {
-            position: state.pose.fixed_view(0, 0) + pose_noise,
-            velocity: velocity + velocity_noise,
+            position: state.pose.fixed_rows::<2>(0).into(),
+            velocity,
         }));
+        for fault_model in &self.faults {
+            fault_model.add_fault(time, observation_list.last_mut().unwrap());
+        }
 
         self.last_time = time;
         observation_list

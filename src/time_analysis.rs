@@ -6,11 +6,11 @@ use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
-use std::{collections::hash_map, path::Path};
 #[cfg(feature = "time-analysis")]
 use std::sync::Mutex;
 #[cfg(feature = "time-analysis")]
 use std::thread::ThreadId;
+use std::{collections::hash_map, path::Path};
 
 #[cfg(feature = "time-analysis")]
 use log::info;
@@ -19,7 +19,6 @@ use std::collections::HashMap;
 #[cfg(feature = "time-analysis")]
 use std::thread;
 use std::time::{self, Duration};
-
 
 use crate::robot;
 
@@ -362,16 +361,24 @@ impl TimeAnalysisStatistics {
         let n = v.len();
         let nf32 = n as f32;
         TimeAnalysisStatistics {
-            mean: sum/nf32,
+            mean: sum / nf32,
             median: if n % 2 == 0 {
-                (v[n/2] + v[n/2 - 1])/2.
+                (v[n / 2] + v[n / 2 - 1]) / 2.
             } else {
-                v[(n-1)/2]
+                v[(n - 1) / 2]
             },
-            max: v.iter().max_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(&f32::INFINITY).clone(),
-            min: v.iter().min_by(|a, b| a.partial_cmp(b).unwrap()).unwrap_or(&0.).clone(),
+            max: v
+                .iter()
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap_or(&f32::INFINITY)
+                .clone(),
+            min: v
+                .iter()
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap_or(&0.)
+                .clone(),
             n: (n as u32),
-            q1: v[ceilf(nf32/4.) as usize],
+            q1: v[ceilf(nf32 / 4.) as usize],
             q3: v[ceilf(nf32 * 0.75) as usize],
             q01: v[ceilf(nf32 * 0.01) as usize],
             q99: v[ceilf(nf32 * 0.99) as usize],
@@ -390,7 +397,6 @@ impl TimeAnalysisStatistics {
         map.insert("q99".to_string(), self.q99.to_string());
         map.insert("q01".to_string(), self.q01.to_string());
         map
-        
     }
 }
 
@@ -616,21 +622,18 @@ impl TimeAnalysisFactory {
                 }
                 track_headers.push(profile_name);
                 robot_headers.push("".to_string());
-
-
             }
             robot_headers.pop();
         }
 
-        let mut writer = csv::Writer::from_path(path).expect("Unknown path for time analysis report");
+        let mut writer =
+            csv::Writer::from_path(path).expect("Unknown path for time analysis report");
         writer.write_record(robot_headers);
         writer.write_record(track_headers);
         for (row_name, mut values) in stats {
             values.insert(0, row_name);
             writer.write_record(values);
         }
-        
-
     }
 }
 

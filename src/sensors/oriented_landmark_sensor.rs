@@ -2,6 +2,7 @@
 Provides a [`Sensor`] which can observe oriented landmarks in the frame of the robot.
 */
 
+use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
@@ -32,9 +33,7 @@ pub struct OrientedLandmarkSensorConfig {
     pub map_path: String,
     /// Observation period of the sensor.
     pub period: f32,
-    pub x_noise: RandomVariableTypeConfig,
-    pub y_noise: RandomVariableTypeConfig,
-    pub theta_noise: RandomVariableTypeConfig,
+    pub faults: Vec<FaultModelConfig>,
 }
 
 impl Default for OrientedLandmarkSensorConfig {
@@ -43,9 +42,7 @@ impl Default for OrientedLandmarkSensorConfig {
             detection_distance: 5.0,
             map_path: String::from(""),
             period: 0.1,
-            x_noise: RandomVariableTypeConfig::None,
-            y_noise: RandomVariableTypeConfig::None,
-            theta_noise: RandomVariableTypeConfig::None,
+            faults: Vec::new(),
         }
     }
 }
@@ -273,9 +270,7 @@ pub struct OrientedLandmarkSensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
-    gen_x: Box<dyn DeterministRandomVariable>,
-    gen_y: Box<dyn DeterministRandomVariable>,
-    gen_theta: Box<dyn DeterministRandomVariable>,
+    faults: Vec<FaultModel>,
 }
 
 impl OrientedLandmarkSensor {
@@ -299,15 +294,16 @@ impl OrientedLandmarkSensor {
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut path = Path::new(&config.map_path);
-
+        let mut fault_models = Vec::new();
+        for fault_config in &config.faults {
+            fault_models.push(FaultModel::from_config(&fault_config, va_factory));
+        }
         let mut sensor = Self {
             detection_distance: config.detection_distance,
             landmarks: Vec::new(),
             period: config.period,
             last_time: 0.,
-            gen_x: va_factory.make_variable(config.x_noise.clone()),
-            gen_y: va_factory.make_variable(config.y_noise.clone()),
-            gen_theta: va_factory.make_variable(config.theta_noise.clone()),
+            faults: fault_models,
         };
 
         if config.map_path == "" {
@@ -368,15 +364,13 @@ impl Sensor for OrientedLandmarkSensor {
             .sqrt();
             if d <= self.detection_distance {
                 let landmark_seed = 1. / (100. * self.period) * (landmark.id as f32);
-                let noisy_pose = na::Vector3::<f32>::from_vec(vec![
-                    self.gen_x.gen(time + landmark_seed),
-                    self.gen_y.gen(time + landmark_seed),
-                    self.gen_theta.gen(time + landmark_seed),
-                ]);
                 observation_list.push(Observation::OrientedLandmark(OrientedLandmarkObservation {
                     id: landmark.id,
-                    pose: rotation_matrix * landmark.pose + state.pose + noisy_pose,
+                    pose: rotation_matrix * landmark.pose + state.pose,
                 }));
+                for fault_model in &self.faults {
+                    fault_model.add_fault(time + landmark_seed, observation_list.last_mut().unwrap());
+                }
             }
         }
         self.last_time = time;

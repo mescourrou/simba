@@ -220,13 +220,8 @@ impl Simulator {
         config_path: &Path,
         plugin_api: Option<Box<&dyn PluginAPI>>,
     ) -> Simulator {
-        info!(
-            "Load configuration from {:?}",
-            config_path
-        );
-        let mut config: SimulatorConfig = match confy::load_path(
-            config_path,
-        ) {
+        info!("Load configuration from {:?}", config_path);
+        let mut config: SimulatorConfig = match confy::load_path(config_path) {
             Ok(config) => config,
             Err(error) => {
                 error!("Error from Confy while loading the config file : {}", error);
@@ -234,7 +229,13 @@ impl Simulator {
             }
         };
         config.base_path = Box::from(config_path.parent().unwrap());
-        config.time_analysis.output_path = config.base_path.as_ref().join(&config.time_analysis.output_path).to_str().unwrap().to_string();
+        config.time_analysis.output_path = config
+            .base_path
+            .as_ref()
+            .join(&config.time_analysis.output_path)
+            .to_str()
+            .unwrap()
+            .to_string();
         debug!("Config: {:?}", config);
         Simulator::from_config(&config, plugin_api)
     }
@@ -285,7 +286,11 @@ impl Simulator {
                     .iter()
                     .position(|&x| x == thread::current().id())
                     .unwrap_or(0);
-                if EXCLUDE_ROBOTS.lock().unwrap().contains(&THREAD_NAMES.lock().unwrap()[thread_idx]) {
+                if EXCLUDE_ROBOTS
+                    .lock()
+                    .unwrap()
+                    .contains(&THREAD_NAMES.lock().unwrap()[thread_idx])
+                {
                     return Ok(());
                 }
                 let mut time = "".to_string();
@@ -610,7 +615,7 @@ def converter(decoded_dict):
 def convert(records):
     return json.loads(records, object_hook=converter)
 "#;
-        
+
         if let Some(script_path) = &self.config.analyse_script {
             let script_path = self.config.base_path.as_ref().join(script_path);
             let python_script = fs::read_to_string(script_path.clone())
@@ -625,12 +630,7 @@ def convert(records):
                 info!("Analyse the results...");
                 let res = analyse_fn.call_bound(
                     py,
-                    (
-                        result_dict,
-                        config_dict,
-                        Path::new(""),
-                        ".pdf",
-                    ),
+                    (result_dict, config_dict, Path::new(""), ".pdf"),
                     None,
                 );
                 if let Err(err) = res {
@@ -648,7 +648,6 @@ def convert(records):
             if let Some(err) = res.err() {
                 error!("{}", err);
             }
-
         }
     }
 }
@@ -671,7 +670,8 @@ mod tests {
         let mut results: Vec<Vec<Record>> = Vec::new();
 
         for i in 0..nb_replications {
-            let mut simulator = Simulator::from_config_path(Path::new("config_example/config.yaml"), None);
+            let mut simulator =
+                Simulator::from_config_path(Path::new("config_example/config.yaml"), None);
 
             simulator.show();
 
