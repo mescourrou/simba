@@ -2,7 +2,7 @@
 Provides a [`Sensor`] which can observe oriented landmarks in the frame of the robot.
 */
 
-use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
+use super::fault_models::fault_model::{make_fault_model_from_config, FaultModel, FaultModelConfig};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
@@ -20,7 +20,7 @@ use na::Vector3;
 
 use std::fmt;
 use std::path::Path;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Configuration of the [`OrientedLandmarkSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -270,7 +270,7 @@ pub struct OrientedLandmarkSensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
-    faults: Vec<FaultModel>,
+    faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
 }
 
 impl OrientedLandmarkSensor {
@@ -294,10 +294,12 @@ impl OrientedLandmarkSensor {
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut path = Path::new(&config.map_path);
-        let mut fault_models = Vec::new();
+        let fault_models = Arc::new(Mutex::new(Vec::new()));
+        let mut unlock_fault_model = fault_models.lock().unwrap();
         for fault_config in &config.faults {
-            fault_models.push(FaultModel::from_config(&fault_config, va_factory));
+            unlock_fault_model.push(make_fault_model_from_config(fault_config, va_factory));
         }
+        drop(unlock_fault_model);
         let mut sensor = Self {
             detection_distance: config.detection_distance,
             landmarks: Vec::new(),
@@ -368,8 +370,8 @@ impl Sensor for OrientedLandmarkSensor {
                     id: landmark.id,
                     pose: rotation_matrix * landmark.pose + state.pose,
                 }));
-                for fault_model in &self.faults {
-                    fault_model.add_fault(time + landmark_seed, observation_list.last_mut().unwrap());
+                for fault_model in self.faults.lock().unwrap().iter() {
+                    fault_model.add_faults(time, self.period, &mut observation_list);
                 }
             }
         }

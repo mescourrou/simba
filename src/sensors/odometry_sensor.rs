@@ -2,9 +2,9 @@
 Provides a [`Sensor`] which can provide linear velocity and angular velocity.
 */
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
-use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
+use super::fault_models::fault_model::{make_fault_model_from_config, FaultModel, FaultModelConfig};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
@@ -91,7 +91,7 @@ pub struct OdometrySensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
-    faults: Vec<FaultModel>,
+    faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
 }
 
 impl OdometrySensor {
@@ -112,10 +112,12 @@ impl OdometrySensor {
         _global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        let mut fault_models = Vec::new();
+        let fault_models = Arc::new(Mutex::new(Vec::new()));
+        let mut unlock_fault_model = fault_models.lock().unwrap();
         for fault_config in &config.faults {
-            fault_models.push(FaultModel::from_config(&fault_config, va_factory));
+            unlock_fault_model.push(make_fault_model_from_config(fault_config, va_factory));
         }
+        drop(unlock_fault_model);
         Self {
             last_state: State::new(),
             period: config.period,
@@ -152,8 +154,8 @@ impl Sensor for OdometrySensor {
             linear_velocity: state.velocity,
             angular_velocity: (state.pose.z - self.last_state.pose.z) / dt,
         }));
-        for fault_model in &self.faults {
-            fault_model.add_fault(time, observation_list.last_mut().unwrap());
+        for fault_model in self.faults.lock().unwrap().iter() {
+            fault_model.add_faults(time, self.period, &mut observation_list);
         }
 
         self.last_time = time;

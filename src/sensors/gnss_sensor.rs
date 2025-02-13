@@ -2,9 +2,9 @@
 Provides a [`Sensor`] which can provide position and velocity in the global frame.
 */
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
-use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
+use super::fault_models::fault_model::{make_fault_model_from_config, FaultModel, FaultModelConfig};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
@@ -87,7 +87,7 @@ pub struct GNSSSensor {
     /// Last observation time.
     last_time: f32,
     /// Fault models for x and y positions and on x and y velocities
-    faults: Vec<FaultModel>,
+    faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
 }
 
 impl GNSSSensor {
@@ -108,10 +108,12 @@ impl GNSSSensor {
         _global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        let mut fault_models = Vec::new();
+        let fault_models = Arc::new(Mutex::new(Vec::new()));
+        let mut unlock_fault_model = fault_models.lock().unwrap();
         for fault_config in &config.faults {
-            fault_models.push(FaultModel::from_config(&fault_config, va_factory));
+            unlock_fault_model.push(make_fault_model_from_config(fault_config, va_factory));
         }
+        drop(unlock_fault_model);
         Self {
             period: config.period,
             last_time: 0.,
@@ -149,8 +151,8 @@ impl Sensor for GNSSSensor {
             position: state.pose.fixed_rows::<2>(0).into(),
             velocity,
         }));
-        for fault_model in &self.faults {
-            fault_model.add_fault(time, observation_list.last_mut().unwrap());
+        for fault_model in self.faults.lock().unwrap().iter() {
+            fault_model.add_faults(time, self.period, &mut observation_list);
         }
 
         self.last_time = time;

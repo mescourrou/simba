@@ -9,6 +9,8 @@ use crate::networking::network::MessageFlag;
 use crate::networking::service::ServiceClient;
 use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
+use crate::sensors::fault_models;
+use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
@@ -23,7 +25,7 @@ use na::Vector3;
 
 use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 /// Configuration of the [`RobotSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -263,7 +265,7 @@ pub struct RobotSensor {
     last_time: f32,
     /// Services to get the real state of the Robots.
     robot_real_state_services: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
-    faults: Vec<FaultModel>,
+    faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
 }
 
 impl RobotSensor {
@@ -287,10 +289,12 @@ impl RobotSensor {
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         assert!(config.period != 0.);
-        let mut fault_models = Vec::new();
+        let fault_models = Arc::new(Mutex::new(Vec::new()));
+        let mut unlock_fault_model = fault_models.lock().unwrap();
         for fault_config in &config.faults {
-            fault_models.push(FaultModel::from_config(&fault_config, va_factory));
+            unlock_fault_model.push(make_fault_model_from_config(fault_config, va_factory));
         }
+        drop(unlock_fault_model);
         Self {
             detection_distance: config.detection_distance,
             period: config.period,
@@ -362,15 +366,14 @@ impl Sensor for RobotSensor {
             .sqrt();
             debug!("Distance is {d}");
             if d <= self.detection_distance {
-                let robot_seed = 1. / (100. * self.period) * (i as f32);
                 observation_list.push(Observation::OrientedRobot(OrientedRobotObservation {
                     name: other_robot_name.clone(),
                     pose: rotation_matrix.transpose() * (other_state.pose - state.pose),
                 }));
-                for fault_model in &self.faults {
-                    fault_model.add_fault(time + robot_seed, observation_list.last_mut().unwrap());
-                }
             }
+        }
+        for fault_model in self.faults.lock().unwrap().iter() {
+            fault_model.add_faults(time, self.period, &mut observation_list);
         }
         self.last_time = time;
         observation_list

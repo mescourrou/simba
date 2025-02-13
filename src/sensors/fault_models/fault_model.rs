@@ -12,62 +12,26 @@ use crate::{sensors::sensor::Observation, simulator::SimulatorConfig, utils::{de
 use super::{additive_observation_centered_polar::{AdditiveObservationCenteredPolarFault, AdditiveObservationCenteredPolarFaultConfig}, additive_robot_centered::{AdditiveRobotCenteredFault, AdditiveRobotCenteredFaultConfig}, additive_robot_centered_polar::{AdditiveRobotCenteredPolarFault, AdditiveRobotCenteredPolarFaultConfig}};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum FaultTypesConfig {
+pub enum FaultModelConfig {
     AdditiveRobotCentered(AdditiveRobotCenteredFaultConfig),
     AdditiveRobotCenteredPolar(AdditiveRobotCenteredPolarFaultConfig),
     AdditiveObservationCenteredPolar(AdditiveObservationCenteredPolarFaultConfig),
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
-#[serde(default)]
-pub struct FaultModelConfig {
-    pub apparition: BernouilliRandomVariableConfig,
-    pub fault: FaultTypesConfig,
-}
-
-impl Default for FaultModelConfig {
-    fn default() -> Self {
-        Self {
-            apparition: BernouilliRandomVariableConfig {
-                probability: vec![1.0],
-                ..Default::default()
-            },
-            fault: FaultTypesConfig::AdditiveRobotCentered(AdditiveRobotCenteredFaultConfig::default()),
+pub fn make_fault_model_from_config(config: &FaultModelConfig, va_factory: &DeterministRandomVariableFactory) -> Box<dyn FaultModel> {
+    match &config {
+        FaultModelConfig::AdditiveRobotCentered(cfg) => {
+            Box::new(AdditiveRobotCenteredFault::from_config(&cfg, va_factory)) as Box<dyn FaultModel>
+        },
+        FaultModelConfig::AdditiveRobotCenteredPolar(cfg) => {
+            Box::new(AdditiveRobotCenteredPolarFault::from_config(&cfg, va_factory)) as Box<dyn FaultModel>
+        }
+        FaultModelConfig::AdditiveObservationCenteredPolar(cfg) => {
+            Box::new(AdditiveObservationCenteredPolarFault::from_config(&cfg, va_factory)) as Box<dyn FaultModel>
         }
     }
 }
 
-#[derive(Debug)]
-pub struct FaultModel {
-    apparition: DeterministBernouilliRandomVariable,
-    fault: Arc<Mutex<Box<dyn FaultType>>>,
-}
-
-impl FaultModel {
-    pub fn from_config(config: &FaultModelConfig, va_factory: &DeterministRandomVariableFactory) -> Self {
-        Self {
-            apparition: DeterministBernouilliRandomVariable::from_config(va_factory.global_seed, config.apparition.clone()),
-            fault: Arc::new(Mutex::new(match &config.fault {
-                FaultTypesConfig::AdditiveRobotCentered(cfg) => {
-                    Box::new(AdditiveRobotCenteredFault::from_config(&cfg, va_factory)) as Box<dyn FaultType>
-                },
-                FaultTypesConfig::AdditiveRobotCenteredPolar(cfg) => {
-                    Box::new(AdditiveRobotCenteredPolarFault::from_config(&cfg, va_factory)) as Box<dyn FaultType>
-                }
-                FaultTypesConfig::AdditiveObservationCenteredPolar(cfg) => {
-                    Box::new(AdditiveObservationCenteredPolarFault::from_config(&cfg, va_factory)) as Box<dyn FaultType>
-                }
-            })),
-        }
-    }
-
-    pub fn add_fault(&self, time: f32, obs: &mut Observation) {
-        if self.apparition.gen(time)[0] > 0. {
-            self.fault.lock().unwrap().add_fault(time, obs);
-        }
-    }
-}
-
-pub trait FaultType: Debug + Sync + Send {
-    fn add_fault(&self, time: f32, obs: &mut Observation);
+pub trait FaultModel: Debug + Sync + Send {
+    fn add_faults(&self, time: f32, period: f32, obs_list: &mut Vec<Observation>);
 }
