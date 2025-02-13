@@ -36,4 +36,8 @@ impl DeterministRandomVariable for DeterministFixedRandomVariable {
     fn gen(&self, _time: f32) -> Vec<f32> {
         self.values.clone()
     }
+
+    fn dim(&self) -> usize {
+        self.values.len()
+    }
 }

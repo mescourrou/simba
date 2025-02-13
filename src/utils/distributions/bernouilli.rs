@@ -55,4 +55,8 @@ impl DeterministRandomVariable for DeterministBernouilliRandomVariable {
         } 
         v
     }
+
+    fn dim(&self) -> usize {
+        self.probability.len()
+    }
 }

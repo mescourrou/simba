@@ -41,7 +41,10 @@ pub struct DeterministUniformRandomVariable {
 
 impl DeterministUniformRandomVariable {
     pub fn from_config(global_seed: f32, config: UniformRandomVariableConfig) -> Self {
-        assert!(config.min <= config.max);
+        assert!(config.max.len() == config.min.len());
+        for (min, max) in zip(&config.min, &config.max) {
+            assert!(min <= max);
+        }
         Self {
             global_seed: global_seed + config.unique_seed,
             min: config.min,
@@ -58,5 +61,9 @@ impl DeterministRandomVariable for DeterministUniformRandomVariable {
             v.push(min + rng.gen::<f32>() * (max - min));
         } 
         v
+    }
+
+    fn dim(&self) -> usize {
+        self.max.len()
     }
 }

@@ -71,6 +71,7 @@ pub trait DeterministRandomVariable:
     std::fmt::Debug + std::marker::Send + std::marker::Sync
 {
     fn gen(&self, time: f32) -> Vec<f32>;
+    fn dim(&self) -> usize;
 }
 
 /// Configuration of the random variable: fixed, uniform or normal.

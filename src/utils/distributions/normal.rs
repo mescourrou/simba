@@ -1,7 +1,7 @@
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use statrs::distribution::MultivariateNormal;
+use statrs::{distribution::MultivariateNormal, statistics::MeanN};
 
 use crate::utils::determinist_random_variable::DeterministRandomVariable;
 
@@ -14,7 +14,7 @@ pub struct NormalRandomVariableConfig {
     /// Mean of the normal distribution.
     mean: Vec<f64>,
     /// Variance of the normal distribution.
-    variance: Vec<f64>,
+    covariance: Vec<f64>,
 }
 
 impl Default for NormalRandomVariableConfig {
@@ -22,7 +22,7 @@ impl Default for NormalRandomVariableConfig {
         Self {
             unique_seed: 0.,
             mean: vec![0.],
-            variance: vec![1.],
+            covariance: vec![1.],
         }
     }
 }
@@ -38,9 +38,10 @@ pub struct DeterministNormalRandomVariable {
 
 impl DeterministNormalRandomVariable {
     pub fn from_config(global_seed: f32, config: NormalRandomVariableConfig) -> Self {
+        assert!(config.mean.len().pow(2) == config.covariance.len(), "The length of the covariance vector should be the square of the means' one.");
         Self {
             global_seed: global_seed + config.unique_seed,
-            nd: MultivariateNormal::new(config.mean, config.variance)
+            nd: MultivariateNormal::new(config.mean, config.covariance)
                 .expect("Impossible to create the normal distribution"),
         }
     }
@@ -50,5 +51,9 @@ impl DeterministRandomVariable for DeterministNormalRandomVariable {
     fn gen(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + time).to_bits() as u64);
         self.nd.sample(&mut rng).iter().map(|x| *x as f32).collect()
+    }
+
+    fn dim(&self) -> usize {
+        self.nd.mean().unwrap().len()
     }
 }

@@ -1,3 +1,5 @@
+//! TODO: Lots of code duplication between fault models, need to find a way to factorize
+
 use std::{
     fmt::Debug,
     sync::{Arc, Mutex},
@@ -7,13 +9,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::{sensors::sensor::Observation, simulator::SimulatorConfig, utils::{determinist_random_variable::{DeterministRandomVariable, DeterministRandomVariableFactory}, distributions::bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable}}};
 
-use super::{
-    noise::{NoiseFault, NoiseFaultConfig},
-};
+use super::{additive_observation_centered_polar::{AdditiveObservationCenteredPolarFault, AdditiveObservationCenteredPolarFaultConfig}, additive_robot_centered::{AdditiveRobotCenteredFault, AdditiveRobotCenteredFaultConfig}, additive_robot_centered_polar::{AdditiveRobotCenteredPolarFault, AdditiveRobotCenteredPolarFaultConfig}};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum FaultTypesConfig {
-    Noise(NoiseFaultConfig),
+    AdditiveRobotCentered(AdditiveRobotCenteredFaultConfig),
+    AdditiveRobotCenteredPolar(AdditiveRobotCenteredPolarFaultConfig),
+    AdditiveObservationCenteredPolar(AdditiveObservationCenteredPolarFaultConfig),
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -30,7 +32,7 @@ impl Default for FaultModelConfig {
                 probability: vec![1.0],
                 ..Default::default()
             },
-            fault: FaultTypesConfig::Noise(NoiseFaultConfig::default()),
+            fault: FaultTypesConfig::AdditiveRobotCentered(AdditiveRobotCenteredFaultConfig::default()),
         }
     }
 }
@@ -46,8 +48,14 @@ impl FaultModel {
         Self {
             apparition: DeterministBernouilliRandomVariable::from_config(va_factory.global_seed, config.apparition.clone()),
             fault: Arc::new(Mutex::new(match &config.fault {
-                FaultTypesConfig::Noise(cfg) => {
-                    Box::new(NoiseFault::from_config(&cfg, va_factory)) as Box<dyn FaultType>
+                FaultTypesConfig::AdditiveRobotCentered(cfg) => {
+                    Box::new(AdditiveRobotCenteredFault::from_config(&cfg, va_factory)) as Box<dyn FaultType>
+                },
+                FaultTypesConfig::AdditiveRobotCenteredPolar(cfg) => {
+                    Box::new(AdditiveRobotCenteredPolarFault::from_config(&cfg, va_factory)) as Box<dyn FaultType>
+                }
+                FaultTypesConfig::AdditiveObservationCenteredPolar(cfg) => {
+                    Box::new(AdditiveObservationCenteredPolarFault::from_config(&cfg, va_factory)) as Box<dyn FaultType>
                 }
             })),
         }
