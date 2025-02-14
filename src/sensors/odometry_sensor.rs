@@ -4,7 +4,9 @@ Provides a [`Sensor`] which can provide linear velocity and angular velocity.
 
 use std::sync::{Arc, Mutex, RwLock};
 
-use super::fault_models::fault_model::{make_fault_model_from_config, FaultModel, FaultModelConfig};
+use super::fault_models::fault_model::{
+    make_fault_model_from_config, FaultModel, FaultModelConfig,
+};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
@@ -55,7 +57,7 @@ impl Default for OdometrySensorRecord {
 }
 
 /// Observation of the odometry.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct OdometryObservation {
     pub linear_velocity: f32,
     pub angular_velocity: f32,
@@ -155,7 +157,12 @@ impl Sensor for OdometrySensor {
             angular_velocity: (state.pose.z - self.last_state.pose.z) / dt,
         }));
         for fault_model in self.faults.lock().unwrap().iter() {
-            fault_model.add_faults(time, self.period, &mut observation_list);
+            fault_model.add_faults(
+                time,
+                self.period,
+                &mut observation_list,
+                Observation::Odometry(OdometryObservation::default()),
+            );
         }
 
         self.last_time = time;

@@ -11,11 +11,11 @@ use crate::utils::determinist_random_variable::DeterministRandomVariable;
 #[serde(default)]
 pub struct UniformRandomVariableConfig {
     /// Random seed for this random variable.
-    unique_seed: f32,
+    pub unique_seed: f32,
     /// Minimum value of the uniform distribution.
-    min: Vec<f32>,
+    pub min: Vec<f32>,
     /// Maximum value of the uniform distribution.
-    max: Vec<f32>,
+    pub max: Vec<f32>,
 }
 
 impl Default for UniformRandomVariableConfig {
@@ -59,7 +59,7 @@ impl DeterministRandomVariable for DeterministUniformRandomVariable {
         let mut v = Vec::new();
         for (min, max) in zip(&self.min, &self.max) {
             v.push(min + rng.gen::<f32>() * (max - min));
-        } 
+        }
         v
     }
 

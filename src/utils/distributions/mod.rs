@@ -1,4 +1,5 @@
-pub mod normal;
-pub mod uniform;
-pub mod fixed;
 pub mod bernouilli;
+pub mod fixed;
+pub mod normal;
+pub mod poisson;
+pub mod uniform;

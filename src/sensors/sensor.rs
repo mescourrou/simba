@@ -19,7 +19,7 @@ use super::{
 
 /// Generic trait for the observations. Contains no information, the observation
 /// need to be tested for type after.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Observation {
     OrientedLandmark(OrientedLandmarkObservation),
     Odometry(OdometryObservation),

@@ -223,7 +223,7 @@ impl<'de> Deserialize<'de> for OrientedRobot {
 }
 
 /// Observation of an [`OrientedRobot`].
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct OrientedRobotObservation {
     /// Name of the Robot
     pub name: String,
@@ -373,7 +373,12 @@ impl Sensor for RobotSensor {
             }
         }
         for fault_model in self.faults.lock().unwrap().iter() {
-            fault_model.add_faults(time, self.period, &mut observation_list);
+            fault_model.add_faults(
+                time,
+                self.period,
+                &mut observation_list,
+                Observation::OrientedRobot(OrientedRobotObservation::default()),
+            );
         }
         self.last_time = time;
         observation_list

@@ -21,7 +21,12 @@ use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use statrs::distribution::{MultivariateNormal, Normal};
 
-use super::distributions::{fixed::{DeterministFixedRandomVariable, FixedRandomVariableConfig}, normal::{DeterministNormalRandomVariable, NormalRandomVariableConfig}, uniform::{DeterministUniformRandomVariable, UniformRandomVariableConfig}};
+use super::distributions::{
+    fixed::{DeterministFixedRandomVariable, FixedRandomVariableConfig},
+    normal::{DeterministNormalRandomVariable, NormalRandomVariableConfig},
+    poisson::{DeterministPoissonRandomVariable, PoissonRandomVariableConfig},
+    uniform::{DeterministUniformRandomVariable, UniformRandomVariableConfig},
+};
 
 /// Factory to create random variables with a deterministic behavior, using a global seed.
 pub struct DeterministRandomVariableFactory {
@@ -56,6 +61,9 @@ impl DeterministRandomVariableFactory {
             RandomVariableTypeConfig::Normal(c) => Box::new(
                 DeterministNormalRandomVariable::from_config(self.global_seed, c),
             ),
+            RandomVariableTypeConfig::Poisson(c) => Box::new(
+                DeterministPoissonRandomVariable::from_config(self.global_seed, c),
+            ),
         }
     }
 }
@@ -85,5 +93,5 @@ pub enum RandomVariableTypeConfig {
     Uniform(UniformRandomVariableConfig),
     /// Normal distribution
     Normal(NormalRandomVariableConfig),
+    Poisson(PoissonRandomVariableConfig),
 }
-

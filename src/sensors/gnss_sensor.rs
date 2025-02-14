@@ -4,7 +4,9 @@ Provides a [`Sensor`] which can provide position and velocity in the global fram
 
 use std::sync::{Arc, Mutex, RwLock};
 
-use super::fault_models::fault_model::{make_fault_model_from_config, FaultModel, FaultModelConfig};
+use super::fault_models::fault_model::{
+    make_fault_model_from_config, FaultModel, FaultModelConfig,
+};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
@@ -52,7 +54,7 @@ impl Default for GNSSSensorRecord {
 }
 
 /// Observation of the odometry.
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct GNSSObservation {
     pub position: Vector2<f32>,
     pub velocity: Vector2<f32>,
@@ -152,7 +154,12 @@ impl Sensor for GNSSSensor {
             velocity,
         }));
         for fault_model in self.faults.lock().unwrap().iter() {
-            fault_model.add_faults(time, self.period, &mut observation_list);
+            fault_model.add_faults(
+                time,
+                self.period,
+                &mut observation_list,
+                Observation::GNSS(GNSSObservation::default()),
+            );
         }
 
         self.last_time = time;

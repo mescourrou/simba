@@ -38,7 +38,10 @@ pub struct DeterministNormalRandomVariable {
 
 impl DeterministNormalRandomVariable {
     pub fn from_config(global_seed: f32, config: NormalRandomVariableConfig) -> Self {
-        assert!(config.mean.len().pow(2) == config.covariance.len(), "The length of the covariance vector should be the square of the means' one.");
+        assert!(
+            config.mean.len().pow(2) == config.covariance.len(),
+            "The length of the covariance vector should be the square of the means' one."
+        );
         Self {
             global_seed: global_seed + config.unique_seed,
             nd: MultivariateNormal::new(config.mean, config.covariance)

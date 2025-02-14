@@ -12,9 +12,7 @@ pub struct FixedRandomVariableConfig {
 
 impl Default for FixedRandomVariableConfig {
     fn default() -> Self {
-        Self { 
-            values: vec![0.],
-        }
+        Self { values: vec![0.] }
     }
 }
 

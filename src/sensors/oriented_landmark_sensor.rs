@@ -2,7 +2,9 @@
 Provides a [`Sensor`] which can observe oriented landmarks in the frame of the robot.
 */
 
-use super::fault_models::fault_model::{make_fault_model_from_config, FaultModel, FaultModelConfig};
+use super::fault_models::fault_model::{
+    make_fault_model_from_config, FaultModel, FaultModelConfig,
+};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
 use crate::plugin_api::PluginAPI;
@@ -222,7 +224,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
 }
 
 /// Observation of an [`OrientedLandmark`].
-#[derive(Debug)]
+#[derive(Debug, Default, Clone)]
 pub struct OrientedLandmarkObservation {
     /// Id of the landmark
     pub id: i32,
@@ -371,7 +373,12 @@ impl Sensor for OrientedLandmarkSensor {
                     pose: rotation_matrix * landmark.pose + state.pose,
                 }));
                 for fault_model in self.faults.lock().unwrap().iter() {
-                    fault_model.add_faults(time, self.period, &mut observation_list);
+                    fault_model.add_faults(
+                        time,
+                        self.period,
+                        &mut observation_list,
+                        Observation::OrientedLandmark(OrientedLandmarkObservation::default()),
+                    );
                 }
             }
         }

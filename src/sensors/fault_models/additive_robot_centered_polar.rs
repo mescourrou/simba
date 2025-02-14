@@ -1,5 +1,5 @@
 //! AdditiveRobotCenteredPolarPolar faults
-//! 
+//!
 //! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
 
 use std::sync::{Arc, Mutex};
@@ -8,11 +8,22 @@ use libm::atan2f;
 use rand::random;
 use serde::{Deserialize, Serialize};
 
-use crate::{sensors::sensor::Observation, simulator::SimulatorConfig, utils::{determinist_random_variable::{DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig}, distributions::{bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable}, normal::NormalRandomVariableConfig}, geometry::mod2pi}};
-
-use super::{
-    fault_model::FaultModel,
+use crate::{
+    sensors::sensor::Observation,
+    simulator::SimulatorConfig,
+    utils::{
+        determinist_random_variable::{
+            DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
+        },
+        distributions::{
+            bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
+            normal::NormalRandomVariableConfig,
+        },
+        geometry::mod2pi,
+    },
 };
+
+use super::fault_model::FaultModel;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(default)]
@@ -45,13 +56,34 @@ pub struct AdditiveRobotCenteredPolarFault {
 }
 
 impl AdditiveRobotCenteredPolarFault {
-    pub fn from_config(config: &AdditiveRobotCenteredPolarFaultConfig, va_factory: &DeterministRandomVariableFactory) -> Self {
-        let distributions = Arc::new(Mutex::new(config.distributions.iter().map(|conf| va_factory.make_variable(conf.clone())).collect::<Vec<Box<dyn DeterministRandomVariable>>>()));
+    pub fn from_config(
+        config: &AdditiveRobotCenteredPolarFaultConfig,
+        va_factory: &DeterministRandomVariableFactory,
+    ) -> Self {
+        let distributions = Arc::new(Mutex::new(
+            config
+                .distributions
+                .iter()
+                .map(|conf| va_factory.make_variable(conf.clone()))
+                .collect::<Vec<Box<dyn DeterministRandomVariable>>>(),
+        ));
         if config.variable_order.len() != 0 {
-            assert!(config.variable_order.len() == distributions.lock().unwrap().iter().map(|d| d.dim()).sum::<usize>(), "If variable order is given, its length must match the distribution dimension.");
+            assert!(
+                config.variable_order.len()
+                    == distributions
+                        .lock()
+                        .unwrap()
+                        .iter()
+                        .map(|d| d.dim())
+                        .sum::<usize>(),
+                "If variable order is given, its length must match the distribution dimension."
+            );
         }
         Self {
-            apparition: DeterministBernouilliRandomVariable::from_config(va_factory.global_seed, config.apparition.clone()),
+            apparition: DeterministBernouilliRandomVariable::from_config(
+                va_factory.global_seed,
+                config.apparition.clone(),
+            ),
             distributions,
             variable_order: config.variable_order.clone(),
         }
@@ -59,7 +91,13 @@ impl AdditiveRobotCenteredPolarFault {
 }
 
 impl FaultModel for AdditiveRobotCenteredPolarFault {
-    fn add_faults(&self, time: f32, period: f32, obs_list: &mut Vec<Observation>) {
+    fn add_faults(
+        &self,
+        time: f32,
+        period: f32,
+        obs_list: &mut Vec<Observation>,
+        obs_type: Observation,
+    ) {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;
         for obs in obs_list {
@@ -99,13 +137,13 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                     o.pose.x = r * theta.cos();
                     o.pose.y = r * theta.sin();
                     o.pose.z = mod2pi(z);
-                },
+                }
                 Observation::GNSS(o) => {
                     panic!("Not implemented yet (need to find a logical way to do it.");
-                },
+                }
                 Observation::Odometry(o) => {
                     panic!("Not implemented (appropriated for this sensor?)");
-                },
+                }
                 Observation::OrientedLandmark(o) => {
                     let mut r_add = 0.;
                     let mut z_add = 0.;
