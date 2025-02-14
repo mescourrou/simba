@@ -299,6 +299,7 @@ impl Robot {
                 &config.sensor_manager,
                 plugin_api,
                 global_config,
+                &config.name,
                 va_factory,
             ))),
             network: Arc::new(RwLock::new(Network::from_config(

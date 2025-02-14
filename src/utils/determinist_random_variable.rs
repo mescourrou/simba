@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 use statrs::distribution::{MultivariateNormal, Normal};
 
 use super::distributions::{
+    exponential::{DeterministExponentialRandomVariable, ExponentialRandomVariableConfig},
     fixed::{DeterministFixedRandomVariable, FixedRandomVariableConfig},
     normal::{DeterministNormalRandomVariable, NormalRandomVariableConfig},
     poisson::{DeterministPoissonRandomVariable, PoissonRandomVariableConfig},
@@ -64,6 +65,9 @@ impl DeterministRandomVariableFactory {
             RandomVariableTypeConfig::Poisson(c) => Box::new(
                 DeterministPoissonRandomVariable::from_config(self.global_seed, c),
             ),
+            RandomVariableTypeConfig::Exponential(c) => Box::new(
+                DeterministExponentialRandomVariable::from_config(self.global_seed, c),
+            ),
         }
     }
 }
@@ -94,4 +98,5 @@ pub enum RandomVariableTypeConfig {
     /// Normal distribution
     Normal(NormalRandomVariableConfig),
     Poisson(PoissonRandomVariableConfig),
+    Exponential(ExponentialRandomVariableConfig),
 }

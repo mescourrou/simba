@@ -1,0 +1,209 @@
+//! Misassociation faults
+//!
+//! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
+
+use std::{
+    default,
+    ops::Rem,
+    path::Path,
+    sync::{Arc, Mutex},
+};
+
+use nalgebra::Vector2;
+use rand::prelude::*;
+use rand::{random, seq::SliceRandom};
+use rand_chacha::ChaCha8Rng;
+use serde::{Deserialize, Serialize};
+use serde_json::from_str;
+
+use crate::{
+    robot::Robot,
+    sensors::{oriented_landmark_sensor::OrientedLandmarkSensor, sensor::Observation},
+    simulator::SimulatorConfig,
+    utils::{
+        determinist_random_variable::{
+            DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
+        },
+        distributions::{
+            bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
+            exponential::ExponentialRandomVariableConfig,
+            normal::NormalRandomVariableConfig,
+            uniform::UniformRandomVariableConfig,
+        },
+        geometry::mod2pi,
+    },
+};
+
+use super::fault_model::FaultModel;
+
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub enum Sort {
+    None,
+    Random,
+    #[default]
+    Distance,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum Source {
+    Map(String),
+    Robots,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(default)]
+pub struct MisassociationFaultConfig {
+    pub apparition: BernouilliRandomVariableConfig,
+    pub distribution: RandomVariableTypeConfig,
+    pub sort: Sort,
+    pub source: Source,
+}
+
+impl Default for MisassociationFaultConfig {
+    fn default() -> Self {
+        Self {
+            apparition: BernouilliRandomVariableConfig {
+                probability: vec![0.1],
+                ..Default::default()
+            },
+            distribution: RandomVariableTypeConfig::Uniform(UniformRandomVariableConfig {
+                max: vec![10.],
+                min: vec![0.],
+                ..Default::default()
+            }),
+            sort: Sort::Random,
+            source: Source::Robots,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct MisassociationFault {
+    apparition: DeterministBernouilliRandomVariable,
+    distribution: Arc<Mutex<Box<dyn DeterministRandomVariable>>>,
+    sort: Sort,
+    id_list: Vec<(String, Vector2<f32>)>,
+    source: Source,
+    global_seed: f32,
+}
+
+impl MisassociationFault {
+    pub fn from_config(
+        config: &MisassociationFaultConfig,
+        global_config: &SimulatorConfig,
+        robot_name: &String,
+        va_factory: &DeterministRandomVariableFactory,
+    ) -> Self {
+        let distribution = Arc::new(Mutex::new(
+            va_factory.make_variable(config.distribution.clone()),
+        ));
+        assert!(
+            distribution.lock().unwrap().dim() == 1,
+            "Misassociation distribution should be of dimension 1 as it will search in a list"
+        );
+        let id_list = match &config.source {
+            Source::Map(path) => {
+                let path = Path::new(&path);
+                if !path.exists() {
+                    panic!("The correct map path should be given for Misassociation fault (when source is Map)");
+                }
+                let map = OrientedLandmarkSensor::load_map_from_path(path);
+                map.iter()
+                    .map(|l| (l.id.to_string(), l.pose.fixed_rows::<2>(0).into()))
+                    .collect()
+            }
+            Source::Robots => global_config
+                .robots
+                .iter()
+                .map(|r| {
+                    if r.name != *robot_name {
+                        Some((r.name.clone(), Vector2::zeros()))
+                    } else {
+                        None
+                    }
+                })
+                .filter(|x| x.is_some())
+                .map(|x| x.unwrap())
+                .collect(),
+        };
+        Self {
+            apparition: DeterministBernouilliRandomVariable::from_config(
+                va_factory.global_seed,
+                config.apparition.clone(),
+            ),
+            distribution,
+            sort: config.sort.clone(),
+            source: config.source.clone(),
+            id_list,
+            global_seed: va_factory.global_seed,
+        }
+    }
+}
+
+impl FaultModel for MisassociationFault {
+    fn add_faults(
+        &self,
+        time: f32,
+        period: f32,
+        obs_list: &mut Vec<Observation>,
+        obs_type: Observation,
+    ) {
+        let obs_seed_increment = 1. / (100. * period);
+        let mut seed = time;
+        let mut id_list = self.id_list.clone();
+
+        match self.sort {
+            Sort::Random => {
+                let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + time).to_bits() as u64);
+                id_list.shuffle(&mut rng);
+            }
+            Sort::Distance => {
+                if let Observation::OrientedRobot(_) = obs_type {
+                    panic!("MisassociationFault: Distance sorting is not implemented for Robot Observation");
+                }
+            }
+            _ => {}
+        }
+        for obs in obs_list {
+            seed += obs_seed_increment;
+            if self.apparition.gen(seed)[0] < 1. {
+                continue;
+            }
+            let random_sample = self.distribution.lock().unwrap().gen(seed);
+            match obs {
+                Observation::OrientedRobot(o) => {
+                    let new_id = id_list
+                        [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
+                    .0
+                    .clone();
+                    o.name = new_id;
+                }
+                Observation::GNSS(o) => {
+                    panic!("Not implemented (appropriated for this sensor?)");
+                }
+                Observation::Odometry(o) => {
+                    panic!("Not implemented (appropriated for this sensor?)");
+                }
+                Observation::OrientedLandmark(o) => {
+                    match self.sort {
+                        Sort::Distance => {
+                            id_list.sort_by_key(|i| {
+                                ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
+                            });
+                        }
+                        _ => {}
+                    }
+                    let new_id = id_list
+                        [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
+                    .0
+                    .clone();
+                    o.id = from_str(&new_id).expect(
+                        "Unexpected error: id_list should only contain int represented as string",
+                    );
+                }
+            }
+        }
+    }
+}
+
+pub struct MisassociationRecord {}

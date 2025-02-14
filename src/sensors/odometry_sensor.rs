@@ -103,6 +103,7 @@ impl OdometrySensor {
             &OdometrySensorConfig::default(),
             &None,
             &SimulatorConfig::default(),
+            &"NoName".to_string(),
             &DeterministRandomVariableFactory::default(),
         )
     }
@@ -111,13 +112,19 @@ impl OdometrySensor {
     pub fn from_config(
         config: &OdometrySensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        _global_config: &SimulatorConfig,
+        global_config: &SimulatorConfig,
+        robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
         for fault_config in &config.faults {
-            unlock_fault_model.push(make_fault_model_from_config(fault_config, va_factory));
+            unlock_fault_model.push(make_fault_model_from_config(
+                fault_config,
+                global_config,
+                robot_name,
+                va_factory,
+            ));
         }
         drop(unlock_fault_model);
         Self {

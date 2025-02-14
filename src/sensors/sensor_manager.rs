@@ -74,6 +74,7 @@ impl SensorManager {
         config: &SensorManagerConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
+        robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut manager = Self::new();
@@ -86,6 +87,7 @@ impl SensorManager {
                             c,
                             plugin_api,
                             global_config,
+                            robot_name,
                             va_factory,
                         )) as Box<dyn Sensor>
                     }
@@ -93,18 +95,21 @@ impl SensorManager {
                         c,
                         plugin_api,
                         global_config,
+                        robot_name,
                         va_factory,
                     )) as Box<dyn Sensor>,
                     SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
                         c,
                         plugin_api,
                         global_config,
+                        robot_name,
                         va_factory,
                     )) as Box<dyn Sensor>,
                     SensorConfig::RobotSensor(c) => Box::new(RobotSensor::from_config(
                         c,
                         plugin_api,
                         global_config,
+                        robot_name,
                         va_factory,
                     )) as Box<dyn Sensor>,
                 })));

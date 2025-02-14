@@ -29,6 +29,8 @@ use super::{
         AdditiveRobotCenteredPolarFault, AdditiveRobotCenteredPolarFaultConfig,
     },
     clutter::{ClutterFault, ClutterFaultConfig},
+    misassociation::{MisassociationFault, MisassociationFaultConfig},
+    misdetection::{MisdetectionFault, MisdetectionFaultConfig},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -37,10 +39,14 @@ pub enum FaultModelConfig {
     AdditiveRobotCenteredPolar(AdditiveRobotCenteredPolarFaultConfig),
     AdditiveObservationCenteredPolar(AdditiveObservationCenteredPolarFaultConfig),
     Clutter(ClutterFaultConfig),
+    Misdetection(MisdetectionFaultConfig),
+    Misassociation(MisassociationFaultConfig),
 }
 
 pub fn make_fault_model_from_config(
     config: &FaultModelConfig,
+    global_config: &SimulatorConfig,
+    robot_name: &String,
     va_factory: &DeterministRandomVariableFactory,
 ) -> Box<dyn FaultModel> {
     match &config {
@@ -57,6 +63,15 @@ pub fn make_fault_model_from_config(
         FaultModelConfig::Clutter(cfg) => {
             Box::new(ClutterFault::from_config(&cfg, va_factory)) as Box<dyn FaultModel>
         }
+        FaultModelConfig::Misdetection(cfg) => {
+            Box::new(MisdetectionFault::from_config(&cfg, va_factory)) as Box<dyn FaultModel>
+        }
+        FaultModelConfig::Misassociation(cfg) => Box::new(MisassociationFault::from_config(
+            &cfg,
+            global_config,
+            robot_name,
+            va_factory,
+        )) as Box<dyn FaultModel>,
     }
 }
 

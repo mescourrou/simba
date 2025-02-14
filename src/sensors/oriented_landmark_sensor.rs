@@ -282,6 +282,7 @@ impl OrientedLandmarkSensor {
             &OrientedLandmarkSensorConfig::default(),
             &None,
             &SimulatorConfig::default(),
+            &"NoName".to_string(),
             &DeterministRandomVariableFactory::default(),
         )
     }
@@ -293,13 +294,19 @@ impl OrientedLandmarkSensor {
         config: &OrientedLandmarkSensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
+        robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut path = Path::new(&config.map_path);
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
         for fault_config in &config.faults {
-            unlock_fault_model.push(make_fault_model_from_config(fault_config, va_factory));
+            unlock_fault_model.push(make_fault_model_from_config(
+                fault_config,
+                global_config,
+                robot_name,
+                va_factory,
+            ));
         }
         drop(unlock_fault_model);
         let mut sensor = Self {
@@ -323,7 +330,7 @@ impl OrientedLandmarkSensor {
     }
 
     /// Load the map from the given `path`.
-    fn load_map_from_path(path: &Path) -> Vec<OrientedLandmark> {
+    pub fn load_map_from_path(path: &Path) -> Vec<OrientedLandmark> {
         let map: Map = match confy::load_path(&path) {
             Ok(config) => config,
             Err(error) => {
