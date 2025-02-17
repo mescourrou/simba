@@ -1,0 +1,3 @@
+[submodule "config_checker"]
+	path = config_checker
+	url = https://github.com/mescourrou/rust_config_checker.git
