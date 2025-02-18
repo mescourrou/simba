@@ -9,7 +9,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::{physics::physic::Command, plugin_api::PluginAPI, simulator::SimulatorConfig};
 
-extern crate confy;
+use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
@@ -38,7 +38,7 @@ impl ControllerError {
 use super::pid;
 
 /// Enumerates the strategies configurations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 pub enum ControllerConfig {
     PID(Box<pid::PIDConfig>),
 }

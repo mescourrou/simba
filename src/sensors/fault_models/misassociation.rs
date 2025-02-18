@@ -9,6 +9,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use config_checker::macros::Check;
 use nalgebra::Vector2;
 use rand::prelude::*;
 use rand::{random, seq::SliceRandom};
@@ -36,7 +37,7 @@ use crate::{
 
 use super::fault_model::FaultModel;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub enum Sort {
     None,
     Random,
@@ -50,11 +51,14 @@ pub enum Source {
     Robots,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Check)]
 #[serde(default)]
 pub struct MisassociationFaultConfig {
+    #[check(eq(self.apparition.probability.len(), 1))]
     pub apparition: BernouilliRandomVariableConfig,
+    #[check]
     pub distribution: RandomVariableTypeConfig,
+    #[check(if(is_enum(self.source, Source::Robots), !is_enum(Sort::Distance)))]
     pub sort: Sort,
     pub source: Source,
 }

@@ -5,6 +5,7 @@ Provides the [`Sensor`] trait, which is the interface for all the sensors.
 extern crate confy;
 use std::sync::{Arc, RwLock};
 
+use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
@@ -73,7 +74,7 @@ pub enum ObservationRecord {
 }
 
 /// Enumerates all the possible sensors configurations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 pub enum SensorConfig {
     OrientedLandmarkSensor(Box<oriented_landmark_sensor::OrientedLandmarkSensorConfig>),
     OdometrySensor(odometry_sensor::OdometrySensorConfig),

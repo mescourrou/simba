@@ -10,6 +10,7 @@ However, the [`Physic::state`] should provide the real [`State`].
 extern crate confy;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
+use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
@@ -26,7 +27,7 @@ pub struct Command {
 use super::perfect_physic;
 
 /// Enumeration of the different physic implementations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 pub enum PhysicConfig {
     Perfect(Box<perfect_physic::PerfectPhysicConfig>),
 }

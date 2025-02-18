@@ -12,6 +12,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::{mod2pi, smallest_theta_diff};
 
 extern crate nalgebra as na;
+use config_checker::macros::Check;
 use libm::atan2;
 use log::error;
 use na::Vector3;
@@ -22,14 +23,16 @@ use serde_derive::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Configuration of the [`TrajectoryFollower`] strategy.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct TrajectoryFollowerConfig {
     /// Path to load the path. The file should be compatible with [`TrajectoryConfig`].
     pub trajectory_path: String,
     /// Distance of the point which is projected on the trajectory.
+    #[check(ge(0.))]
     pub forward_distance: f32,
     /// Speed to reach, in m/s.
+    #[check(ge(0.))]
     pub target_speed: f32,
 }
 

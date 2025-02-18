@@ -8,6 +8,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::{mpsc, Arc, Condvar, Mutex, RwLock};
 
+use config_checker::macros::Check;
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
@@ -21,12 +22,14 @@ use super::message_handler::MessageHandler;
 use super::network_manager::NetworkManager;
 
 /// Configuration for the [`Network`].
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct NetworkConfig {
     /// Limit range communication, 0 for no limit.
+    #[check(ge(0.))]
     pub range: f32,
     /// Communication delay (fixed). 0 for no delay.
+    #[check(ge(0.))]
     pub delay: f32,
 }
 

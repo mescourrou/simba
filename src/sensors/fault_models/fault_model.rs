@@ -5,6 +5,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -33,7 +34,7 @@ use super::{
     misdetection::{MisdetectionFault, MisdetectionFaultConfig},
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Check)]
 pub enum FaultModelConfig {
     AdditiveRobotCentered(AdditiveRobotCenteredFaultConfig),
     AdditiveRobotCenteredPolar(AdditiveRobotCenteredPolarFaultConfig),

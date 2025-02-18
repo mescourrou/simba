@@ -13,6 +13,7 @@ type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
+use config_checker::macros::Check;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
@@ -38,7 +39,7 @@ use serde_derive::{Deserialize, Serialize};
 ///     External:
 ///         parameter_of_my_own_estimator: true
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 pub struct ExternalEstimatorConfig {
     /// Config serialized.
     #[serde(flatten)]

@@ -4,6 +4,7 @@
 
 use std::sync::{Arc, Mutex};
 
+use config_checker::macros::Check;
 use rand::random;
 use serde::{Deserialize, Serialize};
 
@@ -24,10 +25,13 @@ use crate::{
 
 use super::fault_model::FaultModel;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Check)]
 #[serde(default)]
 pub struct AdditiveRobotCenteredFaultConfig {
+    #[check(eq(self.apparition.probability.len(), 1))]
+    #[check]
     pub apparition: BernouilliRandomVariableConfig,
+    #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
 }

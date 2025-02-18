@@ -5,6 +5,7 @@ available observations.
 
 extern crate confy;
 use core::f32;
+use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
@@ -24,8 +25,9 @@ use super::{
 use crate::plugin_api::PluginAPI;
 
 /// Configuration listing all the [`SensorConfig`]s.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 pub struct SensorManagerConfig {
+    #[check]
     pub sensors: Vec<SensorConfig>,
 }
 

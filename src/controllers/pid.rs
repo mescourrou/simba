@@ -16,18 +16,26 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use log::error;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
+use config_checker::macros::Check;
 
 /// Configuration of the [`PID`], it contains the 3 gains for the velocity
 /// control, 3 gain for the orientation control, and the wheel distance.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct PIDConfig {
+    #[check(ge(0.))]
     pub kp_v: f32,
+    #[check(ge(0.))]
     pub kd_v: f32,
+    #[check(ge(0.))]
     pub ki_v: f32,
+    #[check(ge(0.))]
     pub kp_theta: f32,
+    #[check(ge(0.))]
     pub kd_theta: f32,
+    #[check(ge(0.))]
     pub ki_theta: f32,
+    #[check(ge(0.))]
     pub wheel_distance: f32,
 }
 

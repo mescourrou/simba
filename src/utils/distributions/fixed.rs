@@ -1,9 +1,10 @@
+use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
 use crate::utils::determinist_random_variable::DeterministRandomVariable;
 
 /// Configuration for a fixed random variable.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct FixedRandomVariableConfig {
     /// Fixed value to return.

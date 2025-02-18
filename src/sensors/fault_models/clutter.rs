@@ -1,5 +1,6 @@
 use std::sync::{Arc, Mutex};
 
+use config_checker::macros::Check;
 use rand::random;
 use serde::{Deserialize, Serialize};
 
@@ -22,10 +23,13 @@ use crate::{
 
 use super::fault_model::FaultModel;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Check)]
 #[serde(default)]
 pub struct ClutterFaultConfig {
+    // #[check(eq(self.apparition.probability.len(), 1))]
+    #[check]
     pub apparition: RandomVariableTypeConfig,
+    #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
     pub observation_id: String,

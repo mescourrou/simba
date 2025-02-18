@@ -1,3 +1,4 @@
+use config_checker::macros::Check;
 #[cfg_attr(not(feature = "time-analysis"), allow(dead_code, unused_variables))]
 #[cfg(feature = "time-analysis")]
 use lazy_static::lazy_static;
@@ -33,7 +34,7 @@ struct ExecutionProfile {
     duration: time::Duration,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct TimeAnalysisConfig {
     pub exporter: ProfileExporterConfig,

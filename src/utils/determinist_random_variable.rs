@@ -16,6 +16,7 @@ Other types can be added in the future.
 
  */
 
+use config_checker::macros::Check;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
@@ -87,7 +88,7 @@ pub trait DeterministRandomVariable:
 }
 
 /// Configuration of the random variable: fixed, uniform or normal.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 pub enum RandomVariableTypeConfig {
     /// No random variable
     None,

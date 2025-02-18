@@ -16,17 +16,20 @@ use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
 };
+use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 extern crate nalgebra as na;
 
 /// Configuration of the [`OdometrySensor`].
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct OdometrySensorConfig {
     /// Observation period of the sensor.
+    #[check[ge(0.)]]
     pub period: f32,
+    #[check]
     pub faults: Vec<FaultModelConfig>,
 }
 

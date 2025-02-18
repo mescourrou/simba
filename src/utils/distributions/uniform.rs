@@ -1,5 +1,6 @@
 use std::iter::zip;
 
+use config_checker::macros::Check;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
@@ -7,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::utils::determinist_random_variable::DeterministRandomVariable;
 
 /// Configuration for a uniform random variable.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct UniformRandomVariableConfig {
     /// Random seed for this random variable.

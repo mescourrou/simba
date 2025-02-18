@@ -11,15 +11,17 @@ use crate::stateful::Stateful;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
+use config_checker::macros::Check;
 use log::error;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 /// Configuration for [`PerfectEstimator`].
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct PerfectEstimatorConfig {
     /// Prediction period.
+    #[check(ge(0.))]
     pub update_period: f32,
 }
 

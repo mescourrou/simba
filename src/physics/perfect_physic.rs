@@ -12,17 +12,20 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use config_checker::macros::Check;
 use log::{debug, error};
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the [`PerfectPhysic`].
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct PerfectPhysicConfig {
     /// Distance between the two wheels, to compute the angular velocity from the wheel speeds.
+    #[check(ge(0.))]
     pub wheel_distance: f32,
     /// Starting state.
+    #[check]
     pub initial_state: StateConfig,
 }
 

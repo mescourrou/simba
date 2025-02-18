@@ -13,6 +13,7 @@ use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
 };
+use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
@@ -25,16 +26,19 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, RwLock};
 
 /// Configuration of the [`OrientedLandmarkSensor`].
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct OrientedLandmarkSensorConfig {
     /// Max distance of detection.
+    #[check[ge(0.)]]
     pub detection_distance: f32,
     /// Path to the map (with real position of the landmarks), relative to the simulator
     /// config path.
     pub map_path: String,
     /// Observation period of the sensor.
+    #[check[ge(0.)]]
     pub period: f32,
+    #[check]
     pub faults: Vec<FaultModelConfig>,
 }
 

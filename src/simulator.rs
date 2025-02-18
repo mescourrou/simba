@@ -38,6 +38,8 @@ fn main() {
 
 // Configuration for Simulator
 extern crate confy;
+use config_checker::macros::Check;
+use config_checker::ConfigCheckable;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
@@ -74,7 +76,7 @@ use pyo3::prepare_freethreaded_python;
 ///     - RobotConfig 2
 /// ```
 ///
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct SimulatorConfig {
     pub base_path: Box<Path>,
@@ -92,9 +94,11 @@ pub struct SimulatorConfig {
     /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
     pub analyse_script: Option<Box<Path>>,
 
+    #[check]
     pub time_analysis: TimeAnalysisConfig,
     /// List of the robots to run, with their specific configuration.
     pub random_seed: Option<f32>,
+    #[check]
     pub robots: Vec<Box<RobotConfig>>,
 }
 
@@ -253,6 +257,13 @@ impl Simulator {
         config: &SimulatorConfig,
         plugin_api: Option<Box<&dyn PluginAPI>>,
     ) -> Simulator {
+        info!("Checking configuration:");
+        if config.check() {
+            info!("Config valid");
+        } else {
+            error!("Error in config");
+            return Simulator::new();
+        }
         let mut simulator = Simulator::new();
         simulator.config = config.clone();
         if let Some(seed) = config.random_seed {

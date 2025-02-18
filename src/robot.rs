@@ -33,10 +33,11 @@ use crate::time_analysis;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct BenchStateEstimatorConfig {
     name: String,
+    #[check]
     config: StateEstimatorConfig,
 }
 
@@ -66,32 +67,40 @@ pub struct BenchStateEstimator {
 
 // Configuration for Robot
 extern crate confy;
+use config_checker::macros::Check;
 use log::{debug, info, warn};
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// Configuration of the [`Robot`].
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct RobotConfig {
     /// Name of the robot.
     pub name: String,
     /// [`Navigator`] to use, and its configuration.
+    #[check]
     pub navigator: NavigatorConfig,
     /// [`Controller`] to use, and its configuration.
+    #[check]
     pub controller: ControllerConfig,
     /// [`Physic`] to use, and its configuration.
+    #[check]
     pub physic: PhysicConfig,
     /// [`StateEstimator`] to use, and its configuration.
+    #[check]
     pub state_estimator: StateEstimatorConfig,
     /// [`SensorManager`] configuration, which defines the [`Sensor`]s used.
+    #[check]
     pub sensor_manager: SensorManagerConfig,
     /// [`Network`] configuration.
+    #[check]
     pub network: NetworkConfig,
 
     /// Additional [`StateEstimator`] to be evaluated but without a feedback
     /// loop with the [`Navigator`]
+    #[check]
     pub state_estimator_bench: Vec<BenchStateEstimatorConfig>,
 }
 

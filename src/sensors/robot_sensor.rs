@@ -16,6 +16,7 @@ use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
 };
+use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
@@ -28,13 +29,16 @@ use std::fmt;
 use std::sync::{Arc, Mutex, RwLock};
 
 /// Configuration of the [`RobotSensor`].
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct RobotSensorConfig {
     /// Max distance of detection.
+    #[check[ge(0.)]]
     pub detection_distance: f32,
     /// Observation period of the sensor.
+    #[check[ge(0.)]]
     pub period: f32,
+    #[check]
     pub faults: Vec<FaultModelConfig>,
 }
 

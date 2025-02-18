@@ -4,6 +4,7 @@ for the state estimation strategies.
 */
 
 extern crate nalgebra as na;
+use config_checker::macros::Check;
 use na::SVector;
 
 extern crate confy;
@@ -14,12 +15,13 @@ use serde_derive::{Deserialize, Serialize};
 ///
 /// The pose should contain 3 elements.
 /// TODO: Make a config validation scheme.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct StateConfig {
     /// Position and orientation of the robot
     pub pose: Vec<f32>,
     /// Linear velocity
+    #[check(ge(0.))]
     pub velocity: f32,
 }
 
@@ -161,7 +163,7 @@ use std::sync::{Arc, RwLock};
 ///     Perfect:
 ///         update_period: 0.01
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 pub enum StateEstimatorConfig {
     Perfect(Box<perfect_estimator::PerfectEstimatorConfig>),
     External(Box<external_estimator::ExternalEstimatorConfig>),

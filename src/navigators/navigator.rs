@@ -5,6 +5,7 @@ Provide the [`Navigator`] trait and the configuration and record enumerations.
 extern crate confy;
 use std::sync::{Arc, RwLock};
 
+use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
@@ -16,7 +17,7 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
 
 /// Enumerate the configuration of the different strategies.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 pub enum NavigatorConfig {
     TrajectoryFollower(Box<trajectory_follower::TrajectoryFollowerConfig>),
 }

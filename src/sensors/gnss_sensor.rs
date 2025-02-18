@@ -15,6 +15,7 @@ use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::{
     DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
 };
+use config_checker::macros::Check;
 use nalgebra::Vector2;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
@@ -22,12 +23,14 @@ use serde_derive::{Deserialize, Serialize};
 extern crate nalgebra as na;
 
 /// Configuration of the [`GNSSSensor`].
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 pub struct GNSSSensorConfig {
     /// Observation period of the sensor.
+    #[check(ge(0.))]
     pub period: f32,
     /// Fault on the x, y positions, and on the x and y velocities
+    #[check]
     pub faults: Vec<FaultModelConfig>,
 }
 

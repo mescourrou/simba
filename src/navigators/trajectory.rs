@@ -3,6 +3,7 @@ Trajectory tool.
 */
 
 extern crate nalgebra as na;
+use config_checker::macros::Check;
 use libm::atan2;
 use log::debug;
 use na::{DMatrix, SVector};
@@ -16,7 +17,7 @@ use crate::utils::geometry::*;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config of the [`Trajectory`].
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Check)]
 #[serde(default)]
 pub struct TrajectoryConfig {
     /// Ordered list of the points to follow.
