@@ -17,6 +17,7 @@ use serde_derive::{Deserialize, Serialize};
 /// TODO: Make a config validation scheme.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct StateConfig {
     /// Position and orientation of the robot
     pub pose: Vec<f32>,
@@ -164,6 +165,7 @@ use std::sync::{Arc, RwLock};
 ///         update_period: 0.01
 /// ```
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(deny_unknown_fields)]
 pub enum StateEstimatorConfig {
     Perfect(Box<perfect_estimator::PerfectEstimatorConfig>),
     External(Box<external_estimator::ExternalEstimatorConfig>),

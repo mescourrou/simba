@@ -78,6 +78,7 @@ use pyo3::prepare_freethreaded_python;
 ///
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct SimulatorConfig {
     pub base_path: Box<Path>,
     /// Filename to save the results, in JSON format. The directory of this
@@ -94,10 +95,12 @@ pub struct SimulatorConfig {
     /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
     pub analyse_script: Option<Box<Path>>,
 
+    pub max_time: f32,
+
     #[check]
     pub time_analysis: TimeAnalysisConfig,
-    /// List of the robots to run, with their specific configuration.
     pub random_seed: Option<f32>,
+    /// List of the robots to run, with their specific configuration.
     #[check]
     pub robots: Vec<Box<RobotConfig>>,
 }
@@ -114,6 +117,7 @@ impl Default for SimulatorConfig {
             time_analysis: TimeAnalysisConfig::default(),
             random_seed: None,
             robots: Vec::new(),
+            max_time: 60.,
         }
     }
 }
@@ -171,10 +175,9 @@ static EXCLUDE_ROBOTS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 ///     // Show the simulator loaded configuration
 ///     simulator.show();
 ///
-///     // Run the simulation for 60 seconds.
 ///     // It also save the results to "result.json",
 ///     // compute the results and show the figures.
-///     simulator.run(60.);
+///     simulator.run();
 ///
 /// }
 ///
@@ -195,15 +198,13 @@ pub struct Simulator {
 impl Simulator {
     /// Create a new [`Simulator`] with no robots, and empty config.
     pub fn new() -> Simulator {
+        let rng = rand::random();
         Simulator {
             robots: Arc::new(RwLock::new(Vec::new())),
             config: SimulatorConfig::default(),
             network_manager: Arc::new(RwLock::new(NetworkManager::new())),
             determinist_va_factory: DeterministRandomVariableFactory::new(
-                SystemTime::now()
-                    .elapsed()
-                    .expect("Can't get the system time")
-                    .as_secs_f32(),
+                rng
             ),
             time_cv: Arc::new((Mutex::new(0), Condvar::new())),
         }
@@ -268,7 +269,11 @@ impl Simulator {
         simulator.config = config.clone();
         if let Some(seed) = config.random_seed {
             simulator.determinist_va_factory.global_seed = seed;
+        } else {
+            simulator.config.random_seed = Some(simulator.determinist_va_factory.global_seed);
         }
+
+        time_analysis::init_from_config(&simulator.config.time_analysis);
 
         // Create robots
         for robot_config in &config.robots {
@@ -388,12 +393,9 @@ impl Simulator {
     ///
     /// After the scenario is done, the results are saved, and they are analysed, following
     /// the configuration give ([`SimulatorMetaConfig`]).
-    ///
-    /// ## Arguments
-    /// * `max_time` - Run the scenario until this time is reached.
-    pub fn run(&mut self, max_time: f32) {
+    pub fn run(&mut self) {
         let mut handles = vec![];
-
+        let max_time = self.config.max_time;
         let mut i = 0;
         for robot in self.robots.read().unwrap().iter() {
             let new_robot = Arc::clone(robot);
@@ -686,7 +688,7 @@ mod tests {
 
             simulator.show();
 
-            simulator.run(60.);
+            simulator.run();
 
             results.push(simulator.get_results());
         }

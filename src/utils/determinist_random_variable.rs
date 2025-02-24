@@ -89,6 +89,7 @@ pub trait DeterministRandomVariable:
 
 /// Configuration of the random variable: fixed, uniform or normal.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(deny_unknown_fields)]
 pub enum RandomVariableTypeConfig {
     /// No random variable
     None,

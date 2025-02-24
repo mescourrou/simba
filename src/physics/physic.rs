@@ -28,6 +28,7 @@ use super::perfect_physic;
 
 /// Enumeration of the different physic implementations.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(deny_unknown_fields)]
 pub enum PhysicConfig {
     Perfect(Box<perfect_physic::PerfectPhysicConfig>),
 }

@@ -28,6 +28,7 @@ use super::fault_model::FaultModel;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct MisdetectionFaultConfig {
     #[check(eq(self.apparition.probability.len(), 1))]
     pub apparition: BernouilliRandomVariableConfig,

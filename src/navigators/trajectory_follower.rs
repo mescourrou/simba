@@ -25,6 +25,7 @@ use std::path::Path;
 /// Configuration of the [`TrajectoryFollower`] strategy.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct TrajectoryFollowerConfig {
     /// Path to load the path. The file should be compatible with [`TrajectoryConfig`].
     pub trajectory_path: String,

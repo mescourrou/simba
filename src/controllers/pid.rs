@@ -22,6 +22,7 @@ use config_checker::macros::Check;
 /// control, 3 gain for the orientation control, and the wheel distance.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct PIDConfig {
     #[check(ge(0.))]
     pub kp_v: f32,

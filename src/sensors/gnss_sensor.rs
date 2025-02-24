@@ -25,6 +25,7 @@ extern crate nalgebra as na;
 /// Configuration of the [`GNSSSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct GNSSSensorConfig {
     /// Observation period of the sensor.
     #[check(ge(0.))]

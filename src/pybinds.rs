@@ -62,8 +62,8 @@ impl SimulatorWrapper {
         self.simulator.show();
     }
 
-    pub fn run(&mut self, max_time: f32) {
-        self.simulator.run(max_time);
+    pub fn run(&mut self) {
+        self.simulator.run();
     }
 }
 

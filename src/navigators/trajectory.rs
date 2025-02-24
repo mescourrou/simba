@@ -19,6 +19,7 @@ use serde_derive::{Deserialize, Serialize};
 /// Config of the [`Trajectory`].
 #[derive(Serialize, Deserialize, Debug, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct TrajectoryConfig {
     /// Ordered list of the points to follow.
     pub point_list: Vec<Vec<f32>>,

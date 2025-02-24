@@ -40,6 +40,7 @@ use serde_derive::{Deserialize, Serialize};
 ///         parameter_of_my_own_estimator: true
 /// ```
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(default)]
 pub struct ExternalEstimatorConfig {
     /// Config serialized.
     #[serde(flatten)]

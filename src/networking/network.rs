@@ -24,6 +24,7 @@ use super::network_manager::NetworkManager;
 /// Configuration for the [`Network`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct NetworkConfig {
     /// Limit range communication, 0 for no limit.
     #[check(ge(0.))]

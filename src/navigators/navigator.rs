@@ -18,6 +18,7 @@ use crate::state_estimators::state_estimator::State;
 
 /// Enumerate the configuration of the different strategies.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(deny_unknown_fields)]
 pub enum NavigatorConfig {
     TrajectoryFollower(Box<trajectory_follower::TrajectoryFollowerConfig>),
 }

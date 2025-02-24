@@ -9,6 +9,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariable;
 /// Configuration for a uniform random variable.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct PoissonRandomVariableConfig {
     /// Random seed for this random variable.
     pub unique_seed: f32,

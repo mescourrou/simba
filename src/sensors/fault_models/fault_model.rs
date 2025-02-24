@@ -35,6 +35,7 @@ use super::{
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, Check)]
+#[serde(deny_unknown_fields)]
 pub enum FaultModelConfig {
     AdditiveRobotCentered(AdditiveRobotCenteredFaultConfig),
     AdditiveRobotCenteredPolar(AdditiveRobotCenteredPolarFaultConfig),

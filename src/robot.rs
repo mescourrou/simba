@@ -35,6 +35,7 @@ use crate::utils::time_ordered_data::TimeOrderedData;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct BenchStateEstimatorConfig {
     name: String,
     #[check]
@@ -76,6 +77,7 @@ use serde_json::Value;
 /// Configuration of the [`Robot`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct RobotConfig {
     /// Name of the robot.
     pub name: String,

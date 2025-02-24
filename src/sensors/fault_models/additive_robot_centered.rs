@@ -27,6 +27,7 @@ use super::fault_model::FaultModel;
 
 #[derive(Debug, Serialize, Deserialize, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct AdditiveRobotCenteredFaultConfig {
     #[check(eq(self.apparition.probability.len(), 1))]
     #[check]

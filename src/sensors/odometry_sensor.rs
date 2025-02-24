@@ -25,6 +25,7 @@ extern crate nalgebra as na;
 /// Configuration of the [`OdometrySensor`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct OdometrySensorConfig {
     /// Observation period of the sensor.
     #[check[ge(0.)]]

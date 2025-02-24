@@ -28,6 +28,7 @@ use std::sync::{Arc, Mutex, RwLock};
 /// Configuration of the [`OrientedLandmarkSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct OrientedLandmarkSensorConfig {
     /// Max distance of detection.
     #[check[ge(0.)]]

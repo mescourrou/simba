@@ -36,10 +36,14 @@ struct ExecutionProfile {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct TimeAnalysisConfig {
     pub exporter: ProfileExporterConfig,
     pub keep_last: bool,
     pub output_path: String,
+    #[convert(as_str)]
+    #[check(inside("s", "ms", "us", "µs", "ns"))]
+    pub analysis_unit: String,
 }
 
 impl Default for TimeAnalysisConfig {
@@ -48,6 +52,7 @@ impl Default for TimeAnalysisConfig {
             exporter: ProfileExporterConfig::TraceEventExporter,
             keep_last: true,
             output_path: "time_performance".to_string(),
+            analysis_unit: "s".to_string(),
         }
     }
 }
@@ -431,19 +436,19 @@ impl TimeAnalysisFactory {
         &FACTORY
     }
 
-    pub fn init_from_config(config: TimeAnalysisConfig) {
+    pub fn init_from_config(config: &TimeAnalysisConfig) {
         let factory = TimeAnalysisFactory::get_instance();
         let mut factory = factory.lock().unwrap();
         factory._init_from_config(config);
     }
 
-    fn _init_from_config(&mut self, config: TimeAnalysisConfig) {
+    fn _init_from_config(&mut self, config: &TimeAnalysisConfig) {
         match config.exporter {
             ProfileExporterConfig::TraceEventExporter => {
                 self.exporter = Box::new(TraceEventExporter {});
             }
         }
-        self.config = config;
+        self.config = config.clone();
     }
 
     pub fn set_robot_name(name: String) {
@@ -598,13 +603,22 @@ impl TimeAnalysisFactory {
         let path = path.with_extension("report").with_extension("csv");
 
         let mut stats = HashMap::<String, Vec<String>>::new();
-        let mut robot_headers = vec![String::new()];
-        let mut track_headers = vec![String::new()];
+        let mut robot_headers = vec!["Unit:".to_string()];
+        let mut track_headers = vec![self.config.analysis_unit.clone()];
+
+        let unit_multiplier = match self.config.analysis_unit.as_str() {
+            "s" => 1.,
+            "ms" => 1000.,
+            "us" | "µs" => 1000000.,
+            "ns" => 1000000000.,
+            &_ => panic!("Unknown unit!"),
+        };
+
         for (robot_name, profiles) in self.iter_execution_profiles() {
             robot_headers.push(robot_name.clone());
             let mut map: HashMap<String, Vec<f32>> = HashMap::new();
             for profile in profiles {
-                let t = profile.duration.as_secs_f32();
+                let t = profile.duration.as_secs_f32() * unit_multiplier;
                 if let Some(stat) = map.get_mut(&profile.name) {
                     stat.push(t);
                 } else {
@@ -641,7 +655,7 @@ impl TimeAnalysisFactory {
 // Expose the function depending on the compilation feature "time-analysis"
 // Feature enabled
 #[cfg(feature = "time-analysis")]
-pub fn init_from_config(config: TimeAnalysisConfig) {
+pub fn init_from_config(config: &TimeAnalysisConfig) {
     TimeAnalysisFactory::init_from_config(config);
 }
 

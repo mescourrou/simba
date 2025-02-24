@@ -19,6 +19,7 @@ use serde_derive::{Deserialize, Serialize};
 /// Configuration for [`PerfectEstimator`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct PerfectEstimatorConfig {
     /// Prediction period.
     #[check(ge(0.))]

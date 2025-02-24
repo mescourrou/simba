@@ -75,6 +75,7 @@ pub enum ObservationRecord {
 
 /// Enumerates all the possible sensors configurations.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(deny_unknown_fields)]
 pub enum SensorConfig {
     OrientedLandmarkSensor(Box<oriented_landmark_sensor::OrientedLandmarkSensorConfig>),
     OdometrySensor(odometry_sensor::OdometrySensorConfig),

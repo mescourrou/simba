@@ -31,6 +31,7 @@ use std::sync::{Arc, Mutex, RwLock};
 /// Configuration of the [`RobotSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct RobotSensorConfig {
     /// Max distance of detection.
     #[check[ge(0.)]]

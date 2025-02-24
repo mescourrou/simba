@@ -20,6 +20,7 @@ use serde_derive::{Deserialize, Serialize};
 /// Config for the [`PerfectPhysic`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct PerfectPhysicConfig {
     /// Distance between the two wheels, to compute the angular velocity from the wheel speeds.
     #[check(ge(0.))]

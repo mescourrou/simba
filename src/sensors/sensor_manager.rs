@@ -26,6 +26,8 @@ use crate::plugin_api::PluginAPI;
 
 /// Configuration listing all the [`SensorConfig`]s.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(default)]
+#[serde(deny_unknown_fields)]
 pub struct SensorManagerConfig {
     #[check]
     pub sensors: Vec<SensorConfig>,

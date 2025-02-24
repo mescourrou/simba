@@ -39,6 +39,7 @@ use super::pid;
 
 /// Enumerates the strategies configurations.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(deny_unknown_fields)]
 pub enum ControllerConfig {
     PID(Box<pid::PIDConfig>),
 }
