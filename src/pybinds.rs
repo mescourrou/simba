@@ -46,6 +46,7 @@ impl SimulatorWrapper {
                 &_ => log::LevelFilter::Off,
             },
             Vec::new(),
+            Vec::new(),
         );
         SimulatorWrapper {
             simulator: Simulator::from_config_path(

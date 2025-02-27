@@ -686,7 +686,7 @@ pub fn save_results() {
 
 // Feature disabled
 #[cfg(not(feature = "time-analysis"))]
-pub fn init_from_config(config: TimeAnalysisConfig) {}
+pub fn init_from_config(config: &TimeAnalysisConfig) {}
 
 #[cfg(not(feature = "time-analysis"))]
 pub fn set_robot_name(_name: String) {}

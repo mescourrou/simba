@@ -5,7 +5,7 @@ use std::path::Path;
 
 fn main() {
     // Initialize the environment, essentially the logging part
-    Simulator::init_environment(log::LevelFilter::Debug, Vec::new());
+    Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new());
     info!("Load configuration...");
     let mut simulator = Simulator::from_config_path(
         Path::new("example/config_example/config.yaml"),
@@ -15,8 +15,8 @@ fn main() {
     // Show the simulator loaded configuration
     simulator.show();
 
-    // Run the simulation for 60 seconds.
+    // Run the simulator for the time given in the configuration
     // It also save the results to "result.json",
     // compute the results and show the figures.
-    simulator.run(60.);
+    simulator.run();
 }
