@@ -24,10 +24,9 @@ fn main() {
     // Show the simulator loaded configuration
     simulator.show();
 
-    // Run the simulation for 60 seconds.
     // It also save the results to "result.json",
     // compute the results and show the figures.
-    simulator.run(60.);
+    simulator.run();
 }
 
 
@@ -40,7 +39,7 @@ fn main() {
 extern crate confy;
 use config_checker::macros::Check;
 use config_checker::ConfigCheckable;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, AsPyPointer};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::networking::network_manager::NetworkManager;
@@ -49,11 +48,12 @@ use crate::time_analysis::{self, TimeAnalysisConfig};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 use crate::robot::{Robot, RobotConfig, RobotRecord};
-use std::path::Path;
+use std::{os, path};
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
 use colored::Colorize;
-use serde_json;
+use serde_json::{self, Value};
 use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
@@ -63,6 +63,36 @@ use std::thread::{self, ThreadId};
 use log::{debug, error, info};
 
 use pyo3::prepare_freethreaded_python;
+
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(default)]
+#[serde(deny_unknown_fields)]
+pub struct ResultConfig {
+    /// Filename to save the results, in JSON format. The directory of this
+    /// file is used to save the figures if results are computed.
+    pub result_path: Box<Path>,
+    /// Show the matplotlib figures
+    pub show_figures: bool,
+    /// Path to the python analyse scrit.
+    /// This script should have the following entry point:
+    /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
+    pub analyse_script: Box<Path>,
+    pub figures_path: Option<Box<Path>>,
+    pub python_params: Value,
+}
+
+impl Default for ResultConfig {
+    /// Default scenario configuration: no robots.
+    fn default() -> Self {
+        Self {
+            result_path: Box::from(Path::new("../results.json")),
+            show_figures: true,
+            analyse_script: Box::from(Path::new("../../python_scripts/analyse_results.py")),
+            figures_path: None,
+            python_params: Value::Null,
+        }
+    }
+}
 
 /// Scenario configuration for the simulator.
 /// The Simulator configuration is the root of the scenario configuration.
@@ -80,20 +110,10 @@ use pyo3::prepare_freethreaded_python;
 #[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct SimulatorConfig {
+    pub results: Option<ResultConfig>,
+
     pub base_path: Box<Path>,
-    /// Filename to save the results, in JSON format. The directory of this
-    /// file is used to save the figures if results are computed.
-    /// Use [`Option::None`] to disable result save.
-    pub result_path: Option<Box<Path>>,
-    /// Compute the results or not at the end of the run. It uses a python
-    /// script located in `python_scripts/analyse_results.py`.
-    pub compute_results: bool,
-    /// Do not show GUI (restricted for now to the result figures).
-    pub no_gui: bool,
-    /// Path to the python analyse scrit.
-    /// This script should have the following entry point:
-    /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
-    pub analyse_script: Option<Box<Path>>,
+    
 
     pub max_time: f32,
 
@@ -110,10 +130,7 @@ impl Default for SimulatorConfig {
     fn default() -> Self {
         Self {
             base_path: Box::from(Path::new(".")),
-            result_path: None,
-            compute_results: false,
-            no_gui: true,
-            analyse_script: None,
+            results: None,
             time_analysis: TimeAnalysisConfig::default(),
             random_seed: None,
             robots: Vec::new(),
@@ -450,10 +467,11 @@ impl Simulator {
     ///
     /// If the configuration of the [`Simulator`] do not contain a result path, no results are saved.
     fn save_results(&mut self) {
-        let filename = match &self.config.result_path {
-            Some(f) => f,
-            None => return,
-        };
+        if self.config.results.is_none() {
+            return;
+        }
+        let result_config = self.config.results.clone().unwrap();
+        let filename = result_config.result_path;
         let filename = self.config.base_path.as_ref().join(filename);
 
         time_analysis::save_results();
@@ -490,10 +508,11 @@ impl Simulator {
     }
 
     pub fn load_results_and_analyse(&mut self) {
-        let filename = match &self.config.result_path {
-            Some(f) => f,
-            None => return,
-        };
+        if self.config.results.is_none() {
+            return;
+        }
+        let result_config = self.config.results.clone().unwrap();
+        let filename = result_config.result_path;
         let filename = self.config.base_path.as_ref().join(filename);
         let mut recording_file = File::open(filename).expect("Impossible to open record file");
         let mut content = String::new();
@@ -602,12 +621,13 @@ impl Simulator {
     /// If the [`Simulator`] config disabled the computation of the results, this function
     /// does nothing.
     fn compute_results(&self, results: Vec<Record>, config: &SimulatorConfig) {
-        if !self.config.compute_results {
+        if self.config.results.is_none() {
             return;
         }
+        let result_config = self.config.results.clone().unwrap();
 
         info!("Starting result analyse...");
-        let show_figures = !self.config.no_gui;
+        let show_figures = result_config.show_figures;
 
         prepare_freethreaded_python();
 
@@ -641,38 +661,45 @@ def convert(records):
     return json.loads(records, object_hook=converter)
 "#;
 
-        if let Some(script_path) = &self.config.analyse_script {
-            let script_path = self.config.base_path.as_ref().join(script_path);
-            let python_script = fs::read_to_string(script_path.clone())
-                .expect(format!("File not found: {}", script_path.to_str().unwrap()).as_str());
-            let res = Python::with_gil(|py| -> PyResult<()> {
-                let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
-                let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
-                let result_dict = convert_fn.call_bound(py, (json_results,), None)?;
-                let config_dict = convert_fn.call_bound(py, (json_config,), None)?;
-                let script = PyModule::from_code_bound(py, &python_script, "", "")?;
-                let analyse_fn: Py<PyAny> = script.getattr("analyse")?.into();
-                info!("Analyse the results...");
-                let res = analyse_fn.call_bound(
-                    py,
-                    (result_dict, config_dict, Path::new(""), ".pdf"),
-                    None,
-                );
-                if let Err(err) = res {
-                    err.display(py);
-                    return Err(err);
-                }
-                if show_figures {
-                    info!("Showing figures...");
-                    let show_script = PyModule::from_code_bound(py, &show_figure_py, "", "")?;
-                    let show_fn: Py<PyAny> = show_script.getattr("show")?.into();
-                    show_fn.call_bound(py, (), None)?;
-                }
-                Ok(())
-            });
-            if let Some(err) = res.err() {
-                error!("{}", err);
+        let script_path = self.config.base_path.as_ref().join(&result_config.analyse_script);
+        let python_script = fs::read_to_string(script_path.clone())
+            .expect(format!("File not found: {}", script_path.to_str().unwrap()).as_str());
+        let res = Python::with_gil(|py| -> PyResult<()> {
+            let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
+            let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
+            let result_dict = convert_fn.call_bound(py, (json_results,), None)?;
+            let config_dict = convert_fn.call_bound(py, (json_config,), None)?;
+            let param_dict = convert_fn.call_bound(py, (&result_config.python_params.to_string(),), None)?;
+
+            let script = PyModule::from_code_bound(py, &python_script, "", "")?;
+            let analyse_fn: Py<PyAny> = script.getattr("analyse")?.into();
+            info!("Analyse the results...");
+            let figure_path;
+            if let Some(p) = &result_config.figures_path {
+                figure_path = self.config.base_path.as_ref().join(p);
+                fs::create_dir_all(&figure_path).expect(format!("Impossible to create figure directory ({:#?})", &figure_path).as_str());
+            } else {
+                figure_path = PathBuf::new();
             }
+            let res = analyse_fn.call_bound(
+                py,
+                (result_dict, config_dict, figure_path, ".pdf", param_dict),
+                None,
+            );
+            if let Err(err) = res {
+                err.display(py);
+                return Err(err);
+            }
+            if show_figures {
+                info!("Showing figures...");
+                let show_script = PyModule::from_code_bound(py, &show_figure_py, "", "")?;
+                let show_fn: Py<PyAny> = show_script.getattr("show")?.into();
+                show_fn.call_bound(py, (), None)?;
+            }
+            Ok(())
+        });
+        if let Some(err) = res.err() {
+            error!("{}", err);
         }
     }
 }
