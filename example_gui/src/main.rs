@@ -1,5 +1,5 @@
 use simba::gui;
 
 fn main() {
-    gui::run_gui(log::LevelFilter::Debug, None);
+    gui::run_gui(None);
 }

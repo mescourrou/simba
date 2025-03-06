@@ -3,11 +3,13 @@
 mod app;
 pub use app::SimbaApp;
 
+use log;
+
 use crate::{plugin_api::{self, PluginAPI}, simulator::Simulator};
 
-pub fn run_gui(log_level: log::LevelFilter, plugin_api: Option<Box<&'static dyn PluginAPI>>) {
+pub fn run_gui(plugin_api: Option<Box<&'static dyn PluginAPI>>) {
     // Initialize the environment, essentially the logging part
-    Simulator::init_environment(log_level);
+    Simulator::init_environment(log::LevelFilter::Info, Vec::new(), Vec::new());
         
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
