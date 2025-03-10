@@ -66,6 +66,7 @@ pub struct GNSSObservation {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 #[pyclass(get_all)]
+#[pyo3(name = "GNSSObservation")]
 pub struct GNSSObservationRecord {
     pub position: [f32; 2],
     pub velocity: [f32; 2],

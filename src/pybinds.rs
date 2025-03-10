@@ -1,5 +1,6 @@
 use log::debug;
-use pyo3::prelude::*;
+use nalgebra::{DMatrix, DVector, Matrix, SVector, Vector};
+use pyo3::{prelude::*, types::PyList};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -9,7 +10,7 @@ use crate::{
         state_estimator::StateEstimator,
     }
 };
-use std::{path::Path, sync::{Arc, Mutex}};
+use std::{borrow::Cow, path::Path, sync::{Arc, Mutex}, usize};
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SimulatorWrapper>()?;

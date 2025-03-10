@@ -252,6 +252,7 @@ impl Stateful<OrientedRobotObservationRecord> for OrientedRobotObservation {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all)]
+#[pyo3(name = "OrientedRobotObservation")]
 pub struct OrientedRobotObservationRecord {
     /// Name of the Robot
     pub name: String,

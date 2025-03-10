@@ -253,6 +253,7 @@ impl Stateful<OrientedLandmarkObservationRecord> for OrientedLandmarkObservation
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 #[pyclass(get_all)]
+#[pyo3(name = "OrientedLandmarkObservation")]
 pub struct OrientedLandmarkObservationRecord {
     /// Id of the landmark
     pub id: i32,

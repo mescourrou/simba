@@ -1,10 +1,10 @@
 use std::{str::FromStr, sync::{mpsc, Arc, Mutex}};
 
 use log::debug;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyTuple};
 use serde_json::Value;
 
-use crate::{robot::Robot, sensors::sensor::Observation, stateful::Stateful};
+use crate::{robot::Robot, sensors::{gnss_sensor::GNSSObservationRecord, odometry_sensor::OdometryObservationRecord, oriented_landmark_sensor::OrientedLandmarkObservationRecord, robot_sensor::OrientedRobotObservationRecord, sensor::{Observation, ObservationRecord}}, stateful::Stateful};
 
 use super::{
     external_estimator::ExternalEstimatorRecord,
@@ -15,6 +15,11 @@ pub fn make_state_estimator_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let module = PyModule::new_bound(m.py(), "state_estimators")?;
 
     module.add_class::<PythonStateEstimator>()?;
+    module.add_class::<ObservationRecord>()?;
+    module.add_class::<GNSSObservationRecord>()?;
+    module.add_class::<OdometryObservationRecord>()?;
+    module.add_class::<OrientedLandmarkObservationRecord>()?;
+    module.add_class::<OrientedRobotObservationRecord>()?;
     m.add_submodule(&module)
 }
 
@@ -189,10 +194,14 @@ impl PythonStateEstimator {
     ) {
         debug!("Calling the pybind implementation of correction_step");
         debug!("Calling python implementation of correction_step");
+        let mut observation_records = Vec::new();
+        for obs in observations {
+            observation_records.push(obs.record());
+        }
         Python::with_gil(|py| {
             self.model
                 .bind(py)
-                .call_method("correction_step", (time,), None)
+                .call_method("correction_step", (observation_records, time), None)
                 .expect("Python implementation of PythonStateEstimator does not have a correct 'correction_step' method");
         });
     }

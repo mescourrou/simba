@@ -3,6 +3,7 @@ use config_checker::macros::Check;
 #[cfg(feature = "time-analysis")]
 use lazy_static::lazy_static;
 use libm::ceilf;
+#[cfg(feature = "python")]
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
 use serde_json::json;

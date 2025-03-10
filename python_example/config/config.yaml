@@ -1,8 +1,8 @@
-results:
-  result_path: "../result.json"
-  show_figures: true
-  analyse_script: "../../python_scripts/analyse_results.py"
-  figures_path: "../figures"
+# results:
+#   result_path: "../result.json"
+#   show_figures: true
+#   analyse_script: "../../python_scripts/analyse_results.py"
+#   figures_path: "../figures"
 time_analysis:
   exporter: TraceEventExporter
   output_path: "time_performance"
@@ -23,6 +23,11 @@ robots:
     state_estimator:
       External:
         period: 0.1
+    sensor_manager:
+      sensors:
+        - OrientedLandmarkSensor:
+            map_path: "maps/landmarks_square.yaml"
+            detection_distance: 6.0
   - name: "robot2"
     navigator:
       TrajectoryFollower:
@@ -36,3 +41,8 @@ robots:
     state_estimator:
       External:
         period: 0.2
+    sensor_manager:
+      sensors:
+        - OrientedLandmarkSensor:
+            map_path: "maps/landmarks_square.yaml"
+            detection_distance: 6.0

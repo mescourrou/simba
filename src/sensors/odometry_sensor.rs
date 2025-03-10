@@ -83,6 +83,7 @@ impl Stateful<OdometryObservationRecord> for OdometryObservation {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 #[pyclass(get_all)]
+#[pyo3(name = "OdometryObservation")]
 pub struct OdometryObservationRecord {
     pub linear_velocity: f32,
     pub angular_velocity: f32,

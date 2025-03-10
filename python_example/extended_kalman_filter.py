@@ -2,7 +2,8 @@
 
 import simba
 import json
-
+from simba import state_estimators
+import IPython
 
 class StateEstimator:
     def __init__(self, config):
@@ -28,8 +29,18 @@ class StateEstimator:
         print("Doing prediction step")
         self.last_time = time
 
-    def correction_step(self, time):
-        print("Doing correction step")
+    def correction_step(self, observations, time):
+        print("Doing correction step with observations:")
+        for obs in observations:
+            # Not the best interface, but it works!
+            match obs:
+                case state_estimators.Observation.OrientedLandmark():
+                    print(f"Observation of landmark {obs[0].id}: {obs[0].pose}")
+                case state_estimators.Observation.Odometry():
+                    print(f"Odometry: {obs[0]}")
+                case _:
+                    print("Other")
+
 
     def next_time_step(self):
         print("Returning next time step from python")
@@ -47,7 +58,7 @@ def main():
     simulator_api = simba.PythonAPI(SimulatorAPI())
 
     simulator = simba.Simulator.from_config(
-        "config/config.yaml", simulator_api, loglevel="debug"
+        "config/config.yaml", simulator_api, loglevel="info"
     )
     simulator.run(simulator_api)
 
