@@ -9,7 +9,7 @@ class StateEstimator:
         self.last_time = 0
         self.period = config["period"]
 
-    def state(self, time):
+    def state(self):
         return [1, 2, 3]
 
     def record(self) -> str:
@@ -45,13 +45,11 @@ class SimulatorAPI:
 def main():
 
     simulator_api = simba.PythonAPI(SimulatorAPI())
-    meta_config = simba.SimulatorMetaConfig.default_with_config_path("config/config.yaml")
 
     simulator = simba.Simulator.from_config(
-        meta_config, simulator_api, loglevel="debug"
+        "config/config.yaml", simulator_api, loglevel="debug"
     )
-    simulator.show()
-    simulator.run(60.0)
+    simulator.run(simulator_api)
 
 
 if __name__ == "__main__":

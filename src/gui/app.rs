@@ -126,7 +126,7 @@ impl eframe::App for SimbaApp {
             ui.horizontal(|ui|{
                 if ui.add_enabled(self.p.config_loaded, egui::Button::new("Run")).clicked() {
                     log::info!("Run simulation");
-                    self.p.api.run.send(self.duration).unwrap();
+                    self.p.api.run.send(Some(self.duration)).unwrap();
                 }
                 ui.vertical(|ui| {
                     for (robot, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter() {
