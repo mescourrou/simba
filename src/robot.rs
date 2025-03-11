@@ -3,7 +3,6 @@ Module providing the main robot manager, [`Robot`], along with the configuration
 [`RobotConfig`] and the record [`RobotRecord`] structures.
 */
 
-use std::cell::BorrowError;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
@@ -18,7 +17,6 @@ use crate::networking::network::{Network, NetworkConfig};
 use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 use crate::physics::{perfect_physic, physic};
 
-use crate::sensors::sensor::Sensor;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{
     StateEstimator, StateEstimatorConfig, StateEstimatorRecord,

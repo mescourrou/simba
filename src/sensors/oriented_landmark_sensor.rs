@@ -10,9 +10,7 @@ use super::sensor::{Observation, Sensor, SensorRecord};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::{
-    DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-};
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
@@ -387,7 +385,7 @@ impl Sensor for OrientedLandmarkSensor {
                 }));
                 for fault_model in self.faults.lock().unwrap().iter() {
                     fault_model.add_faults(
-                        time,
+                        time + landmark_seed,
                         self.period,
                         &mut observation_list,
                         Observation::OrientedLandmark(OrientedLandmarkObservation::default()),

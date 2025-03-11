@@ -236,15 +236,15 @@ impl Stateful<TrajectoryRecord> for Trajectory {
 
 impl std::fmt::Debug for Trajectory {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let _ = write!(f, "Trajectory {{ point_list: [");
+        write!(f, "Trajectory {{ point_list: [").unwrap();
         let mut first = true;
         for point in self.point_list.row_iter() {
             if first {
                 first = false;
             } else {
-                let _ = write!(f, ", ");
+                write!(f, ", ").unwrap();
             }
-            let _ = write!(f, "({}, {})", point[0], point[1]);
+            write!(f, "({}, {})", point[0], point[1]).unwrap();
         }
         write!(f, "], do_loop: {} }}", self.do_loop)
     }

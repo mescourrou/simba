@@ -6,12 +6,10 @@ use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use libm::atan2f;
-use rand::random;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     sensors::sensor::Observation,
-    simulator::SimulatorConfig,
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -101,7 +99,7 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
         time: f32,
         period: f32,
         obs_list: &mut Vec<Observation>,
-        obs_type: Observation,
+        _obs_type: Observation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;
@@ -143,10 +141,10 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                     o.pose.y = r * theta.sin();
                     o.pose.z = mod2pi(z);
                 }
-                Observation::GNSS(o) => {
+                Observation::GNSS(_) => {
                     panic!("Not implemented yet (need to find a logical way to do it.");
                 }
-                Observation::Odometry(o) => {
+                Observation::Odometry(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
                 Observation::OrientedLandmark(o) => {

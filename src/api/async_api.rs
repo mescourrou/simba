@@ -1,5 +1,5 @@
 use std::{
-    os::unix::{raw::pthread_t, thread::JoinHandleExt},
+    os::unix::thread::JoinHandleExt,
     path::Path,
     sync::{mpsc, Arc, Mutex},
     thread::{self, sleep, JoinHandle},
@@ -9,8 +9,8 @@ use std::{
 use serde_json::Value;
 
 use crate::{
-    plugin_api::{self, PluginAPI},
-    simulator::{self, Simulator, SimulatorAsyncApi, SimulatorConfig},
+    plugin_api::{PluginAPI},
+    simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::state_estimator::StateEstimator,
 };
 

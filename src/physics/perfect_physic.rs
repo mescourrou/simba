@@ -2,10 +2,9 @@
 Provide the implementation of the [`Physic`] trait without any noise added to the [`Command`].
 */
 
-use std::fmt;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
-use crate::networking::service::{HasService, Service, ServiceClient, ServiceHandler};
+use crate::networking::service::{HasService, Service, ServiceClient};
 use crate::plugin_api::PluginAPI;
 use crate::robot::Robot;
 use crate::simulator::SimulatorConfig;
@@ -53,26 +52,26 @@ pub struct PerfectPhysicRecord {
 
 // Services
 
-/// Request to get the real state of the robot.
-/// (not used yet)
-struct RealStateHandler {
-    pub physics: Box<dyn Physic>,
-}
+// /// Request to get the real state of the robot.
+// /// (not used yet)
+// struct RealStateHandler {
+//     pub physics: Box<dyn Physic>,
+// }
 
-impl fmt::Debug for RealStateHandler {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "RealStateHandler {{ physics: ... }}")
-    }
-}
+// impl fmt::Debug for RealStateHandler {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+//         write!(f, "RealStateHandler {{ physics: ... }}")
+//     }
+// }
 
-impl ServiceHandler<GetRealStateReq, GetRealStateResp> for RealStateHandler {
-    fn treat_request(&self, _req: GetRealStateReq, time: f32) -> Result<GetRealStateResp, String> {
-        debug!("Treating request...");
-        let state = self.physics.state(time).clone();
-        debug!("Treating request...OK");
-        Ok(GetRealStateResp { state })
-    }
-}
+// impl ServiceHandler<GetRealStateReq, GetRealStateResp> for RealStateHandler {
+//     fn treat_request(&self, _req: GetRealStateReq, time: f32) -> Result<GetRealStateResp, String> {
+//         debug!("Treating request...");
+//         let state = self.physics.state(time).clone();
+//         debug!("Treating request...OK");
+//         Ok(GetRealStateResp { state })
+//     }
+// }
 
 /// Implementation of [`Physic`] with the command perfectly applied.
 #[derive(Debug)]
@@ -87,8 +86,6 @@ pub struct PerfectPhysic {
     current_command: Command,
     /// Service to get the real state of the robot.
     real_state_service: Service<GetRealStateReq, GetRealStateResp>,
-    /// [`ServiceHandler`] for the real state service (not used yet)
-    real_state_handler: Option<Box<dyn ServiceHandler<GetRealStateReq, GetRealStateResp>>>,
 }
 
 impl PerfectPhysic {
@@ -125,7 +122,6 @@ impl PerfectPhysic {
                 right_wheel_speed: 0.,
             },
             real_state_service: Service::new(time_cv),
-            real_state_handler: None,
         }
     }
 
@@ -198,7 +194,7 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
 
     fn handle_service_requests(&mut self, time: f32) {
         self.real_state_service
-            .handle_service_requests(time, &|msg, t| {
+            .handle_service_requests(time, &|_msg, t| {
                 Ok(GetRealStateResp {
                     state: self.state(t).clone(),
                 })
@@ -219,6 +215,7 @@ impl Stateful<PhysicRecord> for PerfectPhysic {
         })
     }
 
+    #[allow(irrefutable_let_patterns)]
     fn from_record(&mut self, record: PhysicRecord) {
         if let PhysicRecord::Perfect(perfect_record) = record {
             self.state.from_record(perfect_record.state);

@@ -6,7 +6,7 @@ pub use app::SimbaApp;
 use log;
 
 use crate::{
-    plugin_api::{self, PluginAPI},
+    plugin_api::PluginAPI,
     simulator::Simulator,
 };
 

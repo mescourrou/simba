@@ -1,24 +1,17 @@
 use log::debug;
-use nalgebra::{DMatrix, DVector, Matrix, SVector, Vector};
-use pyo3::{prelude::*, types::PyList};
-use serde::Serialize;
+use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
     api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
-    plugin_api::{self, PluginAPI},
+    plugin_api::{PluginAPI},
     simulator::{Record, Simulator, SimulatorConfig},
     state_estimators::{
         pybinds::{make_state_estimator_module, PythonStateEstimator},
         state_estimator::StateEstimator,
     },
 };
-use std::{
-    borrow::Cow,
-    path::Path,
-    sync::{Arc, Mutex},
-    usize,
-};
+use std::sync::{Arc, Mutex};
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SimulatorWrapper>()?;
@@ -94,14 +87,14 @@ impl SimulatorWrapper {
                 {
                     let state_estimator =
                         python_api.get_state_estimator(&config, &simulator_config);
-                    let _ = api_client
+                    api_client
                         .get_state_estimator_response
-                        .send(state_estimator);
+                        .send(state_estimator).unwrap();
                 }
                 python_api.check_requests();
             }
         } else {
-            let _ = wrapper.api.ended.lock().unwrap().recv();
+            wrapper.api.ended.lock().unwrap().recv().unwrap();
         }
 
         wrapper

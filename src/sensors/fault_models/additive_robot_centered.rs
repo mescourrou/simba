@@ -5,12 +5,10 @@
 use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
-use rand::random;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     sensors::sensor::Observation,
-    simulator::SimulatorConfig,
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -100,7 +98,7 @@ impl FaultModel for AdditiveRobotCenteredFault {
         time: f32,
         period: f32,
         obs_list: &mut Vec<Observation>,
-        obs_type: Observation,
+        _obs_type: Observation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;

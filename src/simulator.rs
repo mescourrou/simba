@@ -39,10 +39,9 @@ fn main() {
 extern crate confy;
 use config_checker::macros::Check;
 use config_checker::ConfigCheckable;
-use pyo3::{prelude::*, AsPyPointer};
+use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::api::async_api::{AsyncApiRunner, AsyncApiServer};
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
 use crate::time_analysis::{self, TimeAnalysisConfig};
@@ -51,18 +50,16 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::robot::{Robot, RobotConfig, RobotRecord};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
-use std::{os, path};
 
 use colored::Colorize;
 use serde_json::{self, Value};
 use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::sync::{mpsc, Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread::{self, ThreadId};
 
-use log::{debug, error, info};
+use log::{error, info};
 
 use pyo3::prepare_freethreaded_python;
 
@@ -492,7 +489,7 @@ impl Simulator {
         }
 
         for handle in handles {
-            let _ = handle.join();
+            handle.join().unwrap();
         }
 
         self.save_results();
@@ -534,10 +531,10 @@ impl Simulator {
         );
         let mut recording_file = File::create(filename).expect("Impossible to create record file");
 
-        let _ = recording_file.write(b"{\"config\": ");
+        recording_file.write(b"{\"config\": ").unwrap();
         serde_json::to_writer(&recording_file, &self.config)
             .expect("Error during json serialization");
-        let _ = recording_file.write(b",\n\"records\": [\n");
+        recording_file.write(b",\n\"records\": [\n").unwrap();
 
         let results = self.get_results();
 
@@ -546,7 +543,7 @@ impl Simulator {
             if first_row {
                 first_row = false;
             } else {
-                let _ = recording_file.write(b",\n");
+                recording_file.write(b",\n").unwrap();
             }
             serde_json::to_writer(
                 &recording_file,
@@ -557,7 +554,7 @@ impl Simulator {
             )
             .expect("Error during json serialization");
         }
-        let _ = recording_file.write(b"\n]}");
+        recording_file.write(b"\n]}").unwrap();
     }
 
     pub fn load_results_and_analyse(&mut self) {

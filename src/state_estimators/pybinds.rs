@@ -4,7 +4,7 @@ use std::{
 };
 
 use log::debug;
-use pyo3::{prelude::*, types::PyTuple};
+use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
@@ -54,19 +54,19 @@ pub struct PythonStateEstimatorAsyncClient {
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
     fn prediction_step(&mut self, robot: &mut Robot, time: f32) {
-        let _ = self.prediction_step_request.send((robot.clone(), time));
-        let _ = self.prediction_step_response.lock().unwrap().recv();
+        self.prediction_step_request.send((robot.clone(), time)).unwrap();
+        self.prediction_step_response.lock().unwrap().recv().unwrap();
     }
 
     fn correction_step(&mut self, robot: &mut Robot, observations: &Vec<Observation>, time: f32) {
-        let _ = self
+        self
             .correction_step_request
-            .send((robot.clone(), observations.clone(), time));
-        let _ = self.correction_step_response.lock().unwrap().recv();
+            .send((robot.clone(), observations.clone(), time)).unwrap();
+        self.correction_step_response.lock().unwrap().recv().unwrap();
     }
 
     fn next_time_step(&self) -> f32 {
-        let _ = self.next_time_step_request.send(());
+        self.next_time_step_request.send(()).unwrap();
         self.next_time_step_response
             .lock()
             .unwrap()
@@ -75,7 +75,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
     }
 
     fn state(&self) -> State {
-        let _ = self.state_request.send(());
+        self.state_request.send(()).unwrap();
         self.state_response
             .lock()
             .unwrap()
@@ -86,12 +86,12 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
 
 impl Stateful<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
     fn from_record(&mut self, record: StateEstimatorRecord) {
-        let _ = self.from_record_request.send(record);
-        let _ = self.from_record_response.lock().unwrap().recv();
+        self.from_record_request.send(record).unwrap();
+        self.from_record_response.lock().unwrap().recv().unwrap();
     }
 
     fn record(&self) -> StateEstimatorRecord {
-        let _ = self.record_request.send(());
+        self.record_request.send(()).unwrap();
         self.record_response
             .lock()
             .unwrap()
@@ -185,7 +185,7 @@ impl PythonStateEstimator {
             .try_recv()
         {
             self.prediction_step(&robot, time);
-            let _ = self.prediction_step_response.send(());
+            self.prediction_step_response.send(()).unwrap();
         }
         if let Ok((robot, obs, time)) = self
             .correction_step_request
@@ -195,10 +195,10 @@ impl PythonStateEstimator {
             .try_recv()
         {
             self.correction_step(&robot, &obs, time);
-            let _ = self.correction_step_response.send(());
+            self.correction_step_response.send(()).unwrap();
         }
         if let Ok(()) = self.state_request.clone().lock().unwrap().try_recv() {
-            let _ = self.state_response.send(self.state());
+            self.state_response.send(self.state()).unwrap();
         }
         if let Ok(()) = self
             .next_time_step_request
@@ -207,18 +207,18 @@ impl PythonStateEstimator {
             .unwrap()
             .try_recv()
         {
-            let _ = self.next_time_step_response.send(self.next_time_step());
+            self.next_time_step_response.send(self.next_time_step()).unwrap();
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
-            let _ = self.record_response.send(self.record());
+            self.record_response.send(self.record()).unwrap();
         }
         if let Ok(record) = self.from_record_request.clone().lock().unwrap().try_recv() {
             self.from_record(record);
-            let _ = self.from_record_response.send(());
+            self.from_record_response.send(()).unwrap();
         }
     }
 
-    fn prediction_step(&mut self, robot: &crate::robot::Robot, time: f32) {
+    fn prediction_step(&mut self, _robot: &crate::robot::Robot, time: f32) {
         debug!("Calling python implementation of prediction_step");
         // let robot_record = robot.record();
         Python::with_gil(|py| {
@@ -231,7 +231,7 @@ impl PythonStateEstimator {
 
     fn correction_step(
         &mut self,
-        robot: &crate::robot::Robot,
+        _robot: &crate::robot::Robot,
         observations: &Vec<crate::sensors::sensor::Observation>,
         time: f32,
     ) {

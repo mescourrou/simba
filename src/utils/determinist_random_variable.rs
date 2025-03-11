@@ -17,10 +17,7 @@ Other types can be added in the future.
  */
 
 use config_checker::macros::Check;
-use rand::prelude::*;
-use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use statrs::distribution::{MultivariateNormal, Normal};
 
 use super::distributions::{
     exponential::{DeterministExponentialRandomVariable, ExponentialRandomVariableConfig},

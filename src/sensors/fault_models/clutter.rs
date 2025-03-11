@@ -1,19 +1,15 @@
 use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
-use rand::random;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     sensors::sensor::Observation,
-    simulator::SimulatorConfig,
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
         },
         distributions::{
-            bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
-            normal::NormalRandomVariableConfig,
             poisson::PoissonRandomVariableConfig,
             uniform::UniformRandomVariableConfig,
         },

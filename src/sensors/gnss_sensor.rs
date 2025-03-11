@@ -12,9 +12,7 @@ use super::sensor::{Observation, Sensor, SensorRecord};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::{
-    DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-};
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use nalgebra::Vector2;
 use pyo3::pyclass;
