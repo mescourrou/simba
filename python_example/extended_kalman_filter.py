@@ -2,14 +2,14 @@
 
 import simba
 import json
-
+from simba import state_estimators
 
 class StateEstimator:
     def __init__(self, config):
         self.last_time = 0
         self.period = config["period"]
 
-    def state(self, time):
+    def state(self):
         return [1, 2, 3]
 
     def record(self) -> str:
@@ -28,8 +28,18 @@ class StateEstimator:
         print("Doing prediction step")
         self.last_time = time
 
-    def correction_step(self, time):
-        print("Doing correction step")
+    def correction_step(self, observations, time):
+        print("Doing correction step with observations for robot {robot.name}:")
+        for obs in observations:
+            # Not the best interface, but it works!
+            match obs:
+                case state_estimators.Observation.OrientedLandmark():
+                    print(f"Observation of landmark {obs[0].id}: {obs[0].pose}")
+                case state_estimators.Observation.Odometry():
+                    print(f"Odometry: {obs[0]}")
+                case _:
+                    print("Other")
+
 
     def next_time_step(self):
         print("Returning next time step from python")
@@ -45,13 +55,11 @@ class SimulatorAPI:
 def main():
 
     simulator_api = simba.PythonAPI(SimulatorAPI())
-    meta_config = simba.SimulatorMetaConfig.default_with_config_path("config/config.yaml")
 
     simulator = simba.Simulator.from_config(
-        meta_config, simulator_api, loglevel="debug"
+        "config/config.yaml", simulator_api, loglevel="info"
     )
-    simulator.show()
-    simulator.run(60.0)
+    simulator.run(simulator_api)
 
 
 if __name__ == "__main__":

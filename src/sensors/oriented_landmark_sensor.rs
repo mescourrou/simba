@@ -10,9 +10,7 @@ use super::sensor::{Observation, Sensor, SensorRecord};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::{
-    DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-};
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
@@ -253,6 +251,7 @@ impl Stateful<OrientedLandmarkObservationRecord> for OrientedLandmarkObservation
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 #[pyclass(get_all)]
+#[pyo3(name = "OrientedLandmarkObservation")]
 pub struct OrientedLandmarkObservationRecord {
     /// Id of the landmark
     pub id: i32,
@@ -386,7 +385,7 @@ impl Sensor for OrientedLandmarkSensor {
                 }));
                 for fault_model in self.faults.lock().unwrap().iter() {
                     fault_model.add_faults(
-                        time,
+                        time + landmark_seed,
                         self.period,
                         &mut observation_list,
                         Observation::OrientedLandmark(OrientedLandmarkObservation::default()),

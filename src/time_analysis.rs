@@ -3,15 +3,12 @@ use config_checker::macros::Check;
 #[cfg(feature = "time-analysis")]
 use lazy_static::lazy_static;
 use libm::ceilf;
-use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 
 #[cfg(feature = "time-analysis")]
 use std::sync::Mutex;
 #[cfg(feature = "time-analysis")]
 use std::thread::ThreadId;
-use std::{collections::hash_map, path::Path};
 
 #[cfg(feature = "time-analysis")]
 use log::info;
@@ -19,9 +16,8 @@ use log::info;
 use std::collections::HashMap;
 #[cfg(feature = "time-analysis")]
 use std::thread;
-use std::time::{self, Duration};
+use std::{path::Path, time::{self, Duration}};
 
-use crate::robot;
 
 #[cfg(feature = "time-analysis")]
 #[allow(dead_code)]
@@ -387,7 +383,7 @@ impl TimeAnalysisStatistics {
             q1: v[ceilf(nf32 / 4.) as usize],
             q3: v[ceilf(nf32 * 0.75) as usize],
             q01: v[ceilf(nf32 * 0.01) as usize],
-            q99: v[(ceilf(nf32 * 0.99) as usize).min(n-1)],
+            q99: v[(ceilf(nf32 * 0.99) as usize).min(n - 1)],
         }
     }
 
@@ -643,11 +639,11 @@ impl TimeAnalysisFactory {
 
         let mut writer =
             csv::Writer::from_path(path).expect("Unknown path for time analysis report");
-        writer.write_record(robot_headers);
-        writer.write_record(track_headers);
+        writer.write_record(robot_headers).unwrap();
+        writer.write_record(track_headers).unwrap();
         for (row_name, mut values) in stats {
             values.insert(0, row_name);
-            writer.write_record(values);
+            writer.write_record(values).unwrap();
         }
     }
 }

@@ -4,8 +4,8 @@ available observations.
 */
 
 extern crate confy;
-use core::f32;
 use config_checker::macros::Check;
+use core::f32;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};

@@ -13,10 +13,10 @@ use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use config_checker::macros::Check;
 use log::error;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
-use config_checker::macros::Check;
 
 /// Configuration of the [`PID`], it contains the 3 gains for the velocity
 /// control, 3 gain for the orientation control, and the wheel distance.
@@ -138,7 +138,7 @@ impl PID {
         config: &PIDConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _global_config: &SimulatorConfig,
-        va_factory: &DeterministRandomVariableFactory,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         PID {
             kp_v: config.kp_v,
@@ -214,8 +214,9 @@ impl Stateful<ControllerRecord> for PID {
     fn record(&self) -> ControllerRecord {
         ControllerRecord::PID(self.current_record.clone())
     }
-
+    #[allow(irrefutable_let_patterns)]
     fn from_record(&mut self, record: ControllerRecord) {
+        
         if let ControllerRecord::PID(pid_record) = record {
             self.current_record = pid_record.clone();
             self.v_integral = pid_record.v_integral;

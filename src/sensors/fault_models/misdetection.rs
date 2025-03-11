@@ -2,25 +2,18 @@
 //!
 //! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
 
-use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use log::debug;
-use rand::random;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     sensors::sensor::Observation,
-    simulator::SimulatorConfig,
     utils::{
         determinist_random_variable::{
-            DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
+            DeterministRandomVariable, DeterministRandomVariableFactory,
         },
-        distributions::{
-            bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
-            normal::NormalRandomVariableConfig,
-        },
-        geometry::mod2pi,
+        distributions::bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
     },
 };
 

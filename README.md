@@ -9,20 +9,22 @@ Here is a list of available and considered features. The order is not a priority
 - [X] Basic sensors: odometry, GNSS, relative landmark, inter-robot
 - [X] State estimator test bench
 - [X] Determinist random variables for noise simulation
-- [X] Python bindings (for only one robot)
+- [X] Python bindings
 - [ ] Synchronous robot run option
-- [ ] Back-in-time optimization: jump to present if no modification was made in the past to avoid unnecessary computation
-- [X] Time performance analysis (first version)
+- [X] Back-in-time optimization: jump to present if no modification was made in the past to avoid unnecessary computation
+- [X] Time performance analysis
 - [ ] Possibility to read data from file instead of simulation: test state estimation algorithms on real data
 - [ ] ROS2 interface (rosbag reading)
 - [ ] Gazebo interface (maybe)
 - [ ] C++ bindings
-- [ ] More complex noise addition (+ faults)
-- [ ] Graphical User Interface (real time + replay)
+- [X] More complex noise addition (+ faults)
+- [X] Simple Graphical User Interface
+- [ ] Advanced Graphical User Interface (real time + replay)
 - [ ] Extend PluginAPI to controller, navigators, physics and sensors
 
 ## Cargo Features:
 - "time-analysis": enable time analysis features (with performance report compatible with [https://profiler.firefox.com/](https://profiler.firefox.com/)). May slow down the simulation (shared memory).
+- "gui": enable GUI running. Use `gui::run_gui` to start a GUI.
 
 ## Documentation
 You can compile the documentation using Cargo:
@@ -31,6 +33,17 @@ cargo doc --no-deps --document-private-items
 ```
 
 The last documentation is available [here](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/index.html).
+
+## Build
+Initialize git submodules:
+```
+git submodule update --init --recursive
+```
+
+Build:
+```
+cargo build --all-features
+```
 
 ## Spirit of this simulator
 - All the behaviors should be controlled by the config file. To avoid huge config files, default behavior should be given.
@@ -55,7 +68,3 @@ source .env/bin/activate
 `pip install maturin`
 3) To build the bindings, use `maturin develop`. It needs to be run in the virtualenv
 4) To test that the package was built successfully, you can import it in python: `python -m simba`
-
-
-### Waiting for PyO3
-Python bindings are almost set for state estimators. However, the Python GIL locks with robots threads. I wait for the PyO3 community to implement sub interpreters to fix that (see [Issue 576](https://github.com/PyO3/pyo3/issues/576)).

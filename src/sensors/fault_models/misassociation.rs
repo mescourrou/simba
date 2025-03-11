@@ -3,7 +3,6 @@
 //! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
 
 use std::{
-    default,
     ops::Rem,
     path::Path,
     sync::{Arc, Mutex},
@@ -12,13 +11,12 @@ use std::{
 use config_checker::macros::Check;
 use nalgebra::Vector2;
 use rand::prelude::*;
-use rand::{random, seq::SliceRandom};
+use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
 use crate::{
-    robot::Robot,
     sensors::{oriented_landmark_sensor::OrientedLandmarkSensor, sensor::Observation},
     simulator::SimulatorConfig,
     utils::{
@@ -27,11 +25,8 @@ use crate::{
         },
         distributions::{
             bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
-            exponential::ExponentialRandomVariableConfig,
-            normal::NormalRandomVariableConfig,
             uniform::UniformRandomVariableConfig,
         },
-        geometry::mod2pi,
     },
 };
 
@@ -88,7 +83,7 @@ pub struct MisassociationFault {
     distribution: Arc<Mutex<Box<dyn DeterministRandomVariable>>>,
     sort: Sort,
     id_list: Vec<(String, Vector2<f32>)>,
-    source: Source,
+    _source: Source,
     global_seed: f32,
 }
 
@@ -138,7 +133,7 @@ impl MisassociationFault {
             ),
             distribution,
             sort: config.sort.clone(),
-            source: config.source.clone(),
+            _source: config.source.clone(),
             id_list,
             global_seed: va_factory.global_seed,
         }
@@ -183,10 +178,10 @@ impl FaultModel for MisassociationFault {
                     .clone();
                     o.name = new_id;
                 }
-                Observation::GNSS(o) => {
+                Observation::GNSS(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
-                Observation::Odometry(o) => {
+                Observation::Odometry(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
                 Observation::OrientedLandmark(o) => {

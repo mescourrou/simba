@@ -66,6 +66,7 @@ impl Stateful<ObservationRecord> for Observation {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all)]
+#[pyo3(name = "Observation")]
 pub enum ObservationRecord {
     OrientedLandmark(OrientedLandmarkObservationRecord),
     Odometry(OdometryObservationRecord),

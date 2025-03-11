@@ -9,13 +9,10 @@ use crate::networking::network::MessageFlag;
 use crate::networking::service::ServiceClient;
 use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
-use crate::sensors::fault_models;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::{
-    DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-};
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
@@ -252,6 +249,7 @@ impl Stateful<OrientedRobotObservationRecord> for OrientedRobotObservation {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all)]
+#[pyo3(name = "OrientedRobotObservation")]
 pub struct OrientedRobotObservationRecord {
     /// Name of the Robot
     pub name: String,
@@ -361,9 +359,7 @@ impl Sensor for RobotSensor {
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
         debug!("Rotation matrix: {}", rotation_matrix);
 
-        let mut i = 0;
         for (other_robot_name, service) in self.robot_real_state_services.iter_mut() {
-            i += 1;
 
             debug!("Sensing robot {}", other_robot_name);
             assert!(*other_robot_name != robot.name());

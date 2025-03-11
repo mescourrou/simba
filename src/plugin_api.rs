@@ -50,7 +50,7 @@ use crate::{simulator::SimulatorConfig, state_estimators::state_estimator::State
 use serde_json::Value;
 
 /// Trait to link the simulator to the external implementation.
-pub trait PluginAPI {
+pub trait PluginAPI: Send + Sync {
     /// Return the [`StateEstimator`] to be used by the
     /// [`ExternalEstimator`](`crate::state_estimators::external_estimator::ExternalEstimator`).
     ///

@@ -68,8 +68,10 @@ pub mod utils;
 pub mod plugin_api;
 pub mod pybinds;
 
+pub mod api;
 pub mod time_analysis;
 
+#[cfg(feature = "gui")]
 pub mod gui;
 
 #[pymodule]

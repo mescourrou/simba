@@ -182,12 +182,12 @@ impl Network {
         let emitter_option = self.other_emitters.get(&recipient);
         if let Some(emitter) = emitter_option {
             let _lk = self.time_cv.0.lock().unwrap();
-            let _ = emitter.lock().unwrap().send((
+            emitter.lock().unwrap().send((
                 self.from.clone(),
                 message,
                 time,
                 message_flags.clone(),
-            ));
+            )).unwrap();
             self.time_cv.1.notify_all();
         }
     }
@@ -199,12 +199,12 @@ impl Network {
                 continue;
             }
             let _lk = self.time_cv.0.lock().unwrap();
-            let _ = emitter.lock().unwrap().send((
+            emitter.lock().unwrap().send((
                 self.from.clone(),
                 message.clone(),
                 time,
                 message_flags.clone(),
-            ));
+            )).unwrap();
             self.time_cv.1.notify_all();
         }
     }
@@ -241,7 +241,7 @@ impl Network {
     /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
     pub fn handle_message_at_time(&mut self, robot: &mut Robot, time: f32) {
-        while let Some((msg_time, (from, message, message_flags))) =
+        while let Some((msg_time, (from, message, _message_flags))) =
             self.messages_buffer.remove(time)
         {
             debug!("Receive message from {from}: {:?}", message);

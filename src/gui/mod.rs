@@ -3,8 +3,16 @@
 mod app;
 pub use app::SimbaApp;
 
-pub fn run_gui() {
-    env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
+use log;
+
+use crate::{
+    plugin_api::PluginAPI,
+    simulator::Simulator,
+};
+
+pub fn run_gui(plugin_api: Option<Box<&'static dyn PluginAPI>>) {
+    // Initialize the environment, essentially the logging part
+    Simulator::init_environment(log::LevelFilter::Info, Vec::new(), Vec::new());
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
@@ -12,9 +20,10 @@ pub fn run_gui() {
             .with_min_inner_size([300.0, 220.0]),
         ..Default::default()
     };
-    let _ = eframe::run_native(
+    eframe::run_native(
         "SiMBA",
         native_options,
-        Box::new(|cc| Box::new(SimbaApp::new(cc))),
-    );
+        Box::new(|cc| Box::new(SimbaApp::new(cc, plugin_api))),
+    )
+    .expect("Error during GUI execution");
 }

@@ -227,7 +227,7 @@ impl Stateful<NavigatorRecord> for TrajectoryFollower {
             projected_point: self.projected_point,
         })
     }
-
+    #[allow(irrefutable_let_patterns)]
     fn from_record(&mut self, record: NavigatorRecord) {
         if let NavigatorRecord::TrajectoryFollower(navigation_record) = record {
             self.error = navigation_record.error.clone();
@@ -240,10 +240,10 @@ impl Stateful<NavigatorRecord> for TrajectoryFollower {
 
 #[cfg(test)]
 mod tests {
-    use std::f32::consts::PI;
+    
 
-    use super::super::trajectory;
-    use super::*;
+    
+    
     #[test]
     fn compute_error() {
         // let navigator = TrajectoryFollower {
