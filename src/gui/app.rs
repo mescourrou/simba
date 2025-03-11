@@ -1,7 +1,13 @@
-use std::{sync::{Arc, Mutex}, thread::{self, JoinHandle, Thread}, time::Duration};
+use std::{
+    sync::{Arc, Mutex},
+    thread::{self, JoinHandle, Thread},
+    time::Duration,
+};
 
-
-use crate::{api::async_api::{AsyncApi, AsyncApiRunner}, plugin_api::PluginAPI};
+use crate::{
+    api::async_api::{AsyncApi, AsyncApiRunner},
+    plugin_api::PluginAPI,
+};
 
 struct PrivateParams {
     server: Arc<Mutex<AsyncApiRunner>>,
@@ -39,14 +45,18 @@ impl Default for SimbaApp {
 
 impl SimbaApp {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>, plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        plugin_api: Option<Box<&'static dyn PluginAPI>>,
+    ) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_else(|| Self::new_full(plugin_api));
+            return eframe::get_value(storage, eframe::APP_KEY)
+                .unwrap_or_else(|| Self::new_full(plugin_api));
         }
 
         Self::new_full(plugin_api)
@@ -119,18 +129,27 @@ impl eframe::App for SimbaApp {
 
             if ui.button("Load").clicked() {
                 log::info!("Load configuration");
-                self.p.api.load_config.send(self.config_path.clone()).unwrap();
+                self.p
+                    .api
+                    .load_config
+                    .send(self.config_path.clone())
+                    .unwrap();
                 self.p.config_loaded = true;
             }
 
-            ui.horizontal(|ui|{
-                if ui.add_enabled(self.p.config_loaded, egui::Button::new("Run")).clicked() {
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(self.p.config_loaded, egui::Button::new("Run"))
+                    .clicked()
+                {
                     log::info!("Run simulation");
                     self.p.api.run.send(Some(self.duration)).unwrap();
                 }
                 ui.vertical(|ui| {
-                    for (robot, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter() {
-                        ui.label(format!("Running: {robot}: {time}", ));
+                    for (robot, time) in
+                        self.p.api.simulator_api.current_time.lock().unwrap().iter()
+                    {
+                        ui.label(format!("Running: {robot}: {time}",));
                     }
                 })
             });

@@ -1,9 +1,18 @@
-use std::{path::Path, sync::{mpsc, Arc, Mutex}, thread};
+use std::{
+    os::unix::{raw::pthread_t, thread::JoinHandleExt},
+    path::Path,
+    sync::{mpsc, Arc, Mutex},
+    thread::{self, sleep, JoinHandle},
+    time::Duration,
+};
 
 use serde_json::Value;
 
-use crate::{plugin_api::{self, PluginAPI}, simulator::{self, Simulator, SimulatorAsyncApi, SimulatorConfig}, state_estimators::state_estimator::StateEstimator};
-
+use crate::{
+    plugin_api::{self, PluginAPI},
+    simulator::{self, Simulator, SimulatorAsyncApi, SimulatorConfig},
+    state_estimators::state_estimator::StateEstimator,
+};
 
 // Run by client
 #[derive(Clone)]
@@ -23,13 +32,14 @@ pub struct AsyncApiServer {
     pub ended: mpsc::Sender<()>,
 }
 
-#[derive(Clone)]
+// #[derive(Clone)]
 pub struct AsyncApiRunner {
     public_api: AsyncApi,
     private_api: AsyncApiServer,
     simulator: Arc<Mutex<Simulator>>,
     keep_alive_tx: mpsc::Sender<()>,
     keep_alive_rx: Arc<Mutex<mpsc::Receiver<()>>>,
+    thread_handle: Option<JoinHandle<()>>,
 }
 
 impl AsyncApiRunner {
@@ -59,6 +69,7 @@ impl AsyncApiRunner {
             simulator,
             keep_alive_rx: Arc::new(Mutex::new(keep_alive_rx)),
             keep_alive_tx,
+            thread_handle: None,
         }
     }
 
@@ -68,6 +79,18 @@ impl AsyncApiRunner {
 
     pub fn stop(&mut self) {
         self.keep_alive_tx.send(()).unwrap();
+        log::info!("Stop requested...");
+        if let Some(handle) = self.thread_handle.take() {
+            sleep(Duration::new(0, 200000000));
+            if !handle.is_finished() {
+                unsafe {
+                    libc::pthread_cancel(handle.as_pthread_t());
+                }
+            }
+            handle
+                .join()
+                .expect("Error while waiting for server thread to join");
+        }
     }
 
     pub fn run(&mut self, plugin_api: Option<Box<&'static dyn PluginAPI>>) {
@@ -75,7 +98,7 @@ impl AsyncApiRunner {
         let keep_alive_rx = self.keep_alive_rx.clone();
         let simulator_arc = self.simulator.clone();
         let plugin_api = plugin_api.clone();
-        Some(thread::spawn(move || {
+        self.thread_handle = Some(thread::spawn(move || {
             let plugin_api = plugin_api.clone();
             let mut simulator = simulator_arc.lock().unwrap();
             let mut need_reset = false;
@@ -100,8 +123,10 @@ impl AsyncApiRunner {
                     }
                     simulator.run();
                     need_reset = true;
-                    println!("Fin {:?}", max_time);
-                    private_api.ended.send(()).expect("Error during sending 'end' information");
+                    private_api
+                        .ended
+                        .send(())
+                        .expect("Error during sending 'end' information");
                 }
             }
             log::info!("AsyncApiRunner thread exited");
@@ -134,14 +159,19 @@ impl PluginAsyncAPI {
 
 impl PluginAPI for PluginAsyncAPI {
     fn get_state_estimator(
-            &self,
-            config: &Value,
-            global_config: &SimulatorConfig,
-        ) -> Box<dyn StateEstimator> {
-        
-        self.get_state_estimator_request.send((config.clone(), global_config.clone())).unwrap();
+        &self,
+        config: &Value,
+        global_config: &SimulatorConfig,
+    ) -> Box<dyn StateEstimator> {
+        self.get_state_estimator_request
+            .send((config.clone(), global_config.clone()))
+            .unwrap();
 
-        self.get_state_estimator_response.lock().unwrap().recv().unwrap()
+        self.get_state_estimator_response
+            .lock()
+            .unwrap()
+            .recv()
+            .unwrap()
     }
 }
 
@@ -150,4 +180,3 @@ pub struct PluginAsyncAPIClient {
     pub get_state_estimator_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
     pub get_state_estimator_response: mpsc::Sender<Box<dyn StateEstimator>>,
 }
-

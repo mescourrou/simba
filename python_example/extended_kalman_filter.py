@@ -3,7 +3,6 @@
 import simba
 import json
 from simba import state_estimators
-import IPython
 
 class StateEstimator:
     def __init__(self, config):
@@ -30,7 +29,7 @@ class StateEstimator:
         self.last_time = time
 
     def correction_step(self, observations, time):
-        print("Doing correction step with observations:")
+        print("Doing correction step with observations for robot {robot.name}:")
         for obs in observations:
             # Not the best interface, but it works!
             match obs:

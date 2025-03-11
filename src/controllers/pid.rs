@@ -13,10 +13,10 @@ use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use config_checker::macros::Check;
 use log::error;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
-use config_checker::macros::Check;
 
 /// Configuration of the [`PID`], it contains the 3 gains for the velocity
 /// control, 3 gain for the orientation control, and the wheel distance.

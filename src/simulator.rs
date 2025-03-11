@@ -49,10 +49,10 @@ use crate::time_analysis::{self, TimeAnalysisConfig};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 use crate::robot::{Robot, RobotConfig, RobotRecord};
-use std::{os, path};
-use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::time::SystemTime;
+use std::{os, path};
 
 use colored::Colorize;
 use serde_json::{self, Value};
@@ -78,7 +78,8 @@ pub struct ResultConfig {
     /// Path to the python analyse scrit.
     /// This script should have the following entry point:
     /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
-    pub analyse_script: Box<Path>,
+    /// If the option is none, the script is not run
+    pub analyse_script: Option<Box<Path>>,
     pub figures_path: Option<Box<Path>>,
     pub python_params: Value,
 }
@@ -89,7 +90,7 @@ impl Default for ResultConfig {
         Self {
             result_path: Box::from(Path::new("../results.json")),
             show_figures: true,
-            analyse_script: Box::from(Path::new("../../python_scripts/analyse_results.py")),
+            analyse_script: None,
             figures_path: None,
             python_params: Value::Null,
         }
@@ -115,7 +116,6 @@ pub struct SimulatorConfig {
     pub results: Option<ResultConfig>,
 
     pub base_path: Box<Path>,
-    
 
     pub max_time: f32,
 
@@ -167,12 +167,12 @@ static EXCLUDE_ROBOTS: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static INCLUDE_ROBOTS: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
 pub struct SimulatorAsyncApi {
-    pub current_time: Arc<Mutex<HashMap<String,f32>>>,
+    pub current_time: Arc<Mutex<HashMap<String, f32>>>,
 }
 
 #[derive(Clone)]
 struct SimulatorAsyncApiServer {
-    pub current_time: Arc<Mutex<HashMap<String,f32>>>,
+    pub current_time: Arc<Mutex<HashMap<String, f32>>>,
 }
 
 /// This is the central structure which manages the run of the scenario.
@@ -235,9 +235,7 @@ impl Simulator {
             robots: Arc::new(RwLock::new(Vec::new())),
             config: SimulatorConfig::default(),
             network_manager: Arc::new(RwLock::new(NetworkManager::new())),
-            determinist_va_factory: DeterministRandomVariableFactory::new(
-                rng
-            ),
+            determinist_va_factory: DeterministRandomVariableFactory::new(rng),
             time_cv: Arc::new((Mutex::new(0), Condvar::new())),
             async_api: None,
             async_api_server: None,
@@ -289,7 +287,7 @@ impl Simulator {
         simulator
     }
 
-    pub fn reset(&mut self, plugin_api: &Option<Box<&dyn PluginAPI>>,) {
+    pub fn reset(&mut self, plugin_api: &Option<Box<&dyn PluginAPI>>) {
         self.robots = Arc::new(RwLock::new(Vec::new()));
         self.network_manager = Arc::new(RwLock::new(NetworkManager::new()));
         let config = self.config.clone();
@@ -300,14 +298,13 @@ impl Simulator {
         }
     }
 
-    pub fn load_config_path(&mut self, config_path: &Path, plugin_api: &Option<Box<&dyn PluginAPI>>) {
-        info!(
-            "Load configuration from {:?}",
-            config_path
-        );
-        let mut config: SimulatorConfig = match confy::load_path(
-            config_path,
-        ) {
+    pub fn load_config_path(
+        &mut self,
+        config_path: &Path,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
+    ) {
+        info!("Load configuration from {:?}", config_path);
+        let mut config: SimulatorConfig = match confy::load_path(config_path) {
             Ok(config) => config,
             Err(error) => {
                 error!("Error from Confy while loading the config file : {}", error);
@@ -316,11 +313,21 @@ impl Simulator {
         };
 
         config.base_path = Box::from(config_path.parent().unwrap());
-        config.time_analysis.output_path = config.base_path.as_ref().join(&config.time_analysis.output_path).to_str().unwrap().to_string();
+        config.time_analysis.output_path = config
+            .base_path
+            .as_ref()
+            .join(&config.time_analysis.output_path)
+            .to_str()
+            .unwrap()
+            .to_string();
         self.load_config(&config, plugin_api);
     }
 
-    pub fn load_config(&mut self, config: &SimulatorConfig, plugin_api: &Option<Box<&dyn PluginAPI>>) {
+    pub fn load_config(
+        &mut self,
+        config: &SimulatorConfig,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
+    ) {
         self.config = config.clone();
         if let Some(seed) = config.random_seed {
             self.determinist_va_factory.global_seed = seed;
@@ -329,7 +336,7 @@ impl Simulator {
         }
 
         time_analysis::init_from_config(&self.config.time_analysis);
-        
+
         self.reset(plugin_api);
     }
 
@@ -337,14 +344,21 @@ impl Simulator {
     ///
     /// - start the logging environment.
     /// - Time analysis setup
-    pub fn init_environment(level: log::LevelFilter, exclude_robots: Vec<String>, include_only: Vec<String>) {
+    pub fn init_environment(
+        level: log::LevelFilter,
+        exclude_robots: Vec<String>,
+        include_only: Vec<String>,
+    ) {
         THREAD_IDS.write().unwrap().push(thread::current().id());
         THREAD_NAMES.write().unwrap().push("simulator".to_string());
         THREAD_TIMES.write().unwrap().push(0.);
         EXCLUDE_ROBOTS.write().unwrap().clone_from(&exclude_robots);
         INCLUDE_ROBOTS.write().unwrap().clone_from(&include_only);
         if include_only.len() > 0 {
-            INCLUDE_ROBOTS.write().unwrap().push("simulator".to_string());
+            INCLUDE_ROBOTS
+                .write()
+                .unwrap()
+                .push("simulator".to_string());
         }
         env_logger::builder()
             .target(env_logger::Target::Stdout)
@@ -356,11 +370,7 @@ impl Simulator {
                     .position(|&x| x == thread::current().id())
                     .unwrap_or(0);
                 let thread_name = THREAD_NAMES.read().unwrap()[thread_idx].clone();
-                if EXCLUDE_ROBOTS
-                    .read()
-                    .unwrap()
-                    .contains(&thread_name)
-                {
+                if EXCLUDE_ROBOTS.read().unwrap().contains(&thread_name) {
                     return Ok(());
                 }
 
@@ -468,7 +478,14 @@ impl Simulator {
             let time_cv = self.time_cv.clone();
             let async_api_server = self.async_api_server.clone();
             let handle = thread::spawn(move || {
-                Self::run_one_robot(new_robot, new_max_time, robot_list, i, time_cv, async_api_server)
+                Self::run_one_robot(
+                    new_robot,
+                    new_max_time,
+                    robot_list,
+                    i,
+                    time_cv,
+                    async_api_server,
+                )
             });
             handles.push(handle);
             i += 1;
@@ -635,7 +652,10 @@ impl Simulator {
             let mut robot_open = robot.write().unwrap();
             let (mut next_time, mut read_only) = robot_open.next_time_step();
             if let Some(api) = &async_api_server {
-                api.current_time.lock().unwrap().insert(robot_open.name(), next_time);
+                api.current_time
+                    .lock()
+                    .unwrap()
+                    .insert(robot_open.name(), next_time);
             }
             if next_time > max_time {
                 std::mem::drop(robot_open);
@@ -661,7 +681,15 @@ impl Simulator {
     /// If the [`Simulator`] config disabled the computation of the results, this function
     /// does nothing.
     fn compute_results(&self, results: Vec<Record>, config: &SimulatorConfig) {
-        if self.config.results.is_none() {
+        if self.config.results.is_none()
+            || self
+                .config
+                .results
+                .as_ref()
+                .unwrap()
+                .analyse_script
+                .is_none()
+        {
             return;
         }
         let result_config = self.config.results.clone().unwrap();
@@ -701,7 +729,11 @@ def convert(records):
     return json.loads(records, object_hook=converter)
 "#;
 
-        let script_path = self.config.base_path.as_ref().join(&result_config.analyse_script);
+        let script_path = self
+            .config
+            .base_path
+            .as_ref()
+            .join(&result_config.analyse_script.unwrap());
         let python_script = fs::read_to_string(script_path.clone())
             .expect(format!("File not found: {}", script_path.to_str().unwrap()).as_str());
         let res = Python::with_gil(|py| -> PyResult<()> {
@@ -709,7 +741,8 @@ def convert(records):
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
             let result_dict = convert_fn.call_bound(py, (json_results,), None)?;
             let config_dict = convert_fn.call_bound(py, (json_config,), None)?;
-            let param_dict = convert_fn.call_bound(py, (&result_config.python_params.to_string(),), None)?;
+            let param_dict =
+                convert_fn.call_bound(py, (&result_config.python_params.to_string(),), None)?;
 
             let script = PyModule::from_code_bound(py, &python_script, "", "")?;
             let analyse_fn: Py<PyAny> = script.getattr("analyse")?.into();
@@ -717,7 +750,13 @@ def convert(records):
             let figure_path;
             if let Some(p) = &result_config.figures_path {
                 figure_path = self.config.base_path.as_ref().join(p);
-                fs::create_dir_all(&figure_path).expect(format!("Impossible to create figure directory ({:#?})", &figure_path).as_str());
+                fs::create_dir_all(&figure_path).expect(
+                    format!(
+                        "Impossible to create figure directory ({:#?})",
+                        &figure_path
+                    )
+                    .as_str(),
+                );
             } else {
                 figure_path = PathBuf::new();
             }
@@ -775,7 +814,8 @@ mod tests {
         let mut results: Vec<Vec<Record>> = Vec::new();
 
         for i in 0..nb_replications {
-            let mut simulator = Simulator::from_config_path(Path::new("config_example/config.yaml"), &None);
+            let mut simulator =
+                Simulator::from_config_path(Path::new("config_example/config.yaml"), &None);
 
             simulator.show();
 

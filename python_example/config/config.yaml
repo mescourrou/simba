@@ -1,8 +1,9 @@
-# results:
-#   result_path: "../result.json"
-#   show_figures: true
-#   analyse_script: "../../python_scripts/analyse_results.py"
-#   figures_path: "../figures"
+results:
+  result_path: "../result.json"
+  # Result analysis not yet available with python bindings
+  # show_figures: true
+  # analyse_script: "../../python_scripts/analyse_results.py"
+  # figures_path: "../figures"
 time_analysis:
   exporter: TraceEventExporter
   output_path: "time_performance"

@@ -5,12 +5,15 @@ pub use app::SimbaApp;
 
 use log;
 
-use crate::{plugin_api::{self, PluginAPI}, simulator::Simulator};
+use crate::{
+    plugin_api::{self, PluginAPI},
+    simulator::Simulator,
+};
 
 pub fn run_gui(plugin_api: Option<Box<&'static dyn PluginAPI>>) {
     // Initialize the environment, essentially the logging part
     Simulator::init_environment(log::LevelFilter::Info, Vec::new(), Vec::new());
-        
+
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([400.0, 300.0])
@@ -21,5 +24,6 @@ pub fn run_gui(plugin_api: Option<Box<&'static dyn PluginAPI>>) {
         "SiMBA",
         native_options,
         Box::new(|cc| Box::new(SimbaApp::new(cc, plugin_api))),
-    ).expect("Error during GUI execution");
+    )
+    .expect("Error during GUI execution");
 }

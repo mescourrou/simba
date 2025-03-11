@@ -1,10 +1,23 @@
-use std::{str::FromStr, sync::{mpsc, Arc, Mutex}};
+use std::{
+    str::FromStr,
+    sync::{mpsc, Arc, Mutex},
+};
 
 use log::debug;
 use pyo3::{prelude::*, types::PyTuple};
 use serde_json::Value;
 
-use crate::{robot::Robot, sensors::{gnss_sensor::GNSSObservationRecord, odometry_sensor::OdometryObservationRecord, oriented_landmark_sensor::OrientedLandmarkObservationRecord, robot_sensor::OrientedRobotObservationRecord, sensor::{Observation, ObservationRecord}}, stateful::Stateful};
+use crate::{
+    robot::Robot,
+    sensors::{
+        gnss_sensor::GNSSObservationRecord,
+        odometry_sensor::OdometryObservationRecord,
+        oriented_landmark_sensor::OrientedLandmarkObservationRecord,
+        robot_sensor::OrientedRobotObservationRecord,
+        sensor::{Observation, ObservationRecord},
+    },
+    stateful::Stateful,
+};
 
 use super::{
     external_estimator::ExternalEstimatorRecord,
@@ -46,18 +59,28 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
     }
 
     fn correction_step(&mut self, robot: &mut Robot, observations: &Vec<Observation>, time: f32) {
-        let _ = self.correction_step_request.send((robot.clone(), observations.clone(), time));
+        let _ = self
+            .correction_step_request
+            .send((robot.clone(), observations.clone(), time));
         let _ = self.correction_step_response.lock().unwrap().recv();
     }
 
     fn next_time_step(&self) -> f32 {
         let _ = self.next_time_step_request.send(());
-        self.next_time_step_response.lock().unwrap().recv().expect("Error during call of next_time_step")
+        self.next_time_step_response
+            .lock()
+            .unwrap()
+            .recv()
+            .expect("Error during call of next_time_step")
     }
 
     fn state(&self) -> State {
         let _ = self.state_request.send(());
-        self.state_response.lock().unwrap().recv().expect("Error during call of state")
+        self.state_response
+            .lock()
+            .unwrap()
+            .recv()
+            .expect("Error during call of state")
     }
 }
 
@@ -69,11 +92,13 @@ impl Stateful<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
 
     fn record(&self) -> StateEstimatorRecord {
         let _ = self.record_request.send(());
-        self.record_response.lock().unwrap().recv().expect("Error during call of record")
+        self.record_response
+            .lock()
+            .unwrap()
+            .recv()
+            .expect("Error during call of record")
     }
 }
-
-
 
 #[derive(Debug)]
 #[pyclass]
@@ -113,8 +138,8 @@ impl PythonStateEstimator {
         let (record_response_tx, record_response_rx) = mpsc::channel();
         let (from_record_request_tx, from_record_request_rx) = mpsc::channel();
         let (from_record_response_tx, from_record_response_rx) = mpsc::channel();
-        
-        PythonStateEstimator { 
+
+        PythonStateEstimator {
             model: py_model,
             client: PythonStateEstimatorAsyncClient {
                 prediction_step_request: prediction_request_tx,
@@ -152,18 +177,36 @@ impl PythonStateEstimator {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((robot, time)) = self.prediction_step_request.clone().lock().unwrap().try_recv() {
+        if let Ok((robot, time)) = self
+            .prediction_step_request
+            .clone()
+            .lock()
+            .unwrap()
+            .try_recv()
+        {
             self.prediction_step(&robot, time);
             let _ = self.prediction_step_response.send(());
         }
-        if let Ok((robot, obs, time)) = self.correction_step_request.clone().lock().unwrap().try_recv() {
+        if let Ok((robot, obs, time)) = self
+            .correction_step_request
+            .clone()
+            .lock()
+            .unwrap()
+            .try_recv()
+        {
             self.correction_step(&robot, &obs, time);
             let _ = self.correction_step_response.send(());
         }
         if let Ok(()) = self.state_request.clone().lock().unwrap().try_recv() {
             let _ = self.state_response.send(self.state());
         }
-        if let Ok(()) = self.next_time_step_request.clone().lock().unwrap().try_recv() {
+        if let Ok(()) = self
+            .next_time_step_request
+            .clone()
+            .lock()
+            .unwrap()
+            .try_recv()
+        {
             let _ = self.next_time_step_response.send(self.next_time_step());
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
@@ -176,8 +219,8 @@ impl PythonStateEstimator {
     }
 
     fn prediction_step(&mut self, robot: &crate::robot::Robot, time: f32) {
-        debug!("Calling the pybind implementation of prediction_step");
         debug!("Calling python implementation of prediction_step");
+        // let robot_record = robot.record();
         Python::with_gil(|py| {
             self.model
                 .bind(py)
@@ -192,7 +235,6 @@ impl PythonStateEstimator {
         observations: &Vec<crate::sensors::sensor::Observation>,
         time: f32,
     ) {
-        debug!("Calling the pybind implementation of correction_step");
         debug!("Calling python implementation of correction_step");
         let mut observation_records = Vec::new();
         for obs in observations {
@@ -207,7 +249,6 @@ impl PythonStateEstimator {
     }
 
     fn state(&self) -> State {
-        debug!("Calling the pybind implementation of state");
         debug!("Calling python implementation of state");
         State::from_vector(Python::with_gil(|py| {
             self.model
@@ -220,7 +261,6 @@ impl PythonStateEstimator {
     }
 
     fn next_time_step(&self) -> f32 {
-        debug!("Calling the pybind implementation next_time_step");
         // PythonStateEstimator::next_time_step(self)
         debug!("Calling python implementation of next_time_step");
         let time = Python::with_gil(|py| {
@@ -233,9 +273,8 @@ impl PythonStateEstimator {
         });
         time
     }
-    
+
     fn record(&self) -> StateEstimatorRecord {
-        debug!("Calling the pybind implementation of record");
         debug!("Calling python implementation of record");
         let record_str: String = Python::with_gil(|py| {
             self.model
@@ -245,7 +284,6 @@ impl PythonStateEstimator {
                 .extract()
                 .expect("The 'record' method of PythonStateEstimator does not return a valid EstimatorRecord type")
         });
-        debug!("Out of python record.");
         let record = ExternalEstimatorRecord {
             record: Value::from_str(record_str.as_str()).expect(
                 "Impossible to get serde_json::Value from the input serialized python structure",
