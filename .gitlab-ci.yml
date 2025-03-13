@@ -6,13 +6,32 @@ variables:
 stages:
   - build
 
-# build:
-#   stage: build
-#   image: rust:latest
-#   script:
-#     - cargo build --verbose
-#     - cargo build --all-features --verbose
-#     - cargo test --verbose
+build_rust:
+  only:
+    - master
+  stage: build
+  image: gitlab.laas.fr:4567/mescourrou/simba:latest
+  script:
+    # - cargo build --verbose
+    - cargo build --all-features --verbose --release
+    # - cargo test --verbose
+  artifacts:
+    when: on_success
+    paths:
+      - target/release/*.d
+      - target/release/*.rlib
+  
+build_python:
+  only:
+    - master
+  stage: build
+  image: gitlab.laas.fr:4567/mescourrou/simba:latest
+  script:
+    - maturin build --release
+  artifacts:
+    paths:
+      - target/wheels/
+    when: on_success
 
 doc:
   only:
@@ -21,7 +40,7 @@ doc:
   image: rust:latest
   before_script:
   ## Source: https://docs.gitlab.com/ee/ci/jobs/ssh_keys.html
-    - 'command -v ssh-agent >/dev/null || ( apt-get update -y && apt-get install openssh-client -y )'
+    - command -v ssh-agent >/dev/null
     - eval $(ssh-agent -s)
     - mkdir -p ~/.ssh
     - chmod 700 ~/.ssh
