@@ -35,12 +35,6 @@ cargo doc --no-deps --document-private-items
 The last documentation is available [here](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/index.html).
 
 ## Build
-Initialize git submodules:
-```
-git submodule update --init --recursive
-```
-
-Build:
 ```
 cargo build --all-features
 ```
