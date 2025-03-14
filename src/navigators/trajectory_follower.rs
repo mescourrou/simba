@@ -240,10 +240,7 @@ impl Stateful<NavigatorRecord> for TrajectoryFollower {
 
 #[cfg(test)]
 mod tests {
-    
 
-    
-    
     #[test]
     fn compute_error() {
         // let navigator = TrajectoryFollower {

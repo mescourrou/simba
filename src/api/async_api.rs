@@ -9,7 +9,10 @@ use std::{
 use serde_json::Value;
 
 use crate::{
-    controllers::controller::Controller, plugin_api::PluginAPI, simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig}, state_estimators::state_estimator::StateEstimator
+    controllers::controller::Controller,
+    plugin_api::PluginAPI,
+    simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig},
+    state_estimators::state_estimator::StateEstimator,
 };
 
 // Run by client
@@ -34,7 +37,6 @@ pub struct AsyncApiServer {
     pub run_end: mpsc::Sender<()>,
     pub compute_results: Arc<Mutex<mpsc::Receiver<()>>>,
     pub compute_results_end: mpsc::Sender<()>,
-    
 }
 
 // #[derive(Clone)]
@@ -79,7 +81,6 @@ impl AsyncApiRunner {
                 run_end: run_end_tx,
                 compute_results: Arc::new(Mutex::new(results_rx)),
                 compute_results_end: results_end_tx,
-                
             },
             simulator,
             keep_alive_rx: Arc::new(Mutex::new(keep_alive_rx)),
@@ -147,7 +148,13 @@ impl AsyncApiRunner {
                         .send(())
                         .expect("Error during sending 'end' information");
                 }
-                if private_api.compute_results.lock().unwrap().try_recv().is_ok() {
+                if private_api
+                    .compute_results
+                    .lock()
+                    .unwrap()
+                    .try_recv()
+                    .is_ok()
+                {
                     simulator.compute_results();
                     need_reset = true;
                     private_api
@@ -218,11 +225,7 @@ impl PluginAPI for PluginAsyncAPI {
             .send((config.clone(), global_config.clone()))
             .unwrap();
 
-        self.get_controller_response
-            .lock()
-            .unwrap()
-            .recv()
-            .unwrap()
+        self.get_controller_response.lock().unwrap().recv().unwrap()
     }
 }
 

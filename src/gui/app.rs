@@ -157,11 +157,7 @@ impl eframe::App for SimbaApp {
                 .clicked()
             {
                 log::info!("Analysing results");
-                self.p
-                    .api
-                    .compute_results
-                    .send(())
-                    .unwrap();
+                self.p.api.compute_results.send(()).unwrap();
             }
 
             ui.separator();

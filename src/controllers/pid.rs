@@ -216,7 +216,6 @@ impl Stateful<ControllerRecord> for PID {
     }
     #[allow(irrefutable_let_patterns)]
     fn from_record(&mut self, record: ControllerRecord) {
-        
         if let ControllerRecord::PID(pid_record) = record {
             self.current_record = pid_record.clone();
             self.v_integral = pid_record.v_integral;

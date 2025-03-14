@@ -10,8 +10,7 @@ use crate::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
         },
         distributions::{
-            poisson::PoissonRandomVariableConfig,
-            uniform::UniformRandomVariableConfig,
+            poisson::PoissonRandomVariableConfig, uniform::UniformRandomVariableConfig,
         },
         geometry::mod2pi,
     },

@@ -54,15 +54,25 @@ pub struct PythonStateEstimatorAsyncClient {
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
     fn prediction_step(&mut self, robot: &mut Robot, time: f32) {
-        self.prediction_step_request.send((robot.clone(), time)).unwrap();
-        self.prediction_step_response.lock().unwrap().recv().unwrap();
+        self.prediction_step_request
+            .send((robot.clone(), time))
+            .unwrap();
+        self.prediction_step_response
+            .lock()
+            .unwrap()
+            .recv()
+            .unwrap();
     }
 
     fn correction_step(&mut self, robot: &mut Robot, observations: &Vec<Observation>, time: f32) {
-        self
-            .correction_step_request
-            .send((robot.clone(), observations.clone(), time)).unwrap();
-        self.correction_step_response.lock().unwrap().recv().unwrap();
+        self.correction_step_request
+            .send((robot.clone(), observations.clone(), time))
+            .unwrap();
+        self.correction_step_response
+            .lock()
+            .unwrap()
+            .recv()
+            .unwrap();
     }
 
     fn next_time_step(&self) -> f32 {
@@ -207,7 +217,9 @@ impl PythonStateEstimator {
             .unwrap()
             .try_recv()
         {
-            self.next_time_step_response.send(self.next_time_step()).unwrap();
+            self.next_time_step_response
+                .send(self.next_time_step())
+                .unwrap();
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
             self.record_response.send(self.record()).unwrap();

@@ -5,10 +5,7 @@ pub use app::SimbaApp;
 
 use log;
 
-use crate::{
-    plugin_api::PluginAPI,
-    simulator::Simulator,
-};
+use crate::{plugin_api::PluginAPI, simulator::Simulator};
 
 pub fn run_gui(plugin_api: Option<Box<&'static dyn PluginAPI>>) {
     // Initialize the environment, essentially the logging part

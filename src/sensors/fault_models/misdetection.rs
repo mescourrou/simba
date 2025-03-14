@@ -2,7 +2,6 @@
 //!
 //! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
 
-
 use config_checker::macros::Check;
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -13,7 +12,9 @@ use crate::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory,
         },
-        distributions::bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
+        distributions::bernouilli::{
+            BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable,
+        },
     },
 };
 

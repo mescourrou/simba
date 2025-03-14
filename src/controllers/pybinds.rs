@@ -8,11 +8,11 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    controllers::external_controller::ExternalControllerRecord, physics::physic::Command, robot::Robot, stateful::Stateful
+    controllers::external_controller::ExternalControllerRecord, physics::physic::Command,
+    robot::Robot, stateful::Stateful,
 };
 
 use super::controller::{Controller, ControllerError, ControllerRecord};
-
 
 pub fn make_controllers_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let module = PyModule::new_bound(m.py(), "controllers")?;
@@ -34,7 +34,9 @@ pub struct PythonControllerAsyncClient {
 
 impl Controller for PythonControllerAsyncClient {
     fn make_command(&mut self, robot: &mut Robot, error: &ControllerError, time: f32) -> Command {
-        self.make_command_request.send((robot.clone(), error.clone(), time)).unwrap();
+        self.make_command_request
+            .send((robot.clone(), error.clone(), time))
+            .unwrap();
         self.make_command_response.lock().unwrap().recv().unwrap()
     }
 }
@@ -108,12 +110,8 @@ impl PythonController {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((robot, error, time)) = self
-            .make_command_request
-            .clone()
-            .lock()
-            .unwrap()
-            .try_recv()
+        if let Ok((robot, error, time)) =
+            self.make_command_request.clone().lock().unwrap().try_recv()
         {
             let command = self.make_command(&robot, error, time);
             self.make_command_response.send(command).unwrap();
@@ -127,17 +125,22 @@ impl PythonController {
         }
     }
 
-    fn make_command(&mut self, _robot: &crate::robot::Robot, error: ControllerError, time: f32) -> Command {
+    fn make_command(
+        &mut self,
+        _robot: &crate::robot::Robot,
+        error: ControllerError,
+        time: f32,
+    ) -> Command {
         debug!("Calling python implementation of make_command");
         // let robot_record = robot.record();
-        let result = Python::with_gil(|py| -> PyResult<Command>{
+        let result = Python::with_gil(|py| -> PyResult<Command> {
             self.model
                 .bind(py)
                 .call_method("make_command", (error, time), None)
-                .expect("PythonController does not have a correct 'make_command' method").extract()
+                .expect("PythonController does not have a correct 'make_command' method")
+                .extract()
         });
         result.expect("Error during the call of Python implementation of 'make_command'")
-        
     }
 
     fn record(&self) -> ControllerRecord {

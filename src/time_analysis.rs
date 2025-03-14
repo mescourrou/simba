@@ -16,8 +16,10 @@ use log::info;
 use std::collections::HashMap;
 #[cfg(feature = "time-analysis")]
 use std::thread;
-use std::{path::Path, time::{self, Duration}};
-
+use std::{
+    path::Path,
+    time::{self, Duration},
+};
 
 #[cfg(feature = "time-analysis")]
 #[allow(dead_code)]

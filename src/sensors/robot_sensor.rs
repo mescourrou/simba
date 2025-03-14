@@ -360,7 +360,6 @@ impl Sensor for RobotSensor {
         debug!("Rotation matrix: {}", rotation_matrix);
 
         for (other_robot_name, service) in self.robot_real_state_services.iter_mut() {
-
             debug!("Sensing robot {}", other_robot_name);
             assert!(*other_robot_name != robot.name());
 

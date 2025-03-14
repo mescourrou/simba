@@ -182,12 +182,11 @@ impl Network {
         let emitter_option = self.other_emitters.get(&recipient);
         if let Some(emitter) = emitter_option {
             let _lk = self.time_cv.0.lock().unwrap();
-            emitter.lock().unwrap().send((
-                self.from.clone(),
-                message,
-                time,
-                message_flags.clone(),
-            )).unwrap();
+            emitter
+                .lock()
+                .unwrap()
+                .send((self.from.clone(), message, time, message_flags.clone()))
+                .unwrap();
             self.time_cv.1.notify_all();
         }
     }
@@ -199,12 +198,16 @@ impl Network {
                 continue;
             }
             let _lk = self.time_cv.0.lock().unwrap();
-            emitter.lock().unwrap().send((
-                self.from.clone(),
-                message.clone(),
-                time,
-                message_flags.clone(),
-            )).unwrap();
+            emitter
+                .lock()
+                .unwrap()
+                .send((
+                    self.from.clone(),
+                    message.clone(),
+                    time,
+                    message_flags.clone(),
+                ))
+                .unwrap();
             self.time_cv.1.notify_all();
         }
     }

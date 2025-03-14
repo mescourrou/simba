@@ -3,10 +3,17 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{controller::Controller, pybinds::{make_controllers_module, PythonController}}, plugin_api::PluginAPI, simulator::{Record, Simulator, SimulatorConfig}, state_estimators::{
+    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
+    controllers::{
+        controller::Controller,
+        pybinds::{make_controllers_module, PythonController},
+    },
+    plugin_api::PluginAPI,
+    simulator::{Record, Simulator, SimulatorConfig},
+    state_estimators::{
         pybinds::{make_state_estimators_module, PythonStateEstimator},
         state_estimator::StateEstimator,
-    }
+    },
 };
 use std::sync::{Arc, Mutex};
 
@@ -76,7 +83,14 @@ impl SimulatorWrapper {
         if let Some(unwrapped_async_api) = &wrapper.async_plugin_api {
             let api_client = &unwrapped_async_api.client;
             let python_api = plugin_api.as_mut().unwrap();
-            while wrapper.api.load_config_end.lock().unwrap().try_recv().is_err() {
+            while wrapper
+                .api
+                .load_config_end
+                .lock()
+                .unwrap()
+                .try_recv()
+                .is_err()
+            {
                 if let Ok((config, simulator_config)) = api_client
                     .get_state_estimator_request
                     .lock()
@@ -87,19 +101,14 @@ impl SimulatorWrapper {
                         python_api.get_state_estimator(&config, &simulator_config);
                     api_client
                         .get_state_estimator_response
-                        .send(state_estimator).unwrap();
+                        .send(state_estimator)
+                        .unwrap();
                 }
-                if let Ok((config, simulator_config)) = api_client
-                    .get_controller_request
-                    .lock()
-                    .unwrap()
-                    .try_recv()
+                if let Ok((config, simulator_config)) =
+                    api_client.get_controller_request.lock().unwrap().try_recv()
                 {
-                    let controller =
-                        python_api.get_controller(&config, &simulator_config);
-                    api_client
-                        .get_controller_response
-                        .send(controller).unwrap();
+                    let controller = python_api.get_controller(&config, &simulator_config);
+                    api_client.get_controller_response.send(controller).unwrap();
                 }
                 python_api.check_requests();
             }
@@ -136,7 +145,13 @@ impl SimulatorWrapper {
         // Stop server thread
         self.server.lock().unwrap().stop();
         // Calling directly the simulator to keep python in one thread
-        self.server.lock().unwrap().get_simulator().lock().unwrap().compute_results();
+        self.server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .compute_results();
     }
 }
 

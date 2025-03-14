@@ -6,8 +6,7 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    sensors::sensor::Observation,
-    simulator::SimulatorConfig,
+    sensors::sensor::Observation, simulator::SimulatorConfig,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 

@@ -45,7 +45,10 @@ fn main() {
 ```
 */
 
-use crate::{controllers::controller::Controller, simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator};
+use crate::{
+    controllers::controller::Controller, simulator::SimulatorConfig,
+    state_estimators::state_estimator::StateEstimator,
+};
 
 use serde_json::Value;
 
