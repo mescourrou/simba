@@ -45,7 +45,7 @@ fn main() {
 ```
 */
 
-use crate::{simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator};
+use crate::{controllers::controller::Controller, simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator};
 
 use serde_json::Value;
 
@@ -66,7 +66,30 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the StateEstimator to use.
     fn get_state_estimator(
         &self,
-        config: &Value,
-        global_config: &SimulatorConfig,
-    ) -> Box<dyn StateEstimator>;
+        _config: &Value,
+        _global_config: &SimulatorConfig,
+    ) -> Box<dyn StateEstimator> {
+        panic!("The given PluginAPI does not provide a state estimator");
+    }
+
+    /// Return the [`StateEstimator`] to be used by the
+    /// [`ExternalEstimator`](`crate::state_estimators::external_estimator::ExternalEstimator`).
+    ///
+    /// # Arguments
+    /// * `config` - Config for the external state estimator. The configuration
+    /// is given using [`serde_json::Value`]. It should be converted by the
+    /// external plugin to the specific configuration.
+    /// * `meta_config` - Meta configuration of the simulator, containing
+    /// information on the simulator itself (see [`SimulatorMetaConfig`]).
+    ///
+    /// # Return
+    ///
+    /// Returns the StateEstimator to use.
+    fn get_controller(
+        &self,
+        _config: &Value,
+        _global_config: &SimulatorConfig,
+    ) -> Box<dyn Controller> {
+        panic!("The given PluginAPI does not provide a controller");
+    }
 }

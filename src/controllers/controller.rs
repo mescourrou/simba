@@ -35,13 +35,14 @@ impl ControllerError {
     }
 }
 
-use super::pid;
+use super::{external_controller, pid};
 
 /// Enumerates the strategies configurations.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(deny_unknown_fields)]
 pub enum ControllerConfig {
     PID(Box<pid::PIDConfig>),
+    External(Box<external_controller::ExternalControllerConfig>),
 }
 
 /// Enumerates the strategies records.
@@ -49,6 +50,7 @@ pub enum ControllerConfig {
 #[pyclass(get_all)]
 pub enum ControllerRecord {
     PID(pid::PIDRecord),
+    External(external_controller::ExternalControllerRecord),
 }
 
 use crate::robot::Robot;
@@ -83,7 +85,8 @@ pub fn make_controller_from_config(
     global_config: &SimulatorConfig,
     va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn Controller>>> {
-    Arc::new(RwLock::new(Box::new(match config {
-        ControllerConfig::PID(c) => pid::PID::from_config(c, plugin_api, global_config, va_factory),
-    })))
+    Arc::new(RwLock::new(match config {
+        ControllerConfig::PID(c) => Box::new(pid::PID::from_config(c, plugin_api, global_config, va_factory)) as Box<dyn Controller>,
+        ControllerConfig::External(c) => Box::new(external_controller::ExternalController::from_config(c, plugin_api, global_config, va_factory)) as Box<dyn Controller>,
+    }))
 }
