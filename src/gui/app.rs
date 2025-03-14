@@ -152,6 +152,17 @@ impl eframe::App for SimbaApp {
                     }
                 })
             });
+            if ui
+                .add_enabled(self.p.config_loaded, egui::Button::new("Results"))
+                .clicked()
+            {
+                log::info!("Analysing results");
+                self.p
+                    .api
+                    .compute_results
+                    .send(())
+                    .unwrap();
+            }
 
             ui.separator();
 

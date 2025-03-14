@@ -18,16 +18,23 @@ pub struct AsyncApi {
     pub simulator_api: Arc<SimulatorAsyncApi>,
     // Channels
     pub load_config: mpsc::Sender<String>,
+    pub load_config_end: Arc<Mutex<mpsc::Receiver<()>>>,
     pub run: mpsc::Sender<Option<f32>>,
-    pub ended: Arc<Mutex<mpsc::Receiver<()>>>,
+    pub run_end: Arc<Mutex<mpsc::Receiver<()>>>,
+    pub compute_results: mpsc::Sender<()>,
+    pub compute_results_end: Arc<Mutex<mpsc::Receiver<()>>>,
 }
 
 // Run by the simulator
 #[derive(Clone)]
 pub struct AsyncApiServer {
     pub load_config: Arc<Mutex<mpsc::Receiver<String>>>,
+    pub load_config_end: mpsc::Sender<()>,
     pub run: Arc<Mutex<mpsc::Receiver<Option<f32>>>>,
-    pub ended: mpsc::Sender<()>,
+    pub run_end: mpsc::Sender<()>,
+    pub compute_results: Arc<Mutex<mpsc::Receiver<()>>>,
+    pub compute_results_end: mpsc::Sender<()>,
+    
 }
 
 // #[derive(Clone)]
@@ -48,21 +55,31 @@ impl AsyncApiRunner {
 
     pub fn new_with_simulator(simulator: Arc<Mutex<Simulator>>) -> Self {
         let (load_config_tx, load_config_rx) = mpsc::channel();
+        let (load_config_end_tx, load_config_end_rx) = mpsc::channel();
         let (run_tx, run_rx) = mpsc::channel();
+        let (run_end_tx, run_end_rx) = mpsc::channel();
+        let (results_tx, results_rx) = mpsc::channel();
+        let (results_end_tx, results_end_rx) = mpsc::channel();
         let (keep_alive_tx, keep_alive_rx) = mpsc::channel();
-        let (ended_tx, ended_rx) = mpsc::channel();
         let simulator_api = simulator.lock().unwrap().get_async_api();
         Self {
             public_api: AsyncApi {
                 simulator_api,
                 load_config: load_config_tx,
+                load_config_end: Arc::new(Mutex::new(load_config_end_rx)),
                 run: run_tx,
-                ended: Arc::new(Mutex::new(ended_rx)),
+                run_end: Arc::new(Mutex::new(run_end_rx)),
+                compute_results: results_tx,
+                compute_results_end: Arc::new(Mutex::new(results_end_rx)),
             },
             private_api: AsyncApiServer {
                 load_config: Arc::new(Mutex::new(load_config_rx)),
+                load_config_end: load_config_end_tx,
                 run: Arc::new(Mutex::new(run_rx)),
-                ended: ended_tx,
+                run_end: run_end_tx,
+                compute_results: Arc::new(Mutex::new(results_rx)),
+                compute_results_end: results_end_tx,
+                
             },
             simulator,
             keep_alive_rx: Arc::new(Mutex::new(keep_alive_rx)),
@@ -73,6 +90,10 @@ impl AsyncApiRunner {
 
     pub fn get_api(&self) -> AsyncApi {
         self.public_api.clone()
+    }
+
+    pub fn get_simulator(&self) -> Arc<Mutex<Simulator>> {
+        self.simulator.clone()
     }
 
     pub fn stop(&mut self) {
@@ -110,7 +131,7 @@ impl AsyncApiRunner {
                     let path = Path::new(&config_path);
                     simulator.load_config_path(path, &plugin_api);
                     println!("End loading");
-                    private_api.ended.send(()).unwrap();
+                    private_api.load_config_end.send(()).unwrap();
                 }
                 if let Ok(max_time) = private_api.run.lock().unwrap().try_recv() {
                     if need_reset {
@@ -122,7 +143,15 @@ impl AsyncApiRunner {
                     simulator.run();
                     need_reset = true;
                     private_api
-                        .ended
+                        .run_end
+                        .send(())
+                        .expect("Error during sending 'end' information");
+                }
+                if private_api.compute_results.lock().unwrap().try_recv().is_ok() {
+                    simulator.compute_results();
+                    need_reset = true;
+                    private_api
+                        .compute_results_end
                         .send(())
                         .expect("Error during sending 'end' information");
                 }

@@ -3,7 +3,6 @@
 import simba
 import json
 from simba import controllers
-import IPython
 
 class Controller:
     def __init__(self, config):

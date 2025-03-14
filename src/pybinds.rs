@@ -76,7 +76,7 @@ impl SimulatorWrapper {
         if let Some(unwrapped_async_api) = &wrapper.async_plugin_api {
             let api_client = &unwrapped_async_api.client;
             let python_api = plugin_api.as_mut().unwrap();
-            while wrapper.api.ended.lock().unwrap().try_recv().is_err() {
+            while wrapper.api.load_config_end.lock().unwrap().try_recv().is_err() {
                 if let Ok((config, simulator_config)) = api_client
                     .get_state_estimator_request
                     .lock()
@@ -104,7 +104,7 @@ impl SimulatorWrapper {
                 python_api.check_requests();
             }
         } else {
-            wrapper.api.ended.lock().unwrap().recv().unwrap();
+            wrapper.api.load_config_end.lock().unwrap().recv().unwrap();
         }
 
         wrapper
@@ -117,23 +117,26 @@ impl SimulatorWrapper {
             .send(None)
             .expect("Error while sending 'run' request");
         if plugin_api.is_none() && self.async_plugin_api.is_some() {
-            panic!("Please provide the plugin api for running too");
+            panic!("Please provide the plugin api for 'run' call if used for config");
         }
         if let Some(python_api) = plugin_api {
-            while self.api.ended.lock().unwrap().try_recv().is_err() {
+            while self.api.run_end.lock().unwrap().try_recv().is_err() {
                 python_api.check_requests();
                 if Python::with_gil(|py| py.check_signals()).is_err() {
                     break;
                 }
             }
         } else {
-            while self.api.ended.lock().unwrap().try_recv().is_err() {
+            while self.api.run_end.lock().unwrap().try_recv().is_err() {
                 if Python::with_gil(|py| py.check_signals()).is_err() {
                     break;
                 }
             }
         }
+        // Stop server thread
         self.server.lock().unwrap().stop();
+        // Calling directly the simulator to keep python in one thread
+        self.server.lock().unwrap().get_simulator().lock().unwrap().compute_results();
     }
 }
 

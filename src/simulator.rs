@@ -493,8 +493,6 @@ impl Simulator {
         }
 
         self.save_results();
-        let results = self.get_results();
-        self.compute_results(results, &self.config);
     }
 
     /// Returns the list of all [`Record`]s produced by [`Simulator::run`].
@@ -572,7 +570,7 @@ impl Simulator {
 
         let results: Results = serde_json::from_str(&content).expect("Error during json parsing");
 
-        self.compute_results(results.records, &results.config);
+        self._compute_results(results.records, &results.config);
     }
 
     /// Wait the end of the simulation. If other robot send messages, the simulation
@@ -673,11 +671,16 @@ impl Simulator {
         }
     }
 
+    pub fn compute_results(&self) {
+        let results = self.get_results();
+        self._compute_results(results, &self.config);
+    }
+
     /// Compute the results from the file where it was saved before.
     ///
     /// If the [`Simulator`] config disabled the computation of the results, this function
     /// does nothing.
-    fn compute_results(&self, results: Vec<Record>, config: &SimulatorConfig) {
+    fn _compute_results(&self, results: Vec<Record>, config: &SimulatorConfig) {
         if self.config.results.is_none()
             || self
                 .config
