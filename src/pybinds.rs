@@ -3,13 +3,10 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
-    plugin_api::{PluginAPI},
-    simulator::{Record, Simulator, SimulatorConfig},
-    state_estimators::{
-        pybinds::{make_state_estimator_module, PythonStateEstimator},
+    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{controller::Controller, pybinds::{make_controllers_module, PythonController}}, plugin_api::PluginAPI, simulator::{Record, Simulator, SimulatorConfig}, state_estimators::{
+        pybinds::{make_state_estimators_module, PythonStateEstimator},
         state_estimator::StateEstimator,
-    },
+    }
 };
 use std::sync::{Arc, Mutex};
 
@@ -17,7 +14,8 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SimulatorWrapper>()?;
     m.add_class::<PythonAPI>()?;
     m.add_class::<Record>()?;
-    make_state_estimator_module(m)?;
+    make_state_estimators_module(m)?;
+    make_controllers_module(m)?;
     Ok(())
 }
 
@@ -91,6 +89,18 @@ impl SimulatorWrapper {
                         .get_state_estimator_response
                         .send(state_estimator).unwrap();
                 }
+                if let Ok((config, simulator_config)) = api_client
+                    .get_controller_request
+                    .lock()
+                    .unwrap()
+                    .try_recv()
+                {
+                    let controller =
+                        python_api.get_controller(&config, &simulator_config);
+                    api_client
+                        .get_controller_response
+                        .send(controller).unwrap();
+                }
                 python_api.check_requests();
             }
         } else {
@@ -132,6 +142,7 @@ impl SimulatorWrapper {
 pub struct PythonAPI {
     api: Py<PyAny>,
     state_estimators: Vec<PythonStateEstimator>,
+    controllers: Vec<PythonController>,
 }
 
 #[pymethods]
@@ -141,6 +152,7 @@ impl PythonAPI {
         PythonAPI {
             api: m,
             state_estimators: Vec::new(),
+            controllers: Vec::new(),
         }
     }
 }
@@ -149,6 +161,9 @@ impl PythonAPI {
     pub fn check_requests(&mut self) {
         for state_estimator in &mut self.state_estimators {
             state_estimator.check_requests();
+        }
+        for controller in &mut self.controllers {
+            controller.check_requests();
         }
     }
 
@@ -176,6 +191,34 @@ impl PythonAPI {
                     .expect("Expecting function return of PythonStateEstimator but failed")
             })));
         let st = Box::new(self.state_estimators.last().unwrap().get_client());
+        debug!("Got api {:?}", st);
+        st
+    }
+
+    pub fn get_controller(
+        &mut self,
+        config: &Value,
+        global_config: &SimulatorConfig,
+    ) -> Box<dyn Controller> {
+        println!("Calling Python API");
+        self.controllers
+            .push(PythonController::new(Python::with_gil(|py| {
+                self.api
+                    .bind(py)
+                    .call_method(
+                        "get_controller",
+                        (
+                            config.to_string(),
+                            serde_json::to_string(global_config)
+                                .expect("Failed to serialize global_config"),
+                        ),
+                        None,
+                    )
+                    .expect("Error during execution of python method 'get_state_estimator'")
+                    .extract()
+                    .expect("Expecting function return of PythonStateEstimator but failed")
+            })));
+        let st = Box::new(self.controllers.last().unwrap().get_client());
         debug!("Got api {:?}", st);
         st
     }

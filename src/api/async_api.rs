@@ -9,9 +9,7 @@ use std::{
 use serde_json::Value;
 
 use crate::{
-    plugin_api::{PluginAPI},
-    simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig},
-    state_estimators::state_estimator::StateEstimator,
+    controllers::controller::Controller, plugin_api::PluginAPI, simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig}, state_estimators::state_estimator::StateEstimator
 };
 
 // Run by client
@@ -139,20 +137,28 @@ pub struct PluginAsyncAPI {
     pub client: PluginAsyncAPIClient,
     pub get_state_estimator_request: mpsc::Sender<(Value, SimulatorConfig)>,
     pub get_state_estimator_response: Arc<Mutex<mpsc::Receiver<Box<dyn StateEstimator>>>>,
+    pub get_controller_request: mpsc::Sender<(Value, SimulatorConfig)>,
+    pub get_controller_response: Arc<Mutex<mpsc::Receiver<Box<dyn Controller>>>>,
 }
 
 impl PluginAsyncAPI {
     pub fn new() -> PluginAsyncAPI {
         let (get_state_estimator_request_tx, get_state_estimator_request_rx) = mpsc::channel();
         let (get_state_estimator_respose_tx, get_state_estimator_respose_rx) = mpsc::channel();
+        let (get_controller_request_tx, get_controller_request_rx) = mpsc::channel();
+        let (get_controller_respose_tx, get_controller_respose_rx) = mpsc::channel();
 
         PluginAsyncAPI {
             client: PluginAsyncAPIClient {
                 get_state_estimator_request: Arc::new(Mutex::new(get_state_estimator_request_rx)),
                 get_state_estimator_response: get_state_estimator_respose_tx,
+                get_controller_request: Arc::new(Mutex::new(get_controller_request_rx)),
+                get_controller_response: get_controller_respose_tx,
             },
             get_state_estimator_request: get_state_estimator_request_tx,
             get_state_estimator_response: Arc::new(Mutex::new(get_state_estimator_respose_rx)),
+            get_controller_request: get_controller_request_tx,
+            get_controller_response: Arc::new(Mutex::new(get_controller_respose_rx)),
         }
     }
 }
@@ -173,10 +179,28 @@ impl PluginAPI for PluginAsyncAPI {
             .recv()
             .unwrap()
     }
+
+    fn get_controller(
+        &self,
+        config: &Value,
+        global_config: &SimulatorConfig,
+    ) -> Box<dyn Controller> {
+        self.get_controller_request
+            .send((config.clone(), global_config.clone()))
+            .unwrap();
+
+        self.get_controller_response
+            .lock()
+            .unwrap()
+            .recv()
+            .unwrap()
+    }
 }
 
 #[derive(Clone)]
 pub struct PluginAsyncAPIClient {
     pub get_state_estimator_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
     pub get_state_estimator_response: mpsc::Sender<Box<dyn StateEstimator>>,
+    pub get_controller_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
+    pub get_controller_response: mpsc::Sender<Box<dyn Controller>>,
 }

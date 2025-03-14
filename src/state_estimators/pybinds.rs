@@ -24,7 +24,7 @@ use super::{
     state_estimator::{State, StateEstimator, StateEstimatorRecord},
 };
 
-pub fn make_state_estimator_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn make_state_estimators_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let module = PyModule::new_bound(m.py(), "state_estimators")?;
 
     module.add_class::<PythonStateEstimator>()?;
