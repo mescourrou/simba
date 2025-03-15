@@ -20,7 +20,7 @@ Here is a list of available and considered features. The order is not a priority
 - [X] More complex noise addition (+ faults)
 - [X] Simple Graphical User Interface
 - [ ] Advanced Graphical User Interface (real time + replay)
-- [ ] Extend PluginAPI to controller, navigators, physics and sensors
+- [ ] Extend PluginAPI to navigators, physics and sensors
 
 ## Cargo Features:
 - "time-analysis": enable time analysis features (with performance report compatible with [https://profiler.firefox.com/](https://profiler.firefox.com/)). May slow down the simulation (shared memory).

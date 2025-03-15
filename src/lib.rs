@@ -5,6 +5,8 @@ This crate provides a multi-robots simulator where each robot is executed in a s
 The time is not linear, the simulator jump to the next time step as soon as possible, letting
 the possibility to run faster than time, but also to take more time if needed.
 
+All the simulator execution is based on the configuration file given. The configuration documentation is available below.
+
 The simulator is modular and external modules can be used (through the [`plugin_api`]). There
 are three main components:
 - The [`physics`] module manages the real state of the robot. An external can be a real robot,
@@ -51,6 +53,8 @@ fn main() {
 
 
 */
+
+#![doc = include_str!("../doc/config_documentation.md")]
 
 use pyo3::prelude::*;
 

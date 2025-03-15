@@ -106,6 +106,7 @@ impl Default for ResultConfig {
 ///     - RobotConfig 2
 /// ```
 ///
+/// 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
