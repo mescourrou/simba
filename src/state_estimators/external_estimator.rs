@@ -112,7 +112,8 @@ impl ExternalEstimator {
     ///  ## Arguments
     /// * `config` -- Scenario config of the External estimator.
     /// * `plugin_api` -- Required [`PluginAPI`] implementation.
-    /// * `meta_config` -- Simulator config.
+    /// * `global_config` -- Simulator config.
+    /// * `_va_factory` -- Factory for Determinists random variables.
     pub fn from_config(
         config: &ExternalEstimatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,

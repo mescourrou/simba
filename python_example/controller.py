@@ -23,7 +23,6 @@ class Controller:
         self.last_time = record["last_time"]
 
     def make_command(self, error, time) -> controllers.Command:
-        print("Returning next time step from python")
         self.last_time = time
         command = controllers.Command()
         command.left_wheel_speed = self.speed

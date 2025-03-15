@@ -8,6 +8,10 @@ use crate::{
         controller::Controller,
         pybinds::{make_controllers_module, PythonController},
     },
+    navigators::{
+        navigator::Navigator,
+        pybinds::{make_navigators_module, PythonNavigator},
+    },
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorConfig},
     state_estimators::{
@@ -23,6 +27,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Record>()?;
     make_state_estimators_module(m)?;
     make_controllers_module(m)?;
+    make_navigators_module(m)?;
     Ok(())
 }
 
@@ -110,6 +115,12 @@ impl SimulatorWrapper {
                     let controller = python_api.get_controller(&config, &simulator_config);
                     api_client.get_controller_response.send(controller).unwrap();
                 }
+                if let Ok((config, simulator_config)) =
+                    api_client.get_navigator_request.lock().unwrap().try_recv()
+                {
+                    let navigator = python_api.get_navigator(&config, &simulator_config);
+                    api_client.get_navigator_response.send(navigator).unwrap();
+                }
                 python_api.check_requests();
             }
         } else {
@@ -161,6 +172,7 @@ pub struct PythonAPI {
     api: Py<PyAny>,
     state_estimators: Vec<PythonStateEstimator>,
     controllers: Vec<PythonController>,
+    navigators: Vec<PythonNavigator>,
 }
 
 #[pymethods]
@@ -171,6 +183,7 @@ impl PythonAPI {
             api: m,
             state_estimators: Vec::new(),
             controllers: Vec::new(),
+            navigators: Vec::new(),
         }
     }
 }
@@ -182,6 +195,9 @@ impl PythonAPI {
         }
         for controller in &mut self.controllers {
             controller.check_requests();
+        }
+        for navigator in &mut self.navigators {
+            navigator.check_requests();
         }
     }
 
@@ -232,11 +248,39 @@ impl PythonAPI {
                         ),
                         None,
                     )
-                    .expect("Error during execution of python method 'get_state_estimator'")
+                    .expect("Error during execution of python method 'get_controller'")
                     .extract()
-                    .expect("Expecting function return of PythonStateEstimator but failed")
+                    .expect("Expecting function return of PythonController but failed")
             })));
         let st = Box::new(self.controllers.last().unwrap().get_client());
+        debug!("Got api {:?}", st);
+        st
+    }
+
+    pub fn get_navigator(
+        &mut self,
+        config: &Value,
+        global_config: &SimulatorConfig,
+    ) -> Box<dyn Navigator> {
+        println!("Calling Python API");
+        self.navigators
+            .push(PythonNavigator::new(Python::with_gil(|py| {
+                self.api
+                    .bind(py)
+                    .call_method(
+                        "get_navigator",
+                        (
+                            config.to_string(),
+                            serde_json::to_string(global_config)
+                                .expect("Failed to serialize global_config"),
+                        ),
+                        None,
+                    )
+                    .expect("Error during execution of python method 'get_navigator'")
+                    .extract()
+                    .expect("Expecting function return of Python?avigator but failed")
+            })));
+        let st = Box::new(self.navigators.last().unwrap().get_client());
         debug!("Got api {:?}", st);
         st
     }

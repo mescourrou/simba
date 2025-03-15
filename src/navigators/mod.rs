@@ -8,3 +8,7 @@ This module also propose a implemented strategy, [`trajectory_follower`].
 pub mod navigator;
 pub mod trajectory;
 pub mod trajectory_follower;
+
+pub mod external_navigator;
+
+pub mod pybinds;

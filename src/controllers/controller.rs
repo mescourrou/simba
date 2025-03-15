@@ -10,12 +10,12 @@ use std::sync::{Arc, RwLock};
 use crate::{physics::physic::Command, plugin_api::PluginAPI, simulator::SimulatorConfig};
 
 use config_checker::macros::Check;
-use pyo3::pyclass;
+use pyo3::{pyclass, pymethods};
 use serde_derive::{Deserialize, Serialize};
 
 /// Errors used by the controllers: lateral, orientation and velocity.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
+#[pyclass(get_all, set_all)]
 pub struct ControllerError {
     /// Lateral error.
     pub lateral: f32,
@@ -27,6 +27,18 @@ pub struct ControllerError {
 
 impl ControllerError {
     pub fn default() -> Self {
+        Self {
+            lateral: 0.,
+            theta: 0.,
+            velocity: 0.,
+        }
+    }
+}
+
+#[pymethods]
+impl ControllerError {
+    #[new]
+    pub fn new() -> Self {
         Self {
             lateral: 0.,
             theta: 0.,

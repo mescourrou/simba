@@ -9,7 +9,7 @@ use config_checker::macros::Check;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
-use super::trajectory_follower;
+use super::{external_navigator, trajectory_follower};
 
 use crate::controllers::controller::ControllerError;
 use crate::plugin_api::PluginAPI;
@@ -21,6 +21,7 @@ use crate::state_estimators::state_estimator::State;
 #[serde(deny_unknown_fields)]
 pub enum NavigatorConfig {
     TrajectoryFollower(Box<trajectory_follower::TrajectoryFollowerConfig>),
+    External(Box<external_navigator::ExternalNavigatorConfig>),
 }
 
 /// Enumeration of the record of the different strategies.
@@ -28,6 +29,7 @@ pub enum NavigatorConfig {
 #[pyclass(get_all)]
 pub enum NavigatorRecord {
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerRecord),
+    External(external_navigator::ExternalNavigatorRecord),
 }
 
 use crate::robot::Robot;
@@ -55,14 +57,22 @@ pub fn make_navigator_from_config(
     global_config: &SimulatorConfig,
     va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn Navigator>>> {
-    Arc::new(RwLock::new(Box::new(match config {
+    Arc::new(RwLock::new(match config {
         NavigatorConfig::TrajectoryFollower(c) => {
-            trajectory_follower::TrajectoryFollower::from_config(
+            Box::new(trajectory_follower::TrajectoryFollower::from_config(
                 c,
                 plugin_api,
                 global_config,
                 va_factory,
-            )
+            )) as Box<dyn Navigator>
         }
-    })))
+        NavigatorConfig::External(c) => {
+            Box::new(external_navigator::ExternalNavigator::from_config(
+                c,
+                plugin_api,
+                global_config,
+                va_factory,
+            )) as Box<dyn Navigator>
+        }
+    }))
 }

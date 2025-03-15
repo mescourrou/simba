@@ -10,6 +10,7 @@ use serde_json::Value;
 
 use crate::{
     controllers::controller::Controller,
+    navigators::navigator::Navigator,
     plugin_api::PluginAPI,
     simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::state_estimator::StateEstimator,
@@ -175,6 +176,8 @@ pub struct PluginAsyncAPI {
     pub get_state_estimator_response: Arc<Mutex<mpsc::Receiver<Box<dyn StateEstimator>>>>,
     pub get_controller_request: mpsc::Sender<(Value, SimulatorConfig)>,
     pub get_controller_response: Arc<Mutex<mpsc::Receiver<Box<dyn Controller>>>>,
+    pub get_navigator_request: mpsc::Sender<(Value, SimulatorConfig)>,
+    pub get_navigator_response: Arc<Mutex<mpsc::Receiver<Box<dyn Navigator>>>>,
 }
 
 impl PluginAsyncAPI {
@@ -183,6 +186,8 @@ impl PluginAsyncAPI {
         let (get_state_estimator_respose_tx, get_state_estimator_respose_rx) = mpsc::channel();
         let (get_controller_request_tx, get_controller_request_rx) = mpsc::channel();
         let (get_controller_respose_tx, get_controller_respose_rx) = mpsc::channel();
+        let (get_navigator_request_tx, get_navigator_request_rx) = mpsc::channel();
+        let (get_navigator_respose_tx, get_navigator_respose_rx) = mpsc::channel();
 
         PluginAsyncAPI {
             client: PluginAsyncAPIClient {
@@ -190,11 +195,15 @@ impl PluginAsyncAPI {
                 get_state_estimator_response: get_state_estimator_respose_tx,
                 get_controller_request: Arc::new(Mutex::new(get_controller_request_rx)),
                 get_controller_response: get_controller_respose_tx,
+                get_navigator_request: Arc::new(Mutex::new(get_navigator_request_rx)),
+                get_navigator_response: get_navigator_respose_tx,
             },
             get_state_estimator_request: get_state_estimator_request_tx,
             get_state_estimator_response: Arc::new(Mutex::new(get_state_estimator_respose_rx)),
             get_controller_request: get_controller_request_tx,
             get_controller_response: Arc::new(Mutex::new(get_controller_respose_rx)),
+            get_navigator_request: get_navigator_request_tx,
+            get_navigator_response: Arc::new(Mutex::new(get_navigator_respose_rx)),
         }
     }
 }
@@ -227,6 +236,14 @@ impl PluginAPI for PluginAsyncAPI {
 
         self.get_controller_response.lock().unwrap().recv().unwrap()
     }
+
+    fn get_navigator(&self, config: &Value, global_config: &SimulatorConfig) -> Box<dyn Navigator> {
+        self.get_navigator_request
+            .send((config.clone(), global_config.clone()))
+            .unwrap();
+
+        self.get_navigator_response.lock().unwrap().recv().unwrap()
+    }
 }
 
 #[derive(Clone)]
@@ -235,4 +252,6 @@ pub struct PluginAsyncAPIClient {
     pub get_state_estimator_response: mpsc::Sender<Box<dyn StateEstimator>>,
     pub get_controller_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
     pub get_controller_response: mpsc::Sender<Box<dyn Controller>>,
+    pub get_navigator_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
+    pub get_navigator_response: mpsc::Sender<Box<dyn Navigator>>,
 }

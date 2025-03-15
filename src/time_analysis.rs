@@ -1,7 +1,7 @@
 use config_checker::macros::Check;
-#[cfg_attr(not(feature = "time-analysis"), allow(dead_code, unused_variables))]
 #[cfg(feature = "time-analysis")]
 use lazy_static::lazy_static;
+#[cfg(feature = "time-analysis")]
 use libm::ceilf;
 use serde::{Deserialize, Serialize};
 
@@ -16,10 +16,9 @@ use log::info;
 use std::collections::HashMap;
 #[cfg(feature = "time-analysis")]
 use std::thread;
-use std::{
-    path::Path,
-    time::{self, Duration},
-};
+use std::time;
+#[cfg(feature = "time-analysis")]
+use std::{path::Path, time::Duration};
 
 #[cfg(feature = "time-analysis")]
 #[allow(dead_code)]
@@ -35,6 +34,7 @@ struct ExecutionProfile {
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
+#[cfg_attr(not(feature = "time-analysis"), allow(dead_code, unused_variables))]
 pub struct TimeAnalysisConfig {
     pub exporter: ProfileExporterConfig,
     pub keep_last: bool,
@@ -684,7 +684,7 @@ pub fn save_results() {
 
 // Feature disabled
 #[cfg(not(feature = "time-analysis"))]
-pub fn init_from_config(config: &TimeAnalysisConfig) {}
+pub fn init_from_config(_config: &TimeAnalysisConfig) {}
 
 #[cfg(not(feature = "time-analysis"))]
 pub fn set_robot_name(_name: String) {}
@@ -723,6 +723,7 @@ pub enum ProfileExporterConfig {
 }
 
 #[derive(Clone, Debug)]
+#[cfg_attr(not(feature = "time-analysis"), allow(dead_code, unused_variables))]
 pub struct TimeAnalysis {
     simulated_time: f32,
     begin: time::Instant,

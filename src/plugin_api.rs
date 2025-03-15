@@ -46,8 +46,8 @@ fn main() {
 */
 
 use crate::{
-    controllers::controller::Controller, simulator::SimulatorConfig,
-    state_estimators::state_estimator::StateEstimator,
+    controllers::controller::Controller, navigators::navigator::Navigator,
+    simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator,
 };
 
 use serde_json::Value;
@@ -61,12 +61,11 @@ pub trait PluginAPI: Send + Sync {
     /// * `config` - Config for the external state estimator. The configuration
     /// is given using [`serde_json::Value`]. It should be converted by the
     /// external plugin to the specific configuration.
-    /// * `meta_config` - Meta configuration of the simulator, containing
-    /// information on the simulator itself (see [`SimulatorMetaConfig`]).
+    /// * `global_config` - Full configuration of the simulator.
     ///
     /// # Return
     ///
-    /// Returns the StateEstimator to use.
+    /// Returns the [`StateEstimator`] to use.
     fn get_state_estimator(
         &self,
         _config: &Value,
@@ -75,24 +74,43 @@ pub trait PluginAPI: Send + Sync {
         panic!("The given PluginAPI does not provide a state estimator");
     }
 
-    /// Return the [`StateEstimator`] to be used by the
-    /// [`ExternalEstimator`](`crate::state_estimators::external_estimator::ExternalEstimator`).
+    /// Return the [`Controller`] to be used by the
+    /// [`ExternalController`](`crate::controllers::external_controller::ExternalController`).
     ///
     /// # Arguments
-    /// * `config` - Config for the external state estimator. The configuration
+    /// * `config` - Config for the external controller. The configuration
     /// is given using [`serde_json::Value`]. It should be converted by the
     /// external plugin to the specific configuration.
-    /// * `meta_config` - Meta configuration of the simulator, containing
-    /// information on the simulator itself (see [`SimulatorMetaConfig`]).
+    /// * `global_config` - Full configuration of the simulator.
     ///
     /// # Return
     ///
-    /// Returns the StateEstimator to use.
+    /// Returns the [`Controller`] to use.
     fn get_controller(
         &self,
         _config: &Value,
         _global_config: &SimulatorConfig,
     ) -> Box<dyn Controller> {
         panic!("The given PluginAPI does not provide a controller");
+    }
+
+    /// Return the [`Navigator`] to be used by the
+    /// [`ExternalNavigator`](`crate::navigators::external_navigator::ExternalNavigator`).
+    ///
+    /// # Arguments
+    /// * `config` - Config for the external navigator. The configuration
+    /// is given using [`serde_json::Value`]. It should be converted by the
+    /// external plugin to the specific configuration.
+    /// * `global_config` - Full configuration of the simulator.
+    ///
+    /// # Return
+    ///
+    /// Returns the [`Navigator`] to use.
+    fn get_navigator(
+        &self,
+        _config: &Value,
+        _global_config: &SimulatorConfig,
+    ) -> Box<dyn Navigator> {
+        panic!("The given PluginAPI does not provide a navigator");
     }
 }

@@ -1,14 +1,14 @@
 /*!
-Module providing the interface to use external [`Controller`].
+Module providing the interface to use external [`Navigator`].
 
-To make your own external controller strategy, the simulator should
+To make your own external navigator strategy, the simulator should
 be used as a library (see [dedicated page](crate::plugin_api)).
 
-Your own external controller strategy is made using the
-[`PluginAPI::get_controller`] function.
+Your own external navigator strategy is made using the
+[`PluginAPI::get_navigator`] function.
 
-For the [`Stateful`] trait, the generic type is [`ControllerRecord`],
-and your implementation should return a [`ControllerRecord::External`]
+For the [`Stateful`] trait, the generic type is [`NavigatorRecord`],
+and your implementation should return a [`NavigatorRecord::External`]
 type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
@@ -17,36 +17,37 @@ use config_checker::macros::Check;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
-use crate::physics::physic::Command;
+use crate::controllers::controller::ControllerError;
 use crate::simulator::SimulatorConfig;
+use crate::state_estimators::state_estimator::State;
 use crate::stateful::Stateful;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use super::controller::{Controller, ControllerError, ControllerRecord};
+use super::navigator::{Navigator, NavigatorRecord};
 use serde_derive::{Deserialize, Serialize};
 
-/// Config for the external controller (generic).
+/// Config for the external navigator (generic).
 ///
-/// The config for [`ExternalController`] uses a [`serde_json::Value`] to
+/// The config for [`ExternalNavigator`] uses a [`serde_json::Value`] to
 /// integrate your own configuration inside the full simulator config.
 ///
 /// In the yaml file, the config could be:
 /// ```YAML
-/// controller:
+/// navigator:
 ///     External:
-///         parameter_of_my_own_controller: true
+///         parameter_of_my_own_navigator: true
 /// ```
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
-pub struct ExternalControllerConfig {
+pub struct ExternalNavigatorConfig {
     /// Config serialized.
     #[serde(flatten)]
     pub config: Value,
 }
 
-impl Default for ExternalControllerConfig {
+impl Default for ExternalNavigatorConfig {
     fn default() -> Self {
         Self {
             config: Value::Null,
@@ -54,22 +55,22 @@ impl Default for ExternalControllerConfig {
     }
 }
 
-/// Record for the external controller (generic).
+/// Record for the external navigator (generic).
 ///
-/// Like [`ExternalControllerConfig`], [`ExternalController`] uses a [`serde_json::Value`]
+/// Like [`ExternalNavigatorConfig`], [`ExternalNavigator`] uses a [`serde_json::Value`]
 /// to take every record.
 ///
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
-pub struct ExternalControllerRecord {
+pub struct ExternalNavigatorRecord {
     /// Record serialized.
     #[serde(flatten)]
     pub record: Value,
 }
 
-impl Default for ExternalControllerRecord {
+impl Default for ExternalNavigatorRecord {
     fn default() -> Self {
         Self {
             record: Value::Null,
@@ -78,7 +79,7 @@ impl Default for ExternalControllerRecord {
 }
 
 #[pymethods]
-impl ExternalControllerRecord {
+impl ExternalNavigatorRecord {
     #[getter]
     fn record(&self) -> String {
         self.record.to_string()
@@ -87,66 +88,66 @@ impl ExternalControllerRecord {
 
 use crate::robot::Robot;
 
-/// External controller strategy, which does the bridge with your own strategy.
-pub struct ExternalController {
-    /// External controller.
-    controller: Box<dyn Controller>,
+/// External navigator strategy, which does the bridge with your own strategy.
+pub struct ExternalNavigator {
+    /// External navigator.
+    navigator: Box<dyn Navigator>,
 }
 
-impl ExternalController {
-    /// Creates a new [`ExternalController`]
+impl ExternalNavigator {
+    /// Creates a new [`ExternalNavigator`]
     pub fn new() -> Self {
         Self::from_config(
-            &ExternalControllerConfig::default(),
+            &ExternalNavigatorConfig::default(),
             &None,
             &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
         )
     }
 
-    /// Creates a new [`ExternalController`] from the given config.
+    /// Creates a new [`ExternalNavigator`] from the given config.
     ///
     /// <div class="warning">The `plugin_api` is required here !</div>
     ///
     ///  ## Arguments
-    /// * `config` -- Scenario config of the External controller.
+    /// * `config` -- Scenario config of the External navigator.
     /// * `plugin_api` -- Required [`PluginAPI`] implementation.
     /// * `global_config` -- Simulator config.
     /// * `_va_factory` -- Factory for Determinists random variables
     pub fn from_config(
-        config: &ExternalControllerConfig,
+        config: &ExternalNavigatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         println!("Config given: {:?}", config);
         Self {
-            controller: plugin_api
+            navigator: plugin_api
                 .as_ref()
                 .expect("Plugin API not set!")
-                .get_controller(&config.config, global_config),
+                .get_navigator(&config.config, global_config),
         }
     }
 }
 
-impl std::fmt::Debug for ExternalController {
+impl std::fmt::Debug for ExternalNavigator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ExternalController {{}}")
+        write!(f, "ExternalNavigator {{}}")
     }
 }
 
-impl Controller for ExternalController {
-    fn make_command(&mut self, robot: &mut Robot, error: &ControllerError, time: f32) -> Command {
-        self.controller.make_command(robot, error, time)
+impl Navigator for ExternalNavigator {
+    fn compute_error(&mut self, robot: &mut Robot, state: State) -> ControllerError {
+        self.navigator.compute_error(robot, state)
     }
 }
 
-impl Stateful<ControllerRecord> for ExternalController {
-    fn record(&self) -> ControllerRecord {
-        self.controller.record()
+impl Stateful<NavigatorRecord> for ExternalNavigator {
+    fn record(&self) -> NavigatorRecord {
+        self.navigator.record()
     }
 
-    fn from_record(&mut self, record: ControllerRecord) {
-        self.controller.from_record(record);
+    fn from_record(&mut self, record: NavigatorRecord) {
+        self.navigator.from_record(record);
     }
 }
