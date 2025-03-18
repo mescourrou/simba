@@ -14,7 +14,9 @@ use crate::controllers::pid;
 use crate::navigators::navigator;
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::{Network, NetworkConfig};
-use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
+use crate::networking::service::{HasService, Service, ServiceInterface};
+use crate::networking::service_manager::ServiceManager;
+use crate::physics::physic::{GetRealStateReq, GetRealStateResp, Physic, PhysicConfig, PhysicRecord};
 use crate::physics::{perfect_physic, physic};
 
 use crate::simulator::SimulatorConfig;
@@ -67,6 +69,7 @@ pub struct BenchStateEstimator {
 // Configuration for Robot
 extern crate confy;
 use config_checker::macros::Check;
+use libc::time;
 use log::{debug, info, warn};
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
@@ -208,7 +211,7 @@ impl MessageHandler for RobotGenericMessageHandler {
 /// from the past. [`Robot::run_next_time_step`] does the necessary
 /// so that the required time is reached taking into account all past messages.
 #[derive(Debug, Clone)]
-#[pyclass]
+// #[pyclass]
 pub struct Robot {
     /// Name of the robot. Should be unique among all [`Simulator`](crate::simulator::Simulator)
     /// robots.
@@ -232,6 +235,10 @@ pub struct Robot {
     state_history: TimeOrderedData<RobotRecord>,
     /// Additional [`StateEstimator`] to be evaluated.
     state_estimator_bench: Arc<RwLock<Vec<BenchStateEstimator>>>,
+
+    // services: Vec<Arc<RwLock<Box<dyn ServiceInterface>>>>,
+    /// Not really an option, but for delayed initialization
+    service_manager: Option<ServiceManager>,
 }
 
 impl Robot {
@@ -243,9 +250,7 @@ impl Robot {
                 trajectory_follower::TrajectoryFollower::new(),
             ))),
             controller: Arc::new(RwLock::new(Box::new(pid::PID::new()))),
-            physic: Arc::new(RwLock::new(Box::new(perfect_physic::PerfectPhysic::new(
-                time_cv.clone(),
-            )))),
+            physic: Arc::new(RwLock::new(Box::new(perfect_physic::PerfectPhysic::new()))),
             state_estimator: Arc::new(RwLock::new(Box::new(
                 perfect_estimator::PerfectEstimator::new(),
             ))),
@@ -254,8 +259,12 @@ impl Robot {
             message_handler: Arc::new(RwLock::new(RobotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
             state_estimator_bench: Arc::new(RwLock::new(Vec::new())),
+            // services: Vec::new(),
+            service_manager: None,
         }));
         robot.write().unwrap().save_state(0.);
+        let service_manager = Some(ServiceManager::initialize(robot.clone(), time_cv));
+        robot.write().unwrap().service_manager = service_manager;
         robot
     }
 
@@ -296,7 +305,6 @@ impl Robot {
                 plugin_api,
                 global_config,
                 va_factory,
-                time_cv.clone(),
             ),
             state_estimator: state_estimator::make_state_estimator_from_config(
                 &config.state_estimator,
@@ -323,7 +331,8 @@ impl Robot {
             state_estimator_bench: Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimator_bench.len(),
             ))),
-            // services_handles: Vec::new(),
+            // services: Vec::new(),
+            service_manager: None,
         }));
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -344,6 +353,7 @@ impl Robot {
                 })
         }
 
+        let service_manager = Some(ServiceManager::initialize(robot.clone(), time_cv));
         {
             let mut writable_robot = robot.write().unwrap();
             writable_robot.network.write().unwrap().subscribe(Arc::<
@@ -352,11 +362,14 @@ impl Robot {
                 &writable_robot.message_handler
             ));
             writable_robot.save_state(0.);
+            
+            // Services
+            debug!("Setup services");
+            writable_robot.service_manager = service_manager;
+            // let service = Arc::new(RwLock::new(Box::new(Service::<GetRealStateReq, GetRealStateResp, dyn Physic>::new(time_cv.clone(), physics)) as _ ));
+            // writable_robot.services.push(service);
         }
-        debug!("Setup services");
-        // Services
-        let physics = robot.write().unwrap().physics();
-        physics.write().unwrap().make_service(robot.clone());
+        
 
         robot
     }
@@ -393,7 +406,7 @@ impl Robot {
     /// Process all the messages: one-way (network) and two-way (services).
     pub fn process_messages(&self) -> usize {
         self.network().write().unwrap().process_messages()
-            + self.physics().write().unwrap().process_service_requests()
+            + self.service_manager.as_ref().unwrap().process_requests()
     }
 
     /// Run only one time step.
@@ -517,10 +530,11 @@ impl Robot {
             .unwrap()
             .handle_message_at_time(self, time);
 
-        self.physics()
-            .write()
-            .unwrap()
-            .handle_service_requests(time);
+        // for service in &self.services {
+        //     service.write().unwrap().handle_requests(time);
+        // }
+
+        self.service_manager.as_ref().unwrap().handle_requests(time);
 
         if !read_only {
             // Save state (replace if needed)
@@ -563,7 +577,15 @@ impl Robot {
                     .next_time_step(),
             );
         }
-        let tpl = self.physic.read().unwrap().service_next_time();
+        // for service in &self.services {
+        //     let tpl = service.read().unwrap().next_time();
+        //     if next_time_step > tpl.0 {
+        //         read_only = tpl.1;
+        //         next_time_step = tpl.0;
+        //     }
+        // }
+
+        let tpl = self.service_manager.as_ref().unwrap().next_time();
         if next_time_step > tpl.0 {
             read_only = tpl.1;
             next_time_step = tpl.0;
@@ -637,6 +659,11 @@ impl Robot {
     /// Get a Arc clone of controller module.
     pub fn controller(&self) -> Arc<RwLock<Box<dyn Controller>>> {
         Arc::clone(&self.controller)
+    }
+
+    /// Get a Arc clone of sensor manager.
+    pub fn service_manager(&self) -> &ServiceManager {
+        self.service_manager.as_ref().unwrap()
     }
 
     /// Test function to receive a string message

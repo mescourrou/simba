@@ -3,21 +3,16 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
-    controllers::{
+    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{
         controller::Controller,
         pybinds::{make_controllers_module, PythonController},
-    },
-    navigators::{
+    }, navigators::{
         navigator::Navigator,
         pybinds::{make_navigators_module, PythonNavigator},
-    },
-    plugin_api::PluginAPI,
-    simulator::{Record, Simulator, SimulatorConfig},
-    state_estimators::{
+    }, physics::{physic::Physic, pybinds::PythonPhysic}, plugin_api::PluginAPI, simulator::{Record, Simulator, SimulatorConfig}, state_estimators::{
         pybinds::{make_state_estimators_module, PythonStateEstimator},
         state_estimator::StateEstimator,
-    },
+    }
 };
 use std::sync::{Arc, Mutex};
 
@@ -121,6 +116,12 @@ impl SimulatorWrapper {
                     let navigator = python_api.get_navigator(&config, &simulator_config);
                     api_client.get_navigator_response.send(navigator).unwrap();
                 }
+                if let Ok((config, simulator_config)) =
+                    api_client.get_physic_request.lock().unwrap().try_recv()
+                {
+                    let physic = python_api.get_physic(&config, &simulator_config);
+                    api_client.get_physic_response.send(physic).unwrap();
+                }
                 python_api.check_requests();
             }
         } else {
@@ -173,6 +174,7 @@ pub struct PythonAPI {
     state_estimators: Vec<PythonStateEstimator>,
     controllers: Vec<PythonController>,
     navigators: Vec<PythonNavigator>,
+    physics: Vec<PythonPhysic>,
 }
 
 #[pymethods]
@@ -184,6 +186,7 @@ impl PythonAPI {
             state_estimators: Vec::new(),
             controllers: Vec::new(),
             navigators: Vec::new(),
+            physics: Vec::new(),
         }
     }
 }
@@ -198,6 +201,9 @@ impl PythonAPI {
         }
         for navigator in &mut self.navigators {
             navigator.check_requests();
+        }
+        for physic in &mut self.physics {
+            physic.check_requests();
         }
     }
 
@@ -281,6 +287,34 @@ impl PythonAPI {
                     .expect("Expecting function return of Python?avigator but failed")
             })));
         let st = Box::new(self.navigators.last().unwrap().get_client());
+        debug!("Got api {:?}", st);
+        st
+    }
+
+    pub fn get_physic(
+        &mut self,
+        config: &Value,
+        global_config: &SimulatorConfig,
+    ) -> Box<dyn Physic> {
+        println!("Calling Python API");
+        self.physics
+            .push(PythonPhysic::new(Python::with_gil(|py| {
+                self.api
+                    .bind(py)
+                    .call_method(
+                        "get_physic",
+                        (
+                            config.to_string(),
+                            serde_json::to_string(global_config)
+                                .expect("Failed to serialize global_config"),
+                        ),
+                        None,
+                    )
+                    .expect("Error during execution of python method 'get_physic'")
+                    .extract()
+                    .expect("Expecting function return of PythonPhysic but failed")
+            })));
+        let st = Box::new(self.physics.last().unwrap().get_client());
         debug!("Got api {:?}", st);
         st
     }

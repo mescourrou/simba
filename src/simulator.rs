@@ -273,13 +273,6 @@ impl Simulator {
         config: &SimulatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
     ) -> Simulator {
-        info!("Checking configuration:");
-        if config.check() {
-            info!("Config valid");
-        } else {
-            error!("Error in config");
-            return Simulator::new();
-        }
         let mut simulator = Simulator::new();
         simulator.load_config(config, plugin_api);
         simulator
@@ -326,6 +319,12 @@ impl Simulator {
         config: &SimulatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
     ) {
+        info!("Checking configuration:");
+        if config.check() {
+            info!("Config valid");
+        } else {
+            panic!("Error in config");
+        }
         self.config = config.clone();
         if let Some(seed) = config.random_seed {
             self.determinist_va_factory.global_seed = seed;

@@ -74,7 +74,7 @@ pub struct PerfectPhysicRecord {
 // }
 
 /// Implementation of [`Physic`] with the command perfectly applied.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PerfectPhysic {
     /// Distance between the wheels
     wheel_distance: f32,
@@ -84,19 +84,16 @@ pub struct PerfectPhysic {
     last_time_update: f32,
     /// Current command applied.
     current_command: Command,
-    /// Service to get the real state of the robot.
-    real_state_service: Service<GetRealStateReq, GetRealStateResp>,
 }
 
 impl PerfectPhysic {
     /// Makes a new [`PerfectPhysic`] situated at (0,0,0) and 25cm between wheels.
-    pub fn new(time_cv: Arc<(Mutex<usize>, Condvar)>) -> Self {
+    pub fn new() -> Self {
         Self::from_config(
             &PerfectPhysicConfig::default(),
             &None,
             &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
-            time_cv,
         )
     }
 
@@ -111,7 +108,6 @@ impl PerfectPhysic {
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
-        time_cv: Arc<(Mutex<usize>, Condvar)>,
     ) -> Self {
         PerfectPhysic {
             wheel_distance: config.wheel_distance,
@@ -121,7 +117,6 @@ impl PerfectPhysic {
                 left_wheel_speed: 0.,
                 right_wheel_speed: 0.,
             },
-            real_state_service: Service::new(time_cv),
         }
     }
 
@@ -170,39 +165,17 @@ impl Physic for PerfectPhysic {
     }
 
     /// Return the current state. Do not compute the state again.
-    fn state(&self, _time: f32) -> &State {
+    fn state(&self, time: f32) -> &State {
+        assert!(time == self.last_time_update);
         &self.state
     }
 }
 
 impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
-    fn make_service(&mut self, _robot: Arc<RwLock<Robot>>) {
-        debug!("Making service");
-        debug!("Service made");
-    }
-
-    fn new_client(
-        &mut self,
-        client_name: &str,
-    ) -> ServiceClient<GetRealStateReq, GetRealStateResp> {
-        self.real_state_service.new_client(client_name)
-    }
-
-    fn process_service_requests(&self) -> usize {
-        self.real_state_service.process_requests()
-    }
-
-    fn handle_service_requests(&mut self, time: f32) {
-        self.real_state_service
-            .handle_service_requests(time, &|_msg, t| {
-                Ok(GetRealStateResp {
-                    state: self.state(t).clone(),
-                })
-            });
-    }
-
-    fn service_next_time(&self) -> (f32, bool) {
-        self.real_state_service.next_time()
+    fn handle_service_requests(&mut self, _req: GetRealStateReq, time: f32) -> Result<GetRealStateResp, String> {
+        Ok(GetRealStateResp {
+            state: self.state(time).clone(),
+        })
     }
 }
 
@@ -215,7 +188,6 @@ impl Stateful<PhysicRecord> for PerfectPhysic {
         })
     }
 
-    #[allow(irrefutable_let_patterns)]
     fn from_record(&mut self, record: PhysicRecord) {
         if let PhysicRecord::Perfect(perfect_record) = record {
             self.state.from_record(perfect_record.state);

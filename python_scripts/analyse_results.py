@@ -24,7 +24,10 @@ def analyse(records: dict, config: dict, figure_path: str, figure_type: str, add
         turtle_data = all_turtles_data[turtle_name]
             
         turtle_data.times.append(t)
-        real_pose = record["robot"]["physic"]["Perfect"]["state"]["pose"]
+        try:
+            real_pose = record["robot"]["physic"]["Perfect"]["state"]["pose"]
+        except: # For external Physics (in python example)
+            real_pose = record["robot"]["physic"]["External"]["state"][0:3]
         turtle_data.positions.append(real_pose)
         
     f, ax = plt.subplots()

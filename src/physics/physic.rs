@@ -35,13 +35,14 @@ impl Command {
     }
 }
 
-use super::perfect_physic;
+use super::{external_physic, perfect_physic};
 
 /// Enumeration of the different physic implementations.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(deny_unknown_fields)]
 pub enum PhysicConfig {
     Perfect(Box<perfect_physic::PerfectPhysicConfig>),
+    External(Box<external_physic::ExternalPhysicConfig>),
 }
 
 /// Enumeration of the records by physic implementations.
@@ -49,6 +50,7 @@ pub enum PhysicConfig {
 #[pyclass(get_all)]
 pub enum PhysicRecord {
     Perfect(perfect_physic::PerfectPhysicRecord),
+    External(external_physic::ExternalPhysicRecord),
 }
 
 use crate::{
@@ -58,10 +60,10 @@ use crate::{
 };
 
 // Services
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GetRealStateReq {}
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct GetRealStateResp {
     pub state: State,
 }
@@ -70,7 +72,7 @@ pub struct GetRealStateResp {
 ///
 /// Different implementation can either use real robots, add noise to command, etc.
 pub trait Physic:
-    std::fmt::Debug
+    std::fmt::Debug 
     + std::marker::Send
     + std::marker::Sync
     + Stateful<PhysicRecord>
@@ -104,15 +106,19 @@ pub fn make_physic_from_config(
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &DeterministRandomVariableFactory,
-    time_cv: Arc<(Mutex<usize>, Condvar)>,
 ) -> Arc<RwLock<Box<dyn Physic>>> {
-    Arc::new(RwLock::new(Box::new(match &config {
-        PhysicConfig::Perfect(c) => perfect_physic::PerfectPhysic::from_config(
+    Arc::new(RwLock::new(match &config {
+        PhysicConfig::Perfect(c) => Box::new(perfect_physic::PerfectPhysic::from_config(
             c,
             plugin_api,
             global_config,
             va_factory,
-            time_cv,
-        ),
-    })))
+        )) as Box<dyn Physic>,
+        PhysicConfig::External(c) => Box::new(external_physic::ExternalPhysic::from_config(
+            c,
+            plugin_api,
+            global_config,
+            va_factory,
+        )),
+    }))
 }

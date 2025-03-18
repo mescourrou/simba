@@ -16,7 +16,8 @@ fn main() {
     simulator.show();
 
     // Run the simulator for the time given in the configuration
-    // It also save the results to "result.json",
-    // compute the results and show the figures.
+    // It also save the results to json
     simulator.run();
+
+    simulator.compute_results();
 }

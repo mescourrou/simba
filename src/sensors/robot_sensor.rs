@@ -336,10 +336,7 @@ impl Sensor for RobotSensor {
             self.robot_real_state_services.insert(
                 writable_robot.name(),
                 writable_robot
-                    .physics()
-                    .write()
-                    .unwrap()
-                    .new_client(robot.name().as_str()),
+                    .service_manager().get_real_state_client(robot.name().as_str()),
             );
             i += 1;
         }

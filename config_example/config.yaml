@@ -1,7 +1,8 @@
-result_path: "result.json"
-compute_results: true,
-no_gui: false,
-analyse_script: "../../python_scripts/analyse_results.py"
+results:
+  result_path: "../result.json"
+  show_figures: true
+  analyse_script: "../python_scripts/analyse_results.py"
+  figures_path: "figures"
 time_analysis:
   exporter: TraceEventExporter
   output_path: "time_performance"

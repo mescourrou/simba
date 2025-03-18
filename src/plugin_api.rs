@@ -46,7 +46,7 @@ fn main() {
 */
 
 use crate::{
-    controllers::controller::Controller, navigators::navigator::Navigator,
+    controllers::controller::Controller, navigators::navigator::Navigator, physics::physic::Physic,
     simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator,
 };
 
@@ -112,5 +112,21 @@ pub trait PluginAPI: Send + Sync {
         _global_config: &SimulatorConfig,
     ) -> Box<dyn Navigator> {
         panic!("The given PluginAPI does not provide a navigator");
+    }
+
+    /// Return the [`Physic`] to be used by the
+    /// [`ExternalPhysic`](`crate::physcs::external_physic::ExternalPhysic`).
+    ///
+    /// # Arguments
+    /// * `config` - Config for the external physic. The configuration
+    /// is given using [`serde_json::Value`]. It should be converted by the
+    /// external plugin to the specific configuration.
+    /// * `global_config` - Full configuration of the simulator.
+    ///
+    /// # Return
+    ///
+    /// Returns the [`Physic`] to use.
+    fn get_physic(&self, _config: &Value, _global_config: &SimulatorConfig) -> Box<dyn Physic> {
+        panic!("The given PluginAPI does not provide a physic");
     }
 }
