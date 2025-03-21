@@ -16,7 +16,9 @@ use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::{Network, NetworkConfig};
 use crate::networking::service::{HasService, Service, ServiceInterface};
 use crate::networking::service_manager::ServiceManager;
-use crate::physics::physic::{GetRealStateReq, GetRealStateResp, Physic, PhysicConfig, PhysicRecord};
+use crate::physics::physic::{
+    GetRealStateReq, GetRealStateResp, Physic, PhysicConfig, PhysicRecord,
+};
 use crate::physics::{perfect_physic, physic};
 
 use crate::simulator::SimulatorConfig;
@@ -54,7 +56,6 @@ impl Default for BenchStateEstimatorConfig {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub struct BenchStateEstimatorRecord {
     name: String,
     record: StateEstimatorRecord,
@@ -137,7 +138,6 @@ impl Default for RobotConfig {
 ///
 /// It contains the dynamic elements and the elements we want to save.
 #[derive(Debug, Serialize, Deserialize, Clone)]
-#[pyclass(get_all)]
 pub struct RobotRecord {
     /// Name of the robot.
     pub name: String,
@@ -211,7 +211,6 @@ impl MessageHandler for RobotGenericMessageHandler {
 /// from the past. [`Robot::run_next_time_step`] does the necessary
 /// so that the required time is reached taking into account all past messages.
 #[derive(Debug, Clone)]
-// #[pyclass]
 pub struct Robot {
     /// Name of the robot. Should be unique among all [`Simulator`](crate::simulator::Simulator)
     /// robots.
@@ -362,14 +361,13 @@ impl Robot {
                 &writable_robot.message_handler
             ));
             writable_robot.save_state(0.);
-            
+
             // Services
             debug!("Setup services");
             writable_robot.service_manager = service_manager;
             // let service = Arc::new(RwLock::new(Box::new(Service::<GetRealStateReq, GetRealStateResp, dyn Physic>::new(time_cv.clone(), physics)) as _ ));
             // writable_robot.services.push(service);
         }
-        
 
         robot
     }

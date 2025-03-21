@@ -8,14 +8,9 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
+    pywrappers::{ObservationWrapper, StateWrapper},
     robot::Robot,
-    sensors::{
-        gnss_sensor::GNSSObservationRecord,
-        odometry_sensor::OdometryObservationRecord,
-        oriented_landmark_sensor::OrientedLandmarkObservationRecord,
-        robot_sensor::OrientedRobotObservationRecord,
-        sensor::{Observation, ObservationRecord},
-    },
+    sensors::sensor::Observation,
     stateful::Stateful,
 };
 
@@ -23,18 +18,6 @@ use super::{
     external_estimator::ExternalEstimatorRecord,
     state_estimator::{State, StateEstimator, StateEstimatorRecord},
 };
-
-pub fn make_state_estimators_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let module = PyModule::new_bound(m.py(), "state_estimators")?;
-
-    module.add_class::<PythonStateEstimator>()?;
-    module.add_class::<ObservationRecord>()?;
-    module.add_class::<GNSSObservationRecord>()?;
-    module.add_class::<OdometryObservationRecord>()?;
-    module.add_class::<OrientedLandmarkObservationRecord>()?;
-    module.add_class::<OrientedRobotObservationRecord>()?;
-    m.add_submodule(&module)
-}
 
 #[derive(Debug, Clone)]
 pub struct PythonStateEstimatorAsyncClient {
@@ -111,7 +94,8 @@ impl Stateful<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
 }
 
 #[derive(Debug)]
-#[pyclass]
+#[pyclass(subclass)]
+#[pyo3(name = "StateEstimator")]
 pub struct PythonStateEstimator {
     model: Py<PyAny>,
     client: PythonStateEstimatorAsyncClient,
@@ -248,28 +232,29 @@ impl PythonStateEstimator {
         time: f32,
     ) {
         debug!("Calling python implementation of correction_step");
-        let mut observation_records = Vec::new();
+        let mut observation_py = Vec::new();
         for obs in observations {
-            observation_records.push(obs.record());
+            observation_py.push(ObservationWrapper::from_ros(obs));
         }
         Python::with_gil(|py| {
             self.model
                 .bind(py)
-                .call_method("correction_step", (observation_records, time), None)
+                .call_method("correction_step", (observation_py, time), None)
                 .expect("Python implementation of PythonStateEstimator does not have a correct 'correction_step' method");
         });
     }
 
     fn state(&self) -> State {
         debug!("Calling python implementation of state");
-        State::from_vector(Python::with_gil(|py| {
+        let state = Python::with_gil(|py| -> StateWrapper {
             self.model
                 .bind(py)
                 .call_method("state", (), None)
                 .expect("Python implementation of PythonStateEstimator does not have a correct 'state' method")
                 .extract()
                 .expect("The 'state' method of PythonStateEstimator does not return a correct state vector")
-        }))
+        });
+        state.to_ros()
     }
 
     fn next_time_step(&self) -> f32 {

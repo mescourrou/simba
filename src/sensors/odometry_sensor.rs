@@ -15,7 +15,6 @@ use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
-use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 extern crate nalgebra as na;
@@ -43,7 +42,6 @@ impl Default for OdometrySensorConfig {
 
 /// Record of the [`OdometrySensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub struct OdometrySensorRecord {
     last_time: f32,
     last_state: StateRecord,
@@ -80,8 +78,6 @@ impl Stateful<OdometryObservationRecord> for OdometryObservation {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[pyclass(get_all)]
-#[pyo3(name = "OdometryObservation")]
 pub struct OdometryObservationRecord {
     pub linear_velocity: f32,
     pub angular_velocity: f32,

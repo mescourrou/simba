@@ -2,11 +2,12 @@
 
 import simba
 import json
-from simba import controllers, navigators
 import numpy as np
 import math
 
-class Physics:
+import simba.simba
+
+class Physics(simba.Physics):
     def __init__(self, config):
         self.last_time = 0.
         self.wheel_distance = 0.25,
@@ -63,26 +64,27 @@ class Physics:
         self.current_command[1] = command.right_wheel_speed
         
     def state(self, time): 
-        state = navigators.StateRecord()
-        state_list = self.curr_state.tolist()
-        state.pose = state_list[0:3]
-        state.velocity = state_list[3]
+        state = simba.State()
+        state.pose.x = self.curr_state[0]
+        state.pose.y = self.curr_state[1]
+        state.pose.theta = self.curr_state[2]
+        state.velocity = self.curr_state[3]
         return state
 
 
-class SimulatorAPI:
+class SimulatorAPI(simba.PluginAPI):
     def get_physic(self, config, global_config):
         config = json.loads(config)
         return Physics(config)
 
 def main():
 
-    simulator_api = simba.PythonAPI(SimulatorAPI())
+    simulator_api = SimulatorAPI()
 
     simulator = simba.Simulator.from_config(
         "config/config_physics.yaml", simulator_api, loglevel="debug"
     )
-    simulator.run(simulator_api)
+    simulator.run()
 
 
 if __name__ == "__main__":

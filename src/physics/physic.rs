@@ -11,28 +11,15 @@ extern crate confy;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use config_checker::macros::Check;
-use pyo3::{pyclass, pymethods};
 use serde_derive::{Deserialize, Serialize};
 
 /// Command struct, to control both wheel speed, in m/s.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all, set_all)]
 pub struct Command {
     /// Left wheel speed.
     pub left_wheel_speed: f32,
     /// Right wheel speed.
     pub right_wheel_speed: f32,
-}
-
-#[pymethods]
-impl Command {
-    #[new]
-    pub fn new() -> Command {
-        Self {
-            left_wheel_speed: 0.,
-            right_wheel_speed: 0.,
-        }
-    }
 }
 
 use super::{external_physic, perfect_physic};
@@ -47,7 +34,6 @@ pub enum PhysicConfig {
 
 /// Enumeration of the records by physic implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub enum PhysicRecord {
     Perfect(perfect_physic::PerfectPhysicRecord),
     External(external_physic::ExternalPhysicRecord),
@@ -72,7 +58,7 @@ pub struct GetRealStateResp {
 ///
 /// Different implementation can either use real robots, add noise to command, etc.
 pub trait Physic:
-    std::fmt::Debug 
+    std::fmt::Debug
     + std::marker::Send
     + std::marker::Sync
     + Stateful<PhysicRecord>

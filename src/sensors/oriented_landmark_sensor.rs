@@ -12,7 +12,6 @@ use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
-use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 use log::error;
@@ -54,7 +53,6 @@ impl Default for OrientedLandmarkSensorConfig {
 
 /// Record of the [`OrientedLandmarkSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub struct OrientedLandmarkSensorRecord {
     last_time: f32,
 }
@@ -250,8 +248,6 @@ impl Stateful<OrientedLandmarkObservationRecord> for OrientedLandmarkObservation
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[pyclass(get_all)]
-#[pyo3(name = "OrientedLandmarkObservation")]
 pub struct OrientedLandmarkObservationRecord {
     /// Id of the landmark
     pub id: i32,

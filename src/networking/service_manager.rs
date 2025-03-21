@@ -1,10 +1,14 @@
-use std::{fmt::Debug, sync::{Arc, Condvar, Mutex, RwLock}};
+use std::{
+    fmt::Debug,
+    sync::{Arc, Condvar, Mutex, RwLock},
+};
 
-
-use crate::{physics::physic::{GetRealStateReq, GetRealStateResp, Physic}, robot::Robot};
+use crate::{
+    physics::physic::{GetRealStateReq, GetRealStateResp, Physic},
+    robot::Robot,
+};
 
 use super::service::{Service, ServiceClient, ServiceInterface};
-
 
 #[derive(Debug, Clone)]
 pub struct ServiceManager {
@@ -13,13 +17,19 @@ pub struct ServiceManager {
 
 impl ServiceManager {
     pub fn initialize(robot: Arc<RwLock<Robot>>, time_cv: Arc<(Mutex<usize>, Condvar)>) -> Self {
-        let open_robot= robot.read().unwrap();
+        let open_robot = robot.read().unwrap();
         Self {
-            get_real_state: Arc::new(RwLock::new(Service::new(time_cv.clone(), open_robot.physics()))),
+            get_real_state: Arc::new(RwLock::new(Service::new(
+                time_cv.clone(),
+                open_robot.physics(),
+            ))),
         }
     }
 
-    pub fn get_real_state_client(&self, robot_name: &str) -> ServiceClient<GetRealStateReq, GetRealStateResp> {
+    pub fn get_real_state_client(
+        &self,
+        robot_name: &str,
+    ) -> ServiceClient<GetRealStateReq, GetRealStateResp> {
         self.get_real_state.write().unwrap().new_client(robot_name)
     }
 

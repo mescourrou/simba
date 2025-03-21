@@ -14,7 +14,6 @@ use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
-use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 use log::debug;
@@ -52,7 +51,6 @@ impl Default for RobotSensorConfig {
 
 /// Record of the [`RobotSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub struct RobotSensorRecord {
     last_time: f32,
 }
@@ -248,8 +246,6 @@ impl Stateful<OrientedRobotObservationRecord> for OrientedRobotObservation {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
-#[pyo3(name = "OrientedRobotObservation")]
 pub struct OrientedRobotObservationRecord {
     /// Name of the Robot
     pub name: String,
@@ -336,7 +332,8 @@ impl Sensor for RobotSensor {
             self.robot_real_state_services.insert(
                 writable_robot.name(),
                 writable_robot
-                    .service_manager().get_real_state_client(robot.name().as_str()),
+                    .service_manager()
+                    .get_real_state_client(robot.name().as_str()),
             );
             i += 1;
         }

@@ -8,7 +8,6 @@ use libm::atan2;
 use log::debug;
 use na::{DMatrix, SVector};
 use nalgebra::Vector2;
-use pyo3::pyclass;
 
 use crate::stateful::Stateful;
 
@@ -39,7 +38,6 @@ impl Default for TrajectoryConfig {
 /// Record for [`Stateful`] trait. The only dynamic element
 /// is the current segment.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub struct TrajectoryRecord {
     pub current_segment: usize,
 }

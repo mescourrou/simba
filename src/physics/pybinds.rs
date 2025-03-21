@@ -8,23 +8,14 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    controllers::controller::ControllerError,
     networking::service::HasService,
     physics::external_physic::ExternalPhysicRecord,
+    pywrappers::{CommandWrapper, StateWrapper},
     state_estimators::state_estimator::{State, StateRecord},
     stateful::Stateful,
 };
 
 use super::physic::{Command, GetRealStateReq, GetRealStateResp, Physic, PhysicRecord};
-
-pub fn make_physics_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let module = PyModule::new_bound(m.py(), "physics")?;
-
-    module.add_class::<PythonPhysic>()?;
-    module.add_class::<ControllerError>()?;
-    module.add_class::<StateRecord>()?;
-    m.add_submodule(&module)
-}
 
 #[derive(Debug, Clone)]
 pub struct PythonPhysicAsyncClient {
@@ -78,7 +69,11 @@ impl Stateful<PhysicRecord> for PythonPhysicAsyncClient {
 }
 
 impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysicAsyncClient {
-    fn handle_service_requests(&mut self, _req: GetRealStateReq, time: f32) -> Result<GetRealStateResp, String> {
+    fn handle_service_requests(
+        &mut self,
+        _req: GetRealStateReq,
+        time: f32,
+    ) -> Result<GetRealStateResp, String> {
         Ok(GetRealStateResp {
             state: self.state(time).clone(),
         })
@@ -86,7 +81,8 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysicAsyncClient {
 }
 
 #[derive(Debug)]
-#[pyclass]
+#[pyclass(subclass)]
+#[pyo3(name = "Physics")]
 pub struct PythonPhysic {
     model: Py<PyAny>,
     client: PythonPhysicAsyncClient,
@@ -162,26 +158,14 @@ impl PythonPhysic {
             .unwrap()
             .try_recv()
         {
-            self.apply_command(command, time);
+            self.apply_command(&command, time);
             self.apply_command_response.send(()).unwrap();
         }
-        if let Ok(time) = self
-            .state_request
-            .clone()
-            .lock()
-            .unwrap()
-            .try_recv()
-        {
+        if let Ok(time) = self.state_request.clone().lock().unwrap().try_recv() {
             let state = self.state(time);
             self.state_response.send(state).unwrap();
         }
-        if let Ok(time) = self
-            .update_state_request
-            .clone()
-            .lock()
-            .unwrap()
-            .try_recv()
-        {
+        if let Ok(time) = self.update_state_request.clone().lock().unwrap().try_recv() {
             self.update_state(time);
             self.update_state_response.send(()).unwrap();
         }
@@ -194,13 +178,17 @@ impl PythonPhysic {
         }
     }
 
-    fn apply_command(&mut self, command: Command, time: f32) {
+    fn apply_command(&mut self, command: &Command, time: f32) {
         debug!("Calling python implementation of apply_command");
         // let robot_record = robot.record();
         Python::with_gil(|py| {
             self.model
                 .bind(py)
-                .call_method("apply_command", (command, time), None)
+                .call_method(
+                    "apply_command",
+                    (CommandWrapper::from_ros(command), time),
+                    None,
+                )
                 .expect("PythonPhysic does not have a correct 'apply_command' method");
         });
     }
@@ -219,17 +207,15 @@ impl PythonPhysic {
     fn state(&mut self, time: f32) -> State {
         debug!("Calling python implementation of state");
         // let robot_record = robot.record();
-        let mut state = State::new();
-        state.from_record(Python::with_gil(|py| -> StateRecord {
+        let state = Python::with_gil(|py| -> StateWrapper {
             self.model
                 .bind(py)
                 .call_method("state", (time,), None)
                 .expect("PythonPhysic does not have a correct 'state' method")
                 .extract()
                 .expect("The 'state' method of PythonPhysic does not return a correct state vector")
-        }));
-        state
-        
+        });
+        state.to_ros()
     }
 
     fn record(&self) -> PhysicRecord {

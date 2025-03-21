@@ -144,7 +144,6 @@ impl Default for SimulatorConfig {
 ///
 /// This is a line for one robot ([`RobotRecord`]) at a given time.
 #[derive(Debug, Serialize, Deserialize)]
-#[pyclass(get_all)]
 pub struct Record {
     /// Time of the record.
     pub time: f32,

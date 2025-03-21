@@ -13,7 +13,6 @@ use crate::{
 };
 use config_checker::macros::Check;
 use log::error;
-use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 /// Configuration for [`PerfectEstimator`].
@@ -34,7 +33,6 @@ impl Default for PerfectEstimatorConfig {
 
 /// Record for [`PerfectEstimator`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub struct PerfectEstimatorRecord {
     /// Current state estimated
     pub state: StateRecord,

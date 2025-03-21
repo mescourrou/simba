@@ -24,8 +24,7 @@ use crate::{robot::Robot, utils::time_ordered_data::TimeOrderedData};
 
 use super::network::MessageFlag;
 
-
-pub trait ServiceInterface : Debug + Send + Sync {
+pub trait ServiceInterface: Debug + Send + Sync {
     fn process_requests(&self) -> usize;
     fn handle_requests(&self, time: f32);
     fn next_time(&self) -> (f32, bool);
@@ -36,7 +35,7 @@ pub trait ServiceInterface : Debug + Send + Sync {
 /// The client is linked to a server, and can make requests to it. The client is blocked until the
 /// server sends a response.
 #[derive(Debug)]
-pub struct ServiceClient<RequestMsg : Debug + Clone, ResponseMsg : Debug + Clone> {
+pub struct ServiceClient<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> {
     // Channel to send the request to the server (given by the server).
     response_channel: Arc<Mutex<mpsc::Receiver<Result<ResponseMsg, String>>>>,
     // Channel to receive the response from the server (given by the server).
@@ -46,7 +45,7 @@ pub struct ServiceClient<RequestMsg : Debug + Clone, ResponseMsg : Debug + Clone
     time_cv: Arc<(Mutex<usize>, Condvar)>,
 }
 
-impl<RequestMsg : Debug + Clone, ResponseMsg : Debug + Clone> ServiceClient<RequestMsg, ResponseMsg> {
+impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<RequestMsg, ResponseMsg> {
     /// Make a request to the server.
     ///
     /// The client is blocked until the server sends a response. The client is linked to a server,
@@ -98,7 +97,11 @@ impl<RequestMsg : Debug + Clone, ResponseMsg : Debug + Clone> ServiceClient<Requ
 /// Handles requests from clients, and send responses to them. The server should handle
 /// the requests in [`run_time_step`](crate::robot::Robot::run_time_step).
 #[derive(Debug)]
-pub struct Service<RequestMsg : Debug + Clone, ResponseMsg : Debug + Clone, T: HasService<RequestMsg, ResponseMsg> + ?Sized> {
+pub struct Service<
+    RequestMsg: Debug + Clone,
+    ResponseMsg: Debug + Clone,
+    T: HasService<RequestMsg, ResponseMsg> + ?Sized,
+> {
     /// Channel to receive requests from clients.
     request_channel: Arc<Mutex<mpsc::Receiver<(String, RequestMsg, f32, Vec<MessageFlag>)>>>,
     /// Channel to send requests to the server, which is cloned to the clients.
@@ -113,7 +116,12 @@ pub struct Service<RequestMsg : Debug + Clone, ResponseMsg : Debug + Clone, T: H
     target: Arc<RwLock<Box<T>>>,
 }
 
-impl<RequestMsg : Debug + Clone, ResponseMsg : Debug + Clone, T: HasService<RequestMsg, ResponseMsg> + ?Sized> Service<RequestMsg, ResponseMsg, T>  {
+impl<
+        RequestMsg: Debug + Clone,
+        ResponseMsg: Debug + Clone,
+        T: HasService<RequestMsg, ResponseMsg> + ?Sized,
+    > Service<RequestMsg, ResponseMsg, T>
+{
     /// Create a new service.
     ///
     /// ## Arguments
@@ -126,11 +134,9 @@ impl<RequestMsg : Debug + Clone, ResponseMsg : Debug + Clone, T: HasService<Requ
             clients: BTreeMap::new(),
             request_buffer: Arc::new(RwLock::new(TimeOrderedData::new())),
             time_cv,
-            target
+            target,
         }
     }
-
-    
 
     /// Makes a new client to the service, with the channels already setup.
     ///
@@ -146,11 +152,14 @@ impl<RequestMsg : Debug + Clone, ResponseMsg : Debug + Clone, T: HasService<Requ
             time_cv: self.time_cv.clone(),
         }
     }
-
 }
 
-impl<RequestMsg : Clone + Debug + Send + Sync, ResponseMsg : Clone + Debug + Send + Sync, T: HasService<RequestMsg, ResponseMsg> + ?Sized> ServiceInterface for Service<RequestMsg, ResponseMsg, T> {
-
+impl<
+        RequestMsg: Clone + Debug + Send + Sync,
+        ResponseMsg: Clone + Debug + Send + Sync,
+        T: HasService<RequestMsg, ResponseMsg> + ?Sized,
+    > ServiceInterface for Service<RequestMsg, ResponseMsg, T>
+{
     /// Process the requests received from the clients.
     ///
     /// The requests are added to the buffer, to be treated later by
@@ -175,7 +184,6 @@ impl<RequestMsg : Clone + Debug + Send + Sync, ResponseMsg : Clone + Debug + Sen
         self.request_buffer.read().unwrap().len()
     }
 
-
     /// Handle the requests received from the clients at the given `time`.
     ///
     /// The `closure` is called for each request matching the given `time`, and should
@@ -186,7 +194,11 @@ impl<RequestMsg : Clone + Debug + Send + Sync, ResponseMsg : Clone + Debug + Sen
             self.request_buffer.write().unwrap().remove(time)
         {
             debug!("Handling message from {from} at time {time}...");
-            let result = self.target.write().unwrap().handle_service_requests(message, time);
+            let result = self
+                .target
+                .write()
+                .unwrap()
+                .handle_service_requests(message, time);
             self.clients
                 .get(&from)
                 .expect(
@@ -200,7 +212,7 @@ impl<RequestMsg : Clone + Debug + Send + Sync, ResponseMsg : Clone + Debug + Sen
             debug!("Handling message from {from} at time {time}... Response sent");
         }
     }
-    
+
     /// Get the minimal time among all waiting requests.
     fn next_time(&self) -> (f32, bool) {
         match self.request_buffer.read().unwrap().min_time() {
@@ -217,13 +229,17 @@ pub trait ServiceHandler<RequestMsg, ResponseMsg>: Sync + Send + Debug {
 }
 
 /// Common interface for all struct which manages a service.
-pub trait HasService<RequestMsg, ResponseMsg> : Debug + Sync + Send {
+pub trait HasService<RequestMsg, ResponseMsg>: Debug + Sync + Send {
     // /// Create the service: should be called only once, at the beginning.
     // fn make_service(&mut self, robot: Arc<RwLock<Robot>>);
     // /// Create a new client to the service, should be called by client robots.
     // fn new_client(&mut self, client_name: &str) -> ServiceClient<RequestMsg, ResponseMsg>;
     /// Handle the requests received from the clients at the given `time`.
-    fn handle_service_requests(&mut self, req: RequestMsg, time: f32) -> Result<ResponseMsg, String>;
+    fn handle_service_requests(
+        &mut self,
+        req: RequestMsg,
+        time: f32,
+    ) -> Result<ResponseMsg, String>;
     // /// Process the requests received from the clients.
     // fn process_service_requests(&self) -> usize;
     // /// Get the minimal time among all waiting requests. BOol is for read only (no change in state, which does not requires a new computation)

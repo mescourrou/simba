@@ -15,7 +15,6 @@ use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use nalgebra::Vector2;
-use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 extern crate nalgebra as na;
@@ -44,7 +43,6 @@ impl Default for GNSSSensorConfig {
 
 /// Record of the [`GNSSSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub struct GNSSSensorRecord {
     last_time: f32,
 }
@@ -63,8 +61,6 @@ pub struct GNSSObservation {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-#[pyclass(get_all)]
-#[pyo3(name = "GNSSObservation")]
 pub struct GNSSObservationRecord {
     pub position: [f32; 2],
     pub velocity: [f32; 2],

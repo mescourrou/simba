@@ -2,15 +2,19 @@
 
 import simba
 import json
-from simba import state_estimators
 
-class StateEstimator:
+class StateEstimator(simba.StateEstimator):
     def __init__(self, config):
         self.last_time = 0
         self.period = config["period"]
 
-    def state(self):
-        return [1, 2, 3]
+    def state(self) -> simba.State:
+        state = simba.State()
+        state.pose.x = 1
+        state.pose.y = 2
+        state.pose.theta = 0
+        state.velocity = 3
+        return state
 
     def record(self) -> str:
         print("This is record from python!")
@@ -29,13 +33,13 @@ class StateEstimator:
         self.last_time = time
 
     def correction_step(self, observations, time):
-        print("Doing correction step with observations for robot {robot.name}:")
+        print(f"Doing correction step with observations for robot:")
         for obs in observations:
             # Not the best interface, but it works!
             match obs:
-                case state_estimators.Observation.OrientedLandmark():
+                case simba.Observation.OrientedLandmark():
                     print(f"Observation of landmark {obs[0].id}: {obs[0].pose}")
-                case state_estimators.Observation.Odometry():
+                case simba.Observation.Odometry():
                     print(f"Odometry: {obs[0]}")
                 case _:
                     print("Other")
@@ -46,20 +50,20 @@ class StateEstimator:
         return self.last_time + self.period
 
 
-class SimulatorAPI:
-    def get_state_estimator(self, config, config_path):
+class SimulatorAPI(simba.PluginAPI):
+    def get_state_estimator(self, config, global_config):
         config = json.loads(config)
         print(f"Config received by python: {type(config)} {config}")
         return StateEstimator(config)
 
 def main():
 
-    simulator_api = simba.PythonAPI(SimulatorAPI())
+    simulator_api = SimulatorAPI()
 
     simulator = simba.Simulator.from_config(
         "config/config.yaml", simulator_api, loglevel="info"
     )
-    simulator.run(simulator_api)
+    simulator.run()
 
 
 if __name__ == "__main__":

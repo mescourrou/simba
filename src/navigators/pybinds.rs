@@ -10,21 +10,13 @@ use serde_json::Value;
 use crate::{
     controllers::controller::ControllerError,
     navigators::external_navigator::ExternalNavigatorRecord,
+    pywrappers::{ControllerErrorWrapper, StateWrapper},
     robot::Robot,
     state_estimators::state_estimator::{State, StateRecord},
     stateful::Stateful,
 };
 
 use super::navigator::{Navigator, NavigatorRecord};
-
-pub fn make_navigators_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let module = PyModule::new_bound(m.py(), "navigators")?;
-
-    module.add_class::<PythonNavigator>()?;
-    module.add_class::<ControllerError>()?;
-    module.add_class::<StateRecord>()?;
-    m.add_submodule(&module)
-}
 
 #[derive(Debug, Clone)]
 pub struct PythonNavigatorAsyncClient {
@@ -62,7 +54,8 @@ impl Stateful<NavigatorRecord> for PythonNavigatorAsyncClient {
 }
 
 #[derive(Debug)]
-#[pyclass]
+#[pyclass(subclass)]
+#[pyo3(name = "Navigator")]
 pub struct PythonNavigator {
     model: Py<PyAny>,
     client: PythonNavigatorAsyncClient,
@@ -121,7 +114,7 @@ impl PythonNavigator {
             .unwrap()
             .try_recv()
         {
-            let error = self.compute_error(&robot, state);
+            let error = self.compute_error(&robot, &state);
             self.compute_error_response.send(error).unwrap();
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
@@ -133,17 +126,18 @@ impl PythonNavigator {
         }
     }
 
-    fn compute_error(&mut self, _robot: &crate::robot::Robot, state: State) -> ControllerError {
+    fn compute_error(&mut self, _robot: &crate::robot::Robot, state: &State) -> ControllerError {
         debug!("Calling python implementation of compute_error");
         // let robot_record = robot.record();
-        let result = Python::with_gil(|py| -> PyResult<ControllerError> {
+        let result = Python::with_gil(|py| -> ControllerErrorWrapper {
             self.model
                 .bind(py)
-                .call_method("compute_error", (state.record(),), None)
+                .call_method("compute_error", (StateWrapper::from_ros(state),), None)
                 .expect("PythonNavigator does not have a correct 'compute_error' method")
                 .extract()
+                .expect("Error during the call of Python implementation of 'compute_error'")
         });
-        result.expect("Error during the call of Python implementation of 'compute_error'")
+        result.to_ros()
     }
 
     fn record(&self) -> NavigatorRecord {

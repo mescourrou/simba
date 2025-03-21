@@ -8,19 +8,14 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    controllers::external_controller::ExternalControllerRecord, physics::physic::Command,
-    robot::Robot, stateful::Stateful,
+    controllers::external_controller::ExternalControllerRecord,
+    physics::physic::Command,
+    pywrappers::{CommandWrapper, ControllerErrorWrapper},
+    robot::Robot,
+    stateful::Stateful,
 };
 
 use super::controller::{Controller, ControllerError, ControllerRecord};
-
-pub fn make_controllers_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    let module = PyModule::new_bound(m.py(), "controllers")?;
-
-    module.add_class::<PythonController>()?;
-    module.add_class::<Command>()?;
-    m.add_submodule(&module)
-}
 
 #[derive(Debug, Clone)]
 pub struct PythonControllerAsyncClient {
@@ -58,7 +53,8 @@ impl Stateful<ControllerRecord> for PythonControllerAsyncClient {
 }
 
 #[derive(Debug)]
-#[pyclass]
+#[pyclass(subclass)]
+#[pyo3(name = "Controller")]
 pub struct PythonController {
     model: Py<PyAny>,
     client: PythonControllerAsyncClient,
@@ -113,7 +109,7 @@ impl PythonController {
         if let Ok((robot, error, time)) =
             self.make_command_request.clone().lock().unwrap().try_recv()
         {
-            let command = self.make_command(&robot, error, time);
+            let command = self.make_command(&robot, &error, time);
             self.make_command_response.send(command).unwrap();
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
@@ -128,19 +124,24 @@ impl PythonController {
     fn make_command(
         &mut self,
         _robot: &crate::robot::Robot,
-        error: ControllerError,
+        error: &ControllerError,
         time: f32,
     ) -> Command {
         debug!("Calling python implementation of make_command");
         // let robot_record = robot.record();
-        let result = Python::with_gil(|py| -> PyResult<Command> {
+        let result = Python::with_gil(|py| -> CommandWrapper {
             self.model
                 .bind(py)
-                .call_method("make_command", (error, time), None)
+                .call_method(
+                    "make_command",
+                    (ControllerErrorWrapper::from_ros(error), time),
+                    None,
+                )
                 .expect("PythonController does not have a correct 'make_command' method")
                 .extract()
+                .expect("Error during the call of Python implementation of 'make_command'")
         });
-        result.expect("Error during the call of Python implementation of 'make_command'")
+        result.to_ros()
     }
 
     fn record(&self) -> ControllerRecord {

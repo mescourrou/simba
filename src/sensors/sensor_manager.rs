@@ -6,7 +6,6 @@ available observations.
 extern crate confy;
 use config_checker::macros::Check;
 use core::f32;
-use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
@@ -43,7 +42,6 @@ impl Default for SensorManagerConfig {
 
 /// Record listing all the [`SensorRecord`]s and the next observation time.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub struct SensorManagerRecord {
     pub sensors: Vec<SensorRecord>,
     pub next_time: Option<f32>,

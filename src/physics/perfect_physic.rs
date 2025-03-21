@@ -13,7 +13,6 @@ use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use log::{debug, error};
-use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the [`PerfectPhysic`].
@@ -40,7 +39,6 @@ impl Default for PerfectPhysicConfig {
 
 /// Record for the [`PerfectPhysic`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub struct PerfectPhysicRecord {
     /// State at the time `last_time_update`
     pub state: StateRecord,
@@ -172,7 +170,11 @@ impl Physic for PerfectPhysic {
 }
 
 impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
-    fn handle_service_requests(&mut self, _req: GetRealStateReq, time: f32) -> Result<GetRealStateResp, String> {
+    fn handle_service_requests(
+        &mut self,
+        _req: GetRealStateReq,
+        time: f32,
+    ) -> Result<GetRealStateResp, String> {
         Ok(GetRealStateResp {
             state: self.state(time).clone(),
         })

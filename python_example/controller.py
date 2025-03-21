@@ -2,9 +2,8 @@
 
 import simba
 import json
-from simba import controllers
 
-class Controller:
+class Controller(simba.Controller):
     def __init__(self, config):
         self.last_time = 0
         if "speed" in config:
@@ -22,28 +21,28 @@ class Controller:
         print(f"Receiving record: {record}")
         self.last_time = record["last_time"]
 
-    def make_command(self, error, time) -> controllers.Command:
+    def make_command(self, error, time) -> simba.Command:
         self.last_time = time
-        command = controllers.Command()
+        command = simba.Command()
         command.left_wheel_speed = self.speed
         command.right_wheel_speed = self.speed
         return command
 
 
-class SimulatorAPI:
-    def get_controller(self, config, config_path):
+class SimulatorAPI(simba.PluginAPI):
+    def get_controller(self, config, global_config):
         config = json.loads(config)
         print(f"Config received by python: {type(config)} {config}")
         return Controller(config)
 
 def main():
 
-    simulator_api = simba.PythonAPI(SimulatorAPI())
+    simulator_api = SimulatorAPI()
 
     simulator = simba.Simulator.from_config(
         "config/config_controller.yaml", simulator_api, loglevel="info"
     )
-    simulator.run(simulator_api)
+    simulator.run()
 
 
 if __name__ == "__main__":

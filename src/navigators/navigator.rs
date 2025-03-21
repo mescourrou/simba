@@ -6,7 +6,6 @@ extern crate confy;
 use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
-use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 use super::{external_navigator, trajectory_follower};
@@ -26,7 +25,6 @@ pub enum NavigatorConfig {
 
 /// Enumeration of the record of the different strategies.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub enum NavigatorRecord {
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerRecord),
     External(external_navigator::ExternalNavigatorRecord),

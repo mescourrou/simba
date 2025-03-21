@@ -2,12 +2,10 @@
 
 import simba
 import json
-from simba import navigators
 import numpy as np
 import math
-import IPython
 
-class Navigator:
+class Navigator(simba.Navigator):
     def __init__(self, config):
         if "radius" in config:
             self.radius = config["radius"]
@@ -26,12 +24,12 @@ class Navigator:
         record = json.loads(record)
         print(f"Receiving record: {record}")
 
-    def compute_error(self, state) -> navigators.ControllerError:
-        error = navigators.ControllerError()
+    def compute_error(self, state) -> simba.ControllerError:
+        error = simba.ControllerError()
         v = state.velocity
-        x = state.pose[0]
-        y = state.pose[1]
-        theta = state.pose[2]
+        x = state.pose.x
+        y = state.pose.y
+        theta = state.pose.theta
         
         # Very bad error computation, but that's an example
         pose = np.array([x, y, theta])
@@ -43,20 +41,20 @@ class Navigator:
         return error
 
 
-class SimulatorAPI:
-    def get_navigator(self, config, config_path):
+class SimulatorAPI(simba.PluginAPI):
+    def get_navigator(self, config, global_config):
         config = json.loads(config)
         print(f"Config received by python: {type(config)} {config}")
         return Navigator(config)
 
 def main():
 
-    simulator_api = simba.PythonAPI(SimulatorAPI())
+    simulator_api = SimulatorAPI()
 
     simulator = simba.Simulator.from_config(
         "config/config_navigator.yaml", simulator_api, loglevel="info"
     )
-    simulator.run(simulator_api)
+    simulator.run()
 
 
 if __name__ == "__main__":

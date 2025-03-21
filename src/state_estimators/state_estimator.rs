@@ -37,7 +37,6 @@ impl Default for StateConfig {
 
 /// Record for [`State`] in order to record a state.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all, set_all)]
 pub struct StateRecord {
     /// Position and orientation of the robot
     pub pose: Vec<f32>,
@@ -51,14 +50,6 @@ impl Default for StateRecord {
             pose: vec![0., 0., 0.],
             velocity: 0.,
         }
-    }
-}
-
-#[pymethods]
-impl StateRecord {
-    #[new]
-    pub fn new() -> Self {
-        Self::default()
     }
 }
 
@@ -181,7 +172,6 @@ pub enum StateEstimatorConfig {
 
 /// List the possible records.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub enum StateEstimatorRecord {
     Perfect(perfect_estimator::PerfectEstimatorRecord),
     External(external_estimator::ExternalEstimatorRecord),

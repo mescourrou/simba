@@ -6,7 +6,6 @@ extern crate confy;
 use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
-use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 
 use super::{
@@ -65,8 +64,6 @@ impl Stateful<ObservationRecord> for Observation {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
-#[pyo3(name = "Observation")]
 pub enum ObservationRecord {
     OrientedLandmark(OrientedLandmarkObservationRecord),
     Odometry(OdometryObservationRecord),
@@ -86,7 +83,6 @@ pub enum SensorConfig {
 
 /// Enumerates all the sensor records.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass(get_all)]
 pub enum SensorRecord {
     OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorRecord),
     OdometrySensor(odometry_sensor::OdometrySensorRecord),

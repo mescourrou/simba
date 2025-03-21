@@ -71,6 +71,7 @@ pub mod utils;
 
 pub mod plugin_api;
 pub mod pybinds;
+mod pywrappers;
 
 pub mod api;
 pub mod time_analysis;

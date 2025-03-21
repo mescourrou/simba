@@ -163,7 +163,11 @@ impl Stateful<PhysicRecord> for ExternalPhysic {
 }
 
 impl HasService<GetRealStateReq, GetRealStateResp> for ExternalPhysic {
-    fn handle_service_requests(&mut self, _req: GetRealStateReq, time: f32) -> Result<GetRealStateResp, String> {
+    fn handle_service_requests(
+        &mut self,
+        _req: GetRealStateReq,
+        time: f32,
+    ) -> Result<GetRealStateResp, String> {
         Ok(GetRealStateResp {
             state: self.state(time).clone(),
         })
