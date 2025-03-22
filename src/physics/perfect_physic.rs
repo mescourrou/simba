@@ -2,17 +2,14 @@
 Provide the implementation of the [`Physic`] trait without any noise added to the [`Command`].
 */
 
-use std::sync::{Arc, Condvar, Mutex, RwLock};
-
-use crate::networking::service::{HasService, Service, ServiceClient};
+use crate::networking::service::HasService;
 use crate::plugin_api::PluginAPI;
-use crate::robot::Robot;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
-use log::{debug, error};
+use log::error;
 use nalgebra::SMatrix;
 use serde_derive::{Deserialize, Serialize};
 

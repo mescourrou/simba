@@ -3,7 +3,7 @@ members = ["example", "example_gui"]
 
 [package]
 name = "simba"
-version = "0.4.2-dev"
+version = "0.4.2"
 edition = "2021"
 
 crate-type = ["cdylib"]

@@ -11,7 +11,7 @@ use crate::{
     networking::service::HasService,
     physics::external_physic::ExternalPhysicRecord,
     pywrappers::{CommandWrapper, StateWrapper},
-    state_estimators::state_estimator::{State, StateRecord},
+    state_estimators::state_estimator::State,
     stateful::Stateful,
 };
 
@@ -40,7 +40,7 @@ impl Physic for PythonPhysicAsyncClient {
         self.apply_command_response.lock().unwrap().recv().unwrap()
     }
 
-    fn state(&self, time: f32) -> &State {
+    fn state(&self, _time: f32) -> &State {
         &self.last_state
     }
 

@@ -12,7 +12,7 @@ use crate::{
     navigators::external_navigator::ExternalNavigatorRecord,
     pywrappers::{ControllerErrorWrapper, StateWrapper},
     robot::Robot,
-    state_estimators::state_estimator::{State, StateRecord},
+    state_estimators::state_estimator::State,
     stateful::Stateful,
 };
 

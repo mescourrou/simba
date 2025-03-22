@@ -13,14 +13,12 @@ type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
-use std::sync::{Arc, Condvar, Mutex, RwLock};
-
 use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
-use crate::networking::service::{HasService, Service, ServiceClient};
+use crate::networking::service::HasService;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
 use crate::stateful::Stateful;

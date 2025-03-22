@@ -26,6 +26,8 @@ List of parameters:
 			- `trajectory_path`: String
 			- `forward_distance`: Float
 			- `target_speed`: Float
+		- `External`: [ExternalNavigatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/navigators/external_navigator/struct.ExternalNavigatorConfig.html)
+			- `config`: User-specific struct
 	- `controller`: [ControllerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/controllers/controller/enum.ControllerConfig.html), Enum
 		- `PID`: [PIDConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/controllers/pid/struct.PIDConfig.html)
 			- `kp_v`: Float
@@ -43,6 +45,8 @@ List of parameters:
 			- `initial_state`: [StateConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/state_estimators/state_estimator/struct.StateConfig.html)
 				- `pose`: Float, List
 				- `velocity`: Float
+		- `External`: [ExternalPhysicConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/physics/external_physic/struct.ExternalPhysicConfig.html)
+			- `config`: User-specific struct
 	- `state_estimator`: [StateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/state_estimators/state_estimator/enum.StateEstimatorConfig.html), Enum
 		- `Perfect`: [PerfectEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/state_estimators/perfect_estimator/struct.PerfectEstimatorConfig.html)
 			- `update_period`: Float

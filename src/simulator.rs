@@ -812,7 +812,7 @@ mod tests {
 
         let mut results: Vec<Vec<Record>> = Vec::new();
 
-        for i in 0..nb_replications {
+        for _i in 0..nb_replications {
             let mut simulator =
                 Simulator::from_config_path(Path::new("config_example/config.yaml"), &None);
 

@@ -8,7 +8,7 @@ However, the [`Physic::state`] should provide the real [`State`].
 */
 
 extern crate confy;
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};

@@ -1,5 +1,12 @@
 # Changelogs
 
+## v0.4.2
+- Phython bindings for controllers, navigators and physics
+- Working result analysis with python invocation
+- Config documentation (auto-generated)
+- No more submodule for rust dependencies
+- Using Lie theory for physics simulation
+
 ## v0.4.0
 - [breaking][Rust] Filter logs by robot
 - [breaking][Rust and Config] Run time from configuration

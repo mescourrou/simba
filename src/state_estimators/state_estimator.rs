@@ -8,7 +8,6 @@ use config_checker::macros::Check;
 use na::SVector;
 
 extern crate confy;
-use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
 /// Configuration for [`State`] in order to load a state from the configuration.

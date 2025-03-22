@@ -5,15 +5,9 @@ use pyo3::prelude::*;
 
 use crate::{
     api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
-    controllers::{
-        controller::{Controller, ControllerError},
-        pybinds::PythonController,
-    },
-    navigators::{navigator::Navigator, pybinds::PythonNavigator},
-    physics::{
-        physic::{Command, Physic},
-        pybinds::PythonPhysic,
-    },
+    controllers::{controller::ControllerError, pybinds::PythonController},
+    navigators::pybinds::PythonNavigator,
+    physics::{physic::Command, pybinds::PythonPhysic},
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
@@ -21,11 +15,8 @@ use crate::{
         oriented_landmark_sensor::OrientedLandmarkObservation,
         robot_sensor::OrientedRobotObservation, sensor::Observation,
     },
-    simulator::{Simulator, SimulatorConfig},
-    state_estimators::{
-        pybinds::PythonStateEstimator,
-        state_estimator::{State, StateEstimator},
-    },
+    simulator::Simulator,
+    state_estimators::{pybinds::PythonStateEstimator, state_estimator::State},
 };
 
 #[derive(Clone)]

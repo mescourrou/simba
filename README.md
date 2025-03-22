@@ -9,18 +9,21 @@ Here is a list of available and considered features. The order is not a priority
 - [X] Basic sensors: odometry, GNSS, relative landmark, inter-robot
 - [X] State estimator test bench
 - [X] Determinist random variables for noise simulation
-- [X] Python bindings
-- [ ] Synchronous robot run option
+- [X] Python bindings: state estimators, controllers, navigators and physics
 - [X] Back-in-time optimization: jump to present if no modification was made in the past to avoid unnecessary computation
 - [X] Time performance analysis
+- [X] Complex noise addition and faults
+- [X] Simple Graphical User Interface
+- [ ] Synchronous robot run option
 - [ ] Possibility to read data from file instead of simulation: test state estimation algorithms on real data
 - [ ] ROS2 interface (rosbag reading)
 - [ ] Gazebo interface (maybe)
 - [ ] C++ bindings
-- [X] More complex noise addition (+ faults)
-- [X] Simple Graphical User Interface
 - [ ] Advanced Graphical User Interface (real time + replay)
-- [ ] Extend PluginAPI to navigators, physics and sensors
+- [ ] Extend PluginAPI to sensors
+- [ ] Controllable sensors
+- [ ] New faults: delay, activation windows
+- [ ] Central algorithm possibility
 
 ## Cargo Features:
 - "time-analysis": enable time analysis features (with performance report compatible with [https://profiler.firefox.com/](https://profiler.firefox.com/)). May slow down the simulation (shared memory).
