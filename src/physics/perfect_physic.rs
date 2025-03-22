@@ -13,6 +13,7 @@ use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use log::{debug, error};
+use nalgebra::SMatrix;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the [`PerfectPhysic`].
@@ -139,12 +140,35 @@ impl PerfectPhysic {
 
         self.last_time_update = time;
 
-        self.state.pose.x += translation * (theta + rotation / 2.).cos();
-        self.state.pose.y += translation * (theta + rotation / 2.).sin();
-        self.state.pose.z += rotation;
+        // Using Lie theory
+        // Reference: Sola, J., Deray, J., & Atchuthan, D. (2018). A micro lie theory for state estimation in robotics. arXiv preprint arXiv:1812.01537.
+
+        let lie_action =
+            SMatrix::<f32, 3, 3>::new(0., -rotation, translation, rotation, 0., 0., 0., 0., 0.);
+
+        let rot_mat = nalgebra::Rotation2::new(theta).matrix().clone();
+
+        let mut se2_mat = SMatrix::<f32, 3, 3>::new(
+            rot_mat[(0, 0)],
+            rot_mat[(0, 1)],
+            self.state.pose.x,
+            rot_mat[(1, 0)],
+            rot_mat[(1, 1)],
+            self.state.pose.y,
+            0.,
+            0.,
+            1.,
+        );
+
+        se2_mat = se2_mat * lie_action.exp();
+
+        self.state.pose.z =
+            nalgebra::Rotation2::from_matrix(&se2_mat.fixed_view::<2, 2>(0, 0).into()).angle();
+
+        self.state.pose.x = se2_mat[(0, 2)];
+        self.state.pose.y = se2_mat[(1, 2)];
 
         self.state.velocity = translation / dt;
-        self.state = self.state.clone().theta_modulo();
     }
 }
 
