@@ -84,3 +84,6 @@ fn simba(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pybinds::make_python_bindings(m)?;
     Ok(())
 }
+
+pub mod constants;
+pub mod errors;

@@ -8,6 +8,7 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
 use super::navigators::trajectory_follower;
 
+use crate::constants::TIME_ROUND;
 use crate::controllers::controller::{self, Controller, ControllerConfig, ControllerRecord};
 use crate::controllers::pid;
 
@@ -30,6 +31,7 @@ use crate::plugin_api::PluginAPI;
 use crate::stateful::Stateful;
 use crate::time_analysis;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::maths::round_precision;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -583,7 +585,7 @@ impl Robot {
             read_only = tpl.1;
             next_time_step = tpl.0;
         }
-
+        next_time_step = round_precision(next_time_step, TIME_ROUND).unwrap();
         debug!(
             "next_time_step: {} (read only: {read_only})",
             next_time_step

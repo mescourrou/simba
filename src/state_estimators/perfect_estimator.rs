@@ -5,9 +5,11 @@ by the controller should be perfect.
 */
 
 use super::state_estimator::{State, StateRecord};
+use crate::constants::TIME_ROUND;
 use crate::sensors::sensor::Observation;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
+use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -84,7 +86,7 @@ impl StateEstimator for PerfectEstimator {
     fn prediction_step(&mut self, robot: &mut Robot, time: f32) {
         let arc_physic = robot.physics();
         let physic = arc_physic.read().unwrap();
-        if time < self.next_time_step() {
+        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             error!("Error trying to update estimate too soon !");
             return;
         }
@@ -105,7 +107,7 @@ impl StateEstimator for PerfectEstimator {
     }
 
     fn next_time_step(&self) -> f32 {
-        self.last_time_update + self.update_period
+        round_precision(self.last_time_update + self.update_period, TIME_ROUND).unwrap()
     }
 }
 

@@ -8,10 +8,7 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    pywrappers::{ObservationWrapper, StateWrapper},
-    robot::Robot,
-    sensors::sensor::Observation,
-    stateful::Stateful,
+    constants::TIME_ROUND, pywrappers::{ObservationWrapper, StateWrapper}, robot::Robot, sensors::sensor::Observation, stateful::Stateful, utils::maths::round_precision
 };
 
 use super::{
@@ -268,7 +265,7 @@ impl PythonStateEstimator {
                 .extract()
                 .expect("The 'next_time_step' method of PythonStateEstimator does not return a correct time for next step")
         });
-        time
+        round_precision(time, TIME_ROUND).unwrap()
     }
 
     fn record(&self) -> StateEstimatorRecord {

@@ -9,11 +9,13 @@ use super::fault_models::fault_model::{
 };
 use super::sensor::{Observation, Sensor, SensorRecord};
 
+use crate::constants::TIME_ROUND;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
 
@@ -151,7 +153,7 @@ impl Sensor for OdometrySensor {
         let arc_physic = robot.physics();
         let physic = arc_physic.read().unwrap();
         let mut observation_list = Vec::<Observation>::new();
-        if time < self.next_time_step() {
+        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             return observation_list;
         }
         let state = physic.state(time);
@@ -177,7 +179,7 @@ impl Sensor for OdometrySensor {
     }
 
     fn next_time_step(&self) -> f32 {
-        self.last_time + self.period
+        round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
     }
 
     fn period(&self) -> f32 {

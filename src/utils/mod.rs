@@ -6,3 +6,4 @@ pub mod determinist_random_variable;
 pub mod distributions;
 pub mod geometry;
 pub mod time_ordered_data;
+pub mod maths;

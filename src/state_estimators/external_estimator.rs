@@ -18,8 +18,10 @@ use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
 use super::state_estimator::{State, StateEstimator};
+use crate::constants::TIME_ROUND;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
+use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -138,7 +140,7 @@ impl std::fmt::Debug for ExternalEstimator {
 
 impl StateEstimator for ExternalEstimator {
     fn prediction_step(&mut self, robot: &mut Robot, time: f32) {
-        if time < self.next_time_step() {
+        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             println!("Error trying to update estimate too soon !");
             return;
         }
@@ -155,7 +157,7 @@ impl StateEstimator for ExternalEstimator {
     }
 
     fn next_time_step(&self) -> f32 {
-        self.state_estimator.next_time_step()
+        round_precision(self.state_estimator.next_time_step(), TIME_ROUND).unwrap()
     }
 }
 

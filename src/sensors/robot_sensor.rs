@@ -5,6 +5,7 @@ Provides a [`Sensor`] which can observe the other robots in the frame of the ego
 use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
 use super::sensor::{Observation, Sensor, SensorRecord};
 
+use crate::constants::TIME_ROUND;
 use crate::networking::network::MessageFlag;
 use crate::networking::service::ServiceClient;
 use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
@@ -13,6 +14,7 @@ use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
 
@@ -341,7 +343,7 @@ impl Sensor for RobotSensor {
 
     fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
         let mut observation_list = Vec::<Observation>::new();
-        if time < self.next_time_step() {
+        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             return observation_list;
         }
         debug!("Start looking for robots");
@@ -387,7 +389,7 @@ impl Sensor for RobotSensor {
 
     /// Get the next observation time.
     fn next_time_step(&self) -> f32 {
-        self.last_time + self.period
+        round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
     }
 
     /// Get the observation period.
