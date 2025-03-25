@@ -242,7 +242,7 @@ impl<T> TimeOrderedData<T> {
     /// * `None` if no data was found at this `time`.
     pub fn get_data_at_time_mut(&mut self, time: f32) -> Option<(f32, &mut T)> {
         for (data_time, ref mut data) in self.data.iter_mut() {
-            if (*data_time - time).abs() <  TIME_ROUND / 2. {
+            if (*data_time - time).abs() < TIME_ROUND / 2. {
                 return Some((time, data));
             }
         }

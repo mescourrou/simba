@@ -8,7 +8,12 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    constants::TIME_ROUND, pywrappers::{ObservationWrapper, StateWrapper}, robot::Robot, sensors::sensor::Observation, stateful::Stateful, utils::maths::round_precision
+    constants::TIME_ROUND,
+    pywrappers::{ObservationWrapper, StateWrapper},
+    robot::Robot,
+    sensors::sensor::Observation,
+    stateful::Stateful,
+    utils::maths::round_precision,
 };
 
 use super::{

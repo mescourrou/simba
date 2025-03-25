@@ -48,6 +48,7 @@ use crate::time_analysis::{self, TimeAnalysisConfig};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 use crate::robot::{Robot, RobotConfig, RobotRecord};
+use core::f32;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
@@ -56,10 +57,10 @@ use serde_json::{self, Value};
 use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, Barrier, Condvar, Mutex, RwLock};
 use std::thread::{self, ThreadId};
 
-use log::{error, info};
+use log::{debug, error, info};
 
 use pyo3::prepare_freethreaded_python;
 
@@ -94,6 +95,12 @@ impl Default for ResultConfig {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum TimeMode {
+    Centralized,
+    Decentralized,
+}
+
 /// Scenario configuration for the simulator.
 /// The Simulator configuration is the root of the scenario configuration.
 ///
@@ -116,6 +123,7 @@ pub struct SimulatorConfig {
     pub base_path: Box<Path>,
 
     pub max_time: f32,
+    pub time_mode: TimeMode,
 
     #[check]
     pub time_analysis: TimeAnalysisConfig,
@@ -135,6 +143,7 @@ impl Default for SimulatorConfig {
             random_seed: None,
             robots: Vec::new(),
             max_time: 60.,
+            time_mode: TimeMode::Centralized,
         }
     }
 }
@@ -170,6 +179,17 @@ pub struct SimulatorAsyncApi {
 #[derive(Clone)]
 struct SimulatorAsyncApiServer {
     pub current_time: Arc<Mutex<HashMap<String, f32>>>,
+}
+
+#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd)]
+pub struct TimeCvData {
+    finished_robots: usize,
+}
+
+impl Default for TimeCvData {
+    fn default() -> Self {
+        Self { finished_robots: 0 }
+    }
 }
 
 /// This is the central structure which manages the run of the scenario.
@@ -218,7 +238,8 @@ pub struct Simulator {
     /// Factory for components to make random variables generators
     determinist_va_factory: DeterministRandomVariableFactory,
 
-    time_cv: Arc<(Mutex<usize>, Condvar)>,
+    time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+    common_time: Option<Arc<Mutex<f32>>>,
 
     async_api: Option<Arc<SimulatorAsyncApi>>,
     async_api_server: Option<SimulatorAsyncApiServer>,
@@ -233,9 +254,10 @@ impl Simulator {
             config: SimulatorConfig::default(),
             network_manager: Arc::new(RwLock::new(NetworkManager::new())),
             determinist_va_factory: DeterministRandomVariableFactory::new(rng),
-            time_cv: Arc::new((Mutex::new(0), Condvar::new())),
+            time_cv: Arc::new((Mutex::new(TimeCvData::default()), Condvar::new())),
             async_api: None,
             async_api_server: None,
+            common_time: Some(Arc::new(Mutex::new(f32::INFINITY))),
         }
     }
 
@@ -281,7 +303,11 @@ impl Simulator {
         self.robots = Arc::new(RwLock::new(Vec::new()));
         self.network_manager = Arc::new(RwLock::new(NetworkManager::new()));
         let config = self.config.clone();
-        self.time_cv = Arc::new((Mutex::new(0), Condvar::new()));
+        self.time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
+        self.common_time = match &config.time_mode {
+            TimeMode::Centralized => Some(Arc::new(Mutex::new(f32::INFINITY))),
+            TimeMode::Decentralized => None,
+        };
         // Create robots
         for robot_config in &config.robots {
             self.add_robot(robot_config, plugin_api, &config);
@@ -467,12 +493,18 @@ impl Simulator {
         let mut handles = vec![];
         let max_time = self.config.max_time;
         let mut i = 0;
+        let barrier = Arc::new(Barrier::new(self.robots.read().unwrap().len()));
         for robot in self.robots.read().unwrap().iter() {
             let new_robot = Arc::clone(robot);
             let new_max_time = max_time.clone();
             let robot_list = Arc::clone(&self.robots);
             let time_cv = self.time_cv.clone();
             let async_api_server = self.async_api_server.clone();
+            let common_time = match &self.common_time {
+                Some(ct) => Some(ct.clone()),
+                None => None,
+            };
+            let barrier_clone = barrier.clone();
             let handle = thread::spawn(move || {
                 Self::run_one_robot(
                     new_robot,
@@ -481,6 +513,8 @@ impl Simulator {
                     i,
                     time_cv,
                     async_api_server,
+                    common_time,
+                    barrier_clone,
                 )
             });
             handles.push(handle);
@@ -577,34 +611,41 @@ impl Simulator {
     fn wait_the_end(
         robot: &Arc<RwLock<Robot>>,
         max_time: f32,
-        cv_mtx: &Mutex<usize>,
+        cv_mtx: &Mutex<TimeCvData>,
         cv: &Condvar,
         nb_robots: usize,
     ) -> bool {
         let mut finished_robot = cv_mtx.lock().unwrap();
-        *finished_robot = *finished_robot + 1;
-        if *finished_robot == nb_robots {
+        finished_robot.finished_robots += 1;
+        debug!(
+            "Increase finished robots: {}",
+            finished_robot.finished_robots
+        );
+        if finished_robot.finished_robots == nb_robots {
             cv.notify_all();
+            finished_robot.finished_robots = 0;
             return true;
         }
         loop {
             let buffered_msgs = robot.read().unwrap().process_messages();
             if buffered_msgs > 0 {
-                *finished_robot = *finished_robot - 1;
+                finished_robot.finished_robots -= 1;
+                debug!("[wait_the_end] Messages to process: continue");
                 return false;
             }
+            debug!("[wait_the_end] Wait for others");
             finished_robot = cv.wait(finished_robot).unwrap();
-            if *finished_robot == nb_robots {
+            if finished_robot.finished_robots == nb_robots {
                 return true;
             } else {
-                *finished_robot = *finished_robot - 1;
+                finished_robot.finished_robots -= 1;
                 let robot_open = robot.read().unwrap();
                 robot_open.process_messages();
                 let next_time = robot_open.next_time_step().0;
                 if next_time < max_time {
                     return false;
                 }
-                *finished_robot = *finished_robot + 1;
+                finished_robot.finished_robots += 1;
             }
         }
     }
@@ -618,8 +659,10 @@ impl Simulator {
         max_time: f32,
         robot_list: Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
         robot_idx: usize,
-        time_cv: Arc<(Mutex<usize>, Condvar)>,
+        time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
         async_api_server: Option<SimulatorAsyncApiServer>,
+        common_time: Option<Arc<Mutex<f32>>>,
+        barrier: Arc<Barrier>,
     ) {
         info!("Start thread of robot {}", robot.read().unwrap().name());
         let mut thread_ids = THREAD_IDS.write().unwrap();
@@ -651,7 +694,25 @@ impl Simulator {
                     .unwrap()
                     .insert(robot_open.name(), next_time);
             }
-            if next_time > max_time {
+            if let Some(common_time_arc) = &common_time {
+                {
+                    debug!("Get common time (next_time is {next_time})");
+                    let mut unlocked_common_time = common_time_arc.lock().unwrap();
+                    if *unlocked_common_time > next_time {
+                        *unlocked_common_time = next_time;
+                        debug!("Set common time");
+                    }
+                }
+                barrier.wait();
+                debug!("Get next time");
+                next_time = *common_time_arc.lock().unwrap();
+                debug!("next_time is {next_time}");
+                barrier.wait();
+                *common_time_arc.lock().unwrap() = f32::INFINITY;
+                if next_time > max_time {
+                    break;
+                }
+            } else if next_time > max_time {
                 std::mem::drop(robot_open);
                 if Self::wait_the_end(&robot, max_time, &cv_mtx, &cv, nb_robots) {
                     break;

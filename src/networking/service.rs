@@ -20,7 +20,7 @@ use std::{
 
 use log::debug;
 
-use crate::{robot::Robot, utils::time_ordered_data::TimeOrderedData};
+use crate::{robot::Robot, simulator::TimeCvData, utils::time_ordered_data::TimeOrderedData};
 
 use super::network::MessageFlag;
 
@@ -42,7 +42,7 @@ pub struct ServiceClient<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> 
     request_channel: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32, Vec<MessageFlag>)>>>,
     // Simulator condition variable needed so that all robots wait the end of other,
     // and continue to treat messages.
-    time_cv: Arc<(Mutex<usize>, Condvar)>,
+    time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
 }
 
 impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<RequestMsg, ResponseMsg> {
@@ -112,7 +112,7 @@ pub struct Service<
     request_buffer: Arc<RwLock<TimeOrderedData<(String, RequestMsg, Vec<MessageFlag>)>>>,
     /// Simulator condition variable needed so that all robots wait the end of others,
     /// and continue to treat messages.
-    time_cv: Arc<(Mutex<usize>, Condvar)>,
+    time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
     target: Arc<RwLock<Box<T>>>,
 }
 
@@ -126,7 +126,7 @@ impl<
     ///
     /// ## Arguments
     /// * `time_cv` - Condition variable of the simulator, to wait the end of the robots.
-    pub fn new(time_cv: Arc<(Mutex<usize>, Condvar)>, target: Arc<RwLock<Box<T>>>) -> Self {
+    pub fn new(time_cv: Arc<(Mutex<TimeCvData>, Condvar)>, target: Arc<RwLock<Box<T>>>) -> Self {
         let (tx, rx) = mpsc::channel::<(String, RequestMsg, f32, Vec<MessageFlag>)>();
         Self {
             request_channel_give: Arc::new(Mutex::new(tx)),

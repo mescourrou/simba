@@ -14,7 +14,7 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::robot::Robot;
-use crate::simulator::SimulatorConfig;
+use crate::simulator::{SimulatorConfig, TimeCvData};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
@@ -81,7 +81,7 @@ pub struct Network {
     /// Message list
     messages_buffer: TimeOrderedData<(String, Value, Vec<MessageFlag>)>,
 
-    time_cv: Arc<(Mutex<usize>, Condvar)>,
+    time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
 }
 
 impl fmt::Debug for Network {
@@ -96,7 +96,7 @@ impl fmt::Debug for Network {
 
 impl Network {
     /// Create a new default Network.
-    pub fn new(from: String, time_cv: Arc<(Mutex<usize>, Condvar)>) -> Network {
+    pub fn new(from: String, time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Network {
         Network::from_config(
             from,
             &NetworkConfig::default(),
@@ -112,7 +112,7 @@ impl Network {
         config: &NetworkConfig,
         _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
-        time_cv: Arc<(Mutex<usize>, Condvar)>,
+        time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
     ) -> Network {
         let (tx, rx) = mpsc::channel::<(String, Value, f32, Vec<MessageFlag>)>();
         Network {

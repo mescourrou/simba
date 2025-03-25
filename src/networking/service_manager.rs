@@ -6,6 +6,7 @@ use std::{
 use crate::{
     physics::physic::{GetRealStateReq, GetRealStateResp, Physic},
     robot::Robot,
+    simulator::TimeCvData,
 };
 
 use super::service::{Service, ServiceClient, ServiceInterface};
@@ -16,7 +17,10 @@ pub struct ServiceManager {
 }
 
 impl ServiceManager {
-    pub fn initialize(robot: Arc<RwLock<Robot>>, time_cv: Arc<(Mutex<usize>, Condvar)>) -> Self {
+    pub fn initialize(
+        robot: Arc<RwLock<Robot>>,
+        time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+    ) -> Self {
         let open_robot = robot.read().unwrap();
         Self {
             get_real_state: Arc::new(RwLock::new(Service::new(

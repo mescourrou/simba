@@ -19,7 +19,7 @@ ENUMERATION_COMMENT = "Enum"
 
 BASE_DOC_URL = "https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/"
 
-ADDITIONNAL_CONFIG_ITEMS = ["Source", "Sort"]
+ADDITIONNAL_CONFIG_ITEMS = ["Source", "Sort", "TimeMode"]
 
 def main():
     configs = {}

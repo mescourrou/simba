@@ -19,7 +19,7 @@ use crate::networking::service_manager::ServiceManager;
 use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 use crate::physics::{perfect_physic, physic};
 
-use crate::simulator::SimulatorConfig;
+use crate::simulator::{SimulatorConfig, TimeCvData};
 use crate::state_estimators::state_estimator::{
     StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
 };
@@ -239,7 +239,7 @@ pub struct Robot {
 
 impl Robot {
     /// Creates a new [`Robot`] with the given name.
-    pub fn new(name: String, time_cv: Arc<(Mutex<usize>, Condvar)>) -> Arc<RwLock<Self>> {
+    pub fn new(name: String, time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Arc<RwLock<Self>> {
         let robot = Arc::new(RwLock::new(Self {
             name: name.clone(),
             navigator: Arc::new(RwLock::new(Box::new(
@@ -280,7 +280,7 @@ impl Robot {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
-        time_cv: Arc<(Mutex<usize>, Condvar)>,
+        time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
     ) -> Arc<RwLock<Self>> {
         let robot = Arc::new(RwLock::new(Self {
             name: config.name.clone(),
