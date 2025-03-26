@@ -171,6 +171,7 @@ impl<
         debug!("Processing service requests...");
         for (from, message, time, message_flags) in self.request_channel.lock().unwrap().try_iter()
         {
+            debug!("Insert request from {from} at time {time}");
             self.request_buffer.write().unwrap().insert(
                 time,
                 (from, message, message_flags),

@@ -519,22 +519,23 @@ impl Robot {
             }
         }
 
-        // Treat messages synchronously
-        self.network()
-            .write()
-            .unwrap()
-            .handle_message_at_time(self, time);
+        self.handle_messages(time);
 
-        // for service in &self.services {
-        //     service.write().unwrap().handle_requests(time);
-        // }
 
-        self.service_manager.as_ref().unwrap().handle_requests(time);
 
         if !read_only {
             // Save state (replace if needed)
             self.save_state(time);
         }
+    }
+
+    pub fn handle_messages(&mut self, time: f32) {
+        // Treat messages synchronously
+        self.network()
+            .write()
+            .unwrap()
+            .handle_message_at_time(self, time);
+        self.service_manager.as_ref().unwrap().handle_requests(time);
     }
 
     /// Computes the next time step, using state estimator, sensors and received messages.

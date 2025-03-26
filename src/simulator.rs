@@ -703,12 +703,26 @@ impl Simulator {
                         debug!("Set common time");
                     }
                 }
-                barrier.wait();
-                debug!("Get next time");
+                std::mem::drop(robot_open);
+
+                let mut lk = time_cv.0.lock().unwrap();
+                lk.finished_robots += 1;
+                cv.notify_all();
+                while lk.finished_robots != nb_robots {
+                    let buffered_msgs = robot.read().unwrap().process_messages();
+                    if buffered_msgs > 0 {
+                        robot.write().unwrap().handle_messages(previous_time);
+                    }
+                    lk = cv.wait(lk).unwrap();
+                }
+                std::mem::drop(lk);
+                
                 next_time = *common_time_arc.lock().unwrap();
-                debug!("next_time is {next_time}");
                 barrier.wait();
                 *common_time_arc.lock().unwrap() = f32::INFINITY;
+                time_cv.0.lock().unwrap().finished_robots = 0;
+                barrier.wait();
+                robot_open = robot.write().unwrap();
                 if next_time > max_time {
                     break;
                 }
