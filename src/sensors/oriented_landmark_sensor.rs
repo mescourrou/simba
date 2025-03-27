@@ -354,7 +354,6 @@ impl Sensor for OrientedLandmarkSensor {
     fn init(
         &mut self,
         _robot: &mut Robot,
-        _robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
         _robot_idx: usize,
     ) {
     }

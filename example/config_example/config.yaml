@@ -22,6 +22,10 @@ robots:
         kp_theta: 6.0
     # sensor_manager:
     #   sensors:
+    #     - RobotSensor:
+    #         period: 0.1
+    #         detection_distance: 100.0
+    #   sensors:
     #     - OrientedLandmarkSensor:
     #         map_path: "maps/landmarks_square.yaml"
     #         detection_distance: 6.0
@@ -35,3 +39,8 @@ robots:
       PID:
         kp_v: 1.0
         kp_theta: 3.0
+    # sensor_manager:
+    #   sensors:
+    #     - RobotSensor:
+    #         period: 0.1
+    #         detection_distance: 100.0

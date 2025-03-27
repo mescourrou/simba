@@ -42,6 +42,7 @@ use config_checker::ConfigCheckable;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
+use crate::errors::SimbaError;
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
 use crate::time_analysis::{self, TimeAnalysisConfig};
@@ -230,7 +231,7 @@ impl Default for TimeCvData {
 /// ```
 pub struct Simulator {
     /// List of the [`Robot`]. Using `Arc` and `RwLock` for multithreading.
-    robots: Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
+    robots: Vec<Robot>,
     /// Scenario configuration.
     config: SimulatorConfig,
     /// Network Manager
@@ -250,7 +251,7 @@ impl Simulator {
     pub fn new() -> Simulator {
         let rng = rand::random();
         Simulator {
-            robots: Arc::new(RwLock::new(Vec::new())),
+            robots: Vec::new(),
             config: SimulatorConfig::default(),
             network_manager: Arc::new(RwLock::new(NetworkManager::new())),
             determinist_va_factory: DeterministRandomVariableFactory::new(rng),
@@ -300,7 +301,7 @@ impl Simulator {
     }
 
     pub fn reset(&mut self, plugin_api: &Option<Box<&dyn PluginAPI>>) {
-        self.robots = Arc::new(RwLock::new(Vec::new()));
+        self.robots = Vec::new();
         self.network_manager = Arc::new(RwLock::new(NetworkManager::new()));
         let config = self.config.clone();
         self.time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
@@ -444,7 +445,7 @@ impl Simulator {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
     ) {
-        self.robots.write().unwrap().push(Robot::from_config(
+        self.robots.push(Robot::from_config(
             robot_config,
             plugin_api,
             &global_config,
@@ -452,18 +453,13 @@ impl Simulator {
             self.time_cv.clone(),
         ));
 
-        let robot_list = self.robots.read().unwrap();
-
         self.network_manager
             .write()
             .unwrap()
-            .register_robot_network(Arc::clone(&robot_list.last().unwrap()));
-        let last_robot_write = robot_list
+            .register_robot_network(&self.robots.last().unwrap());
+        self.robots
             .last()
             .expect("No robot added to the vector, how is it possible ??")
-            .write()
-            .unwrap();
-        last_robot_write
             .network()
             .write()
             .unwrap()
@@ -473,8 +469,7 @@ impl Simulator {
     /// Simply print the Simulator state, using the info channel and the debug print.
     pub fn show(&self) {
         println!("Simulator:");
-        let robot_list = self.robots.read().unwrap();
-        for robot in robot_list.iter() {
+        for robot in self.robots.iter() {
             println!("- {:?}", robot);
         }
     }
@@ -492,12 +487,11 @@ impl Simulator {
     pub fn run(&mut self) {
         let mut handles = vec![];
         let max_time = self.config.max_time;
-        let mut i = 0;
-        let barrier = Arc::new(Barrier::new(self.robots.read().unwrap().len()));
-        for robot in self.robots.read().unwrap().iter() {
-            let new_robot = Arc::clone(robot);
+        let nb_robots = self.robots.len();
+        let barrier = Arc::new(Barrier::new(nb_robots));
+        while let Some(robot) = self.robots.pop() {
+            let i = self.robots.len();
             let new_max_time = max_time.clone();
-            let robot_list = Arc::clone(&self.robots);
             let time_cv = self.time_cv.clone();
             let async_api_server = self.async_api_server.clone();
             let common_time = match &self.common_time {
@@ -505,11 +499,11 @@ impl Simulator {
                 None => None,
             };
             let barrier_clone = barrier.clone();
-            let handle = thread::spawn(move || {
+            let handle = thread::spawn(move || -> Result<Robot, SimbaError> {
                 Self::run_one_robot(
-                    new_robot,
+                    robot,
                     new_max_time,
-                    robot_list,
+                    nb_robots,
                     i,
                     time_cv,
                     async_api_server,
@@ -518,11 +512,10 @@ impl Simulator {
                 )
             });
             handles.push(handle);
-            i += 1;
         }
 
         for handle in handles {
-            handle.join().unwrap();
+            self.robots.push(handle.join().unwrap().expect("Robot not returned"));
         }
 
         self.save_results();
@@ -531,9 +524,8 @@ impl Simulator {
     /// Returns the list of all [`Record`]s produced by [`Simulator::run`].
     pub fn get_results(&self) -> Vec<Record> {
         let mut records = Vec::new();
-        for robot in self.robots.read().unwrap().iter() {
-            let robot_r = robot.read().expect("Robot cannot be read");
-            let robot_history = robot_r.record_history();
+        for robot in self.robots.iter() {
+            let robot_history = robot.record_history();
             for (time, record) in robot_history.iter() {
                 records.push(Record {
                     time: time.clone(),
@@ -609,7 +601,7 @@ impl Simulator {
     /// Wait the end of the simulation. If other robot send messages, the simulation
     /// will go back to the time of the last message received.
     fn wait_the_end(
-        robot: &Arc<RwLock<Robot>>,
+        robot: &Robot,
         max_time: f32,
         cv_mtx: &Mutex<TimeCvData>,
         cv: &Condvar,
@@ -627,7 +619,7 @@ impl Simulator {
             return true;
         }
         loop {
-            let buffered_msgs = robot.read().unwrap().process_messages();
+            let buffered_msgs = robot.process_messages();
             if buffered_msgs > 0 {
                 finished_robot.finished_robots -= 1;
                 debug!("[wait_the_end] Messages to process: continue");
@@ -639,9 +631,8 @@ impl Simulator {
                 return true;
             } else {
                 finished_robot.finished_robots -= 1;
-                let robot_open = robot.read().unwrap();
-                robot_open.process_messages();
-                let next_time = robot_open.next_time_step().0;
+                robot.process_messages();
+                let next_time = robot.next_time_step().0;
                 if next_time < max_time {
                     return false;
                 }
@@ -655,44 +646,39 @@ impl Simulator {
     /// * `robot` - Robot to be run.
     /// * `max_time` - Time to stop the loop.
     fn run_one_robot(
-        robot: Arc<RwLock<Robot>>,
+        mut robot: Robot,
         max_time: f32,
-        robot_list: Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
+        nb_robots: usize,
         robot_idx: usize,
         time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
         async_api_server: Option<SimulatorAsyncApiServer>,
         common_time: Option<Arc<Mutex<f32>>>,
         barrier: Arc<Barrier>,
-    ) {
-        info!("Start thread of robot {}", robot.read().unwrap().name());
+    ) -> Result<Robot, SimbaError> {
+        info!("Start thread of robot {}", robot.name());
         let mut thread_ids = THREAD_IDS.write().unwrap();
         thread_ids.push(thread::current().id());
         let thread_idx = thread_ids.len() - 1;
         THREAD_NAMES
             .write()
             .unwrap()
-            .push(robot.read().unwrap().name());
+            .push(robot.name());
         THREAD_TIMES.write().unwrap().push(0.);
         drop(thread_ids);
-        time_analysis::set_robot_name(robot.read().unwrap().name());
-        let nb_robots = robot_list.read().unwrap().len();
+        time_analysis::set_robot_name(robot.name());
         info!("Finishing initialization");
-        robot
-            .write()
-            .unwrap()
-            .post_creation_init(&robot_list, robot_idx);
+        robot.post_creation_init(robot_idx);
 
         let (cv_mtx, cv) = &*time_cv;
 
         let mut previous_time = 0.;
         loop {
-            let mut robot_open = robot.write().unwrap();
-            let (mut next_time, mut read_only) = robot_open.next_time_step();
+            let (mut next_time, mut read_only) = robot.next_time_step();
             if let Some(api) = &async_api_server {
                 api.current_time
                     .lock()
                     .unwrap()
-                    .insert(robot_open.name(), next_time);
+                    .insert(robot.name(), next_time);
             }
             if let Some(common_time_arc) = &common_time {
                 {
@@ -703,15 +689,14 @@ impl Simulator {
                         debug!("Set common time");
                     }
                 }
-                std::mem::drop(robot_open);
 
                 let mut lk = time_cv.0.lock().unwrap();
                 lk.finished_robots += 1;
                 cv.notify_all();
                 while lk.finished_robots != nb_robots {
-                    let buffered_msgs = robot.read().unwrap().process_messages();
+                    let buffered_msgs = robot.process_messages();
                     if buffered_msgs > 0 {
-                        robot.write().unwrap().handle_messages(previous_time);
+                        robot.handle_messages(previous_time);
                     }
                     lk = cv.wait(lk).unwrap();
                 }
@@ -722,27 +707,25 @@ impl Simulator {
                 *common_time_arc.lock().unwrap() = f32::INFINITY;
                 time_cv.0.lock().unwrap().finished_robots = 0;
                 barrier.wait();
-                robot_open = robot.write().unwrap();
                 if next_time > max_time {
                     break;
                 }
             } else if next_time > max_time {
-                std::mem::drop(robot_open);
                 if Self::wait_the_end(&robot, max_time, &cv_mtx, &cv, nb_robots) {
                     break;
                 }
-                robot_open = robot.write().unwrap();
-                (next_time, read_only) = robot_open.next_time_step();
+                (next_time, read_only) = robot.next_time_step();
                 info!("Return to time {next_time}");
             }
             THREAD_TIMES.write().unwrap()[thread_idx] = next_time;
-            robot_open.run_next_time_step(next_time, read_only);
+            robot.run_next_time_step(next_time, read_only);
             if read_only {
-                robot_open.set_in_state(previous_time);
+                robot.set_in_state(previous_time);
             } else {
                 previous_time = next_time;
             }
         }
+        Ok(robot)
     }
 
     pub fn compute_results(&self) {

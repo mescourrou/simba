@@ -133,11 +133,10 @@ impl SensorManager {
     pub fn init(
         &mut self,
         robot: &mut Robot,
-        robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
         robot_idx: usize,
     ) {
         for sensor in &mut self.sensors {
-            sensor.write().unwrap().init(robot, robot_list, robot_idx);
+            sensor.write().unwrap().init(robot, robot_idx);
         }
     }
 

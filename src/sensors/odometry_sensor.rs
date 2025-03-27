@@ -143,7 +143,6 @@ impl Sensor for OdometrySensor {
     fn init(
         &mut self,
         robot: &mut Robot,
-        _robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
         _robot_idx: usize,
     ) {
         self.last_state = robot.physics().read().unwrap().state(0.).clone();

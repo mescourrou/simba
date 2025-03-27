@@ -319,26 +319,25 @@ impl Sensor for RobotSensor {
     fn init(
         &mut self,
         robot: &mut Robot,
-        robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
         robot_idx: usize,
     ) {
-        let robot_unlock_list = robot_list.read().unwrap();
-        let mut i = 0;
-        for other_robot in robot_unlock_list.iter() {
-            if i == robot_idx {
-                i += 1;
-                continue;
-            }
-            let writable_robot = other_robot.write().unwrap();
-            debug!("Add service of {}", writable_robot.name());
-            self.robot_real_state_services.insert(
-                writable_robot.name(),
-                writable_robot
-                    .service_manager()
-                    .get_real_state_client(robot.name().as_str()),
-            );
-            i += 1;
-        }
+        // let robot_unlock_list = robot_list.read().unwrap();
+        // let mut i = 0;
+        // for other_robot in robot_unlock_list.iter() {
+        //     if i == robot_idx {
+        //         i += 1;
+        //         continue;
+        //     }
+        //     let writable_robot = other_robot.write().unwrap();
+        //     debug!("Add service of {}", writable_robot.name());
+        //     self.robot_real_state_services.insert(
+        //         writable_robot.name(),
+        //         writable_robot
+        //             .service_manager()
+        //             .get_real_state_client(robot.name().as_str()),
+        //     );
+        //     i += 1;
+        // }
     }
 
     fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {

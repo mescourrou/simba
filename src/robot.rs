@@ -281,8 +281,8 @@ impl Robot {
         global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
         time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
-    ) -> Arc<RwLock<Self>> {
-        let robot = Arc::new(RwLock::new(Self {
+    ) -> Self {
+        let mut robot = Self {
             name: config.name.clone(),
             navigator: navigator::make_navigator_from_config(
                 &config.navigator,
@@ -329,12 +329,10 @@ impl Robot {
             ))),
             // services: Vec::new(),
             service_manager: None,
-        }));
+        };
 
         for state_estimator_config in &config.state_estimator_bench {
             robot
-                .write()
-                .unwrap()
                 .state_estimator_bench
                 .write()
                 .unwrap()
@@ -349,21 +347,18 @@ impl Robot {
                 })
         }
 
-        let service_manager = Some(ServiceManager::initialize(robot.clone(), time_cv));
+        // let service_manager = Some(ServiceManager::initialize(&robot.clone(), time_cv));
         {
-            let mut writable_robot = robot.write().unwrap();
-            writable_robot.network.write().unwrap().subscribe(Arc::<
+           robot.network.write().unwrap().subscribe(Arc::<
                 RwLock<RobotGenericMessageHandler>,
             >::clone(
-                &writable_robot.message_handler
+                &robot.message_handler
             ));
-            writable_robot.save_state(0.);
+            robot.save_state(0.);
 
             // Services
-            debug!("Setup services");
-            writable_robot.service_manager = service_manager;
-            // let service = Arc::new(RwLock::new(Box::new(Service::<GetRealStateReq, GetRealStateResp, dyn Physic>::new(time_cv.clone(), physics)) as _ ));
-            // writable_robot.services.push(service);
+            // debug!("Setup services");
+            // writable_robot.service_manager = service_manager;
         }
 
         robot
@@ -374,14 +369,13 @@ impl Robot {
     /// It is used to initialize the sensor manager, which need to know the list of all robots.
     pub fn post_creation_init(
         &mut self,
-        robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
         robot_idx: usize,
     ) {
         let sensor_manager = self.sensor_manager();
         sensor_manager
             .write()
             .unwrap()
-            .init(self, robot_list, robot_idx);
+            .init(self, robot_idx);
     }
 
     /// Run the robot to reach the given time.
@@ -401,7 +395,8 @@ impl Robot {
     /// Process all the messages: one-way (network) and two-way (services).
     pub fn process_messages(&self) -> usize {
         self.network().write().unwrap().process_messages()
-            + self.service_manager.as_ref().unwrap().process_requests()
+        // TO PUT BACK
+            // + self.service_manager.as_ref().unwrap().process_requests()
     }
 
     /// Run only one time step.
@@ -535,7 +530,8 @@ impl Robot {
             .write()
             .unwrap()
             .handle_message_at_time(self, time);
-        self.service_manager.as_ref().unwrap().handle_requests(time);
+        // TO PUT BACK
+        // self.service_manager.as_ref().unwrap().handle_requests(time);
     }
 
     /// Computes the next time step, using state estimator, sensors and received messages.
@@ -581,11 +577,12 @@ impl Robot {
         //     }
         // }
 
-        let tpl = self.service_manager.as_ref().unwrap().next_time();
-        if next_time_step > tpl.0 {
-            read_only = tpl.1;
-            next_time_step = tpl.0;
-        }
+        // TO PUT BACK
+        // let tpl = self.service_manager.as_ref().unwrap().next_time();
+        // if next_time_step > tpl.0 {
+        //     read_only = tpl.1;
+        //     next_time_step = tpl.0;
+        // }
         next_time_step = round_precision(next_time_step, TIME_ROUND).unwrap();
         debug!(
             "next_time_step: {} (read only: {read_only})",

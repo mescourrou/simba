@@ -101,7 +101,6 @@ pub trait Sensor:
     fn init(
         &mut self,
         robot: &mut Robot,
-        robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
         robot_idx: usize,
     );
 
