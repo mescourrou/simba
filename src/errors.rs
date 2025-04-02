@@ -7,6 +7,7 @@ use std::{
 pub enum SimbaErrorTypes {
     UnknwonError,
     MathError,
+    ImplementationError,
 }
 
 pub struct SimbaError {
@@ -43,3 +44,6 @@ impl Debug for SimbaError {
 }
 
 impl Error for SimbaError {}
+
+
+pub type SimbaResult<T> = Result<T, SimbaError>;

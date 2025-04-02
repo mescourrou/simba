@@ -61,7 +61,7 @@ impl Trajectory {
     /// Creates a new empty trajectory
     pub fn new() -> Self {
         Self {
-            point_list: DMatrix::<f32>::from_vec(0, 0, Vec::<f32>::new()),
+            point_list: DMatrix::<f32>::from_vec(1, 2, vec![0., 0.]), // Default is 1 point at (0,0)
             do_loop: true,
             current_segment: 0,
         }
@@ -146,6 +146,9 @@ impl Trajectory {
     ) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>, bool) {
         let mut forward_distance = forward_distance;
         let (mut pt1, mut pt2, mut projected_point) = self.project(&point);
+        if (pt1 - pt2).norm() < 1e-10 {
+            return ((pt1, pt2), projected_point, true);
+        }
         while (projected_point - pt2).norm() < 1e-6 {
             if self.current_segment + 1 == self.point_list.nrows() {
                 if !self.do_loop {
@@ -208,6 +211,10 @@ impl Trajectory {
             .point_list
             .fixed_view::<1, 2>(self.current_segment, 0)
             .transpose();
+
+        if self.point_list.nrows() == 1 {
+            return (pt1, pt1, pt1);
+        }
         let pt2 = if self.current_segment + 1 >= self.point_list.nrows() {
             self.point_list.fixed_view::<1, 2>(0, 0).transpose()
         } else {

@@ -11,7 +11,7 @@ use crate::{
     controllers::external_controller::ExternalControllerRecord,
     physics::physic::Command,
     pywrappers::{CommandWrapper, ControllerErrorWrapper},
-    robot::Robot,
+    robot::{Robot, RobotRecord},
     stateful::Stateful,
 };
 
@@ -19,7 +19,7 @@ use super::controller::{Controller, ControllerError, ControllerRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonControllerAsyncClient {
-    pub make_command_request: mpsc::Sender<(Robot, ControllerError, f32)>,
+    pub make_command_request: mpsc::Sender<(RobotRecord, ControllerError, f32)>,
     pub make_command_response: Arc<Mutex<mpsc::Receiver<Command>>>,
     pub record_request: mpsc::Sender<()>,
     pub record_response: Arc<Mutex<mpsc::Receiver<ControllerRecord>>>,
@@ -30,7 +30,7 @@ pub struct PythonControllerAsyncClient {
 impl Controller for PythonControllerAsyncClient {
     fn make_command(&mut self, robot: &mut Robot, error: &ControllerError, time: f32) -> Command {
         self.make_command_request
-            .send((robot.clone(), error.clone(), time))
+            .send((robot.record(), error.clone(), time))
             .unwrap();
         self.make_command_response.lock().unwrap().recv().unwrap()
     }
@@ -58,7 +58,7 @@ impl Stateful<ControllerRecord> for PythonControllerAsyncClient {
 pub struct PythonController {
     model: Py<PyAny>,
     client: PythonControllerAsyncClient,
-    make_command_request: Arc<Mutex<mpsc::Receiver<(Robot, ControllerError, f32)>>>,
+    make_command_request: Arc<Mutex<mpsc::Receiver<(RobotRecord, ControllerError, f32)>>>,
     make_command_response: mpsc::Sender<Command>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
     record_response: mpsc::Sender<ControllerRecord>,
@@ -123,7 +123,7 @@ impl PythonController {
 
     fn make_command(
         &mut self,
-        _robot: &crate::robot::Robot,
+        _robot: &RobotRecord,
         error: &ControllerError,
         time: f32,
     ) -> Command {

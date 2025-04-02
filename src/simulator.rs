@@ -42,13 +42,16 @@ use config_checker::ConfigCheckable;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::errors::SimbaError;
+use crate::api::internal_api::RobotClient;
+use crate::errors::{SimbaError, SimbaResult};
 use crate::networking::network_manager::NetworkManager;
 use crate::plugin_api::PluginAPI;
+use crate::state_estimators::state_estimator::State;
 use crate::time_analysis::{self, TimeAnalysisConfig};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 use crate::robot::{Robot, RobotConfig, RobotRecord};
+use crate::utils::time_ordered_data::TimeOrderedData;
 use core::f32;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -235,7 +238,7 @@ pub struct Simulator {
     /// Scenario configuration.
     config: SimulatorConfig,
     /// Network Manager
-    network_manager: Arc<RwLock<NetworkManager>>,
+    network_manager: NetworkManager,
     /// Factory for components to make random variables generators
     determinist_va_factory: DeterministRandomVariableFactory,
 
@@ -244,21 +247,25 @@ pub struct Simulator {
 
     async_api: Option<Arc<SimulatorAsyncApi>>,
     async_api_server: Option<SimulatorAsyncApiServer>,
+
+    robot_apis: HashMap<String, RobotClient>,
 }
 
 impl Simulator {
     /// Create a new [`Simulator`] with no robots, and empty config.
     pub fn new() -> Simulator {
         let rng = rand::random();
+        let time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
         Simulator {
             robots: Vec::new(),
             config: SimulatorConfig::default(),
-            network_manager: Arc::new(RwLock::new(NetworkManager::new())),
+            network_manager: NetworkManager::new(time_cv.clone()),
             determinist_va_factory: DeterministRandomVariableFactory::new(rng),
-            time_cv: Arc::new((Mutex::new(TimeCvData::default()), Condvar::new())),
+            time_cv,
             async_api: None,
             async_api_server: None,
             common_time: Some(Arc::new(Mutex::new(f32::INFINITY))),
+            robot_apis: HashMap::new(),
         }
     }
 
@@ -302,7 +309,7 @@ impl Simulator {
 
     pub fn reset(&mut self, plugin_api: &Option<Box<&dyn PluginAPI>>) {
         self.robots = Vec::new();
-        self.network_manager = Arc::new(RwLock::new(NetworkManager::new()));
+        self.network_manager = NetworkManager::new(self.time_cv.clone());
         let config = self.config.clone();
         self.time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
         self.common_time = match &config.time_mode {
@@ -312,6 +319,11 @@ impl Simulator {
         // Create robots
         for robot_config in &config.robots {
             self.add_robot(robot_config, plugin_api, &config);
+        }
+
+        for (robot_idx, robot) in self.robots.iter_mut().enumerate() {
+            info!("Finishing initialization of {}", robot.name());
+            self.robot_apis.insert(robot.name(), robot.post_creation_init(robot_idx));
         }
     }
 
@@ -453,17 +465,7 @@ impl Simulator {
             self.time_cv.clone(),
         ));
 
-        self.network_manager
-            .write()
-            .unwrap()
-            .register_robot_network(&self.robots.last().unwrap());
-        self.robots
-            .last()
-            .expect("No robot added to the vector, how is it possible ??")
-            .network()
-            .write()
-            .unwrap()
-            .set_network_manager(Arc::clone(&self.network_manager));
+        self.network_manager.register_robot_network(self.robots.last_mut().unwrap());
     }
 
     /// Simply print the Simulator state, using the info channel and the debug print.
@@ -489,6 +491,7 @@ impl Simulator {
         let max_time = self.config.max_time;
         let nb_robots = self.robots.len();
         let barrier = Arc::new(Barrier::new(nb_robots));
+        let finishing_cv = Arc::new((Mutex::new(0usize), Condvar::new()));
         while let Some(robot) = self.robots.pop() {
             let i = self.robots.len();
             let new_max_time = max_time.clone();
@@ -498,9 +501,10 @@ impl Simulator {
                 Some(ct) => Some(ct.clone()),
                 None => None,
             };
+            let finishing_cv_clone = finishing_cv.clone();
             let barrier_clone = barrier.clone();
-            let handle = thread::spawn(move || -> Result<Robot, SimbaError> {
-                Self::run_one_robot(
+            let handle = thread::spawn(move || -> SimbaResult<Robot>{
+                let ret = Self::run_one_robot(
                     robot,
                     new_max_time,
                     nb_robots,
@@ -509,10 +513,15 @@ impl Simulator {
                     async_api_server,
                     common_time,
                     barrier_clone,
-                )
+                );
+                *finishing_cv_clone.0.lock().unwrap() += 1;
+                finishing_cv_clone.1.notify_all();
+                ret
             });
             handles.push(handle);
         }
+
+        self.simulator_spin(finishing_cv, nb_robots);
 
         for handle in handles {
             self.robots.push(handle.join().unwrap().expect("Robot not returned"));
@@ -654,7 +663,7 @@ impl Simulator {
         async_api_server: Option<SimulatorAsyncApiServer>,
         common_time: Option<Arc<Mutex<f32>>>,
         barrier: Arc<Barrier>,
-    ) -> Result<Robot, SimbaError> {
+    ) -> SimbaResult<Robot> {
         info!("Start thread of robot {}", robot.name());
         let mut thread_ids = THREAD_IDS.write().unwrap();
         thread_ids.push(thread::current().id());
@@ -666,8 +675,6 @@ impl Simulator {
         THREAD_TIMES.write().unwrap().push(0.);
         drop(thread_ids);
         time_analysis::set_robot_name(robot.name());
-        info!("Finishing initialization");
-        robot.post_creation_init(robot_idx);
 
         let (cv_mtx, cv) = &*time_cv;
 
@@ -693,10 +700,14 @@ impl Simulator {
                 let mut lk = time_cv.0.lock().unwrap();
                 lk.finished_robots += 1;
                 cv.notify_all();
-                while lk.finished_robots != nb_robots {
+                debug!("Waiting for others...");
+                loop {
                     let buffered_msgs = robot.process_messages();
                     if buffered_msgs > 0 {
                         robot.handle_messages(previous_time);
+                    }
+                    if lk.finished_robots == nb_robots {
+                        break;
                     }
                     lk = cv.wait(lk).unwrap();
                 }
@@ -726,6 +737,26 @@ impl Simulator {
             }
         }
         Ok(robot)
+    }
+
+    fn simulator_spin(&mut self, finishing_cv: Arc<(Mutex<usize>, Condvar)>, nb_robots: usize) {
+        // self.robots is empty
+        let mut robot_states: HashMap<String, TimeOrderedData<State>> = HashMap::new();
+        for (k,_) in self.robot_apis.iter() {
+            robot_states.insert(k.clone(), TimeOrderedData::<State>::new());
+        }
+        loop {
+            for (robot_name, robot_api) in self.robot_apis.iter() {
+                if let Ok((time, state)) = robot_api.state_update.try_recv() {
+                    robot_states.get_mut(robot_name).expect(format!("Unknown robot {robot_name}").as_str()).insert(time, state, true);
+                }
+            }
+            self.network_manager.process_messages(&robot_states);
+            if *finishing_cv.0.lock().unwrap() == nb_robots {
+                return;
+            }
+        }
+
     }
 
     pub fn compute_results(&self) {

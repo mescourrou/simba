@@ -8,6 +8,7 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
 use super::navigators::trajectory_follower;
 
+use crate::api::internal_api::{self, RobotClient, RobotServer};
 use crate::constants::TIME_ROUND;
 use crate::controllers::controller::{self, Controller, ControllerConfig, ControllerRecord};
 use crate::controllers::pid;
@@ -38,9 +39,9 @@ use crate::utils::time_ordered_data::TimeOrderedData;
 #[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct BenchStateEstimatorConfig {
-    name: String,
+    pub name: String,
     #[check]
-    config: StateEstimatorConfig,
+    pub config: StateEstimatorConfig,
 }
 
 impl Default for BenchStateEstimatorConfig {
@@ -207,7 +208,7 @@ impl MessageHandler for RobotGenericMessageHandler {
 /// In this way, it can get back to a past state, in order to treat a message sent
 /// from the past. [`Robot::run_next_time_step`] does the necessary
 /// so that the required time is reached taking into account all past messages.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Robot {
     /// Name of the robot. Should be unique among all [`Simulator`](crate::simulator::Simulator)
     /// robots.
@@ -224,8 +225,6 @@ pub struct Robot {
     sensor_manager: Arc<RwLock<SensorManager>>,
     /// [`Network`] interface to receive and send messages with other robots.
     network: Arc<RwLock<Network>>,
-    /// [`MessageHandler`] for messages which are not sent to a specific module.
-    message_handler: Arc<RwLock<RobotGenericMessageHandler>>,
     /// History of the states ([`RobotRecord`]) of the robot, to set the [`Robot`]
     /// in a past state.
     state_history: TimeOrderedData<RobotRecord>,
@@ -235,12 +234,14 @@ pub struct Robot {
     // services: Vec<Arc<RwLock<Box<dyn ServiceInterface>>>>,
     /// Not really an option, but for delayed initialization
     service_manager: Option<ServiceManager>,
+
+    robot_server: Option<RobotServer>,
 }
 
 impl Robot {
     /// Creates a new [`Robot`] with the given name.
-    pub fn new(name: String, time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Arc<RwLock<Self>> {
-        let robot = Arc::new(RwLock::new(Self {
+    pub fn new(name: String, time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Self {
+        let mut robot = Self {
             name: name.clone(),
             navigator: Arc::new(RwLock::new(Box::new(
                 trajectory_follower::TrajectoryFollower::new(),
@@ -252,15 +253,15 @@ impl Robot {
             ))),
             sensor_manager: Arc::new(RwLock::new(SensorManager::new())),
             network: Arc::new(RwLock::new(Network::new(name.clone(), time_cv.clone()))),
-            message_handler: Arc::new(RwLock::new(RobotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
             state_estimator_bench: Arc::new(RwLock::new(Vec::new())),
             // services: Vec::new(),
             service_manager: None,
-        }));
-        robot.write().unwrap().save_state(0.);
-        let service_manager = Some(ServiceManager::initialize(robot.clone(), time_cv));
-        robot.write().unwrap().service_manager = service_manager;
+            robot_server: None,
+        };
+        robot.save_state(0.);
+        // let service_manager = Some(ServiceManager::initialize(robot.clone(), time_cv));
+        // robot.service_manager = service_manager;
         robot
     }
 
@@ -322,13 +323,13 @@ impl Robot {
                 va_factory,
                 time_cv.clone(),
             ))),
-            message_handler: Arc::new(RwLock::new(RobotGenericMessageHandler::new())),
             state_history: TimeOrderedData::new(),
             state_estimator_bench: Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimator_bench.len(),
             ))),
             // services: Vec::new(),
             service_manager: None,
+            robot_server: None,
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -348,18 +349,19 @@ impl Robot {
         }
 
         // let service_manager = Some(ServiceManager::initialize(&robot.clone(), time_cv));
-        {
-           robot.network.write().unwrap().subscribe(Arc::<
-                RwLock<RobotGenericMessageHandler>,
-            >::clone(
-                &robot.message_handler
-            ));
-            robot.save_state(0.);
-
-            // Services
-            // debug!("Setup services");
-            // writable_robot.service_manager = service_manager;
+        if plugin_api.is_some() {
+            if let Some(message_handlers) = plugin_api.as_ref().unwrap().get_message_handlers(&robot) {
+                let mut network = robot.network.write().unwrap();
+                for message_handler in message_handlers {
+                    network.subscribe(message_handler.clone());
+                }
+                
+                // Services
+                // debug!("Setup services");
+                // writable_robot.service_manager = service_manager;
+            }
         }
+        robot.save_state(0.);
 
         robot
     }
@@ -370,12 +372,16 @@ impl Robot {
     pub fn post_creation_init(
         &mut self,
         robot_idx: usize,
-    ) {
+    ) -> RobotClient {
         let sensor_manager = self.sensor_manager();
         sensor_manager
             .write()
             .unwrap()
             .init(self, robot_idx);
+
+        let (robot_server, robot_client) = internal_api::make_robot_api();
+        self.robot_server = Some(robot_server);
+        robot_client
     }
 
     /// Run the robot to reach the given time.
@@ -394,7 +400,7 @@ impl Robot {
 
     /// Process all the messages: one-way (network) and two-way (services).
     pub fn process_messages(&self) -> usize {
-        self.network().write().unwrap().process_messages()
+        self.network().write().unwrap().process_messages().unwrap()
         // TO PUT BACK
             // + self.service_manager.as_ref().unwrap().process_requests()
     }
@@ -421,6 +427,7 @@ impl Robot {
         self.set_in_state(time);
         // Update the true state
         self.physic.write().unwrap().update_state(time);
+        self.robot_server.as_ref().unwrap().state_update.send((time, self.physic.read().unwrap().state(time).clone())).unwrap();
 
         // Make observations (if it is the right time)
         let observations = self
@@ -743,3 +750,6 @@ impl Stateful<RobotRecord> for Robot {
         }
     }
 }
+
+
+

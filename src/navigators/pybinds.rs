@@ -11,7 +11,7 @@ use crate::{
     controllers::controller::ControllerError,
     navigators::external_navigator::ExternalNavigatorRecord,
     pywrappers::{ControllerErrorWrapper, StateWrapper},
-    robot::Robot,
+    robot::{Robot, RobotRecord},
     state_estimators::state_estimator::State,
     stateful::Stateful,
 };
@@ -20,7 +20,7 @@ use super::navigator::{Navigator, NavigatorRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonNavigatorAsyncClient {
-    pub compute_error_request: mpsc::Sender<(Robot, State)>,
+    pub compute_error_request: mpsc::Sender<(RobotRecord, State)>,
     pub compute_error_response: Arc<Mutex<mpsc::Receiver<ControllerError>>>,
     pub record_request: mpsc::Sender<()>,
     pub record_response: Arc<Mutex<mpsc::Receiver<NavigatorRecord>>>,
@@ -31,7 +31,7 @@ pub struct PythonNavigatorAsyncClient {
 impl Navigator for PythonNavigatorAsyncClient {
     fn compute_error(&mut self, robot: &mut Robot, state: State) -> ControllerError {
         self.compute_error_request
-            .send((robot.clone(), state.clone()))
+            .send((robot.record(), state.clone()))
             .unwrap();
         self.compute_error_response.lock().unwrap().recv().unwrap()
     }
@@ -59,7 +59,7 @@ impl Stateful<NavigatorRecord> for PythonNavigatorAsyncClient {
 pub struct PythonNavigator {
     model: Py<PyAny>,
     client: PythonNavigatorAsyncClient,
-    compute_error_request: Arc<Mutex<mpsc::Receiver<(Robot, State)>>>,
+    compute_error_request: Arc<Mutex<mpsc::Receiver<(RobotRecord, State)>>>,
     compute_error_response: mpsc::Sender<ControllerError>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
     record_response: mpsc::Sender<NavigatorRecord>,
@@ -126,7 +126,7 @@ impl PythonNavigator {
         }
     }
 
-    fn compute_error(&mut self, _robot: &crate::robot::Robot, state: &State) -> ControllerError {
+    fn compute_error(&mut self, _robot: &RobotRecord, state: &State) -> ControllerError {
         debug!("Calling python implementation of compute_error");
         // let robot_record = robot.record();
         let result = Python::with_gil(|py| -> ControllerErrorWrapper {

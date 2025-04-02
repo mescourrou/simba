@@ -2,12 +2,14 @@
 Provide the [`MessageHandler`] trait.
 */
 
+use std::fmt::Debug;
+
 use crate::robot::Robot;
 use serde_json::Value;
 
 /// Trait which add a method to handle a message. If the message cannot be handled,
 /// the function returns Err, and it returns Ok if the message was handled.
-pub trait MessageHandler: std::marker::Send + std::marker::Sync {
+pub trait MessageHandler: std::marker::Send + std::marker::Sync + Debug {
     /// Handle the given `message` or not.
     ///
     /// ## Arguments
