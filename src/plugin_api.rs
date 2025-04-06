@@ -48,7 +48,9 @@ fn main() {
 use std::sync::{Arc, RwLock};
 
 use crate::{
-    controllers::controller::Controller, navigators::navigator::Navigator, networking::message_handler::MessageHandler, physics::physic::Physic, robot::Robot, simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator
+    controllers::controller::Controller, navigators::navigator::Navigator,
+    networking::message_handler::MessageHandler, physics::physic::Physic, robot::Robot,
+    simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator,
 };
 
 use serde_json::Value;

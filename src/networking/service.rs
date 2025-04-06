@@ -34,7 +34,7 @@ pub trait ServiceInterface: Debug + Send + Sync {
 ///
 /// The client is linked to a server, and can make requests to it. The client is blocked until the
 /// server sends a response.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ServiceClient<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> {
     // Channel to send the request to the server (given by the server).
     response_channel: Arc<Mutex<mpsc::Receiver<Result<ResponseMsg, String>>>>,
@@ -59,17 +59,17 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
     ///
     /// ## Returns
     /// The response from the server, or an error message if the request failed.
-    pub fn make_request(
-        &mut self,
-        robot: &mut Robot,
+    pub fn send_request(
+        &self,
+        robot_name: String,
         req: RequestMsg,
         time: f32,
         message_flags: Vec<MessageFlag>,
-    ) -> Result<ResponseMsg, String> {
+    ) -> Result<(), String> {
         debug!("Sending a request...");
         let lk = self.time_cv.0.lock().unwrap();
         match self.request_channel.lock().unwrap().send((
-            robot.name(),
+            robot_name,
             req,
             time,
             // To be changed when full support of the message mode will be implemented
@@ -82,8 +82,12 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         // Needed to unlock the other robot if it has finished and is waiting for messages.
         self.time_cv.1.notify_all();
         std::mem::drop(lk);
+        Ok(())
+    }
+
+    pub fn try_recv(&self) -> Result<ResponseMsg, String> {
         debug!("Waiting for result...");
-        let result = match self.response_channel.lock().unwrap().recv() {
+        let result = match self.response_channel.lock().unwrap().try_recv() {
             Ok(result) => result,
             Err(e) => return Err(e.to_string()),
         };
@@ -200,6 +204,7 @@ impl<
                 .write()
                 .unwrap()
                 .handle_service_requests(message, time);
+            debug!("Got result");
             self.clients
                 .get(&from)
                 .expect(

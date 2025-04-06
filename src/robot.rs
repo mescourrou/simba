@@ -3,6 +3,7 @@ Module providing the main robot manager, [`Robot`], along with the configuration
 [`RobotConfig`] and the record [`RobotRecord`] structures.
 */
 
+use std::collections::HashMap;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
@@ -233,9 +234,11 @@ pub struct Robot {
 
     // services: Vec<Arc<RwLock<Box<dyn ServiceInterface>>>>,
     /// Not really an option, but for delayed initialization
-    service_manager: Option<ServiceManager>,
+    service_manager: Option<Arc<RwLock<ServiceManager>>>,
 
     robot_server: Option<RobotServer>,
+
+    pub other_robots_names: Vec<String>,
 }
 
 impl Robot {
@@ -258,10 +261,13 @@ impl Robot {
             // services: Vec::new(),
             service_manager: None,
             robot_server: None,
+            other_robots_names: Vec::new(),
         };
         robot.save_state(0.);
-        // let service_manager = Some(ServiceManager::initialize(robot.clone(), time_cv));
-        // robot.service_manager = service_manager;
+        let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
+            &robot, time_cv,
+        ))));
+        robot.service_manager = service_manager;
         robot
     }
 
@@ -330,6 +336,7 @@ impl Robot {
             // services: Vec::new(),
             service_manager: None,
             robot_server: None,
+            other_robots_names: Vec::new(),
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -348,19 +355,22 @@ impl Robot {
                 })
         }
 
-        // let service_manager = Some(ServiceManager::initialize(&robot.clone(), time_cv));
+        let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
+            &robot, time_cv,
+        ))));
         if plugin_api.is_some() {
-            if let Some(message_handlers) = plugin_api.as_ref().unwrap().get_message_handlers(&robot) {
+            if let Some(message_handlers) =
+                plugin_api.as_ref().unwrap().get_message_handlers(&robot)
+            {
                 let mut network = robot.network.write().unwrap();
                 for message_handler in message_handlers {
                     network.subscribe(message_handler.clone());
                 }
-                
-                // Services
-                // debug!("Setup services");
-                // writable_robot.service_manager = service_manager;
             }
         }
+        // Services
+        debug!("Setup services");
+        robot.service_manager = service_manager;
         robot.save_state(0.);
 
         robot
@@ -371,13 +381,26 @@ impl Robot {
     /// It is used to initialize the sensor manager, which need to know the list of all robots.
     pub fn post_creation_init(
         &mut self,
-        robot_idx: usize,
+        service_manager_list: &HashMap<String, Arc<RwLock<ServiceManager>>>,
     ) -> RobotClient {
-        let sensor_manager = self.sensor_manager();
-        sensor_manager
+        let service_manager = self.service_manager();
+        service_manager
             .write()
             .unwrap()
-            .init(self, robot_idx);
+            .make_links(service_manager_list, self);
+        let sensor_manager = self.sensor_manager();
+        sensor_manager.write().unwrap().init(self);
+
+        self.other_robots_names = service_manager_list
+            .iter()
+            .filter_map(|n| {
+                if n.0 != &self.name {
+                    Some(n.0.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         let (robot_server, robot_client) = internal_api::make_robot_api();
         self.robot_server = Some(robot_server);
@@ -401,8 +424,13 @@ impl Robot {
     /// Process all the messages: one-way (network) and two-way (services).
     pub fn process_messages(&self) -> usize {
         self.network().write().unwrap().process_messages().unwrap()
-        // TO PUT BACK
-            // + self.service_manager.as_ref().unwrap().process_requests()
+            + self
+                .service_manager
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .process_requests()
     }
 
     /// Run only one time step.
@@ -427,7 +455,12 @@ impl Robot {
         self.set_in_state(time);
         // Update the true state
         self.physic.write().unwrap().update_state(time);
-        self.robot_server.as_ref().unwrap().state_update.send((time, self.physic.read().unwrap().state(time).clone())).unwrap();
+        self.robot_server
+            .as_ref()
+            .unwrap()
+            .state_update
+            .send((time, self.physic.read().unwrap().state(time).clone()))
+            .unwrap();
 
         // Make observations (if it is the right time)
         let observations = self
@@ -523,8 +556,6 @@ impl Robot {
 
         self.handle_messages(time);
 
-
-
         if !read_only {
             // Save state (replace if needed)
             self.save_state(time);
@@ -537,8 +568,12 @@ impl Robot {
             .write()
             .unwrap()
             .handle_message_at_time(self, time);
-        // TO PUT BACK
-        // self.service_manager.as_ref().unwrap().handle_requests(time);
+        self.service_manager
+            .as_ref()
+            .unwrap()
+            .write()
+            .unwrap()
+            .handle_requests(time);
     }
 
     /// Computes the next time step, using state estimator, sensors and received messages.
@@ -584,12 +619,17 @@ impl Robot {
         //     }
         // }
 
-        // TO PUT BACK
-        // let tpl = self.service_manager.as_ref().unwrap().next_time();
-        // if next_time_step > tpl.0 {
-        //     read_only = tpl.1;
-        //     next_time_step = tpl.0;
-        // }
+        let tpl = self
+            .service_manager
+            .as_ref()
+            .unwrap()
+            .read()
+            .unwrap()
+            .next_time();
+        if next_time_step > tpl.0 {
+            read_only = tpl.1;
+            next_time_step = tpl.0;
+        }
         next_time_step = round_precision(next_time_step, TIME_ROUND).unwrap();
         debug!(
             "next_time_step: {} (read only: {read_only})",
@@ -661,9 +701,9 @@ impl Robot {
         Arc::clone(&self.controller)
     }
 
-    /// Get a Arc clone of sensor manager.
-    pub fn service_manager(&self) -> &ServiceManager {
-        self.service_manager.as_ref().unwrap()
+    /// Get a Arc clone of Service Manager.
+    pub fn service_manager(&self) -> Arc<RwLock<ServiceManager>> {
+        self.service_manager.as_ref().unwrap().clone()
     }
 
     /// Test function to receive a string message
@@ -750,6 +790,3 @@ impl Stateful<RobotRecord> for Robot {
         }
     }
 }
-
-
-

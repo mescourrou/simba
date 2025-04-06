@@ -45,6 +45,7 @@ use serde_derive::{Deserialize, Serialize};
 use crate::api::internal_api::RobotClient;
 use crate::errors::{SimbaError, SimbaResult};
 use crate::networking::network_manager::NetworkManager;
+use crate::networking::service_manager::ServiceManager;
 use crate::plugin_api::PluginAPI;
 use crate::state_estimators::state_estimator::State;
 use crate::time_analysis::{self, TimeAnalysisConfig};
@@ -316,14 +317,18 @@ impl Simulator {
             TimeMode::Centralized => Some(Arc::new(Mutex::new(f32::INFINITY))),
             TimeMode::Decentralized => None,
         };
+        let mut service_managers = HashMap::new();
         // Create robots
         for robot_config in &config.robots {
             self.add_robot(robot_config, plugin_api, &config);
+            let robot = self.robots.last().unwrap();
+            service_managers.insert(robot.name(), robot.service_manager());
         }
 
-        for (robot_idx, robot) in self.robots.iter_mut().enumerate() {
+        for robot in self.robots.iter_mut() {
             info!("Finishing initialization of {}", robot.name());
-            self.robot_apis.insert(robot.name(), robot.post_creation_init(robot_idx));
+            self.robot_apis
+                .insert(robot.name(), robot.post_creation_init(&service_managers));
         }
     }
 
@@ -465,7 +470,8 @@ impl Simulator {
             self.time_cv.clone(),
         ));
 
-        self.network_manager.register_robot_network(self.robots.last_mut().unwrap());
+        self.network_manager
+            .register_robot_network(self.robots.last_mut().unwrap());
     }
 
     /// Simply print the Simulator state, using the info channel and the debug print.
@@ -503,7 +509,7 @@ impl Simulator {
             };
             let finishing_cv_clone = finishing_cv.clone();
             let barrier_clone = barrier.clone();
-            let handle = thread::spawn(move || -> SimbaResult<Robot>{
+            let handle = thread::spawn(move || -> SimbaResult<Robot> {
                 let ret = Self::run_one_robot(
                     robot,
                     new_max_time,
@@ -524,7 +530,8 @@ impl Simulator {
         self.simulator_spin(finishing_cv, nb_robots);
 
         for handle in handles {
-            self.robots.push(handle.join().unwrap().expect("Robot not returned"));
+            self.robots
+                .push(handle.join().unwrap().expect("Robot not returned"));
         }
 
         self.save_results();
@@ -668,10 +675,7 @@ impl Simulator {
         let mut thread_ids = THREAD_IDS.write().unwrap();
         thread_ids.push(thread::current().id());
         let thread_idx = thread_ids.len() - 1;
-        THREAD_NAMES
-            .write()
-            .unwrap()
-            .push(robot.name());
+        THREAD_NAMES.write().unwrap().push(robot.name());
         THREAD_TIMES.write().unwrap().push(0.);
         drop(thread_ids);
         time_analysis::set_robot_name(robot.name());
@@ -712,7 +716,7 @@ impl Simulator {
                     lk = cv.wait(lk).unwrap();
                 }
                 std::mem::drop(lk);
-                
+
                 next_time = *common_time_arc.lock().unwrap();
                 barrier.wait();
                 *common_time_arc.lock().unwrap() = f32::INFINITY;
@@ -742,13 +746,16 @@ impl Simulator {
     fn simulator_spin(&mut self, finishing_cv: Arc<(Mutex<usize>, Condvar)>, nb_robots: usize) {
         // self.robots is empty
         let mut robot_states: HashMap<String, TimeOrderedData<State>> = HashMap::new();
-        for (k,_) in self.robot_apis.iter() {
+        for (k, _) in self.robot_apis.iter() {
             robot_states.insert(k.clone(), TimeOrderedData::<State>::new());
         }
         loop {
             for (robot_name, robot_api) in self.robot_apis.iter() {
                 if let Ok((time, state)) = robot_api.state_update.try_recv() {
-                    robot_states.get_mut(robot_name).expect(format!("Unknown robot {robot_name}").as_str()).insert(time, state, true);
+                    robot_states
+                        .get_mut(robot_name)
+                        .expect(format!("Unknown robot {robot_name}").as_str())
+                        .insert(time, state, true);
                 }
             }
             self.network_manager.process_messages(&robot_states);
@@ -756,7 +763,6 @@ impl Simulator {
                 return;
             }
         }
-
     }
 
     pub fn compute_results(&self) {

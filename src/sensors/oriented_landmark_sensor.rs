@@ -351,12 +351,7 @@ impl OrientedLandmarkSensor {
 use crate::robot::Robot;
 
 impl Sensor for OrientedLandmarkSensor {
-    fn init(
-        &mut self,
-        _robot: &mut Robot,
-        _robot_idx: usize,
-    ) {
-    }
+    fn init(&mut self, _robot: &mut Robot) {}
 
     fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
         let arc_physic = robot.physics();

@@ -119,7 +119,11 @@ impl Network {
     }
 
     /// Set the `network_manager` reference.
-    pub fn set_network_manager_link(&mut self, to_network_manager: Sender<NetworkMessage>, from_network_manager: Receiver<NetworkMessage>) {
+    pub fn set_network_manager_link(
+        &mut self,
+        to_network_manager: Sender<NetworkMessage>,
+        from_network_manager: Receiver<NetworkMessage>,
+    ) {
         self.to_network_manager = Some(to_network_manager);
         self.from_network_manager = Some(Arc::new(Mutex::new(from_network_manager)));
     }
@@ -134,32 +138,51 @@ impl Network {
         message_flags: Vec<MessageFlag>,
     ) -> SimbaResult<()> {
         if self.to_network_manager.is_none() {
-            return Err(SimbaError::new(SimbaErrorTypes::ImplementationError, "Network is not properly setup: `set_network_manager_link` should be called."));
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ImplementationError,
+                "Network is not properly setup: `set_network_manager_link` should be called.",
+            ));
         }
-        self.to_network_manager.as_ref().unwrap().send(NetworkMessage {
-            from: self.from.clone(),
-            range: self.range,
-            time,
-            to: MessageSendMethod::Recipient(recipient),
-            value: message,
-            message_flags,
-        }).unwrap();
+        self.to_network_manager
+            .as_ref()
+            .unwrap()
+            .send(NetworkMessage {
+                from: self.from.clone(),
+                range: self.range,
+                time,
+                to: MessageSendMethod::Recipient(recipient),
+                value: message,
+                message_flags,
+            })
+            .unwrap();
         Ok(())
     }
 
     /// Send a `message` to all available robots. `time` is the send message time, before delays.
-    pub fn broadcast(&mut self, message: Value, time: f32, message_flags: Vec<MessageFlag>) -> SimbaResult<()> {
+    pub fn broadcast(
+        &mut self,
+        message: Value,
+        time: f32,
+        message_flags: Vec<MessageFlag>,
+    ) -> SimbaResult<()> {
         if self.to_network_manager.is_none() {
-            return Err(SimbaError::new(SimbaErrorTypes::ImplementationError, "Network is not properly setup: `set_network_manager_link` should be called."));
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ImplementationError,
+                "Network is not properly setup: `set_network_manager_link` should be called.",
+            ));
         }
-        self.to_network_manager.as_ref().unwrap().send(NetworkMessage {
-            from: self.from.clone(),
-            range: self.range,
-            time,
-            to: MessageSendMethod::Broadcast,
-            value: message,
-            message_flags,
-        }).unwrap();
+        self.to_network_manager
+            .as_ref()
+            .unwrap()
+            .send(NetworkMessage {
+                from: self.from.clone(),
+                range: self.range,
+                time,
+                to: MessageSendMethod::Broadcast,
+                value: message,
+                message_flags,
+            })
+            .unwrap();
         Ok(())
     }
 
@@ -167,9 +190,19 @@ impl Network {
     /// Adds the delay.
     pub fn process_messages(&mut self) -> SimbaResult<usize> {
         if self.from_network_manager.is_none() {
-            return Err(SimbaError::new(SimbaErrorTypes::ImplementationError, "Network is not properly setup: `set_network_manager_link` should be called."));
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ImplementationError,
+                "Network is not properly setup: `set_network_manager_link` should be called.",
+            ));
         }
-        for msg in self.from_network_manager.as_ref().unwrap().lock().unwrap().try_iter() {
+        for msg in self
+            .from_network_manager
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .try_iter()
+        {
             let time = if msg.message_flags.contains(&MessageFlag::God) {
                 msg.time
             } else {

@@ -140,11 +140,7 @@ impl OdometrySensor {
 use crate::robot::Robot;
 
 impl Sensor for OdometrySensor {
-    fn init(
-        &mut self,
-        robot: &mut Robot,
-        _robot_idx: usize,
-    ) {
+    fn init(&mut self, robot: &mut Robot) {
         self.last_state = robot.physics().read().unwrap().state(0.).clone();
     }
 

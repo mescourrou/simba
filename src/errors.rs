@@ -45,5 +45,4 @@ impl Debug for SimbaError {
 
 impl Error for SimbaError {}
 
-
 pub type SimbaResult<T> = Result<T, SimbaError>;

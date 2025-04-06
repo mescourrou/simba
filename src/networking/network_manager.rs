@@ -33,7 +33,6 @@ pub struct NetworkMessage {
     pub message_flags: Vec<MessageFlag>,
 }
 
-
 /// Manages the [`Network`]s, making the link between them, and keep a list.
 #[derive(Debug)]
 pub struct NetworkManager {
@@ -43,7 +42,7 @@ pub struct NetworkManager {
 }
 
 impl NetworkManager {
-    pub fn new(time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,) -> Self {
+    pub fn new(time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Self {
         Self {
             robots_senders: BTreeMap::new(),
             robots_receivers: BTreeMap::new(),
@@ -61,19 +60,38 @@ impl NetworkManager {
 
         let to_robot = mpsc::channel();
         let from_robot = mpsc::channel();
-        self.robots_senders.insert(
-            robot_name.clone(),
-            to_robot.0,
-        );
-        self.robots_receivers.insert(robot_name.clone(), from_robot.1);
+        self.robots_senders.insert(robot_name.clone(), to_robot.0);
+        self.robots_receivers
+            .insert(robot_name.clone(), from_robot.1);
 
-        robot.network().write().unwrap().set_network_manager_link(from_robot.0, to_robot.1);
+        robot
+            .network()
+            .write()
+            .unwrap()
+            .set_network_manager_link(from_robot.0, to_robot.1);
     }
 
     /// Compute the distance between two robots at the given time, using their real pose.
-    fn distance_between(position_history: &HashMap<String, TimeOrderedData<State>>, robot1: &String, robot2: &String, time: f32) -> f32 {
-        let robot1_pos = position_history.get(robot1).expect(format!("Unknown robot {robot1}").as_str()).get_data_at_time(time).expect(format!("No state data for robot {robot1} at time {time}").as_str()).1.pose;
-        let robot2_pos = position_history.get(robot2).expect(format!("Unknown robot {robot2}").as_str()).get_data_at_time(time).expect(format!("No state data for robot {robot2} at time {time}").as_str()).1.pose;
+    fn distance_between(
+        position_history: &HashMap<String, TimeOrderedData<State>>,
+        robot1: &String,
+        robot2: &String,
+        time: f32,
+    ) -> f32 {
+        let robot1_pos = position_history
+            .get(robot1)
+            .expect(format!("Unknown robot {robot1}").as_str())
+            .get_data_at_time(time)
+            .expect(format!("No state data for robot {robot1} at time {time}").as_str())
+            .1
+            .pose;
+        let robot2_pos = position_history
+            .get(robot2)
+            .expect(format!("Unknown robot {robot2}").as_str())
+            .get_data_at_time(time)
+            .expect(format!("No state data for robot {robot2} at time {time}").as_str())
+            .1
+            .pose;
 
         let distance = (robot1_pos.rows(0, 2) - robot2_pos.rows(0, 2)).norm();
         distance
@@ -85,17 +103,39 @@ impl NetworkManager {
             if let Ok(msg) = receiver.try_recv() {
                 match &msg.to {
                     MessageSendMethod::Recipient(r) => {
-                        if msg.range == 0. || msg.range >= NetworkManager::distance_between(position_history, robot_name, r, msg.time) {
+                        if msg.range == 0.
+                            || msg.range
+                                >= NetworkManager::distance_between(
+                                    position_history,
+                                    robot_name,
+                                    r,
+                                    msg.time,
+                                )
+                        {
                             debug!("Receiving message from `{robot_name}` for `{r}`... Sending");
-                            self.robots_senders.get(r).expect(format!("Unknown robot {r}").as_str()).send(msg).unwrap();
+                            self.robots_senders
+                                .get(r)
+                                .expect(format!("Unknown robot {r}").as_str())
+                                .send(msg)
+                                .unwrap();
                             message_sent = true;
                         } else {
-                            debug!("Receiving message from `{robot_name}` for `{r}`... Out of range");
+                            debug!(
+                                "Receiving message from `{robot_name}` for `{r}`... Out of range"
+                            );
                         }
-                    },
+                    }
                     MessageSendMethod::Broadcast => {
                         for (recipient_name, sender) in self.robots_senders.iter() {
-                            if msg.range == 0. || msg.range >= NetworkManager::distance_between(position_history, robot_name, recipient_name, msg.time) {
+                            if msg.range == 0.
+                                || msg.range
+                                    >= NetworkManager::distance_between(
+                                        position_history,
+                                        robot_name,
+                                        recipient_name,
+                                        msg.time,
+                                    )
+                            {
                                 debug!("Receiving message from `{robot_name}` for broadcast... Sending to `{recipient_name}`");
                                 sender.send(msg.clone()).unwrap();
                                 message_sent = true;

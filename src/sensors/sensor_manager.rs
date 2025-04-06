@@ -130,13 +130,9 @@ impl SensorManager {
 
     /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    pub fn init(
-        &mut self,
-        robot: &mut Robot,
-        robot_idx: usize,
-    ) {
+    pub fn init(&mut self, robot: &mut Robot) {
         for sensor in &mut self.sensors {
-            sensor.write().unwrap().init(robot, robot_idx);
+            sensor.write().unwrap().init(robot);
         }
     }
 

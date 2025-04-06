@@ -31,16 +31,34 @@ pub mod network_manager;
 pub mod service;
 pub mod service_manager;
 
-
-
+// Network message exchange test
 #[cfg(test)]
 mod tests {
-    use std::{panic, sync::{Arc, RwLock}};
+    use std::{
+        panic,
+        sync::{Arc, RwLock},
+    };
 
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
 
-    use crate::{constants::TIME_ROUND, plugin_api::PluginAPI, robot::{BenchStateEstimatorConfig, BenchStateEstimatorRecord, Robot, RobotConfig}, simulator::{Simulator, SimulatorConfig}, state_estimators::{external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord}, perfect_estimator::PerfectEstimatorConfig, state_estimator::{State, StateEstimator, StateEstimatorConfig, StateEstimatorRecord}}, stateful::Stateful, utils::maths::{closest_uint_modulo, round_precision}};
+    use crate::{
+        constants::TIME_ROUND,
+        plugin_api::PluginAPI,
+        robot::{BenchStateEstimatorConfig, BenchStateEstimatorRecord, Robot, RobotConfig},
+        sensors::{
+            robot_sensor::RobotSensorConfig, sensor::SensorConfig,
+            sensor_manager::SensorManagerConfig,
+        },
+        simulator::{Simulator, SimulatorConfig},
+        state_estimators::{
+            external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
+            perfect_estimator::PerfectEstimatorConfig,
+            state_estimator::{State, StateEstimator, StateEstimatorConfig, StateEstimatorRecord},
+        },
+        stateful::Stateful,
+        utils::maths::{closest_uint_modulo, round_precision},
+    };
 
     use super::{message_handler::MessageHandler, *};
 
@@ -53,24 +71,24 @@ mod tests {
 
     impl MessageHandler for NetworkHandlerTest {
         fn handle_message(
-                &mut self,
-                _robot: &mut crate::robot::Robot,
-                from: &String,
-                message: &serde_json::Value,
-                time: f32,
-            ) -> Result<(), ()> {
+            &mut self,
+            _robot: &mut crate::robot::Robot,
+            from: &String,
+            message: &serde_json::Value,
+            time: f32,
+        ) -> Result<(), ()> {
             self.last_message = Some(serde_json::from_value(message.clone()).unwrap());
             println!("Receiving message: {}", self.last_message.as_ref().unwrap());
             self.last_from = Some(from.clone());
-            self.last_time = Some(time);           
-            
+            self.last_time = Some(time);
+
             Ok(())
         }
     }
 
     #[derive(Debug, Serialize, Deserialize, Clone)]
     struct StateEstimatorRecordTest {
-        pub last_time: f32
+        pub last_time: f32,
     }
 
     #[derive(Debug)]
@@ -80,12 +98,28 @@ mod tests {
     }
 
     impl StateEstimator for StateEstimatorTest {
-        fn correction_step(&mut self, robot: &mut crate::robot::Robot, observations: &Vec<crate::sensors::sensor::Observation>, time: f32) {}
+        fn correction_step(
+            &mut self,
+            robot: &mut crate::robot::Robot,
+            observations: &Vec<crate::sensors::sensor::Observation>,
+            time: f32,
+        ) {
+        }
 
         fn prediction_step(&mut self, robot: &mut crate::robot::Robot, time: f32) {
             self.last_time = time;
             println!("{} Sending message...", robot.name());
-            robot.network().write().unwrap().send_to("robot2".to_string(), serde_json::to_value(self.message.clone()).unwrap(), time, Vec::new()).unwrap();
+            robot
+                .network()
+                .write()
+                .unwrap()
+                .send_to(
+                    "robot2".to_string(),
+                    serde_json::to_value(self.message.clone()).unwrap(),
+                    time,
+                    Vec::new(),
+                )
+                .unwrap();
         }
 
         fn next_time_step(&self) -> f32 {
@@ -99,7 +133,8 @@ mod tests {
     impl Stateful<StateEstimatorRecord> for StateEstimatorTest {
         fn from_record(&mut self, record: StateEstimatorRecord) {
             if let StateEstimatorRecord::External(record) = record {
-                let record: StateEstimatorRecordTest = serde_json::from_value(record.record).unwrap();
+                let record: StateEstimatorRecordTest =
+                    serde_json::from_value(record.record).unwrap();
                 self.last_time = record.last_time;
             } else {
                 panic!("Should not happen");
@@ -110,7 +145,8 @@ mod tests {
             StateEstimatorRecord::External(ExternalEstimatorRecord {
                 record: serde_json::to_value(StateEstimatorRecordTest {
                     last_time: self.last_time,
-                }).unwrap()
+                })
+                .unwrap(),
             })
         }
     }
@@ -122,21 +158,22 @@ mod tests {
 
     impl PluginAPI for PluginAPITest {
         fn get_state_estimator(
-                &self,
-                _config: &serde_json::Value,
-                _global_config: &SimulatorConfig,
-            ) -> Box<dyn StateEstimator> {
+            &self,
+            _config: &serde_json::Value,
+            _global_config: &SimulatorConfig,
+        ) -> Box<dyn StateEstimator> {
             Box::new(StateEstimatorTest {
                 last_time: 0.,
                 message: self.message.clone(),
             }) as Box<dyn StateEstimator>
         }
 
-        fn get_message_handlers(&self, robot: &Robot) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
+        fn get_message_handlers(
+            &self,
+            robot: &Robot,
+        ) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
             if robot.name() == "robot2" {
-                Some(vec![
-                    self.message_handler.clone()
-                ])
+                Some(vec![self.message_handler.clone()])
             } else {
                 None
             }
@@ -164,9 +201,8 @@ mod tests {
         }));
 
         let message_to_send = String::from("HelloWorld");
-        let message_handler: Arc<RwLock<NetworkHandlerTest>> = Arc::new(RwLock::new(
-            NetworkHandlerTest::default()
-        ));
+        let message_handler: Arc<RwLock<NetworkHandlerTest>> =
+            Arc::new(RwLock::new(NetworkHandlerTest::default()));
 
         let plugin_api = PluginAPITest {
             message: message_to_send.clone(),
@@ -182,13 +218,52 @@ mod tests {
             "Message not received"
         );
         assert!(
-            message_handler.read().unwrap().last_message.as_ref().unwrap() == &message_to_send,
+            message_handler
+                .read()
+                .unwrap()
+                .last_message
+                .as_ref()
+                .unwrap()
+                == &message_to_send,
             "Wrong message received"
         );
         assert!(
-            message_handler.read().unwrap().last_from.as_ref().unwrap().as_str() == "robot1",
+            message_handler
+                .read()
+                .unwrap()
+                .last_from
+                .as_ref()
+                .unwrap()
+                .as_str()
+                == "robot1",
             "Wrong 'from'"
         );
+    }
 
+    #[test]
+    fn deadlock_service_test() {
+        // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
+        let mut config = SimulatorConfig::default();
+        config.max_time = RobotSensorConfig::default().period * 1.1;
+        config.robots.push(Box::new(RobotConfig {
+            name: "robot1".to_string(),
+            sensor_manager: SensorManagerConfig {
+                sensors: vec![
+                    SensorConfig::RobotSensor(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other robot poses.
+                ],
+            },
+            ..Default::default()
+        }));
+        config.robots.push(Box::new(RobotConfig {
+            name: "robot2".to_string(),
+            sensor_manager: SensorManagerConfig {
+                sensors: vec![SensorConfig::RobotSensor(RobotSensorConfig::default())],
+            },
+            ..Default::default()
+        }));
+
+        let mut simulator = Simulator::from_config(&config, &None);
+
+        simulator.run();
     }
 }

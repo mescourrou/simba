@@ -8,6 +8,7 @@ use super::sensor::{Observation, Sensor, SensorRecord};
 use crate::constants::TIME_ROUND;
 use crate::networking::network::MessageFlag;
 use crate::networking::service::ServiceClient;
+use crate::networking::service_manager;
 use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
@@ -264,8 +265,6 @@ pub struct RobotSensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
-    /// Services to get the real state of the Robots.
-    robot_real_state_services: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
 }
 
@@ -307,7 +306,6 @@ impl RobotSensor {
             detection_distance: config.detection_distance,
             period: config.period,
             last_time: 0.,
-            robot_real_state_services: BTreeMap::new(),
             faults: fault_models,
         }
     }
@@ -316,29 +314,7 @@ impl RobotSensor {
 use crate::robot::Robot;
 
 impl Sensor for RobotSensor {
-    fn init(
-        &mut self,
-        robot: &mut Robot,
-        robot_idx: usize,
-    ) {
-        // let robot_unlock_list = robot_list.read().unwrap();
-        // let mut i = 0;
-        // for other_robot in robot_unlock_list.iter() {
-        //     if i == robot_idx {
-        //         i += 1;
-        //         continue;
-        //     }
-        //     let writable_robot = other_robot.write().unwrap();
-        //     debug!("Add service of {}", writable_robot.name());
-        //     self.robot_real_state_services.insert(
-        //         writable_robot.name(),
-        //         writable_robot
-        //             .service_manager()
-        //             .get_real_state_client(robot.name().as_str()),
-        //     );
-        //     i += 1;
-        // }
-    }
+    fn init(&mut self, _robot: &mut Robot) {}
 
     fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
         let mut observation_list = Vec::<Observation>::new();
@@ -346,22 +322,22 @@ impl Sensor for RobotSensor {
             return observation_list;
         }
         debug!("Start looking for robots");
-        let arc_physic = robot.physics();
-        let physic = arc_physic.read().unwrap();
-        let state = physic.state(time);
+        let state = robot.physics().read().unwrap().state(time).clone();
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
         debug!("Rotation matrix: {}", rotation_matrix);
 
-        for (other_robot_name, service) in self.robot_real_state_services.iter_mut() {
+        for other_robot_name in robot.other_robots_names.iter() {
             debug!("Sensing robot {}", other_robot_name);
             assert!(*other_robot_name != robot.name());
 
-            let other_state = service
-                .make_request(robot, GetRealStateReq {}, time, vec![MessageFlag::ReadOnly])
-                .expect("Error during service request")
-                .state;
+            let service_manager = robot.service_manager();
+            let other_state = service_manager.read().unwrap().get_real_state(
+                other_robot_name.to_string(),
+                robot,
+                time,
+            );
 
             let d = ((other_state.pose.x - state.pose.x).powi(2)
                 + (other_state.pose.y - state.pose.y).powi(2))
