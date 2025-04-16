@@ -1,0 +1,178 @@
+@startuml
+class Simulator
+Simulator *-- "*" Robot
+
+class Robot
+
+package physics {
+Robot *-- Physics
+interface Physics
+
+Physics <|.. PerfectPhysics
+Physics <|.. ExternalPhysics
+class PerfectPhysics
+class ExternalPhysics
+}
+
+package state_estimators {
+Robot *-- StateEstimator
+interface StateEstimator
+
+StateEstimator <|.. PerfectEstimator
+StateEstimator <|.. ExternalEstimator
+class PerfectEstimator
+class ExternalEstimator
+}
+
+package navigators {
+Robot *-- Navigator
+interface Navigator
+Navigator <|.. TrajectoryFollower
+Navigator <|.. ExternalNavigator
+class TrajectoryFollower
+class ExternalNavigator
+}
+
+package controllers {
+Robot *-- Controller
+interface Controller
+Controller <|.. PID
+Controller <|.. ExternalController
+class PID
+class ExternalController
+}
+
+
+package utils {
+class DeterministRandomVariableFactory
+
+DeterministRandomVariableFactory --> DeterministRandomVariable
+interface DeterministRandomVariable
+
+package distributions {
+    
+DeterministRandomVariable <|.. Bernouilli
+class Bernouilli
+
+DeterministRandomVariable <|.. Exponential
+class Exponential
+
+DeterministRandomVariable <|.. Normal
+class Normal
+
+DeterministRandomVariable <|.. Poisson
+class Poisson
+
+DeterministRandomVariable <|.. Uniform
+class Uniform
+
+DeterministRandomVariable <|.. Fixed
+class Fixed
+}
+}
+
+package sensors {
+Robot *-- SensorManager
+class SensorManager
+
+SensorManager *-- "*" Sensor
+interface Sensor
+
+Sensor <|.. GNSSSensor
+class GNSSSensor
+
+Sensor <|.. OdometrySensor
+class OdometrySensor
+
+Sensor <|.. OrientedLandmarkSensor
+class OrientedLandmarkSensor
+
+Sensor <|.. RobotSensor
+class RobotSensor
+
+package fault_models {
+
+GNSSSensor *-- "*" FaultModel
+OdometrySensor *-- "*" FaultModel
+OrientedLandmarkSensor *-- "*" FaultModel
+RobotSensor *-- "n" FaultModel
+interface FaultModel
+
+FaultModel <|.. AdditiveObservationCenteredPolar
+class AdditiveObservationCenteredPolar {
+    apparition
+    distributions
+}
+AdditiveObservationCenteredPolar::apparition *-- Bernouilli
+AdditiveObservationCenteredPolar::distributions *-- "*" DeterministRandomVariable
+
+FaultModel <|.. AdditiveRobotCenteredPolar
+class AdditiveRobotCenteredPolar  {
+    apparition
+    distributions
+}
+AdditiveRobotCenteredPolar::apparition *-- Bernouilli
+AdditiveRobotCenteredPolar::distributions *-- "*" DeterministRandomVariable
+
+FaultModel <|.. AdditiveRobotCentered
+class AdditiveRobotCentered {
+    apparition
+    distributions
+}
+AdditiveRobotCentered::apparition *-- Bernouilli
+AdditiveRobotCentered::distributions *-- "*" DeterministRandomVariable
+
+FaultModel <|.. Clutter
+class Clutter {
+    apparition
+    distributions
+}
+Clutter::apparition *-- DeterministRandomVariable
+Clutter::distributions *-- "*" DeterministRandomVariable
+
+FaultModel <|.. Misassociation
+class Misassociation {
+    apparition
+    distribution
+}
+Misassociation::apparition *-- Bernouilli
+Misassociation::distribution *-- DeterministRandomVariable
+
+FaultModel <|.. Misdetection
+class Misdetection {
+    apparition
+}
+Misdetection::apparition *-- Bernouilli
+}
+}
+
+
+package networking {
+Simulator *-- NetworkManager
+class NetworkManager
+
+Robot *-- Network
+class Network
+
+Network <--> NetworkManager : mpsc
+
+Robot *-- ServiceManager
+class ServiceManager {
+    get_real_state: Service
+    get_real_state_client: map[ServiceClient]
+}
+ServiceManager *-- "1" Service
+ServiceManager *-- "*" ServiceClient
+
+interface ServiceInterface
+note top of ServiceInterface: Not used anymore
+
+ServiceInterface <|.. Service
+class Service <<RequestMsg, ResponseMsg>>
+class ServiceClient <<RequestMsg, ResponseMsg>>
+Service <--> ServiceClient: mpsc
+}
+
+
+@enduml
+
