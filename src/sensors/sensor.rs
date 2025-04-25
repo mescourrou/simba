@@ -90,7 +90,7 @@ pub enum SensorRecord {
     RobotSensor(robot_sensor::RobotSensorRecord),
 }
 
-use crate::{robot::Robot, stateful::Stateful};
+use crate::{node::Node, stateful::Stateful};
 
 /// Sensor trait which need to be implemented by each sensors.
 pub trait Sensor:
@@ -98,18 +98,18 @@ pub trait Sensor:
 {
     /// Initialize the [`Sensor`]. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    fn init(&mut self, robot: &mut Robot);
+    fn init(&mut self, node: &mut Node);
 
     /// Get the observations available at the given `time`.
     ///
     /// ## Arguments
-    /// * `robot` - Reference to the robot to access the modules.
+    /// * `node` - Reference to the node to access the modules.
     /// * `time` - Time at which the observations are taken.
     ///
     /// ## Return
     /// List of [`GenericObservation`]s, could be empty if no [`Sensor`] provided observation
     /// at this `time`.
-    fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation>;
+    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<Observation>;
 
     /// Get the time of the next observation.
     fn next_time_step(&self) -> f32;

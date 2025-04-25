@@ -15,7 +15,7 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
-use crate::robot::Robot;
+use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCvData};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
@@ -229,7 +229,7 @@ impl Network {
     /// ## Arguments
     /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
-    pub fn handle_message_at_time(&mut self, robot: &mut Robot, time: f32) {
+    pub fn handle_message_at_time(&mut self, robot: &mut Node, time: f32) {
         debug!("Handling messages at time {time}");
         while let Some((msg_time, (from, message, _message_flags))) =
             self.messages_buffer.remove(time)

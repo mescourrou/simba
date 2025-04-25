@@ -80,11 +80,13 @@ impl PerfectEstimator {
 }
 
 use super::state_estimator::{StateEstimator, StateEstimatorRecord};
-use crate::robot::Robot;
+use crate::node::Node;
 
 impl StateEstimator for PerfectEstimator {
-    fn prediction_step(&mut self, robot: &mut Robot, time: f32) {
-        let arc_physic = robot.physics();
+    fn prediction_step(&mut self, node: &mut Node, time: f32) {
+        let arc_physic = node
+            .physics()
+            .expect("Node with state_estimator should have physics");
         let physic = arc_physic.read().unwrap();
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             error!("Error trying to update estimate too soon !");
@@ -94,13 +96,7 @@ impl StateEstimator for PerfectEstimator {
         self.last_time_update = time;
     }
 
-    fn correction_step(
-        &mut self,
-        _robot: &mut Robot,
-        _observations: &Vec<Observation>,
-        _time: f32,
-    ) {
-    }
+    fn correction_step(&mut self, _node: &mut Node, _observations: &Vec<Observation>, _time: f32) {}
 
     fn state(&self) -> State {
         self.state.clone()

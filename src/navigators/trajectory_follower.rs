@@ -148,7 +148,7 @@ impl TrajectoryFollower {
 }
 
 use crate::controllers::controller::ControllerError;
-use crate::robot::Robot;
+use crate::node::Node;
 use crate::state_estimators::state_estimator::State;
 
 impl Navigator for TrajectoryFollower {
@@ -161,7 +161,7 @@ impl Navigator for TrajectoryFollower {
     /// 3. Compute the orientation of the point to orient the robot to the projected point.
     /// 4. Compute the lateral error
     /// 5. Compute the velocity error
-    fn compute_error(&mut self, _robot: &mut Robot, state: State) -> ControllerError {
+    fn compute_error(&mut self, _robot: &mut Node, state: State) -> ControllerError {
         let state = state.theta_modulo();
 
         // let forward_pose = state.pose

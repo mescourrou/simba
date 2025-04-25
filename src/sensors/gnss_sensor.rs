@@ -132,13 +132,15 @@ impl GNSSSensor {
     }
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 
 impl Sensor for GNSSSensor {
-    fn init(&mut self, _robot: &mut Robot) {}
+    fn init(&mut self, _robot: &mut Node) {}
 
-    fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
-        let arc_physic = robot.physics();
+    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<Observation> {
+        let arc_physic = robot
+            .physics()
+            .expect("Node with GNSS sensor should have Physics");
         let physic = arc_physic.read().unwrap();
         let mut observation_list = Vec::<Observation>::new();
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {

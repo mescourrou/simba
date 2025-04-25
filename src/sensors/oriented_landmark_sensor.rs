@@ -10,6 +10,7 @@ use super::sensor::{Observation, Sensor, SensorRecord};
 use crate::constants::TIME_ROUND;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
+use crate::state_estimators::state_estimator::State;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
@@ -348,19 +349,22 @@ impl OrientedLandmarkSensor {
     }
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 
 impl Sensor for OrientedLandmarkSensor {
-    fn init(&mut self, _robot: &mut Robot) {}
+    fn init(&mut self, _robot: &mut Node) {}
 
-    fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
-        let arc_physic = robot.physics();
-        let physic = arc_physic.read().unwrap();
+    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<Observation> {
         let mut observation_list = Vec::<Observation>::new();
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             return observation_list;
         }
-        let state = physic.state(time);
+        let state = if let Some(arc_physic) = robot.physics() {
+            let physic = arc_physic.read().unwrap();
+            physic.state(time).clone()
+        } else {
+            State::new() // 0
+        };
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);

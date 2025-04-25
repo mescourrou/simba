@@ -2,6 +2,7 @@
 
 import numpy as np
 import matplotlib.pyplot as plt
+import IPython
 
 def analyse(records: dict, config: dict, figure_path: str, figure_type: str, additionnal_param: dict|None):
 
@@ -17,18 +18,20 @@ def analyse(records: dict, config: dict, figure_path: str, figure_type: str, add
 
     for record in records:
         t = record["time"]
-        turtle_name = record["robot"]["name"]
+        node_type = list(record["node"].keys())[0]
+        turtle_name = record["node"][node_type]["name"]
         if not turtle_name in all_turtles_data:
             all_turtles_data[turtle_name] = TurtleData()
             
         turtle_data = all_turtles_data[turtle_name]
             
-        turtle_data.times.append(t)
-        try:
-            real_pose = record["robot"]["physic"]["Perfect"]["state"]["pose"]
-        except: # For external Physics (in python example)
-            real_pose = record["robot"]["physic"]["External"]["state"][0:3]
-        turtle_data.positions.append(real_pose)
+        if "physic" in record["node"][node_type]:
+            turtle_data.times.append(t)
+            try:
+                real_pose = record["node"][node_type]["physic"]["Perfect"]["state"]["pose"]
+            except: # For external Physics (in python example)
+                real_pose = record["node"][node_type]["physic"]["External"]["state"][0:3]
+            turtle_data.positions.append(real_pose)
         
     f, ax = plt.subplots()
     for turtle, data in all_turtles_data.items():

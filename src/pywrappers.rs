@@ -358,7 +358,7 @@ impl PluginAPIWrapper {
     pub fn new() -> Self {
         Self {}
     }
-    /// Return the [`StateEstimator`] to be used by the
+    /// Return the [`StateEstimator`](`crate::state_estimators::state_estimators::StateEstimator`) to be used by the
     /// [`ExternalEstimator`](`crate::state_estimators::external_estimator::ExternalEstimator`).
     ///
     /// # Arguments

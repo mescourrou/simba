@@ -1,12 +1,45 @@
 @startuml
-class Simulator
-Simulator *-- "*" Robot
+skinparam linetype polyline
+skinparam linetype ortho
+skinparam groupImplementation 2
 
-class Robot
+class Simulator
+Simulator *-- "*" Node
+
+enum NodeType {
+    Robot
+    Sensor
+    Object
+    ComputationUnit
+}
+note right of NodeType::Robot
+    Can move, can be detected, can sense, can communicate
+end note
+note right of NodeType::Sensor
+    Cannot move, cannot be detected, can sense, can communicate
+end note
+note right of NodeType::Object
+    Can be moved, can be detected, cannot sense, cannot communicate
+end note
+note right of NodeType::ComputationUnit
+    Cannot move, cannot be detected, cannot sense, can communicate
+end note
+
+class Node
+Node *-- NodeType
+
+class NodeFactory {
+    make_robot(RobotConfig)
+    make_sensor(SensorConfig)
+    make_object(ObjectConfig)
+    make_computation_unit(ComputationUnitConfig)
+}
+NodeFactory --> Node
 
 package physics {
-Robot *-- Physics
+Node *-- "+" Physics
 interface Physics
+note left of Physics: Allow to be mobile\nand to be perceived
 
 Physics <|.. PerfectPhysics
 Physics <|.. ExternalPhysics
@@ -15,7 +48,7 @@ class ExternalPhysics
 }
 
 package state_estimators {
-Robot *-- StateEstimator
+Node *-- "+" StateEstimator
 interface StateEstimator
 
 StateEstimator <|.. PerfectEstimator
@@ -25,7 +58,7 @@ class ExternalEstimator
 }
 
 package navigators {
-Robot *-- Navigator
+Node *-- "+" Navigator
 interface Navigator
 Navigator <|.. TrajectoryFollower
 Navigator <|.. ExternalNavigator
@@ -34,7 +67,7 @@ class ExternalNavigator
 }
 
 package controllers {
-Robot *-- Controller
+Node *-- "+" Controller
 interface Controller
 Controller <|.. PID
 Controller <|.. ExternalController
@@ -72,7 +105,7 @@ class Fixed
 }
 
 package sensors {
-Robot *-- SensorManager
+Node *-- "+" SensorManager
 class SensorManager
 
 SensorManager *-- "*" Sensor
@@ -95,7 +128,7 @@ package fault_models {
 GNSSSensor *-- "*" FaultModel
 OdometrySensor *-- "*" FaultModel
 OrientedLandmarkSensor *-- "*" FaultModel
-RobotSensor *-- "n" FaultModel
+RobotSensor *-- "*" FaultModel
 interface FaultModel
 
 FaultModel <|.. AdditiveObservationCenteredPolar
@@ -151,12 +184,12 @@ package networking {
 Simulator *-- NetworkManager
 class NetworkManager
 
-Robot *-- Network
+Node *-- "+" Network
 class Network
 
 Network <--> NetworkManager : mpsc
 
-Robot *-- ServiceManager
+Node *-- ServiceManager
 class ServiceManager {
     get_real_state: Service
     get_real_state_client: map[ServiceClient]
@@ -168,11 +201,16 @@ interface ServiceInterface
 note top of ServiceInterface: Not used anymore
 
 ServiceInterface <|.. Service
-class Service <<RequestMsg, ResponseMsg>>
-class ServiceClient <<RequestMsg, ResponseMsg>>
+class Service<RequestMsg, ResponseMsg>
+class ServiceClient<RequestMsg, ResponseMsg>
 Service <--> ServiceClient: mpsc
 }
 
+package physics {
+package physics_fault_models_<<future>> {
+
+}
+}
 
 @enduml
 

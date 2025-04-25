@@ -4,7 +4,7 @@ Provide the [`MessageHandler`] trait.
 
 use std::fmt::Debug;
 
-use crate::robot::Robot;
+use crate::node::Node;
 use serde_json::Value;
 
 /// Trait which add a method to handle a message. If the message cannot be handled,
@@ -23,7 +23,7 @@ pub trait MessageHandler: std::marker::Send + std::marker::Sync + Debug {
     /// * `Err` - The message was not handled and should be sent to the next handler.
     fn handle_message(
         &mut self,
-        robot: &mut Robot,
+        robot: &mut Node,
         from: &String,
         message: &Value,
         time: f32,

@@ -44,3 +44,10 @@ robots:
         - RobotSensor:
             period: 0.1
             detection_distance: 100.0
+# computation_unit:
+#   state_estimators:
+#     - name: "central_perfect"
+#       config:
+#         Perfect:
+#           targets: ["robot1", "robot2"]
+#           update_period: 0.1

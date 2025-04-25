@@ -9,7 +9,7 @@ use core::f32;
 use serde_derive::{Deserialize, Serialize};
 use std::sync::{Arc, RwLock};
 
-use crate::robot::Robot;
+use crate::node::Node;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{simulator::SimulatorConfig, stateful::Stateful};
 
@@ -48,7 +48,7 @@ pub struct SensorManagerRecord {
     pub last_observations: Vec<ObservationRecord>,
 }
 
-/// Sensor manager which manages all the robot's [`Sensor`]s.
+/// Sensor manager which manages all the node's [`Sensor`]s.
 #[derive(Debug)]
 pub struct SensorManager {
     sensors: Vec<Arc<RwLock<Box<dyn Sensor>>>>,
@@ -76,7 +76,7 @@ impl SensorManager {
         config: &SensorManagerConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        robot_name: &String,
+        node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut manager = Self::new();
@@ -89,7 +89,7 @@ impl SensorManager {
                             c,
                             plugin_api,
                             global_config,
-                            robot_name,
+                            node_name,
                             va_factory,
                         )) as Box<dyn Sensor>
                     }
@@ -97,21 +97,21 @@ impl SensorManager {
                         c,
                         plugin_api,
                         global_config,
-                        robot_name,
+                        node_name,
                         va_factory,
                     )) as Box<dyn Sensor>,
                     SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
                         c,
                         plugin_api,
                         global_config,
-                        robot_name,
+                        node_name,
                         va_factory,
                     )) as Box<dyn Sensor>,
                     SensorConfig::RobotSensor(c) => Box::new(RobotSensor::from_config(
                         c,
                         plugin_api,
                         global_config,
-                        robot_name,
+                        node_name,
                         va_factory,
                     )) as Box<dyn Sensor>,
                 })));
@@ -130,18 +130,18 @@ impl SensorManager {
 
     /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    pub fn init(&mut self, robot: &mut Robot) {
+    pub fn init(&mut self, node: &mut Node) {
         for sensor in &mut self.sensors {
-            sensor.write().unwrap().init(robot);
+            sensor.write().unwrap().init(node);
         }
     }
 
     /// Get the observations at the given `time`.
-    pub fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
+    pub fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<Observation> {
         let mut observations = Vec::<Observation>::new();
         let mut min_next_time = None;
         for sensor in &mut self.sensors {
-            let sensor_observations = sensor.write().unwrap().get_observations(robot, time);
+            let sensor_observations = sensor.write().unwrap().get_observations(node, time);
             for obs in sensor_observations {
                 observations.push(obs);
             }

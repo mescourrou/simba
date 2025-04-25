@@ -143,8 +143,9 @@ impl fmt::Display for State {
     }
 }
 
+use super::perfect_estimator::PerfectEstimatorConfig;
 use super::{external_estimator, perfect_estimator};
-use crate::robot::Robot;
+use crate::node::Node;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::geometry::mod2pi;
@@ -165,8 +166,8 @@ use std::sync::{Arc, RwLock};
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(deny_unknown_fields)]
 pub enum StateEstimatorConfig {
-    Perfect(Box<perfect_estimator::PerfectEstimatorConfig>),
-    External(Box<external_estimator::ExternalEstimatorConfig>),
+    Perfect(perfect_estimator::PerfectEstimatorConfig),
+    External(external_estimator::ExternalEstimatorConfig),
 }
 
 /// List the possible records.
@@ -184,26 +185,24 @@ pub fn make_state_estimator_from_config(
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &DeterministRandomVariableFactory,
-) -> Arc<RwLock<Box<dyn StateEstimator>>> {
+) -> Box<dyn StateEstimator> {
     return match config {
-        StateEstimatorConfig::Perfect(c) => Arc::new(RwLock::new(Box::new(
-            perfect_estimator::PerfectEstimator::from_config(
+        StateEstimatorConfig::Perfect(c) => {
+            Box::new(perfect_estimator::PerfectEstimator::from_config(
                 c,
                 plugin_api,
                 global_config,
                 va_factory,
-            ),
-        )
-            as Box<dyn StateEstimator>)),
-        StateEstimatorConfig::External(c) => Arc::new(RwLock::new(Box::new(
-            external_estimator::ExternalEstimator::from_config(
+            )) as Box<dyn StateEstimator>
+        }
+        StateEstimatorConfig::External(c) => {
+            Box::new(external_estimator::ExternalEstimator::from_config(
                 c,
                 plugin_api,
                 global_config,
                 va_factory,
-            ),
-        )
-            as Box<dyn StateEstimator>)),
+            )) as Box<dyn StateEstimator>
+        }
     };
 }
 
@@ -220,7 +219,7 @@ pub trait StateEstimator:
     /// * `robot` -- mutable reference on the current [`Robot`] to be able to interact with
     /// other modules.
     /// * `time` -- Time to reach.
-    fn prediction_step(&mut self, robot: &mut Robot, time: f32);
+    fn prediction_step(&mut self, robot: &mut Node, time: f32);
 
     /// Correction step of the state estimator.
     ///
@@ -232,7 +231,7 @@ pub trait StateEstimator:
     /// other modules.
     /// * `observations` -- Observation vector.
     /// * `time` -- Current time.
-    fn correction_step(&mut self, robot: &mut Robot, observations: &Vec<Observation>, time: f32);
+    fn correction_step(&mut self, robot: &mut Node, observations: &Vec<Observation>, time: f32);
 
     /// Return the current estimated state.
     fn state(&self) -> State;
@@ -240,4 +239,103 @@ pub trait StateEstimator:
     /// Return the next prediction step time. The correction step
     /// is called for each observation.
     fn next_time_step(&self) -> f32;
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CentralStateEstimatorRecord {
+    pub name: String,
+    pub estimator: StateEstimatorRecord,
+}
+
+#[derive(Debug, Serialize, Deserialize, Check, Clone)]
+pub struct CentralStateEstimatorConfig {
+    pub name: String,
+    pub robots: Vec<String>,
+    #[check]
+    pub config: StateEstimatorConfig,
+}
+
+impl Default for CentralStateEstimatorConfig {
+    fn default() -> Self {
+        Self {
+            name: "central_state_estimator".to_string(),
+            robots: Vec::new(),
+            config: StateEstimatorConfig::Perfect(PerfectEstimatorConfig::default()),
+        }
+    }
+}
+
+pub struct CentralStateEstimator {
+    pub name: String,
+    pub robots: Vec<String>,
+    pub estimator: Box<dyn StateEstimator>,
+}
+
+impl CentralStateEstimator {
+    pub fn from_config(
+        config: &CentralStateEstimatorConfig,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        global_config: &SimulatorConfig,
+        va_factory: &DeterministRandomVariableFactory,
+    ) -> Self {
+        Self {
+            name: config.name.clone(),
+            robots: config.robots.clone(),
+            estimator: make_state_estimator_from_config(
+                &config.config,
+                plugin_api,
+                global_config,
+                va_factory,
+            ),
+        }
+    }
+
+    pub fn next_time_step(&self) -> f32 {
+        self.estimator.next_time_step()
+    }
+}
+
+impl Stateful<CentralStateEstimatorRecord> for CentralStateEstimator {
+    fn from_record(&mut self, record: CentralStateEstimatorRecord) {
+        self.estimator.from_record(record.estimator);
+    }
+
+    fn record(&self) -> CentralStateEstimatorRecord {
+        CentralStateEstimatorRecord {
+            name: self.name.clone(),
+            estimator: self.estimator.record(),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(default)]
+#[serde(deny_unknown_fields)]
+pub struct BenchStateEstimatorConfig {
+    pub name: String,
+    #[check]
+    pub config: StateEstimatorConfig,
+}
+
+impl Default for BenchStateEstimatorConfig {
+    fn default() -> Self {
+        Self {
+            name: String::from("bench_state_estimator"),
+            config: StateEstimatorConfig::Perfect(
+                perfect_estimator::PerfectEstimatorConfig::default(),
+            ),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct BenchStateEstimatorRecord {
+    pub name: String,
+    pub record: StateEstimatorRecord,
+}
+
+#[derive(Debug)]
+pub struct BenchStateEstimator {
+    pub name: String,
+    pub state_estimator: Arc<RwLock<Box<dyn StateEstimator>>>,
 }

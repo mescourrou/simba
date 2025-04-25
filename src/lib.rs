@@ -51,7 +51,6 @@ fn main() {
 
 ```
 
-
 */
 
 #![doc = include_str!("../doc/config_documentation.md")]
@@ -61,8 +60,9 @@ use pyo3::prelude::*;
 pub mod controllers;
 pub mod navigators;
 pub mod networking;
+pub mod node;
+pub mod node_factory;
 pub mod physics;
-pub mod robot;
 pub mod sensors;
 pub mod simulator;
 pub mod state_estimators;
