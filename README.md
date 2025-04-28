@@ -16,6 +16,7 @@ Here is a list of available and considered features. The order is not a priority
 - [X] Simple Graphical User Interface
 - [ ] Synchronous robot run option
 - [ ] Possibility to read data from file instead of simulation: test state estimation algorithms on real data
+- [ ] Export data to file
 - [ ] ROS2 interface (rosbag reading)
 - [ ] Gazebo interface (maybe)
 - [ ] C++ bindings

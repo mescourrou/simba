@@ -21,8 +21,13 @@ robots:
         kp_v: 1.0
         kp_theta: 6.0
     state_estimator:
-      External:
-        period: 0.1
+      Perfect:
+        update_period: 0.1
+    state_estimator_bench:
+      - name: "Filter"
+        config:
+          External:
+            period: 0.2
     sensor_manager:
       sensors:
         - OrientedLandmarkSensor:
@@ -39,8 +44,13 @@ robots:
         kp_v: 1.0
         kp_theta: 6.0
     state_estimator:
-      External:
-        period: 0.2
+      Perfect:
+        update_period: 0.1
+    state_estimator_bench:
+      - name: "Filter"
+        config:
+          External:
+            period: 0.2
     sensor_manager:
       sensors:
         - OrientedLandmarkSensor:

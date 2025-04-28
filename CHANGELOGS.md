@@ -1,7 +1,11 @@
 # Changelogs
 
+## v0.4.3
+- Fix CI to build Multi-version python wheels
+- Fix state estimator python example
+
 ## v0.4.2
-- Phython bindings for controllers, navigators and physics
+- Python bindings for controllers, navigators and physics
 - Working result analysis with python invocation
 - Config documentation (auto-generated)
 - No more submodule for rust dependencies
