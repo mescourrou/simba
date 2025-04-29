@@ -447,6 +447,7 @@ impl Node {
                 .unwrap()
                 .next_time_step()
                 .min(next_time_step);
+            debug!("Next time after state estimator: {next_time_step}");
         }
 
         if let Some(sensor_manager) = &self.sensor_manager {
@@ -456,6 +457,7 @@ impl Node {
                 .next_time_step()
                 .unwrap_or(f32::INFINITY)
                 .min(next_time_step);
+            debug!("Next time after sensor manager: {next_time_step}");
         }
         let mut read_only = false;
 
@@ -475,6 +477,7 @@ impl Node {
                 }
                 debug!("Time step changed with message: {}", next_time_step);
             }
+            debug!("Next time after network: {next_time_step}");
         }
         if let Some(state_estimator_bench) = &self.state_estimator_bench {
             for state_estimator in state_estimator_bench.read().unwrap().iter() {
@@ -486,6 +489,7 @@ impl Node {
                         .next_time_step(),
                 );
             }
+            debug!("Next time after state estimator bench: {next_time_step}");
         }
 
         let tpl = self
@@ -499,6 +503,7 @@ impl Node {
             read_only = tpl.1;
             next_time_step = tpl.0;
         }
+        debug!("Next time after service manager: {next_time_step}");
         next_time_step = round_precision(next_time_step, TIME_ROUND).unwrap();
         debug!(
             "next_time_step: {} (read only: {read_only})",

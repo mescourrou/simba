@@ -43,6 +43,7 @@ use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
 use crate::api::internal_api::NodeClient;
+use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaResult};
 use crate::networking::network_manager::NetworkManager;
 use crate::networking::service_manager::ServiceManager;
@@ -730,6 +731,14 @@ impl Simulator {
                     let buffered_msgs = node.process_messages();
                     if buffered_msgs > 0 {
                         node.handle_messages(previous_time);
+                        (next_time, read_only) = node.next_time_step();
+                        {
+                            let mut unlocked_common_time = common_time_arc.lock().unwrap();
+                            if *unlocked_common_time > next_time {
+                                *unlocked_common_time = next_time;
+                                debug!("Set common time at {next_time}");
+                            }
+                        }
                     }
                     if lk.finished_nodes == nb_nodes {
                         break;
@@ -742,6 +751,7 @@ impl Simulator {
                 std::mem::drop(lk);
 
                 next_time = *common_time_arc.lock().unwrap();
+                debug!("Barrier... final next_time is {next_time}");
                 barrier.wait();
                 *common_time_arc.lock().unwrap() = f32::INFINITY;
                 time_cv.0.lock().unwrap().finished_nodes = 0;
@@ -753,13 +763,19 @@ impl Simulator {
                 if Self::wait_the_end(&node, max_time, &time_cv.0, &time_cv.1, nb_nodes) {
                     break;
                 }
-                (next_time, read_only) = node.next_time_step();
+                (next_time, _) = node.next_time_step();
                 info!("Return to time {next_time}");
             }
+            
+            let (own_next_time, own_read_only) = node.next_time_step();
             THREAD_TIMES.write().unwrap()[thread_idx] = next_time;
-            node.run_next_time_step(next_time, read_only);
-            if read_only {
-                node.set_in_state(previous_time);
+            if (own_next_time - next_time).abs() < TIME_ROUND {
+                node.run_next_time_step(next_time, own_read_only);
+                if own_read_only {
+                    node.set_in_state(previous_time);
+                } else {
+                    previous_time = next_time;
+                }
             } else {
                 previous_time = next_time;
             }

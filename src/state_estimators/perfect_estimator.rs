@@ -26,14 +26,14 @@ use serde_derive::{Deserialize, Serialize};
 pub struct PerfectEstimatorConfig {
     /// Prediction period.
     #[check(ge(0.))]
-    pub update_period: f32,
+    pub prediction_period: f32,
     pub targets: Vec<String>,
 }
 
 impl Default for PerfectEstimatorConfig {
     fn default() -> Self {
         Self {
-            update_period: 0.1,
+            prediction_period: 0.1,
             targets: vec!["self".to_string()],
         }
     }
@@ -53,8 +53,8 @@ pub struct PerfectEstimatorRecord {
 pub struct PerfectEstimator {
     /// Estimation of the state on the `last_time_update`.
     states: HashMap<String, State>,
-    /// Update period, in seconds.
-    update_period: f32,
+    /// Prediction period, in seconds.
+    prediction_period: f32,
     /// Last time the state was updated/predicted.
     last_time_update: f32,
 }
@@ -82,7 +82,7 @@ impl PerfectEstimator {
             states.insert(target.clone(), State::new());
         }
         Self {
-            update_period: config.update_period,
+            prediction_period: config.prediction_period,
             states,
             last_time_update: 0.,
         }
@@ -98,7 +98,7 @@ impl StateEstimator for PerfectEstimator {
             error!("Error trying to update estimate too soon !");
             return;
         }
-        debug!("Doing prediction step");
+        info!("Doing prediction step");
         for (target, state) in &mut self.states {
             if target.to_lowercase() == "self".to_string() {
                 let arc_physic = node
@@ -139,7 +139,7 @@ impl StateEstimator for PerfectEstimator {
     }
 
     fn next_time_step(&self) -> f32 {
-        round_precision(self.last_time_update + self.update_period, TIME_ROUND).unwrap()
+        round_precision(self.last_time_update + self.prediction_period, TIME_ROUND).unwrap()
     }
 }
 

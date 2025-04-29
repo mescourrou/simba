@@ -174,7 +174,6 @@ impl<
     /// ## Returns
     /// The number of requests remaining in the buffer.
     fn process_requests(&self) -> usize {
-        debug!("Processing service requests...");
         for (from, message, time, message_flags) in self.request_channel.lock().unwrap().try_iter()
         {
             debug!("Insert request from {from} at time {time}");
@@ -184,10 +183,6 @@ impl<
                 false,
             );
         }
-        debug!(
-            "Processing services requests... {} request in the buffer",
-            self.request_buffer.read().unwrap().len()
-        );
         self.request_buffer.read().unwrap().len()
     }
 

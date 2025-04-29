@@ -190,7 +190,7 @@ mod tests {
     fn send_message_test() {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
-        config.max_time = PerfectEstimatorConfig::default().update_period * 1.1;
+        config.max_time = PerfectEstimatorConfig::default().prediction_period * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             state_estimator_bench: vec![BenchStateEstimatorConfig {

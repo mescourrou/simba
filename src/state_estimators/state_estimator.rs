@@ -161,7 +161,7 @@ use std::sync::{Arc, RwLock};
 /// ```YAML
 /// state_estimator:
 ///     Perfect:
-///         update_period: 0.01
+///         prediction_period: 0.01
 /// ```
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(deny_unknown_fields)]

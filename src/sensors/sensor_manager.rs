@@ -195,14 +195,16 @@ impl SensorManager {
                     sensor_observation: obs,
                 })
                 .collect();
-            for to in &sensor.send_to {
-                if !obs_to_send.contains_key(to) {
-                    obs_to_send.insert(to, Vec::new());
+            if sensor_observations.len() > 0 {
+                for to in &sensor.send_to {
+                    if !obs_to_send.contains_key(to) {
+                        obs_to_send.insert(to, Vec::new());
+                    }
+                    obs_to_send
+                        .get_mut(to)
+                        .unwrap()
+                        .extend(sensor_observations.clone());
                 }
-                obs_to_send
-                    .get_mut(to)
-                    .unwrap()
-                    .extend(sensor_observations.clone());
             }
             observations.extend(sensor_observations);
             min_next_time = Some(
@@ -211,14 +213,18 @@ impl SensorManager {
                     .min(sensor.sensor.read().unwrap().next_time_step()),
             );
         }
-        for (to, observations) in obs_to_send {
-            let obs_serialized = serde_json::to_value(observations).unwrap();
-            node.network()
-                .expect("This Node has no network, it cannot send observation to other nodes")
-                .write()
-                .unwrap()
-                .send_to(to.clone(), obs_serialized, time, Vec::new())
-                .unwrap();
+        if obs_to_send.len() > 0 {
+            for (to, observations) in obs_to_send {
+                if observations.len() > 0 {
+                    let obs_serialized = serde_json::to_value(observations).unwrap();
+                    node.network()
+                        .expect("This Node has no network, it cannot send observation to other nodes")
+                        .write()
+                        .unwrap()
+                        .send_to(to.clone(), obs_serialized, time, Vec::new())
+                        .unwrap();
+                }
+            }
         }
         observations.extend(self.received_observations.drain(0..));
         self.next_time = min_next_time;
@@ -286,15 +292,7 @@ impl MessageHandler for SensorManager {
         if let Ok(obs_list) = serde_json::from_value::<Vec<Observation>>(message.clone()) {
             self.received_observations.extend(obs_list);
             if self.received_observations.len() > 0 {
-                self.next_time = Some(
-                    self.next_time.unwrap_or(f32::INFINITY).min(
-                        self.received_observations
-                            .iter()
-                            .min_by(|a, b| a.time.total_cmp(&b.time))
-                            .unwrap()
-                            .time,
-                    ),
-                );
+                self.next_time = Some(time);
             }
             debug!("Receive observations from {from} at time {time}");
             Ok(())

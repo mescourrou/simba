@@ -52,9 +52,11 @@ robots:
               detection_distance: 100.0
 computation_units:
   - name: "Central Unit"
+    network:
+      reception_delay: 0
     state_estimators:
       - name: "central_perfect"
         config:
           Perfect:
             targets: ["robot1", "robot2"]
-            update_period: 0.1
+            prediction_period: 0.1
