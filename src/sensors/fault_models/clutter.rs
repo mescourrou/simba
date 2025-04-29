@@ -4,7 +4,7 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    sensors::sensor::Observation,
+    sensors::sensor::SensorObservation,
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -104,8 +104,8 @@ impl FaultModel for ClutterFault {
         &self,
         time: f32,
         period: f32,
-        obs_list: &mut Vec<Observation>,
-        obs_type: Observation,
+        obs_list: &mut Vec<SensorObservation>,
+        obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;
@@ -119,7 +119,7 @@ impl FaultModel for ClutterFault {
             }
             let mut new_obs = obs_type.clone();
             match &mut new_obs {
-                Observation::OrientedRobot(o) => {
+                SensorObservation::OrientedRobot(o) => {
                     if self.variable_order.len() > 0 {
                         for i in 0..self.variable_order.len() {
                             match self.variable_order[i].as_str() {
@@ -138,7 +138,7 @@ impl FaultModel for ClutterFault {
                     o.pose.z = mod2pi(o.pose.z);
                     o.name = self.observation_id.clone();
                 }
-                Observation::GNSS(o) => {
+                SensorObservation::GNSS(o) => {
                     if self.variable_order.len() > 0 {
                         for i in 0..self.variable_order.len() {
                             match self.variable_order[i].as_str() {
@@ -161,7 +161,7 @@ impl FaultModel for ClutterFault {
                         }
                     }
                 }
-                Observation::Odometry(o) => {
+                SensorObservation::Odometry(o) => {
                     if self.variable_order.len() > 0 {
                         for i in 0..self.variable_order.len() {
                             match self.variable_order[i].as_str() {
@@ -176,7 +176,7 @@ impl FaultModel for ClutterFault {
                         o.linear_velocity = random_sample[1];
                     }
                 }
-                Observation::OrientedLandmark(o) => {
+                SensorObservation::OrientedLandmark(o) => {
                     if self.variable_order.len() > 0 {
                         for i in 0..self.variable_order.len() {
                             match self.variable_order[i].as_str() {

@@ -28,13 +28,26 @@ def analyse(records: dict, config: dict, figure_path: str, figure_type: str, add
         if "physic" in record["node"][node_type]:
             turtle_data.times.append(t)
             try:
-                real_pose = record["node"][node_type]["physic"]["Perfect"]["state"]["pose"]
+                perfect_physics = record["node"][node_type]["physic"]["Perfect"]
+                real_pose = None
+                if "states" in perfect_physics:
+                    states = perfect_physics["states"]
+                    for (target, state) in states:
+                        if target == "self":
+                            real_pose = state["pose"]
+                elif "state" in perfect_physics:
+                    real_pose = perfect_physics["state"]["pose"]
+                if real_pose is None:
+                    raise Exception()
             except: # For external Physics (in python example)
+                print(record["node"][node_type]["physic"])
                 real_pose = record["node"][node_type]["physic"]["External"]["state"][0:3]
             turtle_data.positions.append(real_pose)
         
     f, ax = plt.subplots()
     for turtle, data in all_turtles_data.items():
+        if len(data.positions) == 0:
+            continue
         real_pose_np = np.array(data.positions)
         ax.plot(real_pose_np[:,0], real_pose_np[:,1], label=f"{turtle}")
 

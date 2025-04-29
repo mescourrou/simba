@@ -27,7 +27,7 @@ use crate::{
 };
 
 use super::state_estimator::StateEstimatorRecord;
-use crate::sensors::sensor::Observation;
+use crate::sensors::sensor::{Observation, SensorObservation};
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external state estimation (generic).

@@ -11,8 +11,8 @@ use crate::{
     constants::TIME_ROUND,
     node::Node,
     node_factory::NodeRecord,
-    pywrappers::{ObservationWrapper, StateWrapper},
-    sensors::sensor::Observation,
+    pywrappers::{ObservationWrapper, SensorObservationWrapper, StateWrapper},
+    sensors::sensor::{Observation, SensorObservation},
     stateful::Stateful,
     utils::maths::round_precision,
 };
@@ -228,12 +228,7 @@ impl PythonStateEstimator {
         });
     }
 
-    fn correction_step(
-        &mut self,
-        _node: &NodeRecord,
-        observations: &Vec<crate::sensors::sensor::Observation>,
-        time: f32,
-    ) {
+    fn correction_step(&mut self, _node: &NodeRecord, observations: &Vec<Observation>, time: f32) {
         debug!("Calling python implementation of correction_step");
         let mut observation_py = Vec::new();
         for obs in observations {

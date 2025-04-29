@@ -92,8 +92,8 @@ impl NodeType {
 
     pub fn has_sensors(&self) -> bool {
         match self {
-            Self::Robot | Self::Sensor => true,
-            Self::Object | Self::ComputationUnit => false,
+            Self::Robot | Self::Sensor | Self::ComputationUnit => true,
+            Self::Object => false,
         }
     }
 
@@ -159,7 +159,7 @@ impl NodeRecord {
     pub fn sensor_manager(&self) -> Option<&SensorManagerRecord> {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.sensors),
-            Self::ComputationUnit(_) => None,
+            Self::ComputationUnit(r) => Some(&r.sensor_manager),
         }
     }
 }
@@ -287,6 +287,7 @@ pub struct ComputationUnitRecord {
     /// Name of the robot.
     pub name: String,
     pub state_estimators: Vec<BenchStateEstimatorRecord>,
+    pub sensor_manager: SensorManagerRecord,
 }
 
 ////////////////////////
@@ -410,7 +411,13 @@ impl NodeFactory {
             controller: None,
             physic: None,
             state_estimator: None,
-            sensor_manager: None,
+            sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
+                &SensorManagerConfig::default(),
+                plugin_api,
+                global_config,
+                &config.name,
+                va_factory,
+            )))),
             network: Some(Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),
                 &config.network,

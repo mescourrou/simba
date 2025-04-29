@@ -314,9 +314,9 @@ impl Simulator {
 
     pub fn reset(&mut self, plugin_api: &Option<Box<&dyn PluginAPI>>) {
         self.nodes = Vec::new();
+        self.time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
         self.network_manager = NetworkManager::new(self.time_cv.clone());
         let config = self.config.clone();
-        self.time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
         self.common_time = match &config.time_mode {
             TimeMode::Centralized => Some(Arc::new(Mutex::new(f32::INFINITY))),
             TimeMode::Decentralized => None,
@@ -702,8 +702,6 @@ impl Simulator {
         drop(thread_ids);
         time_analysis::set_node_name(node.name());
 
-        let (cv_mtx, cv) = &*time_cv;
-
         let mut previous_time = 0.;
         loop {
             let (mut next_time, mut read_only) = node.next_time_step();
@@ -724,9 +722,10 @@ impl Simulator {
                 }
 
                 let mut lk = time_cv.0.lock().unwrap();
+                debug!("Got CV lock");
                 lk.finished_nodes += 1;
-                cv.notify_all();
-                debug!("Waiting for others...");
+                time_cv.1.notify_all();
+                debug!("Waiting for others... (next_time is {next_time})");
                 loop {
                     let buffered_msgs = node.process_messages();
                     if buffered_msgs > 0 {
@@ -735,8 +734,11 @@ impl Simulator {
                     if lk.finished_nodes == nb_nodes {
                         break;
                     }
-                    lk = cv.wait(lk).unwrap();
+                    debug!("Wait CV");
+                    lk = time_cv.1.wait(lk).unwrap();
+                    debug!("End of CV wait");
                 }
+                debug!("Wait finished -- Release CV lock");
                 std::mem::drop(lk);
 
                 next_time = *common_time_arc.lock().unwrap();
@@ -748,7 +750,7 @@ impl Simulator {
                     break;
                 }
             } else if next_time > max_time {
-                if Self::wait_the_end(&node, max_time, &cv_mtx, &cv, nb_nodes) {
+                if Self::wait_the_end(&node, max_time, &time_cv.0, &time_cv.1, nb_nodes) {
                     break;
                 }
                 (next_time, read_only) = node.next_time_step();

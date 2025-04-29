@@ -3,7 +3,7 @@ Provides a [`Sensor`] which can observe the other nodes in the frame of the ego 
 */
 
 use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
-use super::sensor::{Observation, Sensor, SensorRecord};
+use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 use crate::networking::network::MessageFlag;
@@ -227,7 +227,7 @@ impl<'de> Deserialize<'de> for OrientedRobot {
 }
 
 /// Observation of an [`OrientedRobot`].
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OrientedRobotObservation {
     /// Name of the Robot
     pub name: String,
@@ -317,8 +317,8 @@ use crate::node::Node;
 impl Sensor for RobotSensor {
     fn init(&mut self, _node: &mut Node) {}
 
-    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<Observation> {
-        let mut observation_list = Vec::<Observation>::new();
+    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
+        let mut observation_list = Vec::<SensorObservation>::new();
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             return observation_list;
         }
@@ -340,7 +340,7 @@ impl Sensor for RobotSensor {
 
             let service_manager = node.service_manager();
             if let Some(other_state) = service_manager.read().unwrap().get_real_state(
-                other_node_name.to_string(),
+                &other_node_name.to_string(),
                 node,
                 time,
             ) {
@@ -349,10 +349,12 @@ impl Sensor for RobotSensor {
                 .sqrt();
                 debug!("Distance is {d}");
                 if d <= self.detection_distance {
-                    observation_list.push(Observation::OrientedRobot(OrientedRobotObservation {
-                        name: other_node_name.clone(),
-                        pose: rotation_matrix.transpose() * (other_state.pose - state.pose),
-                    }));
+                    observation_list.push(SensorObservation::OrientedRobot(
+                        OrientedRobotObservation {
+                            name: other_node_name.clone(),
+                            pose: rotation_matrix.transpose() * (other_state.pose - state.pose),
+                        },
+                    ));
                 }
             };
         }
@@ -361,7 +363,7 @@ impl Sensor for RobotSensor {
                 time,
                 self.period,
                 &mut observation_list,
-                Observation::OrientedRobot(OrientedRobotObservation::default()),
+                SensorObservation::OrientedRobot(OrientedRobotObservation::default()),
             );
         }
         self.last_time = time;

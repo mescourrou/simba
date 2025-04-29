@@ -5,7 +5,7 @@ Provides a [`Sensor`] which can observe oriented landmarks in the frame of the r
 use super::fault_models::fault_model::{
     make_fault_model_from_config, FaultModel, FaultModelConfig,
 };
-use super::sensor::{Observation, Sensor, SensorRecord};
+use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 use crate::plugin_api::PluginAPI;
@@ -228,7 +228,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
 }
 
 /// Observation of an [`OrientedLandmark`].
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OrientedLandmarkObservation {
     /// Id of the landmark
     pub id: i32,
@@ -354,8 +354,8 @@ use crate::node::Node;
 impl Sensor for OrientedLandmarkSensor {
     fn init(&mut self, _robot: &mut Node) {}
 
-    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<Observation> {
-        let mut observation_list = Vec::<Observation>::new();
+    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
+        let mut observation_list = Vec::<SensorObservation>::new();
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             return observation_list;
         }
@@ -375,16 +375,18 @@ impl Sensor for OrientedLandmarkSensor {
             .sqrt();
             if d <= self.detection_distance {
                 let landmark_seed = 1. / (100. * self.period) * (landmark.id as f32);
-                observation_list.push(Observation::OrientedLandmark(OrientedLandmarkObservation {
-                    id: landmark.id,
-                    pose: rotation_matrix * landmark.pose + state.pose,
-                }));
+                observation_list.push(SensorObservation::OrientedLandmark(
+                    OrientedLandmarkObservation {
+                        id: landmark.id,
+                        pose: rotation_matrix * landmark.pose + state.pose,
+                    },
+                ));
                 for fault_model in self.faults.lock().unwrap().iter() {
                     fault_model.add_faults(
                         time + landmark_seed,
                         self.period,
                         &mut observation_list,
-                        Observation::OrientedLandmark(OrientedLandmarkObservation::default()),
+                        SensorObservation::OrientedLandmark(OrientedLandmarkObservation::default()),
                     );
                 }
             }

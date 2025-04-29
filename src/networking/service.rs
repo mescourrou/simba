@@ -66,8 +66,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         time: f32,
         message_flags: Vec<MessageFlag>,
     ) -> Result<(), String> {
-        debug!("Sending a request...");
-        let lk = self.time_cv.0.lock().unwrap();
+        debug!("Sending a request");
         match self.request_channel.lock().unwrap().send((
             node_name,
             req,
@@ -75,18 +74,21 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
             // To be changed when full support of the message mode will be implemented
             message_flags,
         )) {
-            Err(e) => return Err(e.to_string()),
+            Err(e) => panic!("{}", e.to_string()),//return Err(e.to_string()),
             _ => (),
         }
-        debug!("Sending a request... OK");
+        debug!("Sending a request: OK");
+        let lk = self.time_cv.0.lock().unwrap();
+        debug!("Lock acquired");
+        debug!("Wake waiting nodes");
         // Needed to unlock the other node if it has finished and is waiting for messages.
         self.time_cv.1.notify_all();
+        debug!("Release CV lock");
         std::mem::drop(lk);
         Ok(())
     }
 
     pub fn try_recv(&self) -> Result<ResponseMsg, String> {
-        debug!("Waiting for result...");
         let result = match self.response_channel.lock().unwrap().try_recv() {
             Ok(result) => result,
             Err(e) => return Err(e.to_string()),

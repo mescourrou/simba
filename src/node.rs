@@ -233,6 +233,11 @@ impl Node {
             })
             .collect();
 
+        if let Some(network) = &self.network {
+            if let Some(sensor_manager) = &self.sensor_manager {
+                network.write().unwrap().subscribe(sensor_manager.clone());
+            }
+        }
         let (node_server, node_client) = internal_api::make_node_api(&self.node_type);
         self.node_server = Some(node_server);
         debug!("Save initial state");
@@ -639,6 +644,7 @@ impl Node {
         let mut record = ComputationUnitRecord {
             name: self.name.clone(),
             state_estimators: Vec::new(),
+            sensor_manager: self.sensor_manager().unwrap().read().unwrap().record(),
         };
         let other_state_estimators = self.state_estimator_bench.clone();
         for additional_state_estimator in other_state_estimators

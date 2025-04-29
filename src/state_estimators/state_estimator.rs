@@ -206,7 +206,7 @@ pub fn make_state_estimator_from_config(
     };
 }
 
-use crate::sensors::sensor::Observation;
+use crate::sensors::sensor::{Observation, SensorObservation};
 
 pub trait StateEstimator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<StateEstimatorRecord>

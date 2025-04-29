@@ -146,8 +146,12 @@ impl NetworkManager {
             }
         }
         if message_sent {
-            let _lk = self.time_cv.0.lock();
+            debug!("Wait for CV lock");
+            let lk = self.time_cv.0.lock().unwrap();
+            debug!("Got CV lock");
             self.time_cv.1.notify_all();
+            debug!("Release CV lock");
+            std::mem::drop(lk);
         }
     }
 }

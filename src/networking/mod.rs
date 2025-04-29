@@ -48,8 +48,9 @@ mod tests {
         node_factory::RobotConfig,
         plugin_api::PluginAPI,
         sensors::{
-            robot_sensor::RobotSensorConfig, sensor::SensorConfig,
-            sensor_manager::SensorManagerConfig,
+            robot_sensor::RobotSensorConfig,
+            sensor::{Observation, SensorConfig},
+            sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
         },
         simulator::{Simulator, SimulatorConfig},
         state_estimators::{
@@ -105,7 +106,7 @@ mod tests {
         fn correction_step(
             &mut self,
             node: &mut crate::node::Node,
-            observations: &Vec<crate::sensors::sensor::Observation>,
+            observations: &Vec<Observation>,
             time: f32,
         ) {
         }
@@ -253,16 +254,22 @@ mod tests {
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             sensor_manager: SensorManagerConfig {
-                sensors: vec![
-                    SensorConfig::RobotSensor(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other node poses.
-                ],
+                sensors: vec![ManagedSensorConfig {
+                    name: "RobotSensor".to_string(),
+                    send_to: Vec::new(),
+                    config: SensorConfig::RobotSensor(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other node poses.
+                }],
             },
             ..Default::default()
         });
         config.robots.push(RobotConfig {
             name: "node2".to_string(),
             sensor_manager: SensorManagerConfig {
-                sensors: vec![SensorConfig::RobotSensor(RobotSensorConfig::default())],
+                sensors: vec![ManagedSensorConfig {
+                    name: "RobotSensor".to_string(),
+                    send_to: Vec::new(),
+                    config: SensorConfig::RobotSensor(RobotSensorConfig::default()),
+                }],
             },
             ..Default::default()
         });

@@ -47,8 +47,8 @@ impl ServiceManager {
         }
     }
 
-    pub fn get_real_state(&self, node_name: String, node: &Node, time: f32) -> Option<State> {
-        let client = self.get_real_state_clients.get(&node_name);
+    pub fn get_real_state(&self, node_name: &String, node: &Node, time: f32) -> Option<State> {
+        let client = self.get_real_state_clients.get(node_name);
         if client.is_none() {
             return None;
         }

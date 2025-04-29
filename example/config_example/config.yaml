@@ -22,9 +22,12 @@ robots:
         kp_theta: 6.0
     sensor_manager:
       sensors:
-        - RobotSensor:
-            period: 0.1
-            detection_distance: 100.0
+        - name: "RobotSensor"
+          send_to: ["Central Unit"]
+          config:
+            RobotSensor:
+              period: 0.1
+              detection_distance: 100.0
     #   sensors:
     #     - OrientedLandmarkSensor:
     #         map_path: "maps/landmarks_square.yaml"
@@ -41,13 +44,17 @@ robots:
         kp_theta: 3.0
     sensor_manager:
       sensors:
-        - RobotSensor:
-            period: 0.1
-            detection_distance: 100.0
-# computation_unit:
-#   state_estimators:
-#     - name: "central_perfect"
-#       config:
-#         Perfect:
-#           targets: ["robot1", "robot2"]
-#           update_period: 0.1
+        - name: "RobotSensor"
+          send_to: ["Central Unit"]
+          config:
+            RobotSensor:
+              period: 0.1
+              detection_distance: 100.0
+computation_units:
+  - name: "Central Unit"
+    state_estimators:
+      - name: "central_perfect"
+        config:
+          Perfect:
+            targets: ["robot1", "robot2"]
+            update_period: 0.1
