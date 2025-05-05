@@ -53,7 +53,7 @@ robots:
 computation_units:
   - name: "Central Unit"
     network:
-      reception_delay: 0
+      reception_delay: 0.001
     state_estimators:
       - name: "central_perfect"
         config:

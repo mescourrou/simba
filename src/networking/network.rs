@@ -14,6 +14,7 @@ use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCvData};
@@ -31,7 +32,7 @@ pub struct NetworkConfig {
     /// Limit range communication, 0 for no limit.
     #[check(ge(0.))]
     pub range: f32,
-    /// Communication delay (fixed). 0 for no delay.
+    /// Communication delay (fixed). 0 for no delay (not stable).
     #[check(ge(0.))]
     pub reception_delay: f32,
 }
@@ -40,7 +41,7 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             range: 0.,
-            reception_delay: 0.,
+            reception_delay: TIME_ROUND,
         }
     }
 }

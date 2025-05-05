@@ -58,6 +58,7 @@ use crate::utils::time_ordered_data::TimeOrderedData;
 use core::f32;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use colored::Colorize;
 use serde_json::{self, Value};
@@ -65,9 +66,9 @@ use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::sync::{Arc, Barrier, Condvar, Mutex, RwLock};
-use std::thread::{self, ThreadId};
+use std::thread::{self, sleep, ThreadId};
 
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
 use pyo3::prepare_freethreaded_python;
 
@@ -375,6 +376,26 @@ impl Simulator {
     ) {
         info!("Checking configuration:");
         if config.check() {
+            // Check network delay == 0
+            let mut network_0 = false;
+            for robot in &config.robots {
+                if robot.network.reception_delay == 0. {
+                    network_0 = true;
+                    break;
+                }
+            }
+            if !network_0 {
+                for cu in &config.computation_units {
+                    if cu.network.reception_delay == 0. {
+                        network_0 = true;
+                        break;
+                    }
+                }
+            }
+            if network_0 {
+                warn!("Network with 0 reception delay is not stable yet: messages can be treated later or deadlock can occur.");
+                sleep(Duration::from_secs(1));
+            }
             info!("Config valid");
         } else {
             panic!("Error in config");
