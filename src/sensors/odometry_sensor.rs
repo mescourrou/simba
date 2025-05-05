@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use super::fault_models::fault_model::{
     make_fault_model_from_config, FaultModel, FaultModelConfig,
 };
-use super::sensor::{Observation, Sensor, SensorRecord};
+use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 use crate::plugin_api::PluginAPI;
@@ -137,17 +137,25 @@ impl OdometrySensor {
     }
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 
 impl Sensor for OdometrySensor {
-    fn init(&mut self, robot: &mut Robot) {
-        self.last_state = robot.physics().read().unwrap().state(0.).clone();
+    fn init(&mut self, robot: &mut Node) {
+        self.last_state = robot
+            .physics()
+            .expect("Node with GNSS sensor should have Physics")
+            .read()
+            .unwrap()
+            .state(0.)
+            .clone();
     }
 
-    fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
-        let arc_physic = robot.physics();
+    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
+        let arc_physic = robot
+            .physics()
+            .expect("Node with Odometry sensor should have Physics");
         let physic = arc_physic.read().unwrap();
-        let mut observation_list = Vec::<Observation>::new();
+        let mut observation_list = Vec::<SensorObservation>::new();
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             return observation_list;
         }
@@ -155,7 +163,7 @@ impl Sensor for OdometrySensor {
 
         let dt = time - self.last_time;
 
-        observation_list.push(Observation::Odometry(OdometryObservation {
+        observation_list.push(SensorObservation::Odometry(OdometryObservation {
             linear_velocity: state.velocity,
             angular_velocity: (state.pose.z - self.last_state.pose.z) / dt,
         }));
@@ -164,7 +172,7 @@ impl Sensor for OdometrySensor {
                 time,
                 self.period,
                 &mut observation_list,
-                Observation::Odometry(OdometryObservation::default()),
+                SensorObservation::Odometry(OdometryObservation::default()),
             );
         }
 

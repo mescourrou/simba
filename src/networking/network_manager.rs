@@ -1,12 +1,12 @@
 /*!
-Provide the Manager of the robots [`Network`]s. Only one should exist for one
+Provide the Manager of the nodes [`Network`]s. Only one should exist for one
 [`Simulator`](crate::simulator::Simulator).
 */
 
 use log::debug;
 use serde_json::Value;
 
-use crate::robot::Robot;
+use crate::node::Node;
 use crate::simulator::TimeCvData;
 use crate::state_estimators::state_estimator::State;
 use crate::utils::time_ordered_data::TimeOrderedData;
@@ -36,16 +36,16 @@ pub struct NetworkMessage {
 /// Manages the [`Network`]s, making the link between them, and keep a list.
 #[derive(Debug)]
 pub struct NetworkManager {
-    robots_senders: BTreeMap<String, Sender<NetworkMessage>>,
-    robots_receivers: BTreeMap<String, Receiver<NetworkMessage>>,
+    nodes_senders: BTreeMap<String, Sender<NetworkMessage>>,
+    nodes_receivers: BTreeMap<String, Receiver<NetworkMessage>>,
     time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
 }
 
 impl NetworkManager {
     pub fn new(time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Self {
         Self {
-            robots_senders: BTreeMap::new(),
-            robots_receivers: BTreeMap::new(),
+            nodes_senders: BTreeMap::new(),
+            nodes_receivers: BTreeMap::new(),
             time_cv,
         }
     }
@@ -53,53 +53,53 @@ impl NetworkManager {
     /// Add a new [`Network`] node to the network. It creates the links to each existing network.
     ///
     /// ## Argument
-    /// * `robot` - Reference to the [`Robot`](crate::robot::Robot).
+    /// * `node` - Reference to the [`Node`].
     /// * `network` - [`Network`] to add.
-    pub fn register_robot_network(&mut self, robot: &mut Robot) {
-        let robot_name = robot.name();
+    pub fn register_node_network(&mut self, node: &mut Node) {
+        if let Some(network) = node.network() {
+            let node_name = node.name();
 
-        let to_robot = mpsc::channel();
-        let from_robot = mpsc::channel();
-        self.robots_senders.insert(robot_name.clone(), to_robot.0);
-        self.robots_receivers
-            .insert(robot_name.clone(), from_robot.1);
+            let to_node = mpsc::channel();
+            let from_node = mpsc::channel();
+            self.nodes_senders.insert(node_name.clone(), to_node.0);
+            self.nodes_receivers.insert(node_name.clone(), from_node.1);
 
-        robot
-            .network()
-            .write()
-            .unwrap()
-            .set_network_manager_link(from_robot.0, to_robot.1);
+            network
+                .write()
+                .unwrap()
+                .set_network_manager_link(from_node.0, to_node.1);
+        }
     }
 
-    /// Compute the distance between two robots at the given time, using their real pose.
+    /// Compute the distance between two nodes at the given time, using their real pose.
     fn distance_between(
         position_history: &HashMap<String, TimeOrderedData<State>>,
-        robot1: &String,
-        robot2: &String,
+        node1: &String,
+        node2: &String,
         time: f32,
     ) -> f32 {
-        let robot1_pos = position_history
-            .get(robot1)
-            .expect(format!("Unknown robot {robot1}").as_str())
+        let node1_pos = position_history
+            .get(node1)
+            .expect(format!("Unknown node {node1}").as_str())
             .get_data_at_time(time)
-            .expect(format!("No state data for robot {robot1} at time {time}").as_str())
+            .expect(format!("No state data for node {node1} at time {time}").as_str())
             .1
             .pose;
-        let robot2_pos = position_history
-            .get(robot2)
-            .expect(format!("Unknown robot {robot2}").as_str())
+        let node2_pos = position_history
+            .get(node2)
+            .expect(format!("Unknown node {node2}").as_str())
             .get_data_at_time(time)
-            .expect(format!("No state data for robot {robot2} at time {time}").as_str())
+            .expect(format!("No state data for node {node2} at time {time}").as_str())
             .1
             .pose;
 
-        let distance = (robot1_pos.rows(0, 2) - robot2_pos.rows(0, 2)).norm();
+        let distance = (node1_pos.rows(0, 2) - node2_pos.rows(0, 2)).norm();
         distance
     }
 
     pub fn process_messages(&self, position_history: &HashMap<String, TimeOrderedData<State>>) {
         let mut message_sent = false;
-        for (robot_name, receiver) in self.robots_receivers.iter() {
+        for (node_name, receiver) in self.nodes_receivers.iter() {
             if let Ok(msg) = receiver.try_recv() {
                 match &msg.to {
                     MessageSendMethod::Recipient(r) => {
@@ -107,36 +107,36 @@ impl NetworkManager {
                             || msg.range
                                 >= NetworkManager::distance_between(
                                     position_history,
-                                    robot_name,
+                                    node_name,
                                     r,
                                     msg.time,
                                 )
                         {
-                            debug!("Receiving message from `{robot_name}` for `{r}`... Sending");
-                            self.robots_senders
+                            debug!("Receiving message from `{node_name}` for `{r}`... Sending");
+                            self.nodes_senders
                                 .get(r)
-                                .expect(format!("Unknown robot {r}").as_str())
+                                .expect(format!("Unknown node {r}").as_str())
                                 .send(msg)
                                 .unwrap();
                             message_sent = true;
                         } else {
                             debug!(
-                                "Receiving message from `{robot_name}` for `{r}`... Out of range"
+                                "Receiving message from `{node_name}` for `{r}`... Out of range"
                             );
                         }
                     }
                     MessageSendMethod::Broadcast => {
-                        for (recipient_name, sender) in self.robots_senders.iter() {
+                        for (recipient_name, sender) in self.nodes_senders.iter() {
                             if msg.range == 0.
                                 || msg.range
                                     >= NetworkManager::distance_between(
                                         position_history,
-                                        robot_name,
+                                        node_name,
                                         recipient_name,
                                         msg.time,
                                     )
                             {
-                                debug!("Receiving message from `{robot_name}` for broadcast... Sending to `{recipient_name}`");
+                                debug!("Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`");
                                 sender.send(msg.clone()).unwrap();
                                 message_sent = true;
                             }
@@ -146,8 +146,12 @@ impl NetworkManager {
             }
         }
         if message_sent {
-            let _lk = self.time_cv.0.lock();
+            debug!("Wait for CV lock");
+            let lk = self.time_cv.0.lock().unwrap();
+            debug!("Got CV lock");
             self.time_cv.1.notify_all();
+            debug!("Release CV lock");
+            std::mem::drop(lk);
         }
     }
 }

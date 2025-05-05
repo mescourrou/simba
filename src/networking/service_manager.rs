@@ -5,8 +5,8 @@ use std::{
 };
 
 use crate::{
+    node::Node,
     physics::physic::{GetRealStateReq, GetRealStateResp, Physic},
-    robot::Robot,
     simulator::TimeCvData,
     state_estimators::state_estimator::State,
 };
@@ -18,36 +18,51 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct ServiceManager {
-    get_real_state: Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physic>>>,
+    get_real_state: Option<Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physic>>>>,
     get_real_state_clients: HashMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
 }
 
 impl ServiceManager {
-    pub fn initialize(robot: &Robot, time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Self {
+    pub fn initialize(node: &Node, time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Self {
         Self {
-            get_real_state: Arc::new(RwLock::new(Service::new(time_cv.clone(), robot.physics()))),
+            get_real_state: match node.node_type.has_physics() {
+                true => Some(Arc::new(RwLock::new(Service::new(
+                    time_cv.clone(),
+                    node.physics().unwrap(),
+                )))),
+                false => None,
+            },
             get_real_state_clients: HashMap::new(),
         }
     }
 
     fn get_real_state_client(
         &self,
-        robot_name: &str,
-    ) -> ServiceClient<GetRealStateReq, GetRealStateResp> {
-        self.get_real_state.write().unwrap().new_client(robot_name)
+        node_name: &str,
+    ) -> Option<ServiceClient<GetRealStateReq, GetRealStateResp>> {
+        if let Some(get_real_state) = &self.get_real_state {
+            Some(get_real_state.write().unwrap().new_client(node_name))
+        } else {
+            None
+        }
     }
 
-    pub fn get_real_state(&self, robot_name: String, robot: &Robot, time: f32) -> State {
-        let client = self.get_real_state_clients.get(&robot_name).unwrap();
+    pub fn get_real_state(&self, node_name: &String, node: &Node, time: f32) -> Option<State> {
+        let client = self.get_real_state_clients.get(node_name);
+        if client.is_none() {
+            return None;
+        }
+        let client = client.unwrap();
         client
             .send_request(
-                robot.name(),
+                node.name(),
                 GetRealStateReq {},
                 time,
                 vec![MessageFlag::God],
             )
             .unwrap();
 
+        // Next loop to avoid deadlock between services
         let resp;
         loop {
             if let Ok(r) = client.try_recv() {
@@ -59,42 +74,48 @@ impl ServiceManager {
             }
         }
 
-        resp.state
+        Some(resp.state)
     }
 
     pub fn make_links(
         &mut self,
         service_managers: &HashMap<String, Arc<RwLock<ServiceManager>>>,
-        robot: &Robot,
+        node: &Node,
     ) {
-        let my_name = robot.name();
+        let my_name = node.name();
         for (name, sm) in service_managers {
             if name == &my_name {
                 continue;
             }
-            self.get_real_state_clients.insert(
-                name.clone(),
-                sm.read().unwrap().get_real_state_client(&my_name),
-            );
+            if let Some(client) = sm.read().unwrap().get_real_state_client(&my_name) {
+                self.get_real_state_clients.insert(name.clone(), client);
+            }
         }
     }
 
     pub fn handle_requests(&self, time: f32) {
-        self.get_real_state.read().unwrap().handle_requests(time);
+        if let Some(get_real_state) = &self.get_real_state {
+            get_real_state.read().unwrap().handle_requests(time);
+        }
     }
 
     pub fn process_requests(&self) -> usize {
         let mut s = 0usize;
-        s += self.get_real_state.read().unwrap().process_requests();
+        if let Some(get_real_state) = &self.get_real_state {
+            s += get_real_state.read().unwrap().process_requests();
+        }
         s
     }
 
     pub fn next_time(&self) -> (f32, bool) {
         let mut min_time = (f32::INFINITY, false);
-        let mt = self.get_real_state.read().unwrap().next_time();
-        if mt.0 < min_time.0 {
-            min_time = mt;
+        if let Some(get_real_state) = &self.get_real_state {
+            let mt = get_real_state.read().unwrap().next_time();
+            if mt.0 < min_time.0 {
+                min_time = mt;
+            }
         }
+        // Place for new services
         min_time
     }
 }

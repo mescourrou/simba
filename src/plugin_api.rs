@@ -49,7 +49,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::{
     controllers::controller::Controller, navigators::navigator::Navigator,
-    networking::message_handler::MessageHandler, physics::physic::Physic, robot::Robot,
+    networking::message_handler::MessageHandler, node::Node, physics::physic::Physic,
     simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator,
 };
 
@@ -118,7 +118,7 @@ pub trait PluginAPI: Send + Sync {
     }
 
     /// Return the [`Physic`] to be used by the
-    /// [`ExternalPhysic`](`crate::physcs::external_physic::ExternalPhysic`).
+    /// [`ExternalPhysic`](`crate::physics::external_physic::ExternalPhysic`).
     ///
     /// # Arguments
     /// * `config` - Config for the external physic. The configuration
@@ -133,7 +133,7 @@ pub trait PluginAPI: Send + Sync {
         panic!("The given PluginAPI does not provide a physic");
     }
 
-    fn get_message_handlers(&self, _robot: &Robot) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
+    fn get_message_handlers(&self, _robot: &Node) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
         None
     }
 }

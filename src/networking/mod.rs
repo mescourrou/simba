@@ -1,28 +1,28 @@
 /*!
-Module which provides communication tools between robots.
+Module which provides communication tools between nodes.
 
-Each [`Robot`](crate::robot::Robot) includes a [`Network`](network::Network).
+Each [`Robot`](crate::node::Robot) includes a [`Network`](network::Network).
 The [`NetworkManager`](network_manager::NetworkManager) makes the link between the
 [`Network`](network::Network)s and is owned by the [`Simulator`](crate::simulator::Simulator).
 
-There are two main ways to communicate between robots.
+There are two main ways to communicate between nodes.
 
-1) One-way communication: A robot sends a message to another robot. This is done using the
+1) One-way communication: A node sends a message to another node. This is done using the
 [`Network::send_to`](network::Network::send_to) and
 [`Network::broadcast`](network::Network::broadcast) methods. The message is sent to the
 receiver [`Network`](network::Network) and is stored in a time ordered buffer. The receiver
 unwraps the message when it reaches the time of the message. If the message is sent in the
 past, the receiver will go back in time to unwrap the message. The message treatment is done
-in [`run_time_step`](crate::robot::Robot::run_time_step), at the end. The message is
+in [`run_time_step`](crate::node::Robot::run_time_step), at the end. The message is
 then passed from one [`MessageHandler`](message_handler::MessageHandler) to the next until
 one of them handles the message.
 
-2) Two-way communication: A robot sends a request to another robot and waits for the response.
+2) Two-way communication: A node sends a request to another node and waits for the response.
 This is done using the [`Service`](service::Service) and [`ServiceClient`](service::ServiceClient).
-The server robot proposes a service, and then a client robot need to get a
+The server node proposes a service, and then a client node need to get a
 [`ServiceClient`](service::ServiceClient) instance to be able to make a request. The client
 sends a request to the server, and is blocked until the server sends a response. The server
-robot should handle the requests in [`run_time_step`](crate::robot::Robot::run_time_step).
+node should handle the requests in [`run_time_step`](crate::node::Robot::run_time_step).
 */
 
 pub mod message_handler;
@@ -44,17 +44,22 @@ mod tests {
 
     use crate::{
         constants::TIME_ROUND,
+        node::Node,
+        node_factory::RobotConfig,
         plugin_api::PluginAPI,
-        robot::{BenchStateEstimatorConfig, BenchStateEstimatorRecord, Robot, RobotConfig},
         sensors::{
-            robot_sensor::RobotSensorConfig, sensor::SensorConfig,
-            sensor_manager::SensorManagerConfig,
+            robot_sensor::RobotSensorConfig,
+            sensor::{Observation, SensorConfig},
+            sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
         },
         simulator::{Simulator, SimulatorConfig},
         state_estimators::{
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
             perfect_estimator::PerfectEstimatorConfig,
-            state_estimator::{State, StateEstimator, StateEstimatorConfig, StateEstimatorRecord},
+            state_estimator::{
+                BenchStateEstimatorConfig, State, StateEstimator, StateEstimatorConfig,
+                StateEstimatorRecord,
+            },
         },
         stateful::Stateful,
         utils::maths::{closest_uint_modulo, round_precision},
@@ -72,7 +77,7 @@ mod tests {
     impl MessageHandler for NetworkHandlerTest {
         fn handle_message(
             &mut self,
-            _robot: &mut crate::robot::Robot,
+            _node: &mut crate::node::Node,
             from: &String,
             message: &serde_json::Value,
             time: f32,
@@ -100,21 +105,22 @@ mod tests {
     impl StateEstimator for StateEstimatorTest {
         fn correction_step(
             &mut self,
-            robot: &mut crate::robot::Robot,
-            observations: &Vec<crate::sensors::sensor::Observation>,
+            node: &mut crate::node::Node,
+            observations: &Vec<Observation>,
             time: f32,
         ) {
         }
 
-        fn prediction_step(&mut self, robot: &mut crate::robot::Robot, time: f32) {
+        fn prediction_step(&mut self, node: &mut crate::node::Node, time: f32) {
             self.last_time = time;
-            println!("{} Sending message...", robot.name());
-            robot
-                .network()
+            println!("{} Sending message...", node.name());
+            node.network()
+                .as_ref()
+                .unwrap()
                 .write()
                 .unwrap()
                 .send_to(
-                    "robot2".to_string(),
+                    "node2".to_string(),
                     serde_json::to_value(self.message.clone()).unwrap(),
                     time,
                     Vec::new(),
@@ -170,9 +176,9 @@ mod tests {
 
         fn get_message_handlers(
             &self,
-            robot: &Robot,
+            node: &Node,
         ) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
-            if robot.name() == "robot2" {
+            if node.name() == "node2" {
                 Some(vec![self.message_handler.clone()])
             } else {
                 None
@@ -184,21 +190,21 @@ mod tests {
     fn send_message_test() {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
-        config.max_time = PerfectEstimatorConfig::default().update_period * 1.1;
-        config.robots.push(Box::new(RobotConfig {
-            name: "robot1".to_string(),
+        config.max_time = PerfectEstimatorConfig::default().prediction_period * 1.1;
+        config.robots.push(RobotConfig {
+            name: "node1".to_string(),
             state_estimator_bench: vec![BenchStateEstimatorConfig {
                 name: "own".to_string(),
-                config: StateEstimatorConfig::External(Box::new(ExternalEstimatorConfig {
+                config: StateEstimatorConfig::External(ExternalEstimatorConfig {
                     config: Value::Null,
-                })),
+                }),
             }],
             ..Default::default()
-        }));
-        config.robots.push(Box::new(RobotConfig {
-            name: "robot2".to_string(),
+        });
+        config.robots.push(RobotConfig {
+            name: "node2".to_string(),
             ..Default::default()
-        }));
+        });
 
         let message_to_send = String::from("HelloWorld");
         let message_handler: Arc<RwLock<NetworkHandlerTest>> =
@@ -235,7 +241,7 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .as_str()
-                == "robot1",
+                == "node1",
             "Wrong 'from'"
         );
     }
@@ -245,22 +251,28 @@ mod tests {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
         config.max_time = RobotSensorConfig::default().period * 1.1;
-        config.robots.push(Box::new(RobotConfig {
-            name: "robot1".to_string(),
+        config.robots.push(RobotConfig {
+            name: "node1".to_string(),
             sensor_manager: SensorManagerConfig {
-                sensors: vec![
-                    SensorConfig::RobotSensor(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other robot poses.
-                ],
+                sensors: vec![ManagedSensorConfig {
+                    name: "RobotSensor".to_string(),
+                    send_to: Vec::new(),
+                    config: SensorConfig::RobotSensor(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other node poses.
+                }],
             },
             ..Default::default()
-        }));
-        config.robots.push(Box::new(RobotConfig {
-            name: "robot2".to_string(),
+        });
+        config.robots.push(RobotConfig {
+            name: "node2".to_string(),
             sensor_manager: SensorManagerConfig {
-                sensors: vec![SensorConfig::RobotSensor(RobotSensorConfig::default())],
+                sensors: vec![ManagedSensorConfig {
+                    name: "RobotSensor".to_string(),
+                    send_to: Vec::new(),
+                    config: SensorConfig::RobotSensor(RobotSensorConfig::default()),
+                }],
             },
             ..Default::default()
-        }));
+        });
 
         let mut simulator = Simulator::from_config(&config, &None);
 

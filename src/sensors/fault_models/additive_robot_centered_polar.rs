@@ -9,7 +9,7 @@ use libm::atan2f;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    sensors::sensor::Observation,
+    sensors::sensor::SensorObservation,
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -98,8 +98,8 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
         &self,
         time: f32,
         period: f32,
-        obs_list: &mut Vec<Observation>,
-        _obs_type: Observation,
+        obs_list: &mut Vec<SensorObservation>,
+        _obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;
@@ -113,7 +113,7 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                 random_sample.extend_from_slice(&d.gen(seed));
             }
             match obs {
-                Observation::OrientedRobot(o) => {
+                SensorObservation::OrientedRobot(o) => {
                     let mut r_add = 0.;
                     let mut z_add = 0.;
                     let mut theta_add = 0.;
@@ -141,13 +141,13 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                     o.pose.y = r * theta.sin();
                     o.pose.z = mod2pi(z);
                 }
-                Observation::GNSS(_) => {
+                SensorObservation::GNSS(_) => {
                     panic!("Not implemented yet (need to find a logical way to do it.");
                 }
-                Observation::Odometry(_) => {
+                SensorObservation::Odometry(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
-                Observation::OrientedLandmark(o) => {
+                SensorObservation::OrientedLandmark(o) => {
                     let mut r_add = 0.;
                     let mut z_add = 0.;
                     let mut theta_add = 0.;

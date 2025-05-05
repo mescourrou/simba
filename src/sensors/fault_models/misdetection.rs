@@ -7,7 +7,7 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    sensors::sensor::Observation,
+    sensors::sensor::SensorObservation,
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory,
@@ -63,8 +63,8 @@ impl FaultModel for MisdetectionFault {
         &self,
         time: f32,
         period: f32,
-        obs_list: &mut Vec<Observation>,
-        _obs_type: Observation,
+        obs_list: &mut Vec<SensorObservation>,
+        _obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;

@@ -4,9 +4,11 @@ the groundtruth to provide the estimation. It can be used when the state used
 by the controller should be perfect.
 */
 
+use std::collections::HashMap;
+
 use super::state_estimator::{State, StateRecord};
 use crate::constants::TIME_ROUND;
-use crate::sensors::sensor::Observation;
+use crate::sensors::sensor::{Observation, SensorObservation};
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::maths::round_precision;
@@ -14,7 +16,7 @@ use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use config_checker::macros::Check;
-use log::error;
+use log::{debug, error, info};
 use serde_derive::{Deserialize, Serialize};
 
 /// Configuration for [`PerfectEstimator`].
@@ -24,12 +26,16 @@ use serde_derive::{Deserialize, Serialize};
 pub struct PerfectEstimatorConfig {
     /// Prediction period.
     #[check(ge(0.))]
-    pub update_period: f32,
+    pub prediction_period: f32,
+    pub targets: Vec<String>,
 }
 
 impl Default for PerfectEstimatorConfig {
     fn default() -> Self {
-        Self { update_period: 0.1 }
+        Self {
+            prediction_period: 0.1,
+            targets: vec!["self".to_string()],
+        }
     }
 }
 
@@ -37,7 +43,7 @@ impl Default for PerfectEstimatorConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PerfectEstimatorRecord {
     /// Current state estimated
-    pub state: StateRecord,
+    pub states: Vec<(String, StateRecord)>,
     /// Last change of state
     pub last_time_update: f32,
 }
@@ -46,9 +52,9 @@ pub struct PerfectEstimatorRecord {
 #[derive(Debug)]
 pub struct PerfectEstimator {
     /// Estimation of the state on the `last_time_update`.
-    state: State,
-    /// Update period, in seconds.
-    update_period: f32,
+    states: HashMap<String, State>,
+    /// Prediction period, in seconds.
+    prediction_period: f32,
     /// Last time the state was updated/predicted.
     last_time_update: f32,
 }
@@ -71,58 +77,96 @@ impl PerfectEstimator {
         _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
+        let mut states = HashMap::new();
+        for target in &config.targets {
+            states.insert(target.clone(), State::new());
+        }
         Self {
-            update_period: config.update_period,
-            state: State::new(),
+            prediction_period: config.prediction_period,
+            states,
             last_time_update: 0.,
         }
     }
 }
 
 use super::state_estimator::{StateEstimator, StateEstimatorRecord};
-use crate::robot::Robot;
+use crate::node::Node;
 
 impl StateEstimator for PerfectEstimator {
-    fn prediction_step(&mut self, robot: &mut Robot, time: f32) {
-        let arc_physic = robot.physics();
-        let physic = arc_physic.read().unwrap();
+    fn prediction_step(&mut self, node: &mut Node, time: f32) {
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             error!("Error trying to update estimate too soon !");
             return;
         }
-        self.state = physic.state(time).clone();
+        info!("Doing prediction step");
+        for (target, state) in &mut self.states {
+            if target.to_lowercase() == "self".to_string() {
+                let arc_physic = node
+                    .physics()
+                    .expect("Node with state_estimator should have physics");
+                let physic = arc_physic.read().unwrap();
+
+                *state = physic.state(time).clone();
+            } else {
+                *state = node
+                    .service_manager()
+                    .read()
+                    .unwrap()
+                    .get_real_state(target, node, time)
+                    .expect(
+                        format!(
+                            "{target} does not have physics, no perfect state can be computed!"
+                        )
+                        .as_str(),
+                    );
+            }
+        }
         self.last_time_update = time;
     }
 
-    fn correction_step(
-        &mut self,
-        _robot: &mut Robot,
-        _observations: &Vec<Observation>,
-        _time: f32,
-    ) {
+    fn correction_step(&mut self, _node: &mut Node, _observations: &Vec<Observation>, _time: f32) {
+        info!("Got observations at time {_time}: {:?}", _observations);
     }
 
     fn state(&self) -> State {
-        self.state.clone()
+        if self.states.contains_key(&"self".to_string()) {
+            self.states["self"].clone()
+        } else {
+            panic!(
+                "PerfectEstimator should contain the target 'self' to be used in the control loop."
+            );
+        }
     }
 
     fn next_time_step(&self) -> f32 {
-        round_precision(self.last_time_update + self.update_period, TIME_ROUND).unwrap()
+        round_precision(self.last_time_update + self.prediction_period, TIME_ROUND).unwrap()
     }
 }
 
 impl Stateful<StateEstimatorRecord> for PerfectEstimator {
     fn record(&self) -> StateEstimatorRecord {
+        let mut state_records = Vec::new();
+        for (target, state) in &self.states {
+            state_records.push((target.clone(), state.record()));
+        }
         StateEstimatorRecord::Perfect(PerfectEstimatorRecord {
-            state: self.state.record(),
+            states: state_records,
             last_time_update: self.last_time_update,
         })
     }
 
     fn from_record(&mut self, record: StateEstimatorRecord) {
         if let StateEstimatorRecord::Perfect(record_state_estimator) = record {
-            self.state.from_record(record_state_estimator.state);
-            self.last_time_update = record_state_estimator.last_time_update;
+            for (target, state_record) in &record_state_estimator.states {
+                self.states
+                    .get_mut(target)
+                    .expect(
+                        format!("Target {target} not found among the PerfectEstimator targets")
+                            .as_str(),
+                    )
+                    .from_record(state_record.clone());
+                self.last_time_update = record_state_estimator.last_time_update;
+            }
         } else {
             error!(
                 "Using a StateEstimatorRecord type which does not match the used StateEstimator (PerfectEstimator)"

@@ -8,7 +8,7 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    sensors::sensor::Observation,
+    sensors::sensor::SensorObservation,
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -97,8 +97,8 @@ impl FaultModel for AdditiveRobotCenteredFault {
         &self,
         time: f32,
         period: f32,
-        obs_list: &mut Vec<Observation>,
-        _obs_type: Observation,
+        obs_list: &mut Vec<SensorObservation>,
+        _obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;
@@ -112,7 +112,7 @@ impl FaultModel for AdditiveRobotCenteredFault {
                 random_sample.extend_from_slice(&d.gen(seed));
             }
             match obs {
-                Observation::OrientedRobot(o) => {
+                SensorObservation::OrientedRobot(o) => {
                     if self.variable_order.len() > 0 {
                         for i in 0..self.variable_order.len() {
                             match self.variable_order[i].as_str() {
@@ -130,7 +130,7 @@ impl FaultModel for AdditiveRobotCenteredFault {
                     }
                     o.pose.z = mod2pi(o.pose.z);
                 }
-                Observation::GNSS(o) => {
+                SensorObservation::GNSS(o) => {
                     if self.variable_order.len() > 0 {
                         for i in 0..self.variable_order.len() {
                             match self.variable_order[i].as_str() {
@@ -153,7 +153,7 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         }
                     }
                 }
-                Observation::Odometry(o) => {
+                SensorObservation::Odometry(o) => {
                     if self.variable_order.len() > 0 {
                         for i in 0..self.variable_order.len() {
                             match self.variable_order[i].as_str() {
@@ -168,7 +168,7 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         o.linear_velocity += random_sample[1];
                     }
                 }
-                Observation::OrientedLandmark(o) => {
+                SensorObservation::OrientedLandmark(o) => {
                     if self.variable_order.len() > 0 {
                         for i in 0..self.variable_order.len() {
                             match self.variable_order[i].as_str() {

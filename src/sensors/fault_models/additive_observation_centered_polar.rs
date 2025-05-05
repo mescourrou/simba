@@ -8,7 +8,7 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    sensors::sensor::Observation,
+    sensors::sensor::SensorObservation,
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -97,8 +97,8 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
         &self,
         time: f32,
         period: f32,
-        obs_list: &mut Vec<Observation>,
-        _obs_type: Observation,
+        obs_list: &mut Vec<SensorObservation>,
+        _obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;
@@ -112,7 +112,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                 random_sample.extend_from_slice(&d.gen(seed));
             }
             match obs {
-                Observation::OrientedRobot(o) => {
+                SensorObservation::OrientedRobot(o) => {
                     let mut r_add = 0.;
                     let mut z_add = 0.;
                     let mut theta_add = 0.;
@@ -138,7 +138,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     o.pose.z = o.pose.z + z_add;
                     o.pose.z = mod2pi(o.pose.z);
                 }
-                Observation::GNSS(o) => {
+                SensorObservation::GNSS(o) => {
                     let mut r_add = 0.;
                     let mut theta_add = 0.;
                     if self.variable_order.len() > 0 {
@@ -158,10 +158,10 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     o.position.x += r_add * theta_add.cos();
                     o.position.y += r_add * theta_add.sin();
                 }
-                Observation::Odometry(_) => {
+                SensorObservation::Odometry(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
-                Observation::OrientedLandmark(o) => {
+                SensorObservation::OrientedLandmark(o) => {
                     let mut r_add = 0.;
                     let mut z_add = 0.;
                     let mut theta_add = 0.;

@@ -42,20 +42,23 @@ use config_checker::ConfigCheckable;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 
-use crate::api::internal_api::RobotClient;
+use crate::api::internal_api::NodeClient;
+use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaResult};
 use crate::networking::network_manager::NetworkManager;
 use crate::networking::service_manager::ServiceManager;
+use crate::node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig};
 use crate::plugin_api::PluginAPI;
 use crate::state_estimators::state_estimator::State;
 use crate::time_analysis::{self, TimeAnalysisConfig};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
-use crate::robot::{Robot, RobotConfig, RobotRecord};
+use crate::node::Node;
 use crate::utils::time_ordered_data::TimeOrderedData;
 use core::f32;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use colored::Colorize;
 use serde_json::{self, Value};
@@ -63,9 +66,9 @@ use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::sync::{Arc, Barrier, Condvar, Mutex, RwLock};
-use std::thread::{self, ThreadId};
+use std::thread::{self, sleep, ThreadId};
 
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 
 use pyo3::prepare_freethreaded_python;
 
@@ -88,7 +91,7 @@ pub struct ResultConfig {
 }
 
 impl Default for ResultConfig {
-    /// Default scenario configuration: no robots.
+    /// Default scenario configuration: no nodes.
     fn default() -> Self {
         Self {
             result_path: Box::from(Path::new("../results.json")),
@@ -109,13 +112,13 @@ pub enum TimeMode {
 /// Scenario configuration for the simulator.
 /// The Simulator configuration is the root of the scenario configuration.
 ///
-/// This config contains an item, `robots`, which list the robots [`RobotConfig`].
+/// This config contains an item, `nodes`, which list the nodes [`NodeConfig`].
 ///
 /// ## Example in yaml:
 /// ```
-/// robots:
-///     - RobotConfig 1
-///     - RobotConfig 2
+/// nodes:
+///     - NodeConfig 1
+///     - NodeConfig 2
 /// ```
 ///
 ///
@@ -135,11 +138,13 @@ pub struct SimulatorConfig {
     pub random_seed: Option<f32>,
     /// List of the robots to run, with their specific configuration.
     #[check]
-    pub robots: Vec<Box<RobotConfig>>,
+    pub robots: Vec<RobotConfig>,
+    #[check]
+    pub computation_units: Vec<ComputationUnitConfig>,
 }
 
 impl Default for SimulatorConfig {
-    /// Default scenario configuration: no robots.
+    /// Default scenario configuration: no nodes.
     fn default() -> Self {
         Self {
             base_path: Box::from(Path::new(".")),
@@ -147,22 +152,23 @@ impl Default for SimulatorConfig {
             time_analysis: TimeAnalysisConfig::default(),
             random_seed: None,
             robots: Vec::new(),
+            computation_units: Vec::new(),
             max_time: 60.,
             time_mode: TimeMode::Centralized,
         }
     }
 }
 
-/// One time record of a robot. The record is the state of the robot with the
+/// One time record of a node. The record is the state of the node with the
 /// associated time.
 ///
-/// This is a line for one robot ([`RobotRecord`]) at a given time.
+/// This is a line for one node ([`NodeRecord`]) at a given time.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Record {
     /// Time of the record.
     pub time: f32,
-    /// Record of a robot.
-    pub robot: RobotRecord,
+    /// Record of a node.
+    pub node: NodeRecord,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -174,8 +180,8 @@ pub struct Results {
 static THREAD_IDS: RwLock<Vec<ThreadId>> = RwLock::new(Vec::new());
 static THREAD_NAMES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static THREAD_TIMES: RwLock<Vec<f32>> = RwLock::new(Vec::new());
-static EXCLUDE_ROBOTS: RwLock<Vec<String>> = RwLock::new(Vec::new());
-static INCLUDE_ROBOTS: RwLock<Vec<String>> = RwLock::new(Vec::new());
+static EXCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
+static INCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
 pub struct SimulatorAsyncApi {
     pub current_time: Arc<Mutex<HashMap<String, f32>>>,
@@ -188,12 +194,12 @@ struct SimulatorAsyncApiServer {
 
 #[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd)]
 pub struct TimeCvData {
-    finished_robots: usize,
+    finished_nodes: usize,
 }
 
 impl Default for TimeCvData {
     fn default() -> Self {
-        Self { finished_robots: 0 }
+        Self { finished_nodes: 0 }
     }
 }
 
@@ -234,8 +240,8 @@ impl Default for TimeCvData {
 ///
 /// ```
 pub struct Simulator {
-    /// List of the [`Robot`]. Using `Arc` and `RwLock` for multithreading.
-    robots: Vec<Robot>,
+    /// List of the [`Node`]. Using `Arc` and `RwLock` for multithreading.
+    nodes: Vec<Node>,
     /// Scenario configuration.
     config: SimulatorConfig,
     /// Network Manager
@@ -249,16 +255,16 @@ pub struct Simulator {
     async_api: Option<Arc<SimulatorAsyncApi>>,
     async_api_server: Option<SimulatorAsyncApiServer>,
 
-    robot_apis: HashMap<String, RobotClient>,
+    node_apis: HashMap<String, NodeClient>,
 }
 
 impl Simulator {
-    /// Create a new [`Simulator`] with no robots, and empty config.
+    /// Create a new [`Simulator`] with no nodes, and empty config.
     pub fn new() -> Simulator {
         let rng = rand::random();
         let time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
         Simulator {
-            robots: Vec::new(),
+            nodes: Vec::new(),
             config: SimulatorConfig::default(),
             network_manager: NetworkManager::new(time_cv.clone()),
             determinist_va_factory: DeterministRandomVariableFactory::new(rng),
@@ -266,7 +272,7 @@ impl Simulator {
             async_api: None,
             async_api_server: None,
             common_time: Some(Arc::new(Mutex::new(f32::INFINITY))),
-            robot_apis: HashMap::new(),
+            node_apis: HashMap::new(),
         }
     }
 
@@ -309,10 +315,10 @@ impl Simulator {
     }
 
     pub fn reset(&mut self, plugin_api: &Option<Box<&dyn PluginAPI>>) {
-        self.robots = Vec::new();
+        self.nodes = Vec::new();
+        self.time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
         self.network_manager = NetworkManager::new(self.time_cv.clone());
         let config = self.config.clone();
-        self.time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
         self.common_time = match &config.time_mode {
             TimeMode::Centralized => Some(Arc::new(Mutex::new(f32::INFINITY))),
             TimeMode::Decentralized => None,
@@ -321,14 +327,20 @@ impl Simulator {
         // Create robots
         for robot_config in &config.robots {
             self.add_robot(robot_config, plugin_api, &config);
-            let robot = self.robots.last().unwrap();
-            service_managers.insert(robot.name(), robot.service_manager());
+            let node = self.nodes.last().unwrap();
+            service_managers.insert(node.name(), node.service_manager());
+        }
+        // Create computation units
+        for computation_unit_config in &config.computation_units {
+            self.add_computation_unit(computation_unit_config, plugin_api, &config);
+            let node = self.nodes.last().unwrap();
+            service_managers.insert(node.name(), node.service_manager());
         }
 
-        for robot in self.robots.iter_mut() {
-            info!("Finishing initialization of {}", robot.name());
-            self.robot_apis
-                .insert(robot.name(), robot.post_creation_init(&service_managers));
+        for node in self.nodes.iter_mut() {
+            info!("Finishing initialization of {}", node.name());
+            self.node_apis
+                .insert(node.name(), node.post_creation_init(&service_managers));
         }
     }
 
@@ -364,6 +376,26 @@ impl Simulator {
     ) {
         info!("Checking configuration:");
         if config.check() {
+            // Check network delay == 0
+            let mut network_0 = false;
+            for robot in &config.robots {
+                if robot.network.reception_delay == 0. {
+                    network_0 = true;
+                    break;
+                }
+            }
+            if !network_0 {
+                for cu in &config.computation_units {
+                    if cu.network.reception_delay == 0. {
+                        network_0 = true;
+                        break;
+                    }
+                }
+            }
+            if network_0 {
+                warn!("Network with 0 reception delay is not stable yet: messages can be treated later or deadlock can occur.");
+                sleep(Duration::from_secs(1));
+            }
             info!("Config valid");
         } else {
             panic!("Error in config");
@@ -386,19 +418,16 @@ impl Simulator {
     /// - Time analysis setup
     pub fn init_environment(
         level: log::LevelFilter,
-        exclude_robots: Vec<String>,
+        exclude_nodes: Vec<String>,
         include_only: Vec<String>,
     ) {
         THREAD_IDS.write().unwrap().push(thread::current().id());
         THREAD_NAMES.write().unwrap().push("simulator".to_string());
         THREAD_TIMES.write().unwrap().push(0.);
-        EXCLUDE_ROBOTS.write().unwrap().clone_from(&exclude_robots);
-        INCLUDE_ROBOTS.write().unwrap().clone_from(&include_only);
+        EXCLUDE_NODES.write().unwrap().clone_from(&exclude_nodes);
+        INCLUDE_NODES.write().unwrap().clone_from(&include_only);
         if include_only.len() > 0 {
-            INCLUDE_ROBOTS
-                .write()
-                .unwrap()
-                .push("simulator".to_string());
+            INCLUDE_NODES.write().unwrap().push("simulator".to_string());
         }
         env_logger::builder()
             .target(env_logger::Target::Stdout)
@@ -410,15 +439,15 @@ impl Simulator {
                     .position(|&x| x == thread::current().id())
                     .unwrap_or(0);
                 let thread_name = THREAD_NAMES.read().unwrap()[thread_idx].clone();
-                if EXCLUDE_ROBOTS.read().unwrap().contains(&thread_name) {
+                if EXCLUDE_NODES.read().unwrap().contains(&thread_name) {
                     return Ok(());
                 }
 
-                let included_robots = INCLUDE_ROBOTS.read().unwrap();
-                if included_robots.len() > 0 && !included_robots.contains(&thread_name) {
+                let included_nodes = INCLUDE_NODES.read().unwrap();
+                if included_nodes.len() > 0 && !included_nodes.contains(&thread_name) {
                     return Ok(());
                 }
-                drop(included_robots);
+                drop(included_nodes);
                 let mut time = "".to_string();
                 if thread_idx != 0 {
                     let time_f32 = THREAD_TIMES.read().unwrap()[thread_idx];
@@ -444,16 +473,16 @@ impl Simulator {
             .format_target(false)
             .filter_level(level)
             .init();
-        time_analysis::set_robot_name("simulator".to_string());
+        time_analysis::set_node_name("simulator".to_string());
     }
 
-    /// Add a [`Robot`] to the [`Simulator`].
+    /// Add a [`Node`] of type [`Robot`](NodeType::Robot) to the [`Simulator`].
     ///
-    /// This function add the [`Robot`] to the [`Simulator`] list and to the [`NetworkManager`].
-    /// It also adds the [`NetworkManager`] to the new [`Robot`].
+    /// This function add the [`Node`] to the [`Simulator`] list and to the [`NetworkManager`].
+    /// It also adds the [`NetworkManager`] to the new [`Node`].
     ///
     /// ## Argumants
-    /// * `robot_config` - Configuration of the [`Robot`].
+    /// * `robot_config` - Configuration of the [`Node`].
     /// * `plugin_api` - Implementation of [`PluginAPI`] for the use of external modules.
     /// * `meta_config` - Configuration of the simulation run.
     fn add_robot(
@@ -462,7 +491,7 @@ impl Simulator {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
     ) {
-        self.robots.push(Robot::from_config(
+        self.nodes.push(NodeFactory::make_robot(
             robot_config,
             plugin_api,
             &global_config,
@@ -471,14 +500,32 @@ impl Simulator {
         ));
 
         self.network_manager
-            .register_robot_network(self.robots.last_mut().unwrap());
+            .register_node_network(self.nodes.last_mut().unwrap());
+    }
+
+    fn add_computation_unit(
+        &mut self,
+        computation_unit_config: &ComputationUnitConfig,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        global_config: &SimulatorConfig,
+    ) {
+        self.nodes.push(NodeFactory::make_computation_unit(
+            computation_unit_config,
+            plugin_api,
+            &global_config,
+            &self.determinist_va_factory,
+            self.time_cv.clone(),
+        ));
+
+        self.network_manager
+            .register_node_network(self.nodes.last_mut().unwrap());
     }
 
     /// Simply print the Simulator state, using the info channel and the debug print.
     pub fn show(&self) {
         println!("Simulator:");
-        for robot in self.robots.iter() {
-            println!("- {:?}", robot);
+        for node in self.nodes.iter() {
+            println!("- {:?}", node);
         }
     }
 
@@ -488,18 +535,18 @@ impl Simulator {
 
     /// Run the scenario until the given time.
     ///
-    /// This function starts one thread by [`Robot`]. It waits that the thread finishes.
+    /// This function starts one thread by [`Node`]. It waits that the thread finishes.
     ///
     /// After the scenario is done, the results are saved, and they are analysed, following
     /// the configuration give ([`SimulatorMetaConfig`]).
     pub fn run(&mut self) {
         let mut handles = vec![];
         let max_time = self.config.max_time;
-        let nb_robots = self.robots.len();
-        let barrier = Arc::new(Barrier::new(nb_robots));
+        let nb_nodes = self.nodes.len();
+        let barrier = Arc::new(Barrier::new(nb_nodes));
         let finishing_cv = Arc::new((Mutex::new(0usize), Condvar::new()));
-        while let Some(robot) = self.robots.pop() {
-            let i = self.robots.len();
+        while let Some(node) = self.nodes.pop() {
+            let i = self.nodes.len();
             let new_max_time = max_time.clone();
             let time_cv = self.time_cv.clone();
             let async_api_server = self.async_api_server.clone();
@@ -509,11 +556,11 @@ impl Simulator {
             };
             let finishing_cv_clone = finishing_cv.clone();
             let barrier_clone = barrier.clone();
-            let handle = thread::spawn(move || -> SimbaResult<Robot> {
-                let ret = Self::run_one_robot(
-                    robot,
+            let handle = thread::spawn(move || -> SimbaResult<Node> {
+                let ret = Self::run_one_node(
+                    node,
                     new_max_time,
-                    nb_robots,
+                    nb_nodes,
                     i,
                     time_cv,
                     async_api_server,
@@ -527,11 +574,11 @@ impl Simulator {
             handles.push(handle);
         }
 
-        self.simulator_spin(finishing_cv, nb_robots);
+        self.simulator_spin(finishing_cv, nb_nodes);
 
         for handle in handles {
-            self.robots
-                .push(handle.join().unwrap().expect("Robot not returned"));
+            self.nodes
+                .push(handle.join().unwrap().expect("Node not returned"));
         }
 
         self.save_results();
@@ -540,12 +587,12 @@ impl Simulator {
     /// Returns the list of all [`Record`]s produced by [`Simulator::run`].
     pub fn get_results(&self) -> Vec<Record> {
         let mut records = Vec::new();
-        for robot in self.robots.iter() {
-            let robot_history = robot.record_history();
-            for (time, record) in robot_history.iter() {
+        for node in self.nodes.iter() {
+            let node_history = node.record_history();
+            for (time, record) in node_history.iter() {
                 records.push(Record {
                     time: time.clone(),
-                    robot: record.clone(),
+                    node: record.clone(),
                 });
             }
         }
@@ -588,7 +635,7 @@ impl Simulator {
                 &recording_file,
                 &Record {
                     time: row.time.clone(),
-                    robot: row.robot.clone(),
+                    node: row.node.clone(),
                 },
             )
             .expect("Error during json serialization");
@@ -614,82 +661,77 @@ impl Simulator {
         self._compute_results(results.records, &results.config);
     }
 
-    /// Wait the end of the simulation. If other robot send messages, the simulation
+    /// Wait the end of the simulation. If other node send messages, the simulation
     /// will go back to the time of the last message received.
     fn wait_the_end(
-        robot: &Robot,
+        node: &Node,
         max_time: f32,
         cv_mtx: &Mutex<TimeCvData>,
         cv: &Condvar,
-        nb_robots: usize,
+        nb_nodes: usize,
     ) -> bool {
-        let mut finished_robot = cv_mtx.lock().unwrap();
-        finished_robot.finished_robots += 1;
-        debug!(
-            "Increase finished robots: {}",
-            finished_robot.finished_robots
-        );
-        if finished_robot.finished_robots == nb_robots {
+        let mut finished_node = cv_mtx.lock().unwrap();
+        finished_node.finished_nodes += 1;
+        debug!("Increase finished nodes: {}", finished_node.finished_nodes);
+        if finished_node.finished_nodes == nb_nodes {
             cv.notify_all();
-            finished_robot.finished_robots = 0;
+            finished_node.finished_nodes = 0;
             return true;
         }
         loop {
-            let buffered_msgs = robot.process_messages();
+            let buffered_msgs = node.process_messages();
             if buffered_msgs > 0 {
-                finished_robot.finished_robots -= 1;
+                finished_node.finished_nodes -= 1;
                 debug!("[wait_the_end] Messages to process: continue");
                 return false;
             }
             debug!("[wait_the_end] Wait for others");
-            finished_robot = cv.wait(finished_robot).unwrap();
-            if finished_robot.finished_robots == nb_robots {
+            finished_node = cv.wait(finished_node).unwrap();
+            if finished_node.finished_nodes == nb_nodes {
                 return true;
             } else {
-                finished_robot.finished_robots -= 1;
-                robot.process_messages();
-                let next_time = robot.next_time_step().0;
+                finished_node.finished_nodes -= 1;
+                node.process_messages();
+                let next_time = node.next_time_step().0;
                 if next_time < max_time {
                     return false;
                 }
-                finished_robot.finished_robots += 1;
+                finished_node.finished_nodes += 1;
             }
         }
     }
-    /// Run the loop for the given `robot` until reaching `max_time`.
+    /// Run the loop for the given `node` until reaching `max_time`.
     ///
     /// ## Arguments
-    /// * `robot` - Robot to be run.
+    /// * `node` - Node to be run.
     /// * `max_time` - Time to stop the loop.
-    fn run_one_robot(
-        mut robot: Robot,
+    fn run_one_node(
+        mut node: Node,
         max_time: f32,
-        nb_robots: usize,
-        robot_idx: usize,
+        nb_nodes: usize,
+        node_idx: usize,
         time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
         async_api_server: Option<SimulatorAsyncApiServer>,
         common_time: Option<Arc<Mutex<f32>>>,
         barrier: Arc<Barrier>,
-    ) -> SimbaResult<Robot> {
-        info!("Start thread of robot {}", robot.name());
+    ) -> SimbaResult<Node> {
+        info!("Start thread of node {}", node.name());
         let mut thread_ids = THREAD_IDS.write().unwrap();
         thread_ids.push(thread::current().id());
         let thread_idx = thread_ids.len() - 1;
-        THREAD_NAMES.write().unwrap().push(robot.name());
+        THREAD_NAMES.write().unwrap().push(node.name());
         THREAD_TIMES.write().unwrap().push(0.);
         drop(thread_ids);
-        time_analysis::set_robot_name(robot.name());
-
-        let (cv_mtx, cv) = &*time_cv;
+        time_analysis::set_node_name(node.name());
 
         let mut previous_time = 0.;
         loop {
-            let (mut next_time, mut read_only) = robot.next_time_step();
+            let (mut next_time, mut read_only) = node.next_time_step();
             if let Some(api) = &async_api_server {
                 api.current_time
                     .lock()
                     .unwrap()
-                    .insert(robot.name(), next_time);
+                    .insert(node.name(), next_time);
             }
             if let Some(common_time_arc) = &common_time {
                 {
@@ -702,64 +744,85 @@ impl Simulator {
                 }
 
                 let mut lk = time_cv.0.lock().unwrap();
-                lk.finished_robots += 1;
-                cv.notify_all();
-                debug!("Waiting for others...");
+                debug!("Got CV lock");
+                lk.finished_nodes += 1;
+                time_cv.1.notify_all();
+                debug!("Waiting for others... (next_time is {next_time})");
                 loop {
-                    let buffered_msgs = robot.process_messages();
+                    let buffered_msgs = node.process_messages();
                     if buffered_msgs > 0 {
-                        robot.handle_messages(previous_time);
+                        node.handle_messages(previous_time);
+                        (next_time, read_only) = node.next_time_step();
+                        {
+                            let mut unlocked_common_time = common_time_arc.lock().unwrap();
+                            if *unlocked_common_time > next_time {
+                                *unlocked_common_time = next_time;
+                                debug!("Set common time at {next_time}");
+                            }
+                        }
                     }
-                    if lk.finished_robots == nb_robots {
+                    if lk.finished_nodes == nb_nodes {
                         break;
                     }
-                    lk = cv.wait(lk).unwrap();
+                    debug!("Wait CV");
+                    lk = time_cv.1.wait(lk).unwrap();
+                    debug!("End of CV wait");
                 }
+                debug!("Wait finished -- Release CV lock");
                 std::mem::drop(lk);
 
                 next_time = *common_time_arc.lock().unwrap();
+                debug!("Barrier... final next_time is {next_time}");
                 barrier.wait();
                 *common_time_arc.lock().unwrap() = f32::INFINITY;
-                time_cv.0.lock().unwrap().finished_robots = 0;
+                time_cv.0.lock().unwrap().finished_nodes = 0;
                 barrier.wait();
                 if next_time > max_time {
                     break;
                 }
             } else if next_time > max_time {
-                if Self::wait_the_end(&robot, max_time, &cv_mtx, &cv, nb_robots) {
+                if Self::wait_the_end(&node, max_time, &time_cv.0, &time_cv.1, nb_nodes) {
                     break;
                 }
-                (next_time, read_only) = robot.next_time_step();
+                (next_time, _) = node.next_time_step();
                 info!("Return to time {next_time}");
             }
+            
+            let (own_next_time, own_read_only) = node.next_time_step();
             THREAD_TIMES.write().unwrap()[thread_idx] = next_time;
-            robot.run_next_time_step(next_time, read_only);
-            if read_only {
-                robot.set_in_state(previous_time);
+            if (own_next_time - next_time).abs() < TIME_ROUND {
+                node.run_next_time_step(next_time, own_read_only);
+                if own_read_only {
+                    node.set_in_state(previous_time);
+                } else {
+                    previous_time = next_time;
+                }
             } else {
                 previous_time = next_time;
             }
         }
-        Ok(robot)
+        Ok(node)
     }
 
-    fn simulator_spin(&mut self, finishing_cv: Arc<(Mutex<usize>, Condvar)>, nb_robots: usize) {
-        // self.robots is empty
-        let mut robot_states: HashMap<String, TimeOrderedData<State>> = HashMap::new();
-        for (k, _) in self.robot_apis.iter() {
-            robot_states.insert(k.clone(), TimeOrderedData::<State>::new());
+    fn simulator_spin(&mut self, finishing_cv: Arc<(Mutex<usize>, Condvar)>, nb_nodes: usize) {
+        // self.nodes is empty
+        let mut node_states: HashMap<String, TimeOrderedData<State>> = HashMap::new();
+        for (k, _) in self.node_apis.iter() {
+            node_states.insert(k.clone(), TimeOrderedData::<State>::new());
         }
         loop {
-            for (robot_name, robot_api) in self.robot_apis.iter() {
-                if let Ok((time, state)) = robot_api.state_update.try_recv() {
-                    robot_states
-                        .get_mut(robot_name)
-                        .expect(format!("Unknown robot {robot_name}").as_str())
-                        .insert(time, state, true);
+            for (node_name, node_api) in self.node_apis.iter() {
+                if let Some(state_update) = &node_api.state_update {
+                    if let Ok((time, state)) = state_update.try_recv() {
+                        node_states
+                            .get_mut(node_name)
+                            .expect(format!("Unknown node {node_name}").as_str())
+                            .insert(time, state, true);
+                    }
                 }
             }
-            self.network_manager.process_messages(&robot_states);
-            if *finishing_cv.0.lock().unwrap() == nb_robots {
+            self.network_manager.process_messages(&node_states);
+            if *finishing_cv.0.lock().unwrap() == nb_nodes {
                 return;
             }
         }

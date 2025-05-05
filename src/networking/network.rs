@@ -14,8 +14,9 @@ use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
-use crate::robot::Robot;
+use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCvData};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
@@ -31,7 +32,7 @@ pub struct NetworkConfig {
     /// Limit range communication, 0 for no limit.
     #[check(ge(0.))]
     pub range: f32,
-    /// Communication delay (fixed). 0 for no delay.
+    /// Communication delay (fixed). 0 for no delay (not stable).
     #[check(ge(0.))]
     pub reception_delay: f32,
 }
@@ -40,7 +41,7 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             range: 0.,
-            reception_delay: 0.,
+            reception_delay: TIME_ROUND,
         }
     }
 }
@@ -229,7 +230,7 @@ impl Network {
     /// ## Arguments
     /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
-    pub fn handle_message_at_time(&mut self, robot: &mut Robot, time: f32) {
+    pub fn handle_message_at_time(&mut self, robot: &mut Node, time: f32) {
         debug!("Handling messages at time {time}");
         while let Some((msg_time, (from, message, _message_flags))) =
             self.messages_buffer.remove(time)
