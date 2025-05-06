@@ -9,6 +9,7 @@ use crate::{
         controller::{self, ControllerConfig, ControllerRecord},
         pid,
     },
+    logger::is_enabled,
     navigators::{
         navigator::{self, NavigatorConfig, NavigatorRecord},
         trajectory_follower,
@@ -390,7 +391,9 @@ impl NodeFactory {
             }
         }
         // Services
-        debug!("Setup services");
+        if is_enabled(crate::logger::InternalLog::SetupSteps) {
+            debug!("Setup services");
+        }
         node.service_manager = service_manager;
 
         node
@@ -466,7 +469,9 @@ impl NodeFactory {
             }
         }
         // Services
-        debug!("Setup services");
+        if is_enabled(crate::logger::InternalLog::SetupSteps) {
+            debug!("Setup services");
+        }
         node.service_manager = service_manager;
 
         node

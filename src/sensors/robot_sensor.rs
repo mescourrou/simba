@@ -6,6 +6,7 @@ use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
 use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+use crate::logger::is_enabled;
 use crate::networking::network::MessageFlag;
 use crate::networking::service::ServiceClient;
 use crate::networking::service_manager;
@@ -322,7 +323,9 @@ impl Sensor for RobotSensor {
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             return observation_list;
         }
-        debug!("Start looking for nodes");
+        if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+            debug!("Start looking for nodes");
+        }
         let state = if let Some(arc_physic) = node.physics() {
             let physic = arc_physic.read().unwrap();
             physic.state(time).clone()
@@ -332,10 +335,14 @@ impl Sensor for RobotSensor {
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
-        debug!("Rotation matrix: {}", rotation_matrix);
+        if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+            debug!("Rotation matrix: {}", rotation_matrix);
+        }
 
         for other_node_name in node.other_node_names.iter() {
-            debug!("Sensing node {}", other_node_name);
+            if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                debug!("Sensing node {}", other_node_name);
+            }
             assert!(*other_node_name != node.name());
 
             let service_manager = node.service_manager();
@@ -347,7 +354,9 @@ impl Sensor for RobotSensor {
                 let d = ((other_state.pose.x - state.pose.x).powi(2)
                     + (other_state.pose.y - state.pose.y).powi(2))
                 .sqrt();
-                debug!("Distance is {d}");
+                if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                    debug!("Distance is {d}");
+                }
                 if d <= self.detection_distance {
                     observation_list.push(SensorObservation::OrientedRobot(
                         OrientedRobotObservation {

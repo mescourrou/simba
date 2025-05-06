@@ -45,6 +45,7 @@ use serde_derive::{Deserialize, Serialize};
 use crate::api::internal_api::NodeClient;
 use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaResult};
+use crate::logger::{init_log, is_enabled, LogLevel, LoggerConfig};
 use crate::networking::network_manager::NetworkManager;
 use crate::networking::service_manager::ServiceManager;
 use crate::node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig};
@@ -126,6 +127,9 @@ pub enum TimeMode {
 #[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct SimulatorConfig {
+    #[check]
+    pub log: LoggerConfig,
+    #[check]
     pub results: Option<ResultConfig>,
 
     pub base_path: Box<Path>,
@@ -147,6 +151,7 @@ impl Default for SimulatorConfig {
     /// Default scenario configuration: no nodes.
     fn default() -> Self {
         Self {
+            log: LoggerConfig::default(),
             base_path: Box::from(Path::new(".")),
             results: None,
             time_analysis: TimeAnalysisConfig::default(),
@@ -338,7 +343,7 @@ impl Simulator {
         }
 
         for node in self.nodes.iter_mut() {
-            info!("Finishing initialization of {}", node.name());
+            println!("Finishing initialization of {}", node.name());
             self.node_apis
                 .insert(node.name(), node.post_creation_init(&service_managers));
         }
@@ -349,7 +354,7 @@ impl Simulator {
         config_path: &Path,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
     ) {
-        info!("Load configuration from {:?}", config_path);
+        println!("Load configuration from {:?}", config_path);
         let mut config: SimulatorConfig = match confy::load_path(config_path) {
             Ok(config) => config,
             Err(error) => {
@@ -374,7 +379,7 @@ impl Simulator {
         config: &SimulatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
     ) {
-        info!("Checking configuration:");
+        println!("Checking configuration:");
         if config.check() {
             // Check network delay == 0
             let mut network_0 = false;
@@ -393,13 +398,14 @@ impl Simulator {
                 }
             }
             if network_0 {
-                warn!("Network with 0 reception delay is not stable yet: messages can be treated later or deadlock can occur.");
+                println!("WARNING: Network with 0 reception delay is not stable yet: messages can be treated later or deadlock can occur.");
                 sleep(Duration::from_secs(1));
             }
-            info!("Config valid");
+            println!("Config valid");
         } else {
             panic!("Error in config");
         }
+        Self::init_log(&config.log);
         self.config = config.clone();
         if let Some(seed) = config.random_seed {
             self.determinist_va_factory.global_seed = seed;
@@ -416,17 +422,25 @@ impl Simulator {
     ///
     /// - start the logging environment.
     /// - Time analysis setup
-    pub fn init_environment(
-        level: log::LevelFilter,
-        exclude_nodes: Vec<String>,
-        include_only: Vec<String>,
-    ) {
+    pub fn init_environment() {
+        // env_logger::init();
+        time_analysis::set_node_name("simulator".to_string());
+    }
+
+    fn init_log(log_config: &LoggerConfig) {
+        init_log(log_config);
         THREAD_IDS.write().unwrap().push(thread::current().id());
         THREAD_NAMES.write().unwrap().push("simulator".to_string());
         THREAD_TIMES.write().unwrap().push(0.);
-        EXCLUDE_NODES.write().unwrap().clone_from(&exclude_nodes);
-        INCLUDE_NODES.write().unwrap().clone_from(&include_only);
-        if include_only.len() > 0 {
+        EXCLUDE_NODES
+            .write()
+            .unwrap()
+            .clone_from(&log_config.excluded_nodes);
+        INCLUDE_NODES
+            .write()
+            .unwrap()
+            .clone_from(&log_config.included_nodes);
+        if log_config.included_nodes.len() > 0 {
             INCLUDE_NODES.write().unwrap().push("simulator".to_string());
         }
         env_logger::builder()
@@ -471,9 +485,8 @@ impl Simulator {
             .format_timestamp(None)
             .format_module_path(false)
             .format_target(false)
-            .filter_level(level)
+            .filter_level(log_config.log_level.clone().into())
             .init();
-        time_analysis::set_node_name("simulator".to_string());
     }
 
     /// Add a [`Node`] of type [`Robot`](NodeType::Robot) to the [`Simulator`].
@@ -672,7 +685,9 @@ impl Simulator {
     ) -> bool {
         let mut finished_node = cv_mtx.lock().unwrap();
         finished_node.finished_nodes += 1;
-        debug!("Increase finished nodes: {}", finished_node.finished_nodes);
+        if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+            debug!("Increase finished nodes: {}", finished_node.finished_nodes);
+        }
         if finished_node.finished_nodes == nb_nodes {
             cv.notify_all();
             finished_node.finished_nodes = 0;
@@ -682,10 +697,14 @@ impl Simulator {
             let buffered_msgs = node.process_messages();
             if buffered_msgs > 0 {
                 finished_node.finished_nodes -= 1;
-                debug!("[wait_the_end] Messages to process: continue");
+                if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                    debug!("[wait_the_end] Messages to process: continue");
+                }
                 return false;
             }
-            debug!("[wait_the_end] Wait for others");
+            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                debug!("[wait_the_end] Wait for others");
+            }
             finished_node = cv.wait(finished_node).unwrap();
             if finished_node.finished_nodes == nb_nodes {
                 return true;
@@ -735,19 +754,27 @@ impl Simulator {
             }
             if let Some(common_time_arc) = &common_time {
                 {
-                    debug!("Get common time (next_time is {next_time})");
+                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                        debug!("Get common time (next_time is {next_time})");
+                    }
                     let mut unlocked_common_time = common_time_arc.lock().unwrap();
                     if *unlocked_common_time > next_time {
                         *unlocked_common_time = next_time;
-                        debug!("Set common time");
+                        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                            debug!("Set common time");
+                        }
                     }
                 }
 
                 let mut lk = time_cv.0.lock().unwrap();
-                debug!("Got CV lock");
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("Got CV lock");
+                }
                 lk.finished_nodes += 1;
                 time_cv.1.notify_all();
-                debug!("Waiting for others... (next_time is {next_time})");
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("Waiting for others... (next_time is {next_time})");
+                }
                 loop {
                     let buffered_msgs = node.process_messages();
                     if buffered_msgs > 0 {
@@ -757,22 +784,32 @@ impl Simulator {
                             let mut unlocked_common_time = common_time_arc.lock().unwrap();
                             if *unlocked_common_time > next_time {
                                 *unlocked_common_time = next_time;
-                                debug!("Set common time at {next_time}");
+                                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                                    debug!("Set common time at {next_time}");
+                                }
                             }
                         }
                     }
                     if lk.finished_nodes == nb_nodes {
                         break;
                     }
-                    debug!("Wait CV");
+                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                        debug!("Wait CV");
+                    }
                     lk = time_cv.1.wait(lk).unwrap();
-                    debug!("End of CV wait");
+                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                        debug!("End of CV wait");
+                    }
                 }
-                debug!("Wait finished -- Release CV lock");
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("Wait finished -- Release CV lock");
+                }
                 std::mem::drop(lk);
 
                 next_time = *common_time_arc.lock().unwrap();
-                debug!("Barrier... final next_time is {next_time}");
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("Barrier... final next_time is {next_time}");
+                }
                 barrier.wait();
                 *common_time_arc.lock().unwrap() = f32::INFINITY;
                 time_cv.0.lock().unwrap().finished_nodes = 0;
@@ -787,7 +824,7 @@ impl Simulator {
                 (next_time, _) = node.next_time_step();
                 info!("Return to time {next_time}");
             }
-            
+
             let (own_next_time, own_read_only) = node.next_time_step();
             THREAD_TIMES.write().unwrap()[thread_idx] = next_time;
             if (own_next_time - next_time).abs() < TIME_ROUND {

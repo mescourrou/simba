@@ -7,6 +7,7 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    logger::is_enabled,
     sensors::sensor::SensorObservation,
     utils::{
         determinist_random_variable::{
@@ -71,7 +72,9 @@ impl FaultModel for MisdetectionFault {
         for i in (0..obs_list.len()).rev() {
             seed += obs_seed_increment;
             if self.apparition.gen(seed)[0] > 0. {
-                debug!("Remove observation {i}");
+                if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                    debug!("Remove observation {i}");
+                }
                 obs_list.remove(i);
             }
         }

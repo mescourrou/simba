@@ -16,6 +16,7 @@ use serde_json::Value;
 
 use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
+use crate::logger::is_enabled;
 use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCvData};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -209,7 +210,9 @@ impl Network {
             } else {
                 msg.time + self.reception_delay
             };
-            debug!("Add new message from {} at time {time}", msg.from);
+            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                debug!("Add new message from {} at time {time}", msg.from);
+            }
             self.messages_buffer
                 .insert(time, (msg.from, msg.value, msg.message_flags), false);
         }
@@ -231,35 +234,45 @@ impl Network {
     /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
     pub fn handle_message_at_time(&mut self, robot: &mut Node, time: f32) {
-        debug!("Handling messages at time {time}");
+        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+            debug!("Handling messages at time {time}");
+        }
         while let Some((msg_time, (from, message, _message_flags))) =
             self.messages_buffer.remove(time)
         {
-            debug!("Receive message from {from}: {:?}", message);
-            debug!("Handler list size: {}", self.message_handlers.len());
+            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                debug!("Receive message from {from}: {:?}", message);
+                debug!("Handler list size: {}", self.message_handlers.len());
+            }
             for handler in &self.message_handlers {
-                debug!("Handler available: {:?}", handler.try_write().is_ok());
+                if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                    debug!("Handler available: {:?}", handler.try_write().is_ok());
+                }
                 if handler
                     .write()
                     .unwrap()
                     .handle_message(robot, &from, &message, msg_time)
                     .is_ok()
                 {
-                    debug!("Found handler");
+                    if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                        debug!("Found handler");
+                    }
                     break;
                 }
             }
         }
 
-        debug!(
-            "New next_message_time: {}",
-            match self.messages_buffer.min_time() {
-                Some((time, _)) => time,
-                None => -1.,
-            }
-        );
+        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+            debug!(
+                "New next_message_time: {}",
+                match self.messages_buffer.min_time() {
+                    Some((time, _)) => time,
+                    None => -1.,
+                }
+            );
 
-        debug!("Messages remaining: {}", self.messages_buffer.len());
+            debug!("Messages remaining: {}", self.messages_buffer.len());
+        }
     }
 
     /// Add a new handler to the [`Network`].

@@ -5,8 +5,8 @@ use std::path::Path;
 
 fn main() {
     // Initialize the environment, essentially the logging part
-    Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new());
-    info!("Load configuration...");
+    Simulator::init_environment();
+    println!("Load configuration...");
     let mut simulator = Simulator::from_config_path(
         Path::new("example/config_example/config.yaml"),
         &None, //<- plugin API, to load external modules

@@ -20,7 +20,10 @@ use std::{
 
 use log::debug;
 
-use crate::{node::Node, simulator::TimeCvData, utils::time_ordered_data::TimeOrderedData};
+use crate::{
+    logger::is_enabled, node::Node, simulator::TimeCvData,
+    utils::time_ordered_data::TimeOrderedData,
+};
 
 use super::network::MessageFlag;
 
@@ -66,7 +69,9 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         time: f32,
         message_flags: Vec<MessageFlag>,
     ) -> Result<(), String> {
-        debug!("Sending a request");
+        if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+            debug!("Sending a request");
+        }
         match self.request_channel.lock().unwrap().send((
             node_name,
             req,
@@ -74,16 +79,22 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
             // To be changed when full support of the message mode will be implemented
             message_flags,
         )) {
-            Err(e) => panic!("{}", e.to_string()),//return Err(e.to_string()),
+            Err(e) => panic!("{}", e.to_string()), //return Err(e.to_string()),
             _ => (),
         }
-        debug!("Sending a request: OK");
+        if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+            debug!("Sending a request: OK");
+        }
         let lk = self.time_cv.0.lock().unwrap();
-        debug!("Lock acquired");
-        debug!("Wake waiting nodes");
+        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+            debug!("Lock acquired in service");
+            debug!("Wake waiting nodes");
+        }
         // Needed to unlock the other node if it has finished and is waiting for messages.
         self.time_cv.1.notify_all();
-        debug!("Release CV lock");
+        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+            debug!("Release CV lock");
+        }
         std::mem::drop(lk);
         Ok(())
     }
@@ -93,7 +104,9 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
             Ok(result) => result,
             Err(e) => return Err(e.to_string()),
         };
-        debug!("Result received");
+        if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+            debug!("Result received");
+        }
         result
     }
 }
@@ -176,7 +189,9 @@ impl<
     fn process_requests(&self) -> usize {
         for (from, message, time, message_flags) in self.request_channel.lock().unwrap().try_iter()
         {
-            debug!("Insert request from {from} at time {time}");
+            if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+                debug!("Insert request from {from} at time {time}");
+            }
             self.request_buffer.write().unwrap().insert(
                 time,
                 (from, message, message_flags),
@@ -195,13 +210,17 @@ impl<
         while let Some((_msg_time, (from, message, _message_flags))) =
             self.request_buffer.write().unwrap().remove(time)
         {
-            debug!("Handling message from {from} at time {time}...");
+            if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+                debug!("Handling message from {from} at time {time}...");
+            }
             let result = self
                 .target
                 .write()
                 .unwrap()
                 .handle_service_requests(message, time);
-            debug!("Got result");
+            if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+                debug!("Got result");
+            }
             self.clients
                 .get(&from)
                 .expect(
@@ -212,7 +231,9 @@ impl<
                 .unwrap()
                 .send(result)
                 .expect("Fail to send response");
-            debug!("Handling message from {from} at time {time}... Response sent");
+            if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+                debug!("Handling message from {from} at time {time}... Response sent");
+            }
         }
     }
 

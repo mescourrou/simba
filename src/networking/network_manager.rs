@@ -6,6 +6,7 @@ Provide the Manager of the nodes [`Network`]s. Only one should exist for one
 use log::debug;
 use serde_json::Value;
 
+use crate::logger::is_enabled;
 use crate::node::Node;
 use crate::simulator::TimeCvData;
 use crate::state_estimators::state_estimator::State;
@@ -112,7 +113,9 @@ impl NetworkManager {
                                     msg.time,
                                 )
                         {
-                            debug!("Receiving message from `{node_name}` for `{r}`... Sending");
+                            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                                debug!("Receiving message from `{node_name}` for `{r}`... Sending");
+                            }
                             self.nodes_senders
                                 .get(r)
                                 .expect(format!("Unknown node {r}").as_str())
@@ -120,9 +123,11 @@ impl NetworkManager {
                                 .unwrap();
                             message_sent = true;
                         } else {
-                            debug!(
-                                "Receiving message from `{node_name}` for `{r}`... Out of range"
-                            );
+                            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                                debug!(
+                                    "Receiving message from `{node_name}` for `{r}`... Out of range"
+                                );
+                            }
                         }
                     }
                     MessageSendMethod::Broadcast => {
@@ -136,7 +141,9 @@ impl NetworkManager {
                                         msg.time,
                                     )
                             {
-                                debug!("Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`");
+                                if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                                    debug!("Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`");
+                                }
                                 sender.send(msg.clone()).unwrap();
                                 message_sent = true;
                             }
@@ -146,11 +153,17 @@ impl NetworkManager {
             }
         }
         if message_sent {
-            debug!("Wait for CV lock");
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Wait for CV lock");
+            }
             let lk = self.time_cv.0.lock().unwrap();
-            debug!("Got CV lock");
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Got CV lock");
+            }
             self.time_cv.1.notify_all();
-            debug!("Release CV lock");
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Release CV lock");
+            }
             std::mem::drop(lk);
         }
     }

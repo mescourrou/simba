@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
+    logger::is_enabled,
     networking::service::HasService,
     physics::external_physic::ExternalPhysicRecord,
     pywrappers::{CommandWrapper, StateWrapper},
@@ -102,9 +103,11 @@ pub struct PythonPhysic {
 impl PythonPhysic {
     #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonPhysic {
-        Python::with_gil(|py| {
-            debug!("Model got: {}", py_model.bind(py).dir().unwrap());
-        });
+        if is_enabled(crate::logger::InternalLog::API) {
+            Python::with_gil(|py| {
+                debug!("Model got: {}", py_model.bind(py).dir().unwrap());
+            });
+        }
         let (apply_command_request_tx, apply_command_request_rx) = mpsc::channel();
         let (apply_command_response_tx, apply_command_response_rx) = mpsc::channel();
         let (state_request_tx, state_request_rx) = mpsc::channel();
@@ -179,7 +182,9 @@ impl PythonPhysic {
     }
 
     fn apply_command(&mut self, command: &Command, time: f32) {
-        debug!("Calling python implementation of apply_command");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of apply_command");
+        }
         // let robot_record = robot.record();
         Python::with_gil(|py| {
             self.model
@@ -194,7 +199,9 @@ impl PythonPhysic {
     }
 
     fn update_state(&mut self, time: f32) {
-        debug!("Calling python implementation of update_state");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of update_state");
+        }
         // let robot_record = robot.record();
         Python::with_gil(|py| {
             self.model
@@ -205,7 +212,9 @@ impl PythonPhysic {
     }
 
     fn state(&mut self, time: f32) -> State {
-        debug!("Calling python implementation of state");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of state");
+        }
         // let robot_record = robot.record();
         let state = Python::with_gil(|py| -> StateWrapper {
             self.model
@@ -219,7 +228,9 @@ impl PythonPhysic {
     }
 
     fn record(&self) -> PhysicRecord {
-        debug!("Calling python implementation of record");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of record");
+        }
         let record_str: String = Python::with_gil(|py| {
             self.model
                 .bind(py)
@@ -240,7 +251,9 @@ impl PythonPhysic {
 
     fn from_record(&mut self, record: PhysicRecord) {
         if let PhysicRecord::External(record) = record {
-            debug!("Calling python implementation of from_record");
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Calling python implementation of from_record");
+            }
             Python::with_gil(|py| {
                 self.model
                     .bind(py)

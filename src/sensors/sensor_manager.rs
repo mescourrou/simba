@@ -11,6 +11,7 @@ use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
+use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::node::Node;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -218,7 +219,9 @@ impl SensorManager {
                 if observations.len() > 0 {
                     let obs_serialized = serde_json::to_value(observations).unwrap();
                     node.network()
-                        .expect("This Node has no network, it cannot send observation to other nodes")
+                        .expect(
+                            "This Node has no network, it cannot send observation to other nodes",
+                        )
                         .write()
                         .unwrap()
                         .send_to(to.clone(), obs_serialized, time, Vec::new())
@@ -294,7 +297,9 @@ impl MessageHandler for SensorManager {
             if self.received_observations.len() > 0 {
                 self.next_time = Some(time);
             }
-            debug!("Receive observations from {from} at time {time}");
+            if is_enabled(crate::logger::InternalLog::SensorManager) {
+                debug!("Receive observations from {from} at time {time}");
+            }
             Ok(())
         } else {
             Err(())

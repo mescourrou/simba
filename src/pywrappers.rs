@@ -493,24 +493,9 @@ pub struct SimulatorWrapper {
 #[pymethods]
 impl SimulatorWrapper {
     #[staticmethod]
-    #[pyo3(signature = (config_path, plugin_api=None, loglevel="off"))]
-    pub fn from_config(
-        config_path: String,
-        plugin_api: Option<Py<PyAny>>,
-        loglevel: &str,
-    ) -> SimulatorWrapper {
-        Simulator::init_environment(
-            match loglevel.to_lowercase().as_str() {
-                "debug" => log::LevelFilter::Debug,
-                "info" => log::LevelFilter::Info,
-                "warn" => log::LevelFilter::Warn,
-                "error" => log::LevelFilter::Error,
-                "off" => log::LevelFilter::Off,
-                &_ => log::LevelFilter::Off,
-            },
-            Vec::new(),
-            Vec::new(),
-        );
+    #[pyo3(signature = (config_path, plugin_api=None))]
+    pub fn from_config(config_path: String, plugin_api: Option<Py<PyAny>>) -> SimulatorWrapper {
+        Simulator::init_environment();
 
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = server.lock().unwrap().get_api();

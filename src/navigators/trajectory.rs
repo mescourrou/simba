@@ -9,7 +9,7 @@ use log::debug;
 use na::{DMatrix, SVector};
 use nalgebra::Vector2;
 
-use crate::stateful::Stateful;
+use crate::{logger::is_enabled, stateful::Stateful};
 
 use crate::utils::geometry::*;
 
@@ -152,7 +152,9 @@ impl Trajectory {
         while (projected_point - pt2).norm() < 1e-6 {
             if self.current_segment + 1 == self.point_list.nrows() {
                 if !self.do_loop {
-                    debug!("No loop so give last point");
+                    if is_enabled(crate::logger::InternalLog::NavigatorDetailed) {
+                        debug!("No loop so give last point");
+                    }
                     return ((pt1, pt2), pt2, true);
                 } else {
                     self.current_segment = 0;

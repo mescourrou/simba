@@ -9,6 +9,7 @@ use serde_json::Value;
 
 use crate::{
     constants::TIME_ROUND,
+    logger::is_enabled,
     node::Node,
     node_factory::NodeRecord,
     pywrappers::{ObservationWrapper, SensorObservationWrapper, StateWrapper},
@@ -120,9 +121,11 @@ pub struct PythonStateEstimator {
 impl PythonStateEstimator {
     #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonStateEstimator {
-        Python::with_gil(|py| {
-            debug!("Model got: {}", py_model.bind(py).dir().unwrap());
-        });
+        if is_enabled(crate::logger::InternalLog::API) {
+            Python::with_gil(|py| {
+                debug!("Model got: {}", py_model.bind(py).dir().unwrap());
+            });
+        }
         let (prediction_request_tx, prediction_request_rx) = mpsc::channel();
         let (prediction_response_tx, prediction_response_rx) = mpsc::channel();
         let (correction_request_tx, correction_request_rx) = mpsc::channel();
@@ -218,7 +221,9 @@ impl PythonStateEstimator {
     }
 
     fn prediction_step(&mut self, _node: &NodeRecord, time: f32) {
-        debug!("Calling python implementation of prediction_step");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of prediction_step");
+        }
         // let node_record = node.record();
         Python::with_gil(|py| {
             self.model
@@ -229,7 +234,9 @@ impl PythonStateEstimator {
     }
 
     fn correction_step(&mut self, _node: &NodeRecord, observations: &Vec<Observation>, time: f32) {
-        debug!("Calling python implementation of correction_step");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of correction_step");
+        }
         let mut observation_py = Vec::new();
         for obs in observations {
             observation_py.push(ObservationWrapper::from_ros(obs));
@@ -243,7 +250,9 @@ impl PythonStateEstimator {
     }
 
     fn state(&self) -> State {
-        debug!("Calling python implementation of state");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of state");
+        }
         let state = Python::with_gil(|py| -> StateWrapper {
             self.model
                 .bind(py)
@@ -257,7 +266,9 @@ impl PythonStateEstimator {
 
     fn next_time_step(&self) -> f32 {
         // PythonStateEstimator::next_time_step(self)
-        debug!("Calling python implementation of next_time_step");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of next_time_step");
+        }
         let time = Python::with_gil(|py| {
             self.model
                 .bind(py)
@@ -270,7 +281,9 @@ impl PythonStateEstimator {
     }
 
     fn record(&self) -> StateEstimatorRecord {
-        debug!("Calling python implementation of record");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of record");
+        }
         let record_str: String = Python::with_gil(|py| {
             self.model
                 .bind(py)
@@ -291,7 +304,9 @@ impl PythonStateEstimator {
 
     fn from_record(&mut self, record: StateEstimatorRecord) {
         if let StateEstimatorRecord::External(record) = record {
-            debug!("Calling python implementation of from_record");
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Calling python implementation of from_record");
+            }
             Python::with_gil(|py| {
                 self.model
                     .bind(py)

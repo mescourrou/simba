@@ -58,6 +58,7 @@ fn main() {
 use pyo3::prelude::*;
 
 pub mod controllers;
+pub mod logger;
 pub mod navigators;
 pub mod networking;
 pub mod node;

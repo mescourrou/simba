@@ -18,6 +18,7 @@ use crate::api::internal_api::{self, NodeClient, NodeServer};
 use crate::constants::TIME_ROUND;
 use crate::controllers::controller::{self, Controller, ControllerConfig, ControllerRecord};
 
+use crate::logger::is_enabled;
 use crate::networking::network::{Network, NetworkConfig};
 use crate::networking::service_manager::ServiceManager;
 use crate::node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord};
@@ -213,6 +214,9 @@ impl Node {
         &mut self,
         service_manager_list: &HashMap<String, Arc<RwLock<ServiceManager>>>,
     ) -> NodeClient {
+        if is_enabled(crate::logger::InternalLog::SetupSteps) {
+            debug!("Node post-creation initialization")
+        }
         let service_manager = self.service_manager();
         service_manager
             .write()
@@ -240,7 +244,9 @@ impl Node {
         }
         let (node_server, node_client) = internal_api::make_node_api(&self.node_type);
         self.node_server = Some(node_server);
-        debug!("Save initial state");
+        if is_enabled(crate::logger::InternalLog::SetupStepsDetailed) {
+            debug!("Save initial state");
+        }
         self.save_state(0.);
         node_client
     }
@@ -311,8 +317,9 @@ impl Node {
         if let Some(sensor_manager) = &self.sensor_manager() {
             // Make observations (if it is the right time)
             let observations = sensor_manager.write().unwrap().get_observations(self, time);
-
-            debug!("Got {} observations", observations.len());
+            if is_enabled(crate::logger::InternalLog::SensorManager) {
+                debug!("Got {} observations", observations.len());
+            }
             if observations.len() > 0 {
                 // Treat the observations
                 if let Some(state_estimator) = &self.state_estimator() {
@@ -447,7 +454,9 @@ impl Node {
                 .unwrap()
                 .next_time_step()
                 .min(next_time_step);
-            debug!("Next time after state estimator: {next_time_step}");
+            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                debug!("Next time after state estimator: {next_time_step}");
+            }
         }
 
         if let Some(sensor_manager) = &self.sensor_manager {
@@ -457,27 +466,35 @@ impl Node {
                 .next_time_step()
                 .unwrap_or(f32::INFINITY)
                 .min(next_time_step);
-            debug!("Next time after sensor manager: {next_time_step}");
+            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                debug!("Next time after sensor manager: {next_time_step}");
+            }
         }
         let mut read_only = false;
 
         if let Some(network) = &self.network {
             let message_next_time = network.read().unwrap().next_message_time();
-            debug!(
-                "In node: message_next_time: {}",
-                match message_next_time {
-                    Some((time, _)) => time,
-                    None => -1.,
-                }
-            );
+            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                debug!(
+                    "In node: message_next_time: {}",
+                    match message_next_time {
+                        Some((time, _)) => time,
+                        None => -1.,
+                    }
+                );
+            }
             if let Some(msg_next_time) = message_next_time {
                 if next_time_step > msg_next_time.0 {
                     read_only = msg_next_time.1;
                     next_time_step = msg_next_time.0;
                 }
-                debug!("Time step changed with message: {}", next_time_step);
+                if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                    debug!("Time step changed with message: {}", next_time_step);
+                }
             }
-            debug!("Next time after network: {next_time_step}");
+            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                debug!("Next time after network: {next_time_step}");
+            }
         }
         if let Some(state_estimator_bench) = &self.state_estimator_bench {
             for state_estimator in state_estimator_bench.read().unwrap().iter() {
@@ -489,7 +506,9 @@ impl Node {
                         .next_time_step(),
                 );
             }
-            debug!("Next time after state estimator bench: {next_time_step}");
+            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                debug!("Next time after state estimator bench: {next_time_step}");
+            }
         }
 
         let tpl = self
@@ -503,12 +522,16 @@ impl Node {
             read_only = tpl.1;
             next_time_step = tpl.0;
         }
-        debug!("Next time after service manager: {next_time_step}");
+        if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+            debug!("Next time after service manager: {next_time_step}");
+        }
         next_time_step = round_precision(next_time_step, TIME_ROUND).unwrap();
-        debug!(
-            "next_time_step: {} (read only: {read_only})",
-            next_time_step
-        );
+        if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+            debug!(
+                "next_time_step: {} (read only: {read_only})",
+                next_time_step
+            );
+        }
         (next_time_step, read_only)
     }
 

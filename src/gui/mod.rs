@@ -9,7 +9,7 @@ use crate::{plugin_api::PluginAPI, simulator::Simulator};
 
 pub fn run_gui(plugin_api: Option<Box<&'static dyn PluginAPI>>) {
     // Initialize the environment, essentially the logging part
-    Simulator::init_environment(log::LevelFilter::Info, Vec::new(), Vec::new());
+    Simulator::init_environment();
 
     let native_options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()

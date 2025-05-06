@@ -18,6 +18,7 @@ use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
+use crate::logger::is_enabled;
 use crate::networking::service::HasService;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
@@ -120,7 +121,9 @@ impl ExternalPhysic {
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        debug!("Config given: {:?}", config);
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Config given: {:?}", config);
+        }
         Self {
             physic: plugin_api
                 .as_ref()

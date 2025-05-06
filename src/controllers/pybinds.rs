@@ -9,6 +9,7 @@ use serde_json::Value;
 
 use crate::{
     controllers::external_controller::ExternalControllerRecord,
+    logger::is_enabled,
     node::Node,
     node_factory::NodeRecord,
     physics::physic::Command,
@@ -71,9 +72,11 @@ pub struct PythonController {
 impl PythonController {
     #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonController {
-        Python::with_gil(|py| {
-            debug!("Model got: {}", py_model.bind(py).dir().unwrap());
-        });
+        if is_enabled(crate::logger::InternalLog::API) {
+            Python::with_gil(|py| {
+                debug!("Model got: {}", py_model.bind(py).dir().unwrap());
+            });
+        }
         let (make_command_request_tx, make_command_request_rx) = mpsc::channel();
         let (make_command_response_tx, make_command_response_rx) = mpsc::channel();
         let (record_request_tx, record_request_rx) = mpsc::channel();
@@ -123,7 +126,9 @@ impl PythonController {
     }
 
     fn make_command(&mut self, _node: &NodeRecord, error: &ControllerError, time: f32) -> Command {
-        debug!("Calling python implementation of make_command");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of make_command");
+        }
         // let node_record = node.record();
         let result = Python::with_gil(|py| -> CommandWrapper {
             self.model
@@ -141,7 +146,9 @@ impl PythonController {
     }
 
     fn record(&self) -> ControllerRecord {
-        debug!("Calling python implementation of record");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of record");
+        }
         let record_str: String = Python::with_gil(|py| {
             self.model
                 .bind(py)
@@ -162,7 +169,9 @@ impl PythonController {
 
     fn from_record(&mut self, record: ControllerRecord) {
         if let ControllerRecord::External(record) = record {
-            debug!("Calling python implementation of from_record");
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Calling python implementation of from_record");
+            }
             Python::with_gil(|py| {
                 self.model
                     .bind(py)

@@ -4,6 +4,27 @@ This documentation is auto-generated.
 To get more information on the parameter, check the documentation (or follow the links).
 
 List of parameters:
+- `log`: [LoggerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/logger/struct.LoggerConfig.html)
+	- `included_nodes`: String, List
+	- `excluded_nodes`: String, List
+	- `log_level`: [LogLevel](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/logger/enum.LogLevel.html), Enum
+		- `Error` 
+		- `Warn` 
+		- `Info` 
+		- `Debug` 
+		- `Internal`: [InternalLog](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/logger/enum.InternalLog.html), List, Enum
+			- `All` 
+			- `NetworkMessages` 
+			- `ServiceHandling` 
+			- `SetupSteps` 
+			- `SetupStepsDetailed` 
+			- `SensorManager` 
+			- `SensorManagerDetailed` 
+			- `NodeRunning` 
+			- `NodeRunningDetailed` 
+			- `NodeSyncDetailed` 
+			- `API` 
+			- `NavigatorDetailed` 
 - `results`: [ResultConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/simulator/struct.ResultConfig.html), Optional
 	- `result_path`: String
 	- `show_figures`: Boolean
