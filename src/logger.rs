@@ -7,6 +7,7 @@ static INTERNAL_LOG_LEVEL: RwLock<Vec<InternalLog>> = RwLock::new(Vec::new());
 
 #[derive(Debug, Serialize, Deserialize, Check, Clone)]
 pub enum LogLevel {
+    Off,
     Error,
     Warn,
     Info,
@@ -17,6 +18,7 @@ pub enum LogLevel {
 impl Into<log::LevelFilter> for LogLevel {
     fn into(self) -> log::LevelFilter {
         match self {
+            LogLevel::Off => log::LevelFilter::Off,
             LogLevel::Error => log::LevelFilter::Error,
             LogLevel::Warn => log::LevelFilter::Warn,
             LogLevel::Info => log::LevelFilter::Info,
@@ -67,6 +69,9 @@ pub fn init_log(config: &LoggerConfig) {
 }
 
 pub fn is_enabled(internal_level: InternalLog) -> bool {
-    internal_level == InternalLog::All
-        || INTERNAL_LOG_LEVEL.read().unwrap().contains(&internal_level)
+    if let InternalLog::All = internal_level {
+        return  true;
+    }
+    INTERNAL_LOG_LEVEL.read().unwrap().contains(&InternalLog::All) ||
+    INTERNAL_LOG_LEVEL.read().unwrap().contains(&internal_level)
 }

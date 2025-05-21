@@ -21,8 +21,7 @@ use std::{
 use log::debug;
 
 use crate::{
-    logger::is_enabled, node::Node, simulator::TimeCvData,
-    utils::time_ordered_data::TimeOrderedData,
+    logger::is_enabled, node::Node, simulator::TimeCv, utils::time_ordered_data::TimeOrderedData
 };
 
 use super::network::MessageFlag;
@@ -45,7 +44,7 @@ pub struct ServiceClient<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> 
     request_channel: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32, Vec<MessageFlag>)>>>,
     // Simulator condition variable needed so that all nodes wait the end of other,
     // and continue to treat messages.
-    time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+    time_cv: Arc<TimeCv>,
 }
 
 impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<RequestMsg, ResponseMsg> {
@@ -72,6 +71,10 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
             debug!("Sending a request");
         }
+        let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+        *circulating_messages += 1;
+        debug!("Increase circulating messages => {}", *circulating_messages);
+        std::mem::drop(circulating_messages);
         match self.request_channel.lock().unwrap().send((
             node_name,
             req,
@@ -85,13 +88,13 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
             debug!("Sending a request: OK");
         }
-        let lk = self.time_cv.0.lock().unwrap();
+        let lk = self.time_cv.finished_nodes.lock().unwrap();
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Lock acquired in service");
             debug!("Wake waiting nodes");
         }
         // Needed to unlock the other node if it has finished and is waiting for messages.
-        self.time_cv.1.notify_all();
+        self.time_cv.condvar.notify_all();
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Release CV lock");
         }
@@ -104,6 +107,10 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
             Ok(result) => result,
             Err(e) => return Err(e.to_string()),
         };
+
+        let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+        *circulating_messages -= 1;
+        debug!("Decrease circulating messages => {}", *circulating_messages);
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
             debug!("Result received");
         }
@@ -131,7 +138,7 @@ pub struct Service<
     request_buffer: Arc<RwLock<TimeOrderedData<(String, RequestMsg, Vec<MessageFlag>)>>>,
     /// Simulator condition variable needed so that all nodes wait the end of others,
     /// and continue to treat messages.
-    time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+    time_cv: Arc<TimeCv>,
     target: Arc<RwLock<Box<T>>>,
 }
 
@@ -145,7 +152,7 @@ impl<
     ///
     /// ## Arguments
     /// * `time_cv` - Condition variable of the simulator, to wait the end of the nodes.
-    pub fn new(time_cv: Arc<(Mutex<TimeCvData>, Condvar)>, target: Arc<RwLock<Box<T>>>) -> Self {
+    pub fn new(time_cv: Arc<TimeCv>, target: Arc<RwLock<Box<T>>>) -> Self {
         let (tx, rx) = mpsc::channel::<(String, RequestMsg, f32, Vec<MessageFlag>)>();
         Self {
             request_channel_give: Arc::new(Mutex::new(tx)),
@@ -189,6 +196,10 @@ impl<
     fn process_requests(&self) -> usize {
         for (from, message, time, message_flags) in self.request_channel.lock().unwrap().try_iter()
         {
+            let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+            *circulating_messages -= 1;
+            debug!("Decrease circulating messages => {}", *circulating_messages);
+            std::mem::drop(circulating_messages);
             if is_enabled(crate::logger::InternalLog::ServiceHandling) {
                 debug!("Insert request from {from} at time {time}");
             }
@@ -220,6 +231,11 @@ impl<
                 .handle_service_requests(message, time);
             if is_enabled(crate::logger::InternalLog::ServiceHandling) {
                 debug!("Got result");
+            }
+            {
+                let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+                *circulating_messages += 1;
+                debug!("Increase circulating messages => {}", *circulating_messages);
             }
             self.clients
                 .get(&from)

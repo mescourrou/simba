@@ -25,7 +25,7 @@ use crate::{
     },
     plugin_api::PluginAPI,
     sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
-    simulator::{SimulatorConfig, TimeCvData},
+    simulator::{SimulatorConfig, TimeCv},
     state_estimators::{
         perfect_estimator,
         state_estimator::{
@@ -303,7 +303,7 @@ impl NodeFactory {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
-        time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+        time_cv: Arc<TimeCv>,
     ) -> Node {
         let node_type = NodeType::Robot;
         let mut node = Node {
@@ -357,6 +357,7 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
+            time_cv: time_cv.clone(),
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -404,7 +405,7 @@ impl NodeFactory {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
-        time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+        time_cv: Arc<TimeCv>,
     ) -> Node {
         let node_type = NodeType::ComputationUnit;
         let mut node = Node {
@@ -435,6 +436,7 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
+            time_cv: time_cv.clone(),
         };
 
         for state_estimator_config in &config.state_estimators {

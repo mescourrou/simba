@@ -25,7 +25,7 @@ use crate::node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotReco
 use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
 use crate::physics::{perfect_physic, physic};
 
-use crate::simulator::{SimulatorConfig, TimeCvData};
+use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::state_estimators::state_estimator::{
     BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator, StateEstimatorConfig,
     StateEstimatorRecord,
@@ -40,6 +40,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use crate::utils::time_ordered_data::TimeOrderedData;
 use crate::{node, time_analysis};
+
 
 // Node itself
 
@@ -94,119 +95,12 @@ pub struct Node {
 
     pub(crate) node_server: Option<NodeServer>,
 
+    pub(crate) time_cv: Arc<TimeCv>,
     pub other_node_names: Vec<String>,
+    
 }
 
 impl Node {
-    // /// Creates a new [`Node`] with the given configuration.
-    // ///
-    // /// During the creation of the new node, each module is initialized with its own config.
-    // ///
-    // ///  ## Arguments
-    // /// * `config` -- Scenario config of the node, including all modules. See [`NodeConfig`]
-    // /// * `plugin_api` -- Optional [`PluginAPI`] implementation required to use external modules.
-    // /// * `meta_config` -- Simulator config.
-    // ///
-    // /// ## Return
-    // /// The new node is return as a reference counter to be shared among threads.
-    // pub fn from_config(
-    //     config: &NodeConfig,
-    //     plugin_api: &Option<Box<&dyn PluginAPI>>,
-    //     global_config: &SimulatorConfig,
-    //     va_factory: &DeterministRandomVariableFactory,
-    //     time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
-    // ) -> Self {
-    //     let mut node = Self {
-    //         name: config.name.clone(),
-    //         navigator: navigator::make_navigator_from_config(
-    //             &config.navigator,
-    //             plugin_api,
-    //             global_config,
-    //             va_factory,
-    //         ),
-    //         controller: controller::make_controller_from_config(
-    //             &config.controller,
-    //             plugin_api,
-    //             global_config,
-    //             va_factory,
-    //         ),
-    //         physic: physic::make_physic_from_config(
-    //             &config.physic,
-    //             plugin_api,
-    //             global_config,
-    //             va_factory,
-    //         ),
-    //         state_estimator: Arc::new(RwLock::new(
-    //             state_estimator::make_state_estimator_from_config(
-    //                 &config.state_estimator,
-    //                 plugin_api,
-    //                 global_config,
-    //                 va_factory,
-    //             ),
-    //         )),
-    //         sensor_manager: Arc::new(RwLock::new(SensorManager::from_config(
-    //             &config.sensor_manager,
-    //             plugin_api,
-    //             global_config,
-    //             &config.name,
-    //             va_factory,
-    //         ))),
-    //         network: Arc::new(RwLock::new(Network::from_config(
-    //             config.name.clone(),
-    //             &config.network,
-    //             global_config,
-    //             va_factory,
-    //             time_cv.clone(),
-    //         ))),
-    //         state_history: TimeOrderedData::new(),
-    //         state_estimator_bench: Arc::new(RwLock::new(Vec::with_capacity(
-    //             config.state_estimator_bench.len(),
-    //         ))),
-    //         // services: Vec::new(),
-    //         service_manager: None,
-    //         node_server: None,
-    //         other_node_names: Vec::new(),
-    //     };
-
-    //     for state_estimator_config in &config.state_estimator_bench {
-    //         node
-    //             .state_estimator_bench
-    //             .write()
-    //             .unwrap()
-    //             .push(BenchStateEstimator {
-    //                 name: state_estimator_config.name.clone(),
-    //                 state_estimator: Arc::new(RwLock::new(
-    //                     state_estimator::make_state_estimator_from_config(
-    //                         &state_estimator_config.config,
-    //                         plugin_api,
-    //                         global_config,
-    //                         va_factory,
-    //                     ),
-    //                 )),
-    //             })
-    //     }
-
-    //     let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
-    //         &node, time_cv,
-    //     ))));
-    //     if plugin_api.is_some() {
-    //         if let Some(message_handlers) =
-    //             plugin_api.as_ref().unwrap().get_message_handlers(&node)
-    //         {
-    //             let mut network = node.network.write().unwrap();
-    //             for message_handler in message_handlers {
-    //                 network.subscribe(message_handler.clone());
-    //             }
-    //         }
-    //     }
-    //     // Services
-    //     debug!("Setup services");
-    //     node.service_manager = service_manager;
-    //     node.save_state(0.);
-
-    //     node
-    // }
-
     /// Initialize the node after its creation.
     ///
     /// It is used to initialize the sensor manager, which need to know the list of all nodes.

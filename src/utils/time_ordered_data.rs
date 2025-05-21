@@ -64,11 +64,11 @@ impl<T> TimeOrderedData<T> {
         while pos > 0 {
             let pos_time = self.data[pos - 1].0;
             if pos_time < time - TIME_ROUND / 2. {
-                // Return.1 is erase value
+                // Return.1 is if the time is exact (not here)
                 return (pos, false);
             } else if (pos_time - time).abs() < TIME_ROUND / 2. {
                 pos = pos - 1;
-                // Return.1 is erase value
+                // Return.1 is if the time is exact
                 return (pos, true);
             }
             pos = pos - 1;
@@ -86,9 +86,9 @@ impl<T> TimeOrderedData<T> {
     ///
     /// TODO: test without erase, if all elements come out by iter.
     pub fn insert(&mut self, time: f32, data: T, do_erase: bool) {
-        let (pos, erase) = self.find_time_position(time);
+        let (pos, exact) = self.find_time_position(time);
 
-        if erase {
+        if exact {
             if do_erase {
                 self.data[pos] = (time, data);
             } else {
@@ -277,8 +277,8 @@ impl<T> TimeOrderedData<T> {
     ///
     /// If there is no data at the given time, `None` is returned.
     pub fn remove(&mut self, time: f32) -> Option<(f32, T)> {
-        let (pos, erase) = self.find_time_position(time);
-        if !erase {
+        let (pos, exact) = self.find_time_position(time);
+        if !exact {
             return None;
         }
 

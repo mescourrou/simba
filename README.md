@@ -1,5 +1,7 @@
 # SiMBA: Simulator for Multi-robot Backend Algorithms
 
+SiMBA is a simulator designed to abstract sensor measurements to facilitate the implementation of backend fusion algorithms or visual servoing. The simulator supports multiple robots, and the time rate is dynamic, waiting for the algorithms to finish before jumping to the next time step. It is written in Rust, and Python bindings are available, with a loss of performance. Its modular architecture allows for extension of different components while using the default version of the others.
+
 ## Features
 Here is a list of available and considered features. The order is not a priority order.
 - [X] First simple control-state estimation-physics loop
@@ -46,7 +48,7 @@ cargo build --all-features
 ## Spirit of this simulator
 - All the behaviors should be controlled by the config file. To avoid huge config files, default behavior should be given.
 - Modularity: the different behaviors should have common interfaces.
-- The simulation should be as fast as possible, without loosing data. All algorithm should finish before going to the next time step.
+- The simulation should be as fast as possible, without loosing data. All algorithms should finish before going to the next time step.
 - Determinism: two run should give exactly the same results: no randomness.
 
 ## Contribution

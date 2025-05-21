@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::logger::is_enabled;
 use crate::node::Node;
-use crate::simulator::TimeCvData;
+use crate::simulator::TimeCv;
 use crate::state_estimators::state_estimator::State;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
@@ -39,11 +39,11 @@ pub struct NetworkMessage {
 pub struct NetworkManager {
     nodes_senders: BTreeMap<String, Sender<NetworkMessage>>,
     nodes_receivers: BTreeMap<String, Receiver<NetworkMessage>>,
-    time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+    time_cv: Arc<TimeCv>,
 }
 
 impl NetworkManager {
-    pub fn new(time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Self {
+    pub fn new(time_cv: Arc<TimeCv>) -> Self {
         Self {
             nodes_senders: BTreeMap::new(),
             nodes_receivers: BTreeMap::new(),
@@ -100,8 +100,13 @@ impl NetworkManager {
 
     pub fn process_messages(&self, position_history: &HashMap<String, TimeOrderedData<State>>) {
         let mut message_sent = false;
+
+        // Keep the lock for all the processing, otherwise nodes can think that all messages are treated between the decrease and the increase of the counter
+        let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
         for (node_name, receiver) in self.nodes_receivers.iter() {
             if let Ok(msg) = receiver.try_recv() {
+                *circulating_messages -= 1;
+                debug!("Decrease circulating messages => {}", *circulating_messages);
                 match &msg.to {
                     MessageSendMethod::Recipient(r) => {
                         if msg.range == 0.
@@ -116,6 +121,8 @@ impl NetworkManager {
                             if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                                 debug!("Receiving message from `{node_name}` for `{r}`... Sending");
                             }
+                            *circulating_messages += 1;
+                            debug!("Increase circulating messages => {}", *circulating_messages);
                             self.nodes_senders
                                 .get(r)
                                 .expect(format!("Unknown node {r}").as_str())
@@ -144,6 +151,8 @@ impl NetworkManager {
                                 if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                                     debug!("Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`");
                                 }
+                                *circulating_messages += 1;
+                                debug!("Increase circulating messages => {}", *circulating_messages);
                                 sender.send(msg.clone()).unwrap();
                                 message_sent = true;
                             }
@@ -152,15 +161,16 @@ impl NetworkManager {
                 }
             }
         }
+        std::mem::drop(circulating_messages);
         if message_sent {
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Wait for CV lock");
             }
-            let lk = self.time_cv.0.lock().unwrap();
+            let lk = self.time_cv.finished_nodes.lock().unwrap();
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Got CV lock");
             }
-            self.time_cv.1.notify_all();
+            self.time_cv.condvar.notify_all();
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Release CV lock");
             }

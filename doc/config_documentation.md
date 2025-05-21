@@ -8,6 +8,7 @@ List of parameters:
 	- `included_nodes`: String, List
 	- `excluded_nodes`: String, List
 	- `log_level`: [LogLevel](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/logger/enum.LogLevel.html), Enum
+		- `Off` 
 		- `Error` 
 		- `Warn` 
 		- `Info` 

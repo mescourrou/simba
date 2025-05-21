@@ -1,5 +1,6 @@
 log:
-  log_level: Info
+  log_level:
+    Info
 results:
   result_path: "../result.json"
   show_figures: true

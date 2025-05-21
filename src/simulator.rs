@@ -197,16 +197,23 @@ struct SimulatorAsyncApiServer {
     pub current_time: Arc<Mutex<HashMap<String, f32>>>,
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd)]
-pub struct TimeCvData {
-    finished_nodes: usize,
+#[derive(Debug)]
+pub struct TimeCv {
+    pub finished_nodes: Mutex<usize>,
+    pub circulating_messages: Mutex<usize>,
+    pub condvar: Condvar,
 }
 
-impl Default for TimeCvData {
-    fn default() -> Self {
-        Self { finished_nodes: 0 }
+impl TimeCv {
+    pub fn new() -> Self {
+        Self { 
+            finished_nodes: Mutex::new(0),
+            circulating_messages: Mutex::new(0),
+            condvar: Condvar::new(),
+        }
     }
 }
+
 
 /// This is the central structure which manages the run of the scenario.
 ///
@@ -254,7 +261,7 @@ pub struct Simulator {
     /// Factory for components to make random variables generators
     determinist_va_factory: DeterministRandomVariableFactory,
 
-    time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+    time_cv: Arc<TimeCv>,
     common_time: Option<Arc<Mutex<f32>>>,
 
     async_api: Option<Arc<SimulatorAsyncApi>>,
@@ -267,7 +274,7 @@ impl Simulator {
     /// Create a new [`Simulator`] with no nodes, and empty config.
     pub fn new() -> Simulator {
         let rng = rand::random();
-        let time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
+        let time_cv = Arc::new(TimeCv::new());
         Simulator {
             nodes: Vec::new(),
             config: SimulatorConfig::default(),
@@ -321,7 +328,7 @@ impl Simulator {
 
     pub fn reset(&mut self, plugin_api: &Option<Box<&dyn PluginAPI>>) {
         self.nodes = Vec::new();
-        self.time_cv = Arc::new((Mutex::new(TimeCvData::default()), Condvar::new()));
+        self.time_cv = Arc::new(TimeCv::new());
         self.network_manager = NetworkManager::new(self.time_cv.clone());
         let config = self.config.clone();
         self.common_time = match &config.time_mode {
@@ -398,8 +405,7 @@ impl Simulator {
                 }
             }
             if network_0 {
-                println!("WARNING: Network with 0 reception delay is not stable yet: messages can be treated later or deadlock can occur.");
-                sleep(Duration::from_secs(1));
+                println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\nWARNING: Network with 0 reception delay is not stable yet: messages can be treated later or deadlock can occur.\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
             }
             println!("Config valid");
         } else {
@@ -443,7 +449,7 @@ impl Simulator {
         if log_config.included_nodes.len() > 0 {
             INCLUDE_NODES.write().unwrap().push("simulator".to_string());
         }
-        env_logger::builder()
+        if env_logger::builder()
             .target(env_logger::Target::Stdout)
             .format(|buf, record| {
                 let thread_idx = THREAD_IDS
@@ -486,7 +492,10 @@ impl Simulator {
             .format_module_path(false)
             .format_target(false)
             .filter_level(log_config.log_level.clone().into())
-            .init();
+            .try_init()
+            .is_err() {
+                println!("ERROR during log initialization!");
+            }
     }
 
     /// Add a [`Node`] of type [`Robot`](NodeType::Robot) to the [`Simulator`].
@@ -679,24 +688,23 @@ impl Simulator {
     fn wait_the_end(
         node: &Node,
         max_time: f32,
-        cv_mtx: &Mutex<TimeCvData>,
-        cv: &Condvar,
+        time_cv: &TimeCv,
         nb_nodes: usize,
     ) -> bool {
-        let mut finished_node = cv_mtx.lock().unwrap();
-        finished_node.finished_nodes += 1;
+        let mut lk = time_cv.finished_nodes.lock().unwrap();
+        *lk += 1;
         if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-            debug!("Increase finished nodes: {}", finished_node.finished_nodes);
+            debug!("Increase finished nodes: {}", *lk);
         }
-        if finished_node.finished_nodes == nb_nodes {
-            cv.notify_all();
-            finished_node.finished_nodes = 0;
+        if *lk == nb_nodes {
+            time_cv.condvar.notify_all();
+            *lk = 0;
             return true;
         }
         loop {
             let buffered_msgs = node.process_messages();
             if buffered_msgs > 0 {
-                finished_node.finished_nodes -= 1;
+                *lk -= 1;
                 if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                     debug!("[wait_the_end] Messages to process: continue");
                 }
@@ -705,17 +713,18 @@ impl Simulator {
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                 debug!("[wait_the_end] Wait for others");
             }
-            finished_node = cv.wait(finished_node).unwrap();
-            if finished_node.finished_nodes == nb_nodes {
+            lk = time_cv.condvar.wait(lk).unwrap();
+            let circulating_messages = time_cv.circulating_messages.lock().unwrap();
+            if *lk == nb_nodes && *circulating_messages == 0 {
                 return true;
             } else {
-                finished_node.finished_nodes -= 1;
+                *lk -= 1;
                 node.process_messages();
                 let next_time = node.next_time_step().0;
                 if next_time < max_time {
                     return false;
                 }
-                finished_node.finished_nodes += 1;
+                *lk += 1;
             }
         }
     }
@@ -729,7 +738,7 @@ impl Simulator {
         max_time: f32,
         nb_nodes: usize,
         node_idx: usize,
-        time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+        time_cv: Arc<TimeCv>,
         async_api_server: Option<SimulatorAsyncApiServer>,
         common_time: Option<Arc<Mutex<f32>>>,
         barrier: Arc<Barrier>,
@@ -766,18 +775,19 @@ impl Simulator {
                     }
                 }
 
-                let mut lk = time_cv.0.lock().unwrap();
+                let mut lk = time_cv.finished_nodes.lock().unwrap();
                 if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                     debug!("Got CV lock");
                 }
-                lk.finished_nodes += 1;
-                time_cv.1.notify_all();
+                *lk += 1;
+                time_cv.condvar.notify_all();
                 if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                     debug!("Waiting for others... (next_time is {next_time})");
                 }
                 loop {
                     let buffered_msgs = node.process_messages();
                     if buffered_msgs > 0 {
+                        *lk -= 1;
                         node.handle_messages(previous_time);
                         (next_time, read_only) = node.next_time_step();
                         {
@@ -789,14 +799,20 @@ impl Simulator {
                                 }
                             }
                         }
+                        *lk += 1;
+                        time_cv.condvar.notify_all();
                     }
-                    if lk.finished_nodes == nb_nodes {
+                    let circulating_messages = time_cv.circulating_messages.lock().unwrap();
+                    if *lk == nb_nodes && *circulating_messages == 0 {
                         break;
+                    } else {
+                        debug!("Finished nodes = {}/{nb_nodes} and circulating messages = {}", *lk, *circulating_messages);
                     }
+                    std::mem::drop(circulating_messages);
                     if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                         debug!("Wait CV");
                     }
-                    lk = time_cv.1.wait(lk).unwrap();
+                    lk = time_cv.condvar.wait(lk).unwrap();
                     if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                         debug!("End of CV wait");
                     }
@@ -812,13 +828,13 @@ impl Simulator {
                 }
                 barrier.wait();
                 *common_time_arc.lock().unwrap() = f32::INFINITY;
-                time_cv.0.lock().unwrap().finished_nodes = 0;
+                *time_cv.finished_nodes.lock().unwrap() = 0;
                 barrier.wait();
                 if next_time > max_time {
                     break;
                 }
             } else if next_time > max_time {
-                if Self::wait_the_end(&node, max_time, &time_cv.0, &time_cv.1, nb_nodes) {
+                if Self::wait_the_end(&node, max_time, &time_cv, nb_nodes) {
                     break;
                 }
                 (next_time, _) = node.next_time_step();

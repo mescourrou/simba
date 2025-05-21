@@ -4,11 +4,10 @@ use std::{
     sync::{Arc, Condvar, Mutex, RwLock},
 };
 
+use log::debug;
+
 use crate::{
-    node::Node,
-    physics::physic::{GetRealStateReq, GetRealStateResp, Physic},
-    simulator::TimeCvData,
-    state_estimators::state_estimator::State,
+    node::Node, physics::physic::{GetRealStateReq, GetRealStateResp, Physic}, simulator::TimeCv, state_estimators::state_estimator::State
 };
 
 use super::{
@@ -20,10 +19,11 @@ use super::{
 pub struct ServiceManager {
     get_real_state: Option<Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physic>>>>,
     get_real_state_clients: HashMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
+    time_cv: Arc<TimeCv>,
 }
 
 impl ServiceManager {
-    pub fn initialize(node: &Node, time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Self {
+    pub fn initialize(node: &Node, time_cv: Arc<TimeCv>) -> Self {
         Self {
             get_real_state: match node.node_type.has_physics() {
                 true => Some(Arc::new(RwLock::new(Service::new(
@@ -33,6 +33,7 @@ impl ServiceManager {
                 false => None,
             },
             get_real_state_clients: HashMap::new(),
+            time_cv,
         }
     }
 
@@ -66,6 +67,7 @@ impl ServiceManager {
         let resp;
         loop {
             if let Ok(r) = client.try_recv() {
+                // Time_cv circulating_messages already decreased in client
                 resp = r;
                 break;
             }

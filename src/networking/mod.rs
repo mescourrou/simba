@@ -43,26 +43,18 @@ mod tests {
     use serde_json::Value;
 
     use crate::{
-        constants::TIME_ROUND,
-        node::Node,
-        node_factory::RobotConfig,
-        plugin_api::PluginAPI,
-        sensors::{
+        constants::TIME_ROUND, logger::{InternalLog, LogLevel}, networking::network::NetworkConfig, node::Node, node_factory::RobotConfig, plugin_api::PluginAPI, sensors::{
             robot_sensor::RobotSensorConfig,
             sensor::{Observation, SensorConfig},
             sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
-        },
-        simulator::{Simulator, SimulatorConfig},
-        state_estimators::{
+        }, simulator::{Simulator, SimulatorConfig}, state_estimators::{
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
             perfect_estimator::PerfectEstimatorConfig,
             state_estimator::{
                 BenchStateEstimatorConfig, State, StateEstimator, StateEstimatorConfig,
                 StateEstimatorRecord,
             },
-        },
-        stateful::Stateful,
-        utils::maths::{closest_uint_modulo, round_precision},
+        }, stateful::Stateful, utils::maths::{closest_uint_modulo, round_precision}
     };
 
     use super::{message_handler::MessageHandler, *};
@@ -190,7 +182,8 @@ mod tests {
     fn send_message_test() {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
-        config.max_time = PerfectEstimatorConfig::default().prediction_period * 1.1;
+        config.max_time = PerfectEstimatorConfig::default().prediction_period * 1.5;
+        config.log.log_level = LogLevel::Internal(vec![InternalLog::All]);
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             state_estimator_bench: vec![BenchStateEstimatorConfig {
@@ -203,6 +196,10 @@ mod tests {
         });
         config.robots.push(RobotConfig {
             name: "node2".to_string(),
+            network: NetworkConfig {
+                reception_delay: 0.,
+                ..Default::default()
+            },
             ..Default::default()
         });
 

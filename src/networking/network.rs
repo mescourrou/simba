@@ -18,7 +18,7 @@ use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
 use crate::node::Node;
-use crate::simulator::{SimulatorConfig, TimeCvData};
+use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
@@ -75,7 +75,7 @@ pub struct Network {
     /// Message list
     messages_buffer: TimeOrderedData<(String, Value, Vec<MessageFlag>)>,
 
-    time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+    time_cv: Arc<TimeCv>,
 }
 
 impl fmt::Debug for Network {
@@ -90,7 +90,7 @@ impl fmt::Debug for Network {
 
 impl Network {
     /// Create a new default Network.
-    pub fn new(from: String, time_cv: Arc<(Mutex<TimeCvData>, Condvar)>) -> Network {
+    pub fn new(from: String, time_cv: Arc<TimeCv>) -> Network {
         Network::from_config(
             from,
             &NetworkConfig::default(),
@@ -106,7 +106,7 @@ impl Network {
         config: &NetworkConfig,
         _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
-        time_cv: Arc<(Mutex<TimeCvData>, Condvar)>,
+        time_cv: Arc<TimeCv>,
     ) -> Network {
         Network {
             from,
@@ -145,6 +145,11 @@ impl Network {
                 "Network is not properly setup: `set_network_manager_link` should be called.",
             ));
         }
+        {
+            let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+            *circulating_messages += 1;
+            debug!("Increase circulating messages => {}", *circulating_messages);
+        }
         self.to_network_manager
             .as_ref()
             .unwrap()
@@ -172,6 +177,11 @@ impl Network {
                 SimbaErrorTypes::ImplementationError,
                 "Network is not properly setup: `set_network_manager_link` should be called.",
             ));
+        }
+        {
+            let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+            *circulating_messages += 1;
+            debug!("Increase circulating messages => {}", *circulating_messages);
         }
         self.to_network_manager
             .as_ref()
@@ -205,6 +215,11 @@ impl Network {
             .unwrap()
             .try_iter()
         {
+            {
+                let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+                *circulating_messages -= 1;
+                debug!("Decrease circulating messages => {}", *circulating_messages);
+            }
             let time = if msg.message_flags.contains(&MessageFlag::God) {
                 msg.time
             } else {
