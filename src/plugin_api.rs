@@ -2,7 +2,7 @@
 Module providing the trait to link the simulator to external implementations.
 
 Example to use an external state estimator:
-```
+```ignore
 use simba::state_estimators::state_estimator::StateEstimator;
 use simba::{plugin_api::PluginAPI, simulator::SimulatorConfig};
 
@@ -22,10 +22,8 @@ impl PluginAPI for MyPlugin {
         ))
     }
 }
-```
+// You should use the simulator as a library. Your main.rs could be:
 
-You should use the simulator as a library. Your main.rs could be:
-```compile_fail
 use simba::simulator::Simulator;
 use std::path::Path;
 
@@ -35,18 +33,21 @@ fn main() {
     let config_path = Path::new("configs/simulator_config.yaml");
     let mut simulator = Simulator::from_config_path(
         config_path,
-        Some(Box::new(plugin)),
+        &Some(Box::new(plugin)),
         );
 
-    simulator.run(5.);
+    simulator.run();
 
 
 }
 ```
 */
 
+use std::sync::{Arc, RwLock};
+
 use crate::{
-    controllers::controller::Controller, navigators::navigator::Navigator, physics::physic::Physic,
+    controllers::controller::Controller, navigators::navigator::Navigator,
+    networking::message_handler::MessageHandler, node::Node, physics::physic::Physic,
     simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator,
 };
 
@@ -115,7 +116,7 @@ pub trait PluginAPI: Send + Sync {
     }
 
     /// Return the [`Physic`] to be used by the
-    /// [`ExternalPhysic`](`crate::physcs::external_physic::ExternalPhysic`).
+    /// [`ExternalPhysic`](`crate::physics::external_physic::ExternalPhysic`).
     ///
     /// # Arguments
     /// * `config` - Config for the external physic. The configuration
@@ -128,5 +129,9 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the [`Physic`] to use.
     fn get_physic(&self, _config: &Value, _global_config: &SimulatorConfig) -> Box<dyn Physic> {
         panic!("The given PluginAPI does not provide a physic");
+    }
+
+    fn get_message_handlers(&self, _robot: &Node) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
+        None
     }
 }

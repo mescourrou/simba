@@ -6,22 +6,45 @@ available observations.
 extern crate confy;
 use config_checker::macros::Check;
 use core::f32;
+use log::debug;
 use serde_derive::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use crate::robot::Robot;
+use crate::logger::is_enabled;
+use crate::networking::message_handler::MessageHandler;
+use crate::node::Node;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{simulator::SimulatorConfig, stateful::Stateful};
 
 use super::gnss_sensor::GNSSSensor;
-use super::odometry_sensor::OdometrySensor;
+use super::odometry_sensor::{OdometrySensor, OdometrySensorConfig};
 use super::robot_sensor::RobotSensor;
-use super::sensor::ObservationRecord;
+use super::sensor::{Observation, ObservationRecord, SensorObservationRecord};
 use super::{
     oriented_landmark_sensor::OrientedLandmarkSensor,
-    sensor::{Observation, Sensor, SensorConfig, SensorRecord},
+    sensor::{Sensor, SensorConfig, SensorObservation, SensorRecord},
 };
 use crate::plugin_api::PluginAPI;
+
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(default)]
+#[serde(deny_unknown_fields)]
+pub struct ManagedSensorConfig {
+    pub name: String,
+    pub send_to: Vec<String>,
+    pub config: SensorConfig,
+}
+
+impl Default for ManagedSensorConfig {
+    fn default() -> Self {
+        Self {
+            name: "some_sensor".to_string(),
+            send_to: Vec::new(),
+            config: SensorConfig::OdometrySensor(OdometrySensorConfig::default()),
+        }
+    }
+}
 
 /// Configuration listing all the [`SensorConfig`]s.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -29,7 +52,7 @@ use crate::plugin_api::PluginAPI;
 #[serde(deny_unknown_fields)]
 pub struct SensorManagerConfig {
     #[check]
-    pub sensors: Vec<SensorConfig>,
+    pub sensors: Vec<ManagedSensorConfig>,
 }
 
 impl Default for SensorManagerConfig {
@@ -43,17 +66,32 @@ impl Default for SensorManagerConfig {
 /// Record listing all the [`SensorRecord`]s and the next observation time.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SensorManagerRecord {
-    pub sensors: Vec<SensorRecord>,
+    pub sensors: Vec<ManagedSensorRecord>,
     pub next_time: Option<f32>,
     pub last_observations: Vec<ObservationRecord>,
+    pub received_observations: Vec<ObservationRecord>,
 }
 
-/// Sensor manager which manages all the robot's [`Sensor`]s.
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ManagedSensorRecord {
+    pub name: String,
+    pub record: SensorRecord,
+}
+
+#[derive(Debug)]
+struct ManagedSensor {
+    name: String,
+    send_to: Vec<String>,
+    sensor: Arc<RwLock<Box<dyn Sensor>>>,
+}
+
+/// Sensor manager which manages all the node's [`Sensor`]s.
 #[derive(Debug)]
 pub struct SensorManager {
-    sensors: Vec<Arc<RwLock<Box<dyn Sensor>>>>,
+    sensors: Vec<ManagedSensor>,
     next_time: Option<f32>,
     last_observations: Vec<ObservationRecord>,
+    received_observations: Vec<Observation>,
 }
 
 impl SensorManager {
@@ -63,6 +101,7 @@ impl SensorManager {
             sensors: Vec::new(),
             next_time: None,
             last_observations: Vec::new(),
+            received_observations: Vec::new(),
         }
     }
 
@@ -76,20 +115,21 @@ impl SensorManager {
         config: &SensorManagerConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        robot_name: &String,
+        node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {
-            manager
-                .sensors
-                .push(Arc::new(RwLock::new(match &sensor_config {
+            manager.sensors.push(ManagedSensor {
+                name: sensor_config.name.clone(),
+                send_to: sensor_config.send_to.clone(),
+                sensor: Arc::new(RwLock::new(match &sensor_config.config {
                     SensorConfig::OrientedLandmarkSensor(c) => {
                         Box::new(OrientedLandmarkSensor::from_config(
                             c,
                             plugin_api,
                             global_config,
-                            robot_name,
+                            node_name,
                             va_factory,
                         )) as Box<dyn Sensor>
                     }
@@ -97,24 +137,25 @@ impl SensorManager {
                         c,
                         plugin_api,
                         global_config,
-                        robot_name,
+                        node_name,
                         va_factory,
                     )) as Box<dyn Sensor>,
                     SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
                         c,
                         plugin_api,
                         global_config,
-                        robot_name,
+                        node_name,
                         va_factory,
                     )) as Box<dyn Sensor>,
                     SensorConfig::RobotSensor(c) => Box::new(RobotSensor::from_config(
                         c,
                         plugin_api,
                         global_config,
-                        robot_name,
+                        node_name,
                         va_factory,
                     )) as Box<dyn Sensor>,
-                })));
+                })),
+            });
         }
         manager.next_time = None;
         for sensor in &manager.sensors {
@@ -122,7 +163,7 @@ impl SensorManager {
                 manager
                     .next_time
                     .unwrap_or(f32::INFINITY)
-                    .min(sensor.read().unwrap().next_time_step()),
+                    .min(sensor.sensor.read().unwrap().next_time_step()),
             );
         }
         manager
@@ -130,32 +171,65 @@ impl SensorManager {
 
     /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    pub fn init(
-        &mut self,
-        robot: &mut Robot,
-        robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
-        robot_idx: usize,
-    ) {
+    pub fn init(&mut self, node: &mut Node) {
         for sensor in &mut self.sensors {
-            sensor.write().unwrap().init(robot, robot_list, robot_idx);
+            sensor.sensor.write().unwrap().init(node);
         }
     }
 
     /// Get the observations at the given `time`.
-    pub fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
+    pub fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<Observation> {
         let mut observations = Vec::<Observation>::new();
         let mut min_next_time = None;
+        let mut obs_to_send = HashMap::new();
         for sensor in &mut self.sensors {
-            let sensor_observations = sensor.write().unwrap().get_observations(robot, time);
-            for obs in sensor_observations {
-                observations.push(obs);
+            let sensor_observations: Vec<Observation> = sensor
+                .sensor
+                .write()
+                .unwrap()
+                .get_observations(node, time)
+                .into_iter()
+                .map(|obs| Observation {
+                    sensor_name: sensor.name.clone(),
+                    observer: node.name(),
+                    time,
+                    sensor_observation: obs,
+                })
+                .collect();
+            if sensor_observations.len() > 0 {
+                for to in &sensor.send_to {
+                    if !obs_to_send.contains_key(to) {
+                        obs_to_send.insert(to, Vec::new());
+                    }
+                    obs_to_send
+                        .get_mut(to)
+                        .unwrap()
+                        .extend(sensor_observations.clone());
+                }
             }
+            observations.extend(sensor_observations);
             min_next_time = Some(
                 min_next_time
                     .unwrap_or(f32::INFINITY)
-                    .min(sensor.read().unwrap().next_time_step()),
+                    .min(sensor.sensor.read().unwrap().next_time_step()),
             );
         }
+        if obs_to_send.len() > 0 {
+            for (to, observations) in obs_to_send {
+                if observations.len() > 0 {
+                    let obs_serialized = serde_json::to_value(observations).unwrap();
+                    node.network()
+                        .expect(
+                            "This Node has no network, it cannot send observation to other nodes",
+                        )
+                        .write()
+                        .unwrap()
+                        .send_to(to.clone(), obs_serialized, time, Vec::new())
+                        .unwrap();
+                }
+            }
+        }
+        observations.extend(self.received_observations.drain(0..));
         self.next_time = min_next_time;
         self.last_observations = observations.iter().map(|obs| obs.record()).collect();
         observations
@@ -172,21 +246,63 @@ impl Stateful<SensorManagerRecord> for SensorManager {
         let mut record = SensorManagerRecord {
             next_time: self.next_time,
             sensors: Vec::new(),
+            received_observations: self
+                .received_observations
+                .iter()
+                .map(|o| o.record())
+                .collect(),
             last_observations: self.last_observations.clone(),
         };
         for sensor in &self.sensors {
-            record.sensors.push(sensor.read().unwrap().record());
+            record.sensors.push(ManagedSensorRecord {
+                name: sensor.name.clone(),
+                record: sensor.sensor.read().unwrap().record(),
+            });
         }
         record
     }
 
     fn from_record(&mut self, record: SensorManagerRecord) {
         self.next_time = record.next_time;
+        self.received_observations = record
+            .received_observations
+            .into_iter()
+            .map(|o| {
+                let mut obs = Observation::new();
+                obs.from_record(o);
+                obs
+            })
+            .collect();
         for (i, sensor) in self.sensors.iter_mut().enumerate() {
+            sensor.name = record.sensors[i].name.clone();
             sensor
+                .sensor
                 .write()
                 .unwrap()
-                .from_record(record.sensors[i].clone())
+                .from_record(record.sensors[i].record.clone())
+        }
+    }
+}
+
+impl MessageHandler for SensorManager {
+    fn handle_message(
+        &mut self,
+        robot: &mut Node,
+        from: &String,
+        message: &serde_json::Value,
+        time: f32,
+    ) -> Result<(), ()> {
+        if let Ok(obs_list) = serde_json::from_value::<Vec<Observation>>(message.clone()) {
+            self.received_observations.extend(obs_list);
+            if self.received_observations.len() > 0 {
+                self.next_time = Some(time);
+            }
+            if is_enabled(crate::logger::InternalLog::SensorManager) {
+                debug!("Receive observations from {from} at time {time}");
+            }
+            Ok(())
+        } else {
+            Err(())
         }
     }
 }

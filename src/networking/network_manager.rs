@@ -1,94 +1,177 @@
 /*!
-Provide the Manager of the robots [`Network`]s. Only one should exist for one
+Provide the Manager of the nodes [`Network`]s. Only one should exist for one
 [`Simulator`](crate::simulator::Simulator).
 */
 
-use crate::robot::Robot;
+use log::debug;
+use serde_json::Value;
 
-use super::network::Network;
-use std::collections::BTreeMap;
+use crate::logger::is_enabled;
+use crate::node::Node;
+use crate::simulator::TimeCv;
+use crate::state_estimators::state_estimator::State;
+use crate::utils::time_ordered_data::TimeOrderedData;
 
-use std::sync::{Arc, RwLock};
+use super::network::{MessageFlag, Network};
+use std::collections::{BTreeMap, HashMap};
+
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Condvar, Mutex, RwLock};
+
+#[derive(Debug, Clone)]
+pub enum MessageSendMethod {
+    Broadcast,
+    Recipient(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct NetworkMessage {
+    pub value: Value,
+    pub from: String,
+    pub to: MessageSendMethod,
+    pub time: f32,
+    pub range: f32,
+    pub message_flags: Vec<MessageFlag>,
+}
 
 /// Manages the [`Network`]s, making the link between them, and keep a list.
 #[derive(Debug)]
 pub struct NetworkManager {
-    robots_networks: BTreeMap<String, Arc<RwLock<Network>>>,
-    robots: BTreeMap<String, Arc<RwLock<Robot>>>,
+    nodes_senders: BTreeMap<String, Sender<NetworkMessage>>,
+    nodes_receivers: BTreeMap<String, Receiver<NetworkMessage>>,
+    time_cv: Arc<TimeCv>,
 }
 
 impl NetworkManager {
-    pub fn new() -> Self {
+    pub fn new(time_cv: Arc<TimeCv>) -> Self {
         Self {
-            robots_networks: BTreeMap::new(),
-            robots: BTreeMap::new(),
+            nodes_senders: BTreeMap::new(),
+            nodes_receivers: BTreeMap::new(),
+            time_cv,
         }
     }
 
     /// Add a new [`Network`] node to the network. It creates the links to each existing network.
     ///
     /// ## Argument
-    /// * `robot` - Reference to the [`Robot`](crate::robot::Robot).
+    /// * `node` - Reference to the [`Node`].
     /// * `network` - [`Network`] to add.
-    pub fn register_robot_network(&mut self, robot: Arc<RwLock<Robot>>) {
-        let robot_name = robot.read().unwrap().name();
-        self.robots_networks.insert(
-            robot_name.clone(),
-            Arc::clone(&robot.write().unwrap().network()),
-        );
-        self.robots.insert(robot_name.clone(), Arc::clone(&robot));
-        for (other_robot, other_network) in &self.robots_networks {
-            if other_robot.clone() != robot_name.clone() {
-                let other_emitter = other_network.write().unwrap().get_emitter();
-                robot
-                    .write()
-                    .unwrap()
-                    .network()
-                    .write()
-                    .unwrap()
-                    .add_emitter(other_robot.clone(), other_emitter);
-                let emitter = robot
-                    .write()
-                    .unwrap()
-                    .network()
-                    .write()
-                    .unwrap()
-                    .get_emitter();
-                other_network
-                    .write()
-                    .unwrap()
-                    .add_emitter(robot_name.clone(), emitter)
-            }
+    pub fn register_node_network(&mut self, node: &mut Node) {
+        if let Some(network) = node.network() {
+            let node_name = node.name();
+
+            let to_node = mpsc::channel();
+            let from_node = mpsc::channel();
+            self.nodes_senders.insert(node_name.clone(), to_node.0);
+            self.nodes_receivers.insert(node_name.clone(), from_node.1);
+
+            network
+                .write()
+                .unwrap()
+                .set_network_manager_link(from_node.0, to_node.1);
         }
     }
 
-    /// Compute the distance between two robots at the given time, using their real pose.
-    pub fn distance_between(&self, robot1: &String, robot2: &String, time: f32) -> f32 {
-        let robot1_pos = self
-            .robots
-            .get(robot1)
-            .expect(format!("Robot '{}' not found", robot1).as_str())
-            .read()
-            .unwrap()
-            .physics()
-            .read()
-            .unwrap()
-            .state(time)
+    /// Compute the distance between two nodes at the given time, using their real pose.
+    fn distance_between(
+        position_history: &HashMap<String, TimeOrderedData<State>>,
+        node1: &String,
+        node2: &String,
+        time: f32,
+    ) -> f32 {
+        let node1_pos = position_history
+            .get(node1)
+            .expect(format!("Unknown node {node1}").as_str())
+            .get_data_at_time(time)
+            .expect(format!("No state data for node {node1} at time {time}").as_str())
+            .1
             .pose;
-        let robot2_pos = self
-            .robots
-            .get(robot2)
-            .expect(format!("Robot '{}' not found", robot2).as_str())
-            .read()
-            .unwrap()
-            .physics()
-            .read()
-            .unwrap()
-            .state(time)
+        let node2_pos = position_history
+            .get(node2)
+            .expect(format!("Unknown node {node2}").as_str())
+            .get_data_at_time(time)
+            .expect(format!("No state data for node {node2} at time {time}").as_str())
+            .1
             .pose;
 
-        let distance = (robot1_pos.rows(0, 2) - robot2_pos.rows(0, 2)).norm();
+        let distance = (node1_pos.rows(0, 2) - node2_pos.rows(0, 2)).norm();
+        distance
+    }
 
-        return distance;
+    pub fn process_messages(&self, position_history: &HashMap<String, TimeOrderedData<State>>) {
+        let mut message_sent = false;
+
+        // Keep the lock for all the processing, otherwise nodes can think that all messages are treated between the decrease and the increase of the counter
+        let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+        for (node_name, receiver) in self.nodes_receivers.iter() {
+            if let Ok(msg) = receiver.try_recv() {
+                *circulating_messages -= 1;
+                match &msg.to {
+                    MessageSendMethod::Recipient(r) => {
+                        if msg.range == 0.
+                            || msg.range
+                                >= NetworkManager::distance_between(
+                                    position_history,
+                                    node_name,
+                                    r,
+                                    msg.time,
+                                )
+                        {
+                            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                                debug!("Receiving message from `{node_name}` for `{r}`... Sending");
+                            }
+                            *circulating_messages += 1;
+                            self.nodes_senders
+                                .get(r)
+                                .expect(format!("Unknown node {r}").as_str())
+                                .send(msg)
+                                .unwrap();
+                            message_sent = true;
+                        } else {
+                            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                                debug!(
+                                    "Receiving message from `{node_name}` for `{r}`... Out of range"
+                                );
+                            }
+                        }
+                    }
+                    MessageSendMethod::Broadcast => {
+                        for (recipient_name, sender) in self.nodes_senders.iter() {
+                            if msg.range == 0.
+                                || msg.range
+                                    >= NetworkManager::distance_between(
+                                        position_history,
+                                        node_name,
+                                        recipient_name,
+                                        msg.time,
+                                    )
+                            {
+                                if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                                    debug!("Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`");
+                                }
+                                *circulating_messages += 1;
+                                sender.send(msg.clone()).unwrap();
+                                message_sent = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        std::mem::drop(circulating_messages);
+        if message_sent {
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Wait for CV lock");
+            }
+            let lk = self.time_cv.finished_nodes.lock().unwrap();
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Got CV lock");
+            }
+            self.time_cv.condvar.notify_all();
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Release CV lock");
+            }
+            std::mem::drop(lk);
+        }
     }
 }

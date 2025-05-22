@@ -4,12 +4,14 @@ use serde_json::Value;
 
 use crate::{
     controllers::{controller::Controller, pybinds::PythonController},
+    logger::is_enabled,
     navigators::{navigator::Navigator, pybinds::PythonNavigator},
     physics::{physic::Physic, pybinds::PythonPhysic},
     pywrappers::{
         CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, ObservationWrapper,
         OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
-        OrientedRobotObservationWrapper, PluginAPIWrapper, SimulatorWrapper, StateWrapper,
+        OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
+        SimulatorWrapper, StateWrapper,
     },
     simulator::SimulatorConfig,
     state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},
@@ -23,6 +25,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<StateWrapper>()?;
     m.add_class::<PythonStateEstimator>()?;
     m.add_class::<ObservationWrapper>()?;
+    m.add_class::<SensorObservationWrapper>()?;
     m.add_class::<GNSSObservationWrapper>()?;
     m.add_class::<OdometryObservationWrapper>()?;
     m.add_class::<OrientedLandmarkObservationWrapper>()?;
@@ -75,7 +78,9 @@ impl PythonAPI {
         config: &Value,
         global_config: &SimulatorConfig,
     ) -> Box<dyn StateEstimator> {
-        println!("Calling Python API");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling Python API");
+        }
         self.state_estimators
             .push(PythonStateEstimator::new(Python::with_gil(|py| {
                 self.api
@@ -94,7 +99,9 @@ impl PythonAPI {
                     .expect("Expecting function return of PythonStateEstimator but failed")
             })));
         let st = Box::new(self.state_estimators.last().unwrap().get_client());
-        debug!("Got api {:?}", st);
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Got api {:?}", st);
+        }
         st
     }
 
@@ -103,7 +110,9 @@ impl PythonAPI {
         config: &Value,
         global_config: &SimulatorConfig,
     ) -> Box<dyn Controller> {
-        println!("Calling Python API");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling Python API");
+        }
         self.controllers
             .push(PythonController::new(Python::with_gil(|py| {
                 self.api
@@ -122,7 +131,9 @@ impl PythonAPI {
                     .expect("Expecting function return of PythonController but failed")
             })));
         let st = Box::new(self.controllers.last().unwrap().get_client());
-        debug!("Got api {:?}", st);
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Got api {:?}", st);
+        }
         st
     }
 
@@ -131,7 +142,9 @@ impl PythonAPI {
         config: &Value,
         global_config: &SimulatorConfig,
     ) -> Box<dyn Navigator> {
-        println!("Calling Python API");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling Python API");
+        }
         self.navigators
             .push(PythonNavigator::new(Python::with_gil(|py| {
                 self.api
@@ -150,7 +163,9 @@ impl PythonAPI {
                     .expect("Expecting function return of Python?avigator but failed")
             })));
         let st = Box::new(self.navigators.last().unwrap().get_client());
-        debug!("Got api {:?}", st);
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Got api {:?}", st);
+        }
         st
     }
 
@@ -159,7 +174,9 @@ impl PythonAPI {
         config: &Value,
         global_config: &SimulatorConfig,
     ) -> Box<dyn Physic> {
-        println!("Calling Python API");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling Python API");
+        }
         self.physics.push(PythonPhysic::new(Python::with_gil(|py| {
             self.api
                 .bind(py)
@@ -177,7 +194,9 @@ impl PythonAPI {
                 .expect("Expecting function return of PythonPhysic but failed")
         })));
         let st = Box::new(self.physics.last().unwrap().get_client());
-        debug!("Got api {:?}", st);
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Got api {:?}", st);
+        }
         st
     }
 }

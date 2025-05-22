@@ -82,7 +82,7 @@ def main():
     simulator_api = SimulatorAPI()
 
     simulator = simba.Simulator.from_config(
-        "config/config_physics.yaml", simulator_api, loglevel="debug"
+        "config/config_physics.yaml", simulator_api
     )
     simulator.run()
 

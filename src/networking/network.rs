@@ -6,6 +6,7 @@ the configuration struct [`NetworkConfig`].
 extern crate confy;
 use std::collections::BTreeMap;
 use std::fmt;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Condvar, Mutex, RwLock};
 
 use config_checker::macros::Check;
@@ -13,13 +14,16 @@ use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::robot::Robot;
-use crate::simulator::SimulatorConfig;
+use crate::constants::TIME_ROUND;
+use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
+use crate::logger::is_enabled;
+use crate::node::Node;
+use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
 use super::message_handler::MessageHandler;
-use super::network_manager::NetworkManager;
+use super::network_manager::{MessageSendMethod, NetworkManager, NetworkMessage};
 
 /// Configuration for the [`Network`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -29,16 +33,16 @@ pub struct NetworkConfig {
     /// Limit range communication, 0 for no limit.
     #[check(ge(0.))]
     pub range: f32,
-    /// Communication delay (fixed). 0 for no delay.
+    /// Communication delay (fixed). 0 for no delay (not stable).
     #[check(ge(0.))]
-    pub delay: f32,
+    pub reception_delay: f32,
 }
 
 impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             range: 0.,
-            delay: 0.,
+            reception_delay: TIME_ROUND,
         }
     }
 }
@@ -57,31 +61,21 @@ pub enum MessageFlag {
 /// Each [`Robot`] should have a [`Network`] instance. Through this interface,
 /// the robots can send messages to other robots using pair-to-pair communication,
 /// or broadcast diffusion.
-#[derive(Clone)]
 pub struct Network {
     /// Name of the robot (will be in the 'from' field of the sent messages).
     from: String,
     /// Range limitation (not implemented yet).
     range: f32,
     /// Added delay to the messages.
-    delay: f32,
-    /// Reference to the simulator [`NetworkManager`].
-    network_manager: Option<Arc<RwLock<NetworkManager>>>,
-    /// List of the other robots associated to their asynchronous Sender.
-    ///
-    /// Map[Name of the robot, Sender].
-    other_emitters:
-        BTreeMap<String, Arc<Mutex<mpsc::Sender<(String, Value, f32, Vec<MessageFlag>)>>>>,
+    reception_delay: f32,
     /// List of handler. First handler returning Ok has priority.
     message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>,
-    /// Asynchronous receiver for the current [`Network`].
-    channel_receiver: Arc<Mutex<mpsc::Receiver<(String, Value, f32, Vec<MessageFlag>)>>>,
-    /// Asynchronous sender for the current [`Network`].
-    channel_emitter: Arc<Mutex<mpsc::Sender<(String, Value, f32, Vec<MessageFlag>)>>>,
+    to_network_manager: Option<Sender<NetworkMessage>>,
+    from_network_manager: Option<Arc<Mutex<Receiver<NetworkMessage>>>>,
     /// Message list
     messages_buffer: TimeOrderedData<(String, Value, Vec<MessageFlag>)>,
 
-    time_cv: Arc<(Mutex<usize>, Condvar)>,
+    time_cv: Arc<TimeCv>,
 }
 
 impl fmt::Debug for Network {
@@ -89,14 +83,14 @@ impl fmt::Debug for Network {
         f.debug_tuple("")
             .field(&self.from)
             .field(&self.range)
-            .field(&self.delay)
+            .field(&self.reception_delay)
             .finish()
     }
 }
 
 impl Network {
     /// Create a new default Network.
-    pub fn new(from: String, time_cv: Arc<(Mutex<usize>, Condvar)>) -> Network {
+    pub fn new(from: String, time_cv: Arc<TimeCv>) -> Network {
         Network::from_config(
             from,
             &NetworkConfig::default(),
@@ -112,59 +106,28 @@ impl Network {
         config: &NetworkConfig,
         _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
-        time_cv: Arc<(Mutex<usize>, Condvar)>,
+        time_cv: Arc<TimeCv>,
     ) -> Network {
-        let (tx, rx) = mpsc::channel::<(String, Value, f32, Vec<MessageFlag>)>();
         Network {
             from,
             range: config.range,
-            delay: config.delay,
-            network_manager: None,
-            other_emitters: BTreeMap::new(),
+            reception_delay: config.reception_delay,
             message_handlers: Vec::new(),
-            channel_receiver: Arc::new(Mutex::new(rx)),
-            channel_emitter: Arc::new(Mutex::new(tx)),
             messages_buffer: TimeOrderedData::new(),
             time_cv,
+            to_network_manager: None,
+            from_network_manager: None,
         }
     }
 
     /// Set the `network_manager` reference.
-    pub fn set_network_manager(&mut self, network_manager: Arc<RwLock<NetworkManager>>) {
-        self.network_manager = Some(network_manager);
-    }
-
-    /// Get the Sender, to be able to send message to this [`Network`].
-    pub fn get_emitter(&mut self) -> mpsc::Sender<(String, Value, f32, Vec<MessageFlag>)> {
-        self.channel_emitter.lock().unwrap().clone()
-    }
-
-    /// Add a new `emitter`, to send messages to the robot `robot_name`.
-    pub fn add_emitter(
+    pub fn set_network_manager_link(
         &mut self,
-        robot_name: String,
-        emitter: mpsc::Sender<(String, Value, f32, Vec<MessageFlag>)>,
+        to_network_manager: Sender<NetworkMessage>,
+        from_network_manager: Receiver<NetworkMessage>,
     ) {
-        self.other_emitters
-            .insert(robot_name, Arc::new(Mutex::new(emitter)));
-    }
-
-    /// Check whether the recipient is in range or not.
-    fn can_send(&self, recipient: &String, time: f32, message_flags: &Vec<MessageFlag>) -> bool {
-        if message_flags.contains(&MessageFlag::God) {
-            return true;
-        }
-        if self.range <= 0. {
-            return true;
-        }
-        let distance = self
-            .network_manager
-            .as_ref()
-            .unwrap()
-            .read()
-            .unwrap()
-            .distance_between(&self.from, recipient, time);
-        return distance < self.range;
+        self.to_network_manager = Some(to_network_manager);
+        self.from_network_manager = Some(Arc::new(Mutex::new(from_network_manager)));
     }
 
     /// Send a `message` to the given `recipient`. `time` is the send message time, before delays.
@@ -175,58 +138,97 @@ impl Network {
         message: Value,
         time: f32,
         message_flags: Vec<MessageFlag>,
-    ) {
-        if !self.can_send(&recipient, time, &message_flags) {
-            return;
+    ) -> SimbaResult<()> {
+        if self.to_network_manager.is_none() {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ImplementationError,
+                "Network is not properly setup: `set_network_manager_link` should be called.",
+            ));
         }
-        let emitter_option = self.other_emitters.get(&recipient);
-        if let Some(emitter) = emitter_option {
-            let _lk = self.time_cv.0.lock().unwrap();
-            emitter
-                .lock()
-                .unwrap()
-                .send((self.from.clone(), message, time, message_flags.clone()))
-                .unwrap();
-            self.time_cv.1.notify_all();
+        {
+            let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+            *circulating_messages += 1;
         }
+        self.to_network_manager
+            .as_ref()
+            .unwrap()
+            .send(NetworkMessage {
+                from: self.from.clone(),
+                range: self.range,
+                time,
+                to: MessageSendMethod::Recipient(recipient),
+                value: message,
+                message_flags,
+            })
+            .unwrap();
+        Ok(())
     }
 
     /// Send a `message` to all available robots. `time` is the send message time, before delays.
-    pub fn broadcast(&mut self, message: Value, time: f32, message_flags: Vec<MessageFlag>) {
-        for (recipient, emitter) in &self.other_emitters {
-            if !self.can_send(&recipient, time, &message_flags) {
-                continue;
-            }
-            let _lk = self.time_cv.0.lock().unwrap();
-            emitter
-                .lock()
-                .unwrap()
-                .send((
-                    self.from.clone(),
-                    message.clone(),
-                    time,
-                    message_flags.clone(),
-                ))
-                .unwrap();
-            self.time_cv.1.notify_all();
+    pub fn broadcast(
+        &mut self,
+        message: Value,
+        time: f32,
+        message_flags: Vec<MessageFlag>,
+    ) -> SimbaResult<()> {
+        if self.to_network_manager.is_none() {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ImplementationError,
+                "Network is not properly setup: `set_network_manager_link` should be called.",
+            ));
         }
+        {
+            let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+            *circulating_messages += 1;
+        }
+        self.to_network_manager
+            .as_ref()
+            .unwrap()
+            .send(NetworkMessage {
+                from: self.from.clone(),
+                range: self.range,
+                time,
+                to: MessageSendMethod::Broadcast,
+                value: message,
+                message_flags,
+            })
+            .unwrap();
+        Ok(())
     }
 
     /// Unstack the waiting messages in the asynchronous receiver and put them in the buffer.
     /// Adds the delay.
-    pub fn process_messages(&mut self) -> usize {
-        let rx = self.channel_receiver.lock().unwrap();
-        for (from, message, time, message_flags) in rx.try_iter() {
-            let time = if message_flags.contains(&MessageFlag::God) {
-                time
-            } else {
-                time + self.delay
-            };
-            debug!("Add new message from {from} at time {time}");
-            self.messages_buffer
-                .insert(time, (from, message, message_flags), false);
+    pub fn process_messages(&mut self) -> SimbaResult<usize> {
+        if self.from_network_manager.is_none() {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ImplementationError,
+                "Network is not properly setup: `set_network_manager_link` should be called.",
+            ));
         }
-        self.messages_buffer.len()
+        for msg in self
+            .from_network_manager
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .try_iter()
+        {
+            {
+                let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+                *circulating_messages -= 1;
+            }
+            let time = if msg.message_flags.contains(&MessageFlag::God) {
+                msg.time
+            } else {
+                msg.time + self.reception_delay
+            };
+            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                debug!("Add new message from {} at time {time}", msg.from);
+            }
+            self.messages_buffer
+                .insert(time, (msg.from, msg.value, msg.message_flags), false);
+        }
+        Ok(self.messages_buffer.len())
     }
 
     /// Get the minimal time among all waiting messages. Bool is true if the message is read only.
@@ -243,35 +245,46 @@ impl Network {
     /// ## Arguments
     /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
-    pub fn handle_message_at_time(&mut self, robot: &mut Robot, time: f32) {
+    pub fn handle_message_at_time(&mut self, robot: &mut Node, time: f32) {
+        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+            debug!("Handling messages at time {time}");
+        }
         while let Some((msg_time, (from, message, _message_flags))) =
             self.messages_buffer.remove(time)
         {
-            debug!("Receive message from {from}: {:?}", message);
-            debug!("Handler list size: {}", self.message_handlers.len());
+            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                debug!("Receive message from {from}: {:?}", message);
+                debug!("Handler list size: {}", self.message_handlers.len());
+            }
             for handler in &self.message_handlers {
-                debug!("Handler available: {:?}", handler.try_write().is_ok());
+                if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                    debug!("Handler available: {:?}", handler.try_write().is_ok());
+                }
                 if handler
                     .write()
                     .unwrap()
                     .handle_message(robot, &from, &message, msg_time)
                     .is_ok()
                 {
-                    debug!("Found handler");
+                    if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                        debug!("Found handler");
+                    }
                     break;
                 }
             }
         }
 
-        debug!(
-            "New next_message_time: {}",
-            match self.messages_buffer.min_time() {
-                Some((time, _)) => time,
-                None => -1.,
-            }
-        );
+        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+            debug!(
+                "New next_message_time: {}",
+                match self.messages_buffer.min_time() {
+                    Some((time, _)) => time,
+                    None => -1.,
+                }
+            );
 
-        debug!("Messages remaining: {}", self.messages_buffer.len());
+            debug!("Messages remaining: {}", self.messages_buffer.len());
+        }
     }
 
     /// Add a new handler to the [`Network`].

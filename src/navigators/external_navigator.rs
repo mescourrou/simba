@@ -86,7 +86,7 @@ impl ExternalNavigatorRecord {
     }
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 
 /// External navigator strategy, which does the bridge with your own strategy.
 pub struct ExternalNavigator {
@@ -137,7 +137,7 @@ impl std::fmt::Debug for ExternalNavigator {
 }
 
 impl Navigator for ExternalNavigator {
-    fn compute_error(&mut self, robot: &mut Robot, state: State) -> ControllerError {
+    fn compute_error(&mut self, robot: &mut Node, state: State) -> ControllerError {
         self.navigator.compute_error(robot, state)
     }
 }

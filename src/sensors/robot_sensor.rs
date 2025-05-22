@@ -1,18 +1,23 @@
 /*!
-Provides a [`Sensor`] which can observe the other robots in the frame of the ego robot.
+Provides a [`Sensor`] which can observe the other nodes in the frame of the ego node.
 */
 
 use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
-use super::sensor::{Observation, Sensor, SensorRecord};
+use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
+use crate::constants::TIME_ROUND;
+use crate::logger::is_enabled;
 use crate::networking::network::MessageFlag;
 use crate::networking::service::ServiceClient;
+use crate::networking::service_manager;
 use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::simulator::SimulatorConfig;
+use crate::state_estimators::state_estimator::State;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
 
@@ -223,7 +228,7 @@ impl<'de> Deserialize<'de> for OrientedRobot {
 }
 
 /// Observation of an [`OrientedRobot`].
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OrientedRobotObservation {
     /// Name of the Robot
     pub name: String,
@@ -262,8 +267,6 @@ pub struct RobotSensor {
     period: f32,
     /// Last observation time.
     last_time: f32,
-    /// Services to get the real state of the Robots.
-    robot_real_state_services: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
 }
 
@@ -286,7 +289,7 @@ impl RobotSensor {
         config: &RobotSensorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        robot_name: &String,
+        node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         assert!(config.period != 0.);
@@ -296,7 +299,7 @@ impl RobotSensor {
             unlock_fault_model.push(make_fault_model_from_config(
                 fault_config,
                 global_config,
-                robot_name,
+                node_name,
                 va_factory,
             ));
         }
@@ -305,80 +308,71 @@ impl RobotSensor {
             detection_distance: config.detection_distance,
             period: config.period,
             last_time: 0.,
-            robot_real_state_services: BTreeMap::new(),
             faults: fault_models,
         }
     }
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 
 impl Sensor for RobotSensor {
-    fn init(
-        &mut self,
-        robot: &mut Robot,
-        robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
-        robot_idx: usize,
-    ) {
-        let robot_unlock_list = robot_list.read().unwrap();
-        let mut i = 0;
-        for other_robot in robot_unlock_list.iter() {
-            if i == robot_idx {
-                i += 1;
-                continue;
-            }
-            let writable_robot = other_robot.write().unwrap();
-            debug!("Add service of {}", writable_robot.name());
-            self.robot_real_state_services.insert(
-                writable_robot.name(),
-                writable_robot
-                    .service_manager()
-                    .get_real_state_client(robot.name().as_str()),
-            );
-            i += 1;
-        }
-    }
+    fn init(&mut self, _node: &mut Node) {}
 
-    fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
-        let mut observation_list = Vec::<Observation>::new();
-        if time < self.next_time_step() {
+    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
+        let mut observation_list = Vec::<SensorObservation>::new();
+        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             return observation_list;
         }
-        debug!("Start looking for robots");
-        let arc_physic = robot.physics();
-        let physic = arc_physic.read().unwrap();
-        let state = physic.state(time);
+        if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+            debug!("Start looking for nodes");
+        }
+        let state = if let Some(arc_physic) = node.physics() {
+            let physic = arc_physic.read().unwrap();
+            physic.state(time).clone()
+        } else {
+            State::new() // 0
+        };
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
-        debug!("Rotation matrix: {}", rotation_matrix);
+        if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+            debug!("Rotation matrix: {}", rotation_matrix);
+        }
 
-        for (other_robot_name, service) in self.robot_real_state_services.iter_mut() {
-            debug!("Sensing robot {}", other_robot_name);
-            assert!(*other_robot_name != robot.name());
-
-            let other_state = service
-                .make_request(robot, GetRealStateReq {}, time, vec![MessageFlag::ReadOnly])
-                .expect("Error during service request")
-                .state;
-
-            let d = ((other_state.pose.x - state.pose.x).powi(2)
-                + (other_state.pose.y - state.pose.y).powi(2))
-            .sqrt();
-            debug!("Distance is {d}");
-            if d <= self.detection_distance {
-                observation_list.push(Observation::OrientedRobot(OrientedRobotObservation {
-                    name: other_robot_name.clone(),
-                    pose: rotation_matrix.transpose() * (other_state.pose - state.pose),
-                }));
+        for other_node_name in node.other_node_names.iter() {
+            if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                debug!("Sensing node {}", other_node_name);
             }
+            assert!(*other_node_name != node.name());
+
+            let service_manager = node.service_manager();
+            if let Some(other_state) = service_manager.read().unwrap().get_real_state(
+                &other_node_name.to_string(),
+                node,
+                time,
+            ) {
+                let d = ((other_state.pose.x - state.pose.x).powi(2)
+                    + (other_state.pose.y - state.pose.y).powi(2))
+                .sqrt();
+                if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                    debug!("Distance is {d}");
+                }
+                if d <= self.detection_distance {
+                    observation_list.push(SensorObservation::OrientedRobot(
+                        OrientedRobotObservation {
+                            name: other_node_name.clone(),
+                            pose: rotation_matrix.transpose() * (other_state.pose - state.pose),
+                        },
+                    ));
+                }
+            };
         }
         for fault_model in self.faults.lock().unwrap().iter() {
             fault_model.add_faults(
                 time,
                 self.period,
                 &mut observation_list,
-                Observation::OrientedRobot(OrientedRobotObservation::default()),
+                SensorObservation::OrientedRobot(OrientedRobotObservation::default()),
             );
         }
         self.last_time = time;
@@ -387,7 +381,7 @@ impl Sensor for RobotSensor {
 
     /// Get the next observation time.
     fn next_time_step(&self) -> f32 {
-        self.last_time + self.period
+        round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
     }
 
     /// Get the observation period.
@@ -404,8 +398,8 @@ impl Stateful<SensorRecord> for RobotSensor {
     }
 
     fn from_record(&mut self, record: SensorRecord) {
-        if let SensorRecord::RobotSensor(robot_sensor_record) = record {
-            self.last_time = robot_sensor_record.last_time;
+        if let SensorRecord::RobotSensor(node_sensor_record) = record {
+            self.last_time = node_sensor_record.last_time;
         }
     }
 }

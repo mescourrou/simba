@@ -1,7 +1,7 @@
 results:
   result_path: "../result.json"
-  show_figures: true
-  analyse_script: "../../python_scripts/analyse_results.py"
+  show_figures: false #to test automatically
+  analyse_script: "../../../python_scripts/analyse_results.py"
 time_analysis:
   exporter: TraceEventExporter
   output_path: "time_performance"

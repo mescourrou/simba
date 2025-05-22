@@ -9,9 +9,11 @@ use serde_json::Value;
 
 use crate::{
     controllers::controller::ControllerError,
+    logger::is_enabled,
     navigators::external_navigator::ExternalNavigatorRecord,
+    node::Node,
+    node_factory::NodeRecord,
     pywrappers::{ControllerErrorWrapper, StateWrapper},
-    robot::Robot,
     state_estimators::state_estimator::State,
     stateful::Stateful,
 };
@@ -20,7 +22,7 @@ use super::navigator::{Navigator, NavigatorRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonNavigatorAsyncClient {
-    pub compute_error_request: mpsc::Sender<(Robot, State)>,
+    pub compute_error_request: mpsc::Sender<State>,
     pub compute_error_response: Arc<Mutex<mpsc::Receiver<ControllerError>>>,
     pub record_request: mpsc::Sender<()>,
     pub record_response: Arc<Mutex<mpsc::Receiver<NavigatorRecord>>>,
@@ -29,9 +31,9 @@ pub struct PythonNavigatorAsyncClient {
 }
 
 impl Navigator for PythonNavigatorAsyncClient {
-    fn compute_error(&mut self, robot: &mut Robot, state: State) -> ControllerError {
+    fn compute_error(&mut self, _node: &mut Node, state: State) -> ControllerError {
         self.compute_error_request
-            .send((robot.clone(), state.clone()))
+            .send(state.clone())
             .unwrap();
         self.compute_error_response.lock().unwrap().recv().unwrap()
     }
@@ -59,7 +61,7 @@ impl Stateful<NavigatorRecord> for PythonNavigatorAsyncClient {
 pub struct PythonNavigator {
     model: Py<PyAny>,
     client: PythonNavigatorAsyncClient,
-    compute_error_request: Arc<Mutex<mpsc::Receiver<(Robot, State)>>>,
+    compute_error_request: Arc<Mutex<mpsc::Receiver<State>>>,
     compute_error_response: mpsc::Sender<ControllerError>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
     record_response: mpsc::Sender<NavigatorRecord>,
@@ -71,9 +73,11 @@ pub struct PythonNavigator {
 impl PythonNavigator {
     #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonNavigator {
-        Python::with_gil(|py| {
-            debug!("Model got: {}", py_model.bind(py).dir().unwrap());
-        });
+        if is_enabled(crate::logger::InternalLog::API) {
+            Python::with_gil(|py| {
+                debug!("Model got: {}", py_model.bind(py).dir().unwrap());
+            });
+        }
         let (compute_error_request_tx, compute_error_request_rx) = mpsc::channel();
         let (compute_error_response_tx, compute_error_response_rx) = mpsc::channel();
         let (record_request_tx, record_request_rx) = mpsc::channel();
@@ -107,14 +111,14 @@ impl PythonNavigator {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((robot, state)) = self
+        if let Ok(state) = self
             .compute_error_request
             .clone()
             .lock()
             .unwrap()
             .try_recv()
         {
-            let error = self.compute_error(&robot, &state);
+            let error = self.compute_error( &state);
             self.compute_error_response.send(error).unwrap();
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
@@ -126,9 +130,11 @@ impl PythonNavigator {
         }
     }
 
-    fn compute_error(&mut self, _robot: &crate::robot::Robot, state: &State) -> ControllerError {
-        debug!("Calling python implementation of compute_error");
-        // let robot_record = robot.record();
+    fn compute_error(&mut self, state: &State) -> ControllerError {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of compute_error");
+        }
+        // let node_record = node.record();
         let result = Python::with_gil(|py| -> ControllerErrorWrapper {
             self.model
                 .bind(py)
@@ -141,7 +147,9 @@ impl PythonNavigator {
     }
 
     fn record(&self) -> NavigatorRecord {
-        debug!("Calling python implementation of record");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of record");
+        }
         let record_str: String = Python::with_gil(|py| {
             self.model
                 .bind(py)
@@ -162,7 +170,9 @@ impl PythonNavigator {
 
     fn from_record(&mut self, record: NavigatorRecord) {
         if let NavigatorRecord::External(record) = record {
-            debug!("Calling python implementation of from_record");
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Calling python implementation of from_record");
+            }
             Python::with_gil(|py| {
                 self.model
                     .bind(py)

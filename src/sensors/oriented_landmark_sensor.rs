@@ -5,12 +5,15 @@ Provides a [`Sensor`] which can observe oriented landmarks in the frame of the r
 use super::fault_models::fault_model::{
     make_fault_model_from_config, FaultModel, FaultModelConfig,
 };
-use super::sensor::{Observation, Sensor, SensorRecord};
+use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
+use crate::constants::TIME_ROUND;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
+use crate::state_estimators::state_estimator::State;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
 
@@ -225,7 +228,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
 }
 
 /// Observation of an [`OrientedLandmark`].
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OrientedLandmarkObservation {
     /// Id of the landmark
     pub id: i32,
@@ -346,25 +349,22 @@ impl OrientedLandmarkSensor {
     }
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 
 impl Sensor for OrientedLandmarkSensor {
-    fn init(
-        &mut self,
-        _robot: &mut Robot,
-        _robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
-        _robot_idx: usize,
-    ) {
-    }
+    fn init(&mut self, _robot: &mut Node) {}
 
-    fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
-        let arc_physic = robot.physics();
-        let physic = arc_physic.read().unwrap();
-        let mut observation_list = Vec::<Observation>::new();
-        if time < self.next_time_step() {
+    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
+        let mut observation_list = Vec::<SensorObservation>::new();
+        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             return observation_list;
         }
-        let state = physic.state(time);
+        let state = if let Some(arc_physic) = robot.physics() {
+            let physic = arc_physic.read().unwrap();
+            physic.state(time).clone()
+        } else {
+            State::new() // 0
+        };
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
@@ -375,16 +375,18 @@ impl Sensor for OrientedLandmarkSensor {
             .sqrt();
             if d <= self.detection_distance {
                 let landmark_seed = 1. / (100. * self.period) * (landmark.id as f32);
-                observation_list.push(Observation::OrientedLandmark(OrientedLandmarkObservation {
-                    id: landmark.id,
-                    pose: rotation_matrix * landmark.pose + state.pose,
-                }));
+                observation_list.push(SensorObservation::OrientedLandmark(
+                    OrientedLandmarkObservation {
+                        id: landmark.id,
+                        pose: rotation_matrix * landmark.pose + state.pose,
+                    },
+                ));
                 for fault_model in self.faults.lock().unwrap().iter() {
                     fault_model.add_faults(
                         time + landmark_seed,
                         self.period,
                         &mut observation_list,
-                        Observation::OrientedLandmark(OrientedLandmarkObservation::default()),
+                        SensorObservation::OrientedLandmark(OrientedLandmarkObservation::default()),
                     );
                 }
             }
@@ -395,7 +397,7 @@ impl Sensor for OrientedLandmarkSensor {
 
     /// Get the next observation time.
     fn next_time_step(&self) -> f32 {
-        self.last_time + self.period
+        round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
     }
 
     /// Get the observation period.

@@ -30,7 +30,7 @@ pub enum NavigatorRecord {
     External(external_navigator::ExternalNavigatorRecord),
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
@@ -39,7 +39,7 @@ pub trait Navigator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<NavigatorRecord>
 {
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
-    fn compute_error(&mut self, robot: &mut Robot, state: State) -> ControllerError;
+    fn compute_error(&mut self, robot: &mut Node, state: State) -> ControllerError;
 }
 
 /// Helper function to create a navigator from the given configuration.

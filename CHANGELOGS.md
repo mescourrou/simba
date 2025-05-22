@@ -1,5 +1,18 @@
 # Changelogs
 
+## v0.5.0
+- [breaking] Network node generalization
+    Allows:
+    - Different types of nodes (robots, computation unit for now, sensor and
+      movable object later).
+    - Mechanism to automatically send node observation to another, allowing
+      centralized algorithms.
+    `Warning`: if network are configured with 0 reception delay, messages can
+    be read later or deadlock can occur.
+- [breaking] Move log config into config file, add internal level of debug
+- [breaking] Change sensor configuration to auto-send observation to another node.
+- Synchronous execution and time management (faster when messages are exchanged).
+
 ## v0.4.3
 - Fix CI to build Multi-version python wheels
 - Fix state estimator python example

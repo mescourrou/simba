@@ -1,9 +1,9 @@
 /*!
-Provides a service system to handle two-way communication between robots, with the
-client robot beeing blocked until the server robot sends a response.
+Provides a service system to handle two-way communication between nodes, with the
+client node beeing blocked until the server node sends a response.
 
-The server robot should create a [`Service`] and handle the requests in
-[`run_time_step`](crate::robot::Robot::run_time_step). The client robot should get a
+The server node should create a [`Service`] and handle the requests in
+[`run_time_step`](crate::node::Robot::run_time_step). The client node should get a
 [`ServiceClient`] instance to be able to make a request.
 
 To operate a service, two messages types should be defined:
@@ -20,7 +20,9 @@ use std::{
 
 use log::debug;
 
-use crate::{robot::Robot, utils::time_ordered_data::TimeOrderedData};
+use crate::{
+    logger::is_enabled, node::Node, simulator::TimeCv, utils::time_ordered_data::TimeOrderedData,
+};
 
 use super::network::MessageFlag;
 
@@ -34,15 +36,15 @@ pub trait ServiceInterface: Debug + Send + Sync {
 ///
 /// The client is linked to a server, and can make requests to it. The client is blocked until the
 /// server sends a response.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ServiceClient<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> {
     // Channel to send the request to the server (given by the server).
     response_channel: Arc<Mutex<mpsc::Receiver<Result<ResponseMsg, String>>>>,
     // Channel to receive the response from the server (given by the server).
     request_channel: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32, Vec<MessageFlag>)>>>,
-    // Simulator condition variable needed so that all robots wait the end of other,
+    // Simulator condition variable needed so that all nodes wait the end of other,
     // and continue to treat messages.
-    time_cv: Arc<(Mutex<usize>, Condvar)>,
+    time_cv: Arc<TimeCv>,
 }
 
 impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<RequestMsg, ResponseMsg> {
@@ -53,41 +55,63 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
     /// method.
     ///
     /// ## Arguments
-    /// * `robot` - Reference to the [`Robot`](crate::robot::Robot) making the request.
+    /// * `node` - Reference to the [`Robot`] making the request.
     /// * `req` - Request message to send to the server.
     /// * `time` - Time at which the request is made.
     ///
     /// ## Returns
     /// The response from the server, or an error message if the request failed.
-    pub fn make_request(
-        &mut self,
-        robot: &mut Robot,
+    pub fn send_request(
+        &self,
+        node_name: String,
         req: RequestMsg,
         time: f32,
         message_flags: Vec<MessageFlag>,
-    ) -> Result<ResponseMsg, String> {
-        debug!("Sending a request...");
-        let lk = self.time_cv.0.lock().unwrap();
+    ) -> Result<(), String> {
+        if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+            debug!("Sending a request");
+        }
+        let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+        *circulating_messages += 1;
+        std::mem::drop(circulating_messages);
         match self.request_channel.lock().unwrap().send((
-            robot.name(),
+            node_name,
             req,
             time,
             // To be changed when full support of the message mode will be implemented
             message_flags,
         )) {
-            Err(e) => return Err(e.to_string()),
+            Err(e) => panic!("{}", e.to_string()), //return Err(e.to_string()),
             _ => (),
         }
-        debug!("Sending a request... OK");
-        // Needed to unlock the other robot if it has finished and is waiting for messages.
-        self.time_cv.1.notify_all();
+        if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+            debug!("Sending a request: OK");
+        }
+        let lk = self.time_cv.finished_nodes.lock().unwrap();
+        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+            debug!("Lock acquired in service");
+            debug!("Wake waiting nodes");
+        }
+        // Needed to unlock the other node if it has finished and is waiting for messages.
+        self.time_cv.condvar.notify_all();
+        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+            debug!("Release CV lock");
+        }
         std::mem::drop(lk);
-        debug!("Waiting for result...");
-        let result = match self.response_channel.lock().unwrap().recv() {
+        Ok(())
+    }
+
+    pub fn try_recv(&self) -> Result<ResponseMsg, String> {
+        let result = match self.response_channel.lock().unwrap().try_recv() {
             Ok(result) => result,
             Err(e) => return Err(e.to_string()),
         };
-        debug!("Result received");
+
+        let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+        *circulating_messages -= 1;
+        if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+            debug!("Result received");
+        }
         result
     }
 }
@@ -95,7 +119,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
 /// Service to handle requests from clients.
 ///
 /// Handles requests from clients, and send responses to them. The server should handle
-/// the requests in [`run_time_step`](crate::robot::Robot::run_time_step).
+/// the requests in [`run_time_step`](crate::node::Robot::run_time_step).
 #[derive(Debug)]
 pub struct Service<
     RequestMsg: Debug + Clone,
@@ -110,9 +134,9 @@ pub struct Service<
     clients: BTreeMap<String, Arc<Mutex<mpsc::Sender<Result<ResponseMsg, String>>>>>,
     /// Buffer to store the requests until it is time to treat them.
     request_buffer: Arc<RwLock<TimeOrderedData<(String, RequestMsg, Vec<MessageFlag>)>>>,
-    /// Simulator condition variable needed so that all robots wait the end of others,
+    /// Simulator condition variable needed so that all nodes wait the end of others,
     /// and continue to treat messages.
-    time_cv: Arc<(Mutex<usize>, Condvar)>,
+    time_cv: Arc<TimeCv>,
     target: Arc<RwLock<Box<T>>>,
 }
 
@@ -125,8 +149,8 @@ impl<
     /// Create a new service.
     ///
     /// ## Arguments
-    /// * `time_cv` - Condition variable of the simulator, to wait the end of the robots.
-    pub fn new(time_cv: Arc<(Mutex<usize>, Condvar)>, target: Arc<RwLock<Box<T>>>) -> Self {
+    /// * `time_cv` - Condition variable of the simulator, to wait the end of the nodes.
+    pub fn new(time_cv: Arc<TimeCv>, target: Arc<RwLock<Box<T>>>) -> Self {
         let (tx, rx) = mpsc::channel::<(String, RequestMsg, f32, Vec<MessageFlag>)>();
         Self {
             request_channel_give: Arc::new(Mutex::new(tx)),
@@ -141,11 +165,11 @@ impl<
     /// Makes a new client to the service, with the channels already setup.
     ///
     /// ## Arguments
-    /// * `robot_name` - Name of the client robot, to be able to send responses to it.
-    pub fn new_client(&mut self, robot_name: &str) -> ServiceClient<RequestMsg, ResponseMsg> {
+    /// * `node_name` - Name of the client node, to be able to send responses to it.
+    pub fn new_client(&mut self, node_name: &str) -> ServiceClient<RequestMsg, ResponseMsg> {
         let (tx, rx) = mpsc::channel::<Result<ResponseMsg, String>>();
         self.clients
-            .insert(robot_name.to_string(), Arc::new(Mutex::new(tx)));
+            .insert(node_name.to_string(), Arc::new(Mutex::new(tx)));
         ServiceClient {
             request_channel: self.request_channel_give.clone(),
             response_channel: Arc::new(Mutex::new(rx)),
@@ -168,19 +192,20 @@ impl<
     /// ## Returns
     /// The number of requests remaining in the buffer.
     fn process_requests(&self) -> usize {
-        debug!("Processing service requests...");
         for (from, message, time, message_flags) in self.request_channel.lock().unwrap().try_iter()
         {
+            let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+            *circulating_messages -= 1;
+            std::mem::drop(circulating_messages);
+            if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+                debug!("Insert request from {from} at time {time}");
+            }
             self.request_buffer.write().unwrap().insert(
                 time,
                 (from, message, message_flags),
                 false,
             );
         }
-        debug!(
-            "Processing services requests... {} request in the buffer",
-            self.request_buffer.read().unwrap().len()
-        );
         self.request_buffer.read().unwrap().len()
     }
 
@@ -193,12 +218,21 @@ impl<
         while let Some((_msg_time, (from, message, _message_flags))) =
             self.request_buffer.write().unwrap().remove(time)
         {
-            debug!("Handling message from {from} at time {time}...");
+            if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+                debug!("Handling message from {from} at time {time}...");
+            }
             let result = self
                 .target
                 .write()
                 .unwrap()
                 .handle_service_requests(message, time);
+            if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+                debug!("Got result");
+            }
+            {
+                let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+                *circulating_messages += 1;
+            }
             self.clients
                 .get(&from)
                 .expect(
@@ -209,7 +243,9 @@ impl<
                 .unwrap()
                 .send(result)
                 .expect("Fail to send response");
-            debug!("Handling message from {from} at time {time}... Response sent");
+            if is_enabled(crate::logger::InternalLog::ServiceHandling) {
+                debug!("Handling message from {from} at time {time}... Response sent");
+            }
         }
     }
 
@@ -231,8 +267,8 @@ pub trait ServiceHandler<RequestMsg, ResponseMsg>: Sync + Send + Debug {
 /// Common interface for all struct which manages a service.
 pub trait HasService<RequestMsg, ResponseMsg>: Debug + Sync + Send {
     // /// Create the service: should be called only once, at the beginning.
-    // fn make_service(&mut self, robot: Arc<RwLock<Robot>>);
-    // /// Create a new client to the service, should be called by client robots.
+    // fn make_service(&mut self, node: Arc<RwLock<Robot>>);
+    // /// Create a new client to the service, should be called by client nodes.
     // fn new_client(&mut self, client_name: &str) -> ServiceClient<RequestMsg, ResponseMsg>;
     /// Handle the requests received from the clients at the given `time`.
     fn handle_service_requests(

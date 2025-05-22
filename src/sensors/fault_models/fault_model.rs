@@ -6,7 +6,7 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    sensors::sensor::Observation, simulator::SimulatorConfig,
+    sensors::sensor::SensorObservation, simulator::SimulatorConfig,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
@@ -71,7 +71,7 @@ pub trait FaultModel: Debug + Sync + Send {
         &self,
         time: f32,
         period: f32,
-        obs_list: &mut Vec<Observation>,
-        obs_type: Observation,
+        obs_list: &mut Vec<SensorObservation>,
+        obs_type: SensorObservation,
     );
 }

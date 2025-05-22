@@ -7,6 +7,8 @@ use core::slice::{Iter, IterMut};
 use std::iter::Skip;
 use std::vec::Vec;
 
+use crate::constants::TIME_ROUND;
+
 /// Data structure to store ordered timed data.
 ///
 /// The generic is the Type to be stored. For now, the time is stored
@@ -61,12 +63,12 @@ impl<T> TimeOrderedData<T> {
 
         while pos > 0 {
             let pos_time = self.data[pos - 1].0;
-            if pos_time < time {
-                // Return.1 is erase value
+            if pos_time < time - TIME_ROUND / 2. {
+                // Return.1 is if the time is exact (not here)
                 return (pos, false);
-            } else if (pos_time - time).abs() < 10e-15 {
+            } else if (pos_time - time).abs() < TIME_ROUND / 2. {
                 pos = pos - 1;
-                // Return.1 is erase value
+                // Return.1 is if the time is exact
                 return (pos, true);
             }
             pos = pos - 1;
@@ -84,9 +86,9 @@ impl<T> TimeOrderedData<T> {
     ///
     /// TODO: test without erase, if all elements come out by iter.
     pub fn insert(&mut self, time: f32, data: T, do_erase: bool) {
-        let (pos, erase) = self.find_time_position(time);
+        let (pos, exact) = self.find_time_position(time);
 
-        if erase {
+        if exact {
             if do_erase {
                 self.data[pos] = (time, data);
             } else {
@@ -225,7 +227,7 @@ impl<T> TimeOrderedData<T> {
     /// * `None` if no data was found at this `time`.
     pub fn get_data_at_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
-            if (data_time - &time).abs() < 1e-15 {
+            if (data_time - &time).abs() < TIME_ROUND / 2. {
                 return Some((time, data));
             }
         }
@@ -240,7 +242,7 @@ impl<T> TimeOrderedData<T> {
     /// * `None` if no data was found at this `time`.
     pub fn get_data_at_time_mut(&mut self, time: f32) -> Option<(f32, &mut T)> {
         for (data_time, ref mut data) in self.data.iter_mut() {
-            if (*data_time - time).abs() < 1e-15 {
+            if (*data_time - time).abs() < TIME_ROUND / 2. {
                 return Some((time, data));
             }
         }
@@ -252,7 +254,7 @@ impl<T> TimeOrderedData<T> {
     /// If `time` is an existent time, the iterator starts at this position.
     pub fn iter_from_time(&self, time: f32) -> Skip<Iter<'_, (f32, T)>> {
         let (mut pos, _) = self.find_time_position(time);
-        while pos > 0 && (self.data[pos - 1].0 - time).abs() < 1e-15 {
+        while pos > 0 && (self.data[pos - 1].0 - time).abs() < TIME_ROUND / 2. {
             pos -= 1;
         }
         self.data.iter().skip(pos)
@@ -275,8 +277,8 @@ impl<T> TimeOrderedData<T> {
     ///
     /// If there is no data at the given time, `None` is returned.
     pub fn remove(&mut self, time: f32) -> Option<(f32, T)> {
-        let (pos, erase) = self.find_time_position(time);
-        if !erase {
+        let (pos, exact) = self.find_time_position(time);
+        if !exact {
             return None;
         }
 

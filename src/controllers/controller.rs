@@ -50,7 +50,7 @@ pub enum ControllerRecord {
     External(external_controller::ExternalControllerRecord),
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 
 /// Controller strategy, which compute the [`Command`] to be sent to the
 /// [`Physic`](crate::physics::physic::Physic) module, from the given `error`.
@@ -66,7 +66,7 @@ pub trait Controller:
     ///
     /// ## Return
     /// Command to apply to the [`Physic`](crate::physics::physic::Physic).
-    fn make_command(&mut self, robot: &mut Robot, error: &ControllerError, time: f32) -> Command;
+    fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command;
 }
 
 /// Helper function to make the right [`Controller`] from the given configuration.

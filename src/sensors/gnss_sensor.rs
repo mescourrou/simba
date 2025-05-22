@@ -7,12 +7,14 @@ use std::sync::{Arc, Mutex, RwLock};
 use super::fault_models::fault_model::{
     make_fault_model_from_config, FaultModel, FaultModelConfig,
 };
-use super::sensor::{Observation, Sensor, SensorRecord};
+use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
+use crate::constants::TIME_ROUND;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
 use nalgebra::Vector2;
 use serde_derive::{Deserialize, Serialize};
@@ -54,7 +56,7 @@ impl Default for GNSSSensorRecord {
 }
 
 /// Observation of the odometry.
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GNSSObservation {
     pub position: Vector2<f32>,
     pub velocity: Vector2<f32>,
@@ -130,22 +132,18 @@ impl GNSSSensor {
     }
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 
 impl Sensor for GNSSSensor {
-    fn init(
-        &mut self,
-        _robot: &mut Robot,
-        _robot_list: &Arc<RwLock<Vec<Arc<RwLock<Robot>>>>>,
-        _robot_idx: usize,
-    ) {
-    }
+    fn init(&mut self, _robot: &mut Node) {}
 
-    fn get_observations(&mut self, robot: &mut Robot, time: f32) -> Vec<Observation> {
-        let arc_physic = robot.physics();
+    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
+        let arc_physic = robot
+            .physics()
+            .expect("Node with GNSS sensor should have Physics");
         let physic = arc_physic.read().unwrap();
-        let mut observation_list = Vec::<Observation>::new();
-        if time < self.next_time_step() {
+        let mut observation_list = Vec::<SensorObservation>::new();
+        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             return observation_list;
         }
         let state = physic.state(time);
@@ -155,7 +153,7 @@ impl Sensor for GNSSSensor {
             state.velocity * state.pose.z.sin(),
         ]);
 
-        observation_list.push(Observation::GNSS(GNSSObservation {
+        observation_list.push(SensorObservation::GNSS(GNSSObservation {
             position: state.pose.fixed_rows::<2>(0).into(),
             velocity,
         }));
@@ -164,7 +162,7 @@ impl Sensor for GNSSSensor {
                 time,
                 self.period,
                 &mut observation_list,
-                Observation::GNSS(GNSSObservation::default()),
+                SensorObservation::GNSS(GNSSObservation::default()),
             );
         }
 
@@ -173,7 +171,7 @@ impl Sensor for GNSSSensor {
     }
 
     fn next_time_step(&self) -> f32 {
-        self.last_time + self.period
+        round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
     }
 
     fn period(&self) -> f32 {

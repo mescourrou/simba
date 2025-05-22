@@ -1,0 +1,216 @@
+@startuml
+skinparam linetype polyline
+skinparam linetype ortho
+skinparam groupImplementation 2
+
+class Simulator
+Simulator *-- "*" Node
+
+enum NodeType {
+    Robot
+    Sensor
+    Object
+    ComputationUnit
+}
+note right of NodeType::Robot
+    Can move, can be detected, can sense, can communicate
+end note
+note right of NodeType::Sensor
+    Cannot move, cannot be detected, can sense, can communicate
+end note
+note right of NodeType::Object
+    Can be moved, can be detected, cannot sense, cannot communicate
+end note
+note right of NodeType::ComputationUnit
+    Cannot move, cannot be detected, cannot sense, can communicate
+end note
+
+class Node
+Node *-- NodeType
+
+class NodeFactory {
+    make_robot(RobotConfig)
+    make_sensor(SensorConfig)
+    make_object(ObjectConfig)
+    make_computation_unit(ComputationUnitConfig)
+}
+NodeFactory --> Node
+
+package physics {
+Node *-- "+" Physics
+interface Physics
+note left of Physics: Allow to be mobile\nand to be perceived
+
+Physics <|.. PerfectPhysics
+Physics <|.. ExternalPhysics
+class PerfectPhysics
+class ExternalPhysics
+}
+
+package state_estimators {
+Node *-- "+" StateEstimator
+interface StateEstimator
+
+StateEstimator <|.. PerfectEstimator
+StateEstimator <|.. ExternalEstimator
+class PerfectEstimator
+class ExternalEstimator
+}
+
+package navigators {
+Node *-- "+" Navigator
+interface Navigator
+Navigator <|.. TrajectoryFollower
+Navigator <|.. ExternalNavigator
+class TrajectoryFollower
+class ExternalNavigator
+}
+
+package controllers {
+Node *-- "+" Controller
+interface Controller
+Controller <|.. PID
+Controller <|.. ExternalController
+class PID
+class ExternalController
+}
+
+
+package utils {
+class DeterministRandomVariableFactory
+
+DeterministRandomVariableFactory --> DeterministRandomVariable
+interface DeterministRandomVariable
+
+package distributions {
+    
+DeterministRandomVariable <|.. Bernouilli
+class Bernouilli
+
+DeterministRandomVariable <|.. Exponential
+class Exponential
+
+DeterministRandomVariable <|.. Normal
+class Normal
+
+DeterministRandomVariable <|.. Poisson
+class Poisson
+
+DeterministRandomVariable <|.. Uniform
+class Uniform
+
+DeterministRandomVariable <|.. Fixed
+class Fixed
+}
+}
+
+package sensors {
+Node *-- "+" SensorManager
+class SensorManager
+
+SensorManager *-- "*" Sensor
+interface Sensor
+
+Sensor <|.. GNSSSensor
+class GNSSSensor
+
+Sensor <|.. OdometrySensor
+class OdometrySensor
+
+Sensor <|.. OrientedLandmarkSensor
+class OrientedLandmarkSensor
+
+Sensor <|.. RobotSensor
+class RobotSensor
+
+package fault_models {
+
+GNSSSensor *-- "*" FaultModel
+OdometrySensor *-- "*" FaultModel
+OrientedLandmarkSensor *-- "*" FaultModel
+RobotSensor *-- "*" FaultModel
+interface FaultModel
+
+FaultModel <|.. AdditiveObservationCenteredPolar
+class AdditiveObservationCenteredPolar {
+    apparition
+    distributions
+}
+AdditiveObservationCenteredPolar::apparition *-- Bernouilli
+AdditiveObservationCenteredPolar::distributions *-- "*" DeterministRandomVariable
+
+FaultModel <|.. AdditiveRobotCenteredPolar
+class AdditiveRobotCenteredPolar  {
+    apparition
+    distributions
+}
+AdditiveRobotCenteredPolar::apparition *-- Bernouilli
+AdditiveRobotCenteredPolar::distributions *-- "*" DeterministRandomVariable
+
+FaultModel <|.. AdditiveRobotCentered
+class AdditiveRobotCentered {
+    apparition
+    distributions
+}
+AdditiveRobotCentered::apparition *-- Bernouilli
+AdditiveRobotCentered::distributions *-- "*" DeterministRandomVariable
+
+FaultModel <|.. Clutter
+class Clutter {
+    apparition
+    distributions
+}
+Clutter::apparition *-- DeterministRandomVariable
+Clutter::distributions *-- "*" DeterministRandomVariable
+
+FaultModel <|.. Misassociation
+class Misassociation {
+    apparition
+    distribution
+}
+Misassociation::apparition *-- Bernouilli
+Misassociation::distribution *-- DeterministRandomVariable
+
+FaultModel <|.. Misdetection
+class Misdetection {
+    apparition
+}
+Misdetection::apparition *-- Bernouilli
+}
+}
+
+
+package networking {
+Simulator *-- NetworkManager
+class NetworkManager
+
+Node *-- "+" Network
+class Network
+
+Network <--> NetworkManager : mpsc
+
+Node *-- ServiceManager
+class ServiceManager {
+    get_real_state: Service
+    get_real_state_client: map[ServiceClient]
+}
+ServiceManager *-- "1" Service
+ServiceManager *-- "*" ServiceClient
+
+interface ServiceInterface
+note top of ServiceInterface: Not used anymore
+
+ServiceInterface <|.. Service
+class Service<RequestMsg, ResponseMsg>
+class ServiceClient<RequestMsg, ResponseMsg>
+Service <--> ServiceClient: mpsc
+}
+
+package physics {
+package physics_fault_models_<<future>> {
+
+}
+}
+
+@enduml
+

@@ -407,8 +407,8 @@ impl TimeAnalysisStatistics {
 #[cfg(feature = "time-analysis")]
 #[derive(Debug)]
 struct TimeAnalysisFactory {
-    robots_names: HashMap<ThreadId, String>,
-    robots_depth: HashMap<ThreadId, usize>,
+    nodes_names: HashMap<ThreadId, String>,
+    nodes_depth: HashMap<ThreadId, usize>,
     execution_tree: HashMap<String, ExecutionTree>,
     current_coordinates: HashMap<ThreadId, (i64, Vec<usize>)>,
     exporter: Box<dyn ProfilerExporter>,
@@ -421,8 +421,8 @@ impl TimeAnalysisFactory {
         lazy_static! {
             static ref FACTORY: Mutex<TimeAnalysisFactory> = {
                 let m = Mutex::new(TimeAnalysisFactory {
-                    robots_names: HashMap::new(),
-                    robots_depth: HashMap::new(),
+                    nodes_names: HashMap::new(),
+                    nodes_depth: HashMap::new(),
                     current_coordinates: HashMap::new(),
                     execution_tree: HashMap::new(),
                     exporter: Box::new(TraceEventExporter {}),
@@ -449,16 +449,16 @@ impl TimeAnalysisFactory {
         self.config = config.clone();
     }
 
-    pub fn set_robot_name(name: String) {
+    pub fn set_node_name(name: String) {
         let factory = TimeAnalysisFactory::get_instance();
         let mut factory = factory.lock().unwrap();
-        factory._set_robot_name(name);
+        factory._set_node_name(name);
     }
 
-    fn _set_robot_name(&mut self, name: String) {
-        self.robots_names
+    fn _set_node_name(&mut self, name: String) {
+        self.nodes_names
             .insert(thread::current().id(), name.clone());
-        self.robots_depth.insert(thread::current().id(), 0);
+        self.nodes_depth.insert(thread::current().id(), 0);
         self.current_coordinates
             .insert(thread::current().id(), (0, Vec::new()));
         self.execution_tree.insert(name, ExecutionTree::new());
@@ -472,36 +472,36 @@ impl TimeAnalysisFactory {
     }
 
     fn _time_analysis(&mut self, time: f32, name: String) -> TimeAnalysis {
-        self._time_analysis_robot_name(
+        self._time_analysis_node_name(
             time,
             name,
-            self.robots_names
+            self.nodes_names
                 .get(&thread::current().id())
                 .unwrap()
                 .clone(),
         )
     }
 
-    pub fn time_analysis_robot_name(time: f32, name: String, robot_name: String) -> TimeAnalysis {
+    pub fn time_analysis_node_name(time: f32, name: String, node_name: String) -> TimeAnalysis {
         let factory = TimeAnalysisFactory::get_instance();
         let mut factory = factory.lock().unwrap();
         let ta = factory
-            ._time_analysis_robot_name(time, name, robot_name)
+            ._time_analysis_node_name(time, name, node_name)
             .clone();
         ta
     }
 
-    fn _time_analysis_robot_name(
+    fn _time_analysis_node_name(
         &mut self,
         time: f32,
         name: String,
-        robot_name: String,
+        node_name: String,
     ) -> TimeAnalysis {
-        let robot_id = self
-            .robots_names
+        let node_id = self
+            .nodes_names
             .iter()
             .find_map(|(key, &ref val)| {
-                if val == &robot_name {
+                if val == &node_name {
                     Some(key.clone())
                 } else {
                     None
@@ -510,8 +510,8 @@ impl TimeAnalysisFactory {
             .expect("Robot name not found");
 
         let time_int = Duration::from_secs_f32(time).as_micros() as i64;
-        let depth = *self.robots_depth.get(&thread::current().id()).unwrap();
-        let current_coordinates = self.current_coordinates.get_mut(&robot_id).unwrap();
+        let depth = *self.nodes_depth.get(&thread::current().id()).unwrap();
+        let current_coordinates = self.current_coordinates.get_mut(&node_id).unwrap();
         if current_coordinates.0 != time_int {
             current_coordinates.0 = time_int;
             current_coordinates.1.clear();
@@ -522,7 +522,7 @@ impl TimeAnalysisFactory {
             current_coordinates.1[depth] += 1;
         }
 
-        self.execution_tree.get_mut(&robot_name).unwrap().add(
+        self.execution_tree.get_mut(&node_name).unwrap().add(
             name.clone(),
             time_int,
             current_coordinates.1.clone(),
@@ -531,10 +531,10 @@ impl TimeAnalysisFactory {
         let ta = TimeAnalysis {
             simulated_time: time,
             begin: time::Instant::now(),
-            name: robot_name.clone() + "_" + &name,
+            name: node_name.clone() + "_" + &name,
             coordinates: current_coordinates.1.clone(),
         };
-        *self.robots_depth.get_mut(&thread::current().id()).unwrap() += 1;
+        *self.nodes_depth.get_mut(&thread::current().id()).unwrap() += 1;
         ta
     }
 
@@ -546,8 +546,8 @@ impl TimeAnalysisFactory {
     }
 
     fn _finished_time_analysis(&mut self, ta: TimeAnalysis, elapsed: time::Duration) {
-        let robot_name = self.robots_names.get(&thread::current().id()).unwrap();
-        *self.robots_depth.get_mut(&thread::current().id()).unwrap() -= 1;
+        let node_name = self.nodes_names.get(&thread::current().id()).unwrap();
+        *self.nodes_depth.get_mut(&thread::current().id()).unwrap() -= 1;
         // let indent = ta.depth*2;
         let time_int = Duration::from_secs_f32(ta.simulated_time).as_micros() as i64;
         // let coordinates = self.current_coordinates.get_mut(&thread::current().id()).unwrap();
@@ -555,7 +555,7 @@ impl TimeAnalysisFactory {
 
         let node = self
             .execution_tree
-            .get_mut(&robot_name.clone())
+            .get_mut(&node_name.clone())
             .unwrap()
             .get_node(ta.name.clone(), time_int, coordinates.clone());
         if node.is_none() {
@@ -601,7 +601,7 @@ impl TimeAnalysisFactory {
         let path = path.with_extension("report").with_extension("csv");
 
         let mut stats = HashMap::<String, Vec<String>>::new();
-        let mut robot_headers = vec!["Unit:".to_string()];
+        let mut node_headers = vec!["Unit:".to_string()];
         let mut track_headers = vec![self.config.analysis_unit.clone()];
 
         let unit_multiplier = match self.config.analysis_unit.as_str() {
@@ -612,8 +612,8 @@ impl TimeAnalysisFactory {
             &_ => panic!("Unknown unit!"),
         };
 
-        for (robot_name, profiles) in self.iter_execution_profiles() {
-            robot_headers.push(robot_name.clone());
+        for (node_name, profiles) in self.iter_execution_profiles() {
+            node_headers.push(node_name.clone());
             let mut map: HashMap<String, Vec<f32>> = HashMap::new();
             for profile in profiles {
                 let t = profile.duration.as_secs_f32() * unit_multiplier;
@@ -634,14 +634,14 @@ impl TimeAnalysisFactory {
                     }
                 }
                 track_headers.push(profile_name);
-                robot_headers.push("".to_string());
+                node_headers.push("".to_string());
             }
-            robot_headers.pop();
+            node_headers.pop();
         }
 
         let mut writer =
             csv::Writer::from_path(path).expect("Unknown path for time analysis report");
-        writer.write_record(robot_headers).unwrap();
+        writer.write_record(node_headers).unwrap();
         writer.write_record(track_headers).unwrap();
         for (row_name, mut values) in stats {
             values.insert(0, row_name);
@@ -658,8 +658,8 @@ pub fn init_from_config(config: &TimeAnalysisConfig) {
 }
 
 #[cfg(feature = "time-analysis")]
-pub fn set_robot_name(name: String) {
-    TimeAnalysisFactory::set_robot_name(name);
+pub fn set_node_name(name: String) {
+    TimeAnalysisFactory::set_node_name(name);
 }
 
 #[cfg(feature = "time-analysis")]
@@ -668,8 +668,8 @@ pub fn time_analysis(time: f32, name: String) -> TimeAnalysis {
 }
 
 #[cfg(feature = "time-analysis")]
-pub fn time_analysis_robot_name(time: f32, name: String, robot_name: String) -> TimeAnalysis {
-    TimeAnalysisFactory::time_analysis_robot_name(time, name, robot_name)
+pub fn time_analysis_node_name(time: f32, name: String, node_name: String) -> TimeAnalysis {
+    TimeAnalysisFactory::time_analysis_node_name(time, name, node_name)
 }
 
 #[cfg(feature = "time-analysis")]
@@ -687,7 +687,7 @@ pub fn save_results() {
 pub fn init_from_config(_config: &TimeAnalysisConfig) {}
 
 #[cfg(not(feature = "time-analysis"))]
-pub fn set_robot_name(_name: String) {}
+pub fn set_node_name(_name: String) {}
 
 #[cfg(not(feature = "time-analysis"))]
 pub fn time_analysis(time: f32, name: String) -> TimeAnalysis {
@@ -700,7 +700,7 @@ pub fn time_analysis(time: f32, name: String) -> TimeAnalysis {
 }
 
 #[cfg(not(feature = "time-analysis"))]
-pub fn time_analysis_robot_name(time: f32, name: String, _robot_name: String) -> TimeAnalysis {
+pub fn time_analysis_node_name(time: f32, name: String, _node_name: String) -> TimeAnalysis {
     TimeAnalysis {
         simulated_time: time,
         begin: time::Instant::now(),
@@ -768,9 +768,9 @@ struct TraceEventRoot {
 impl ProfilerExporter for TraceEventExporter {
     fn export(&self, taf: &TimeAnalysisFactory, path: &Path) {
         let mut trace_events = Vec::new();
-        let mut robot_names = Vec::new();
-        for (robot_name, profiles) in taf.iter_execution_profiles() {
-            robot_names.push(robot_name);
+        let mut node_names = Vec::new();
+        for (node_name, profiles) in taf.iter_execution_profiles() {
+            node_names.push(node_name);
             trace_events.push(TraceEvent {
                 name: "thread_name".to_string(),
                 cat: "PERF".to_string(),
@@ -779,9 +779,9 @@ impl ProfilerExporter for TraceEventExporter {
                 dur: 0,
                 sf: 0,
                 ts: 0,
-                tid: robot_names.len() as i64 - 1,
+                tid: node_names.len() as i64 - 1,
                 args: Some(serde_json::json!({
-                    "name" : robot_name.to_string()
+                    "name" : node_name.to_string()
                 })),
             });
             for profile in profiles {
@@ -791,7 +791,7 @@ impl ProfilerExporter for TraceEventExporter {
                     ph: "X".to_string(),
                     ts: profile.begin,
                     dur: profile.duration.as_micros() as i64,
-                    tid: robot_names.len() as i64 - 1,
+                    tid: node_names.len() as i64 - 1,
                     pid: 0,
                     args: None,
                     sf: 0,

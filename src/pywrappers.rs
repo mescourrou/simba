@@ -11,9 +11,11 @@ use crate::{
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
-        gnss_sensor::GNSSObservation, odometry_sensor::OdometryObservation,
+        gnss_sensor::GNSSObservation,
+        odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
-        robot_sensor::OrientedRobotObservation, sensor::Observation,
+        robot_sensor::OrientedRobotObservation,
+        sensor::{Observation, SensorObservation},
     },
     simulator::Simulator,
     state_estimators::{pybinds::PythonStateEstimator, state_estimator::State},
@@ -271,8 +273,8 @@ impl OrientedRobotObservationWrapper {
 
 #[derive(Clone)]
 #[pyclass(get_all, set_all)]
-#[pyo3(name = "Observation")]
-pub enum ObservationWrapper {
+#[pyo3(name = "SensorObservation")]
+pub enum SensorObservationWrapper {
     OrientedLandmark(OrientedLandmarkObservationWrapper),
     Odometry(OdometryObservationWrapper),
     GNSS(GNSSObservationWrapper),
@@ -280,34 +282,82 @@ pub enum ObservationWrapper {
 }
 
 #[pymethods]
+impl SensorObservationWrapper {
+    #[new]
+    pub fn new() -> Self {
+        SensorObservationWrapper::GNSS(GNSSObservationWrapper::new())
+    }
+}
+
+impl SensorObservationWrapper {
+    pub fn from_ros(s: &SensorObservation) -> Self {
+        match s {
+            SensorObservation::GNSS(o) => {
+                SensorObservationWrapper::GNSS(GNSSObservationWrapper::from_ros(o))
+            }
+            SensorObservation::Odometry(o) => {
+                SensorObservationWrapper::Odometry(OdometryObservationWrapper::from_ros(o))
+            }
+            SensorObservation::OrientedLandmark(o) => SensorObservationWrapper::OrientedLandmark(
+                OrientedLandmarkObservationWrapper::from_ros(o),
+            ),
+            SensorObservation::OrientedRobot(o) => SensorObservationWrapper::OrientedRobot(
+                OrientedRobotObservationWrapper::from_ros(o),
+            ),
+        }
+    }
+    pub fn to_ros(&self) -> SensorObservation {
+        match self {
+            SensorObservationWrapper::GNSS(o) => SensorObservation::GNSS(o.to_ros()),
+            SensorObservationWrapper::Odometry(o) => SensorObservation::Odometry(o.to_ros()),
+            SensorObservationWrapper::OrientedLandmark(o) => {
+                SensorObservation::OrientedLandmark(o.to_ros())
+            }
+            SensorObservationWrapper::OrientedRobot(o) => {
+                SensorObservation::OrientedRobot(o.to_ros())
+            }
+        }
+    }
+}
+
+#[derive(Clone)]
+#[pyclass(get_all, set_all)]
+#[pyo3(name = "Observation")]
+pub struct ObservationWrapper {
+    pub sensor_name: String,
+    pub observer: String,
+    pub time: f32,
+    pub sensor_observation: SensorObservationWrapper,
+}
+
+#[pymethods]
 impl ObservationWrapper {
     #[new]
     pub fn new() -> Self {
-        ObservationWrapper::GNSS(GNSSObservationWrapper::new())
+        Self {
+            sensor_name: "some_sensor".to_string(),
+            observer: "someone".to_string(),
+            time: 0.,
+            sensor_observation: SensorObservationWrapper::new(),
+        }
     }
 }
 
 impl ObservationWrapper {
     pub fn from_ros(s: &Observation) -> Self {
-        match s {
-            Observation::GNSS(o) => ObservationWrapper::GNSS(GNSSObservationWrapper::from_ros(o)),
-            Observation::Odometry(o) => {
-                ObservationWrapper::Odometry(OdometryObservationWrapper::from_ros(o))
-            }
-            Observation::OrientedLandmark(o) => ObservationWrapper::OrientedLandmark(
-                OrientedLandmarkObservationWrapper::from_ros(o),
-            ),
-            Observation::OrientedRobot(o) => {
-                ObservationWrapper::OrientedRobot(OrientedRobotObservationWrapper::from_ros(o))
-            }
+        Self {
+            sensor_name: s.sensor_name.clone(),
+            observer: s.observer.clone(),
+            time: s.time,
+            sensor_observation: SensorObservationWrapper::from_ros(&s.sensor_observation),
         }
     }
     pub fn to_ros(&self) -> Observation {
-        match self {
-            ObservationWrapper::GNSS(o) => Observation::GNSS(o.to_ros()),
-            ObservationWrapper::Odometry(o) => Observation::Odometry(o.to_ros()),
-            ObservationWrapper::OrientedLandmark(o) => Observation::OrientedLandmark(o.to_ros()),
-            ObservationWrapper::OrientedRobot(o) => Observation::OrientedRobot(o.to_ros()),
+        Observation {
+            sensor_name: self.sensor_name.clone(),
+            observer: self.observer.clone(),
+            time: self.time,
+            sensor_observation: self.sensor_observation.to_ros(),
         }
     }
 }
@@ -358,7 +408,7 @@ impl PluginAPIWrapper {
     pub fn new() -> Self {
         Self {}
     }
-    /// Return the [`StateEstimator`] to be used by the
+    /// Return the [`StateEstimator`](`crate::state_estimators::state_estimators::StateEstimator`) to be used by the
     /// [`ExternalEstimator`](`crate::state_estimators::external_estimator::ExternalEstimator`).
     ///
     /// # Arguments
@@ -443,24 +493,9 @@ pub struct SimulatorWrapper {
 #[pymethods]
 impl SimulatorWrapper {
     #[staticmethod]
-    #[pyo3(signature = (config_path, plugin_api=None, loglevel="off"))]
-    pub fn from_config(
-        config_path: String,
-        plugin_api: Option<Py<PyAny>>,
-        loglevel: &str,
-    ) -> SimulatorWrapper {
-        Simulator::init_environment(
-            match loglevel.to_lowercase().as_str() {
-                "debug" => log::LevelFilter::Debug,
-                "info" => log::LevelFilter::Info,
-                "warn" => log::LevelFilter::Warn,
-                "error" => log::LevelFilter::Error,
-                "off" => log::LevelFilter::Off,
-                &_ => log::LevelFilter::Off,
-            },
-            Vec::new(),
-            Vec::new(),
-        );
+    #[pyo3(signature = (config_path, plugin_api=None))]
+    pub fn from_config(config_path: String, plugin_api: Option<Py<PyAny>>) -> SimulatorWrapper {
+        Simulator::init_environment();
 
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = server.lock().unwrap().get_api();

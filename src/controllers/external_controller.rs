@@ -85,7 +85,7 @@ impl ExternalControllerRecord {
     }
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 
 /// External controller strategy, which does the bridge with your own strategy.
 pub struct ExternalController {
@@ -136,7 +136,7 @@ impl std::fmt::Debug for ExternalController {
 }
 
 impl Controller for ExternalController {
-    fn make_command(&mut self, robot: &mut Robot, error: &ControllerError, time: f32) -> Command {
+    fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command {
         self.controller.make_command(robot, error, time)
     }
 }

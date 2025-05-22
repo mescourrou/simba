@@ -8,10 +8,14 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    pywrappers::{ObservationWrapper, StateWrapper},
-    robot::Robot,
-    sensors::sensor::Observation,
+    constants::TIME_ROUND,
+    logger::is_enabled,
+    node::Node,
+    node_factory::NodeRecord,
+    pywrappers::{ObservationWrapper, SensorObservationWrapper, StateWrapper},
+    sensors::sensor::{Observation, SensorObservation},
     stateful::Stateful,
+    utils::maths::round_precision,
 };
 
 use super::{
@@ -21,9 +25,9 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct PythonStateEstimatorAsyncClient {
-    pub prediction_step_request: mpsc::Sender<(Robot, f32)>,
+    pub prediction_step_request: mpsc::Sender<f32>,
     pub prediction_step_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    pub correction_step_request: mpsc::Sender<(Robot, Vec<Observation>, f32)>,
+    pub correction_step_request: mpsc::Sender<(Vec<Observation>, f32)>,
     pub correction_step_response: Arc<Mutex<mpsc::Receiver<()>>>,
     pub state_request: mpsc::Sender<()>,
     pub state_response: Arc<Mutex<mpsc::Receiver<State>>>,
@@ -36,10 +40,12 @@ pub struct PythonStateEstimatorAsyncClient {
 }
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
-    fn prediction_step(&mut self, robot: &mut Robot, time: f32) {
+    fn prediction_step(&mut self, _node: &mut Node, time: f32) {
+        debug!("Start prediction step from async client");
         self.prediction_step_request
-            .send((robot.clone(), time))
+            .send(time)
             .unwrap();
+        debug!("Start prediction step from async client: Request sent");
         self.prediction_step_response
             .lock()
             .unwrap()
@@ -47,9 +53,9 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
             .unwrap();
     }
 
-    fn correction_step(&mut self, robot: &mut Robot, observations: &Vec<Observation>, time: f32) {
+    fn correction_step(&mut self, _node: &mut Node, observations: &Vec<Observation>, time: f32) {
         self.correction_step_request
-            .send((robot.clone(), observations.clone(), time))
+            .send((observations.clone(), time))
             .unwrap();
         self.correction_step_response
             .lock()
@@ -99,9 +105,9 @@ impl Stateful<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
 pub struct PythonStateEstimator {
     model: Py<PyAny>,
     client: PythonStateEstimatorAsyncClient,
-    prediction_step_request: Arc<Mutex<mpsc::Receiver<(Robot, f32)>>>,
+    prediction_step_request: Arc<Mutex<mpsc::Receiver<f32>>>,
     prediction_step_response: mpsc::Sender<()>,
-    correction_step_request: Arc<Mutex<mpsc::Receiver<(Robot, Vec<Observation>, f32)>>>,
+    correction_step_request: Arc<Mutex<mpsc::Receiver<(Vec<Observation>, f32)>>>,
     correction_step_response: mpsc::Sender<()>,
     state_request: Arc<Mutex<mpsc::Receiver<()>>>,
     state_response: mpsc::Sender<State>,
@@ -117,9 +123,11 @@ pub struct PythonStateEstimator {
 impl PythonStateEstimator {
     #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonStateEstimator {
-        Python::with_gil(|py| {
-            debug!("Model got: {}", py_model.bind(py).dir().unwrap());
-        });
+        if is_enabled(crate::logger::InternalLog::API) {
+            Python::with_gil(|py| {
+                debug!("Model got: {}", py_model.bind(py).dir().unwrap());
+            });
+        }
         let (prediction_request_tx, prediction_request_rx) = mpsc::channel();
         let (prediction_response_tx, prediction_response_rx) = mpsc::channel();
         let (correction_request_tx, correction_request_rx) = mpsc::channel();
@@ -171,24 +179,26 @@ impl PythonStateEstimator {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((robot, time)) = self
+        if let Ok(time) = self
             .prediction_step_request
             .clone()
             .lock()
             .unwrap()
             .try_recv()
         {
-            self.prediction_step(&robot, time);
+            debug!("Request for prediction step received");
+            self.prediction_step(time);
+            debug!("Response for prediction step sent");
             self.prediction_step_response.send(()).unwrap();
         }
-        if let Ok((robot, obs, time)) = self
+        if let Ok((obs, time)) = self
             .correction_step_request
             .clone()
             .lock()
             .unwrap()
             .try_recv()
         {
-            self.correction_step(&robot, &obs, time);
+            self.correction_step(&obs, time);
             self.correction_step_response.send(()).unwrap();
         }
         if let Ok(()) = self.state_request.clone().lock().unwrap().try_recv() {
@@ -214,9 +224,11 @@ impl PythonStateEstimator {
         }
     }
 
-    fn prediction_step(&mut self, _robot: &crate::robot::Robot, time: f32) {
-        debug!("Calling python implementation of prediction_step");
-        // let robot_record = robot.record();
+    fn prediction_step(&mut self, time: f32) {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of prediction_step");
+        }
+        // let node_record = node.record();
         Python::with_gil(|py| {
             self.model
                 .bind(py)
@@ -225,13 +237,10 @@ impl PythonStateEstimator {
         });
     }
 
-    fn correction_step(
-        &mut self,
-        _robot: &crate::robot::Robot,
-        observations: &Vec<crate::sensors::sensor::Observation>,
-        time: f32,
-    ) {
-        debug!("Calling python implementation of correction_step");
+    fn correction_step(&mut self, observations: &Vec<Observation>, time: f32) {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of correction_step");
+        }
         let mut observation_py = Vec::new();
         for obs in observations {
             observation_py.push(ObservationWrapper::from_ros(obs));
@@ -245,7 +254,9 @@ impl PythonStateEstimator {
     }
 
     fn state(&self) -> State {
-        debug!("Calling python implementation of state");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of state");
+        }
         let state = Python::with_gil(|py| -> StateWrapper {
             self.model
                 .bind(py)
@@ -259,7 +270,9 @@ impl PythonStateEstimator {
 
     fn next_time_step(&self) -> f32 {
         // PythonStateEstimator::next_time_step(self)
-        debug!("Calling python implementation of next_time_step");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of next_time_step");
+        }
         let time = Python::with_gil(|py| {
             self.model
                 .bind(py)
@@ -268,11 +281,13 @@ impl PythonStateEstimator {
                 .extract()
                 .expect("The 'next_time_step' method of PythonStateEstimator does not return a correct time for next step")
         });
-        time
+        round_precision(time, TIME_ROUND).unwrap()
     }
 
     fn record(&self) -> StateEstimatorRecord {
-        debug!("Calling python implementation of record");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of record");
+        }
         let record_str: String = Python::with_gil(|py| {
             self.model
                 .bind(py)
@@ -293,7 +308,9 @@ impl PythonStateEstimator {
 
     fn from_record(&mut self, record: StateEstimatorRecord) {
         if let StateEstimatorRecord::External(record) = record {
-            debug!("Calling python implementation of from_record");
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Calling python implementation of from_record");
+            }
             Python::with_gil(|py| {
                 self.model
                     .bind(py)

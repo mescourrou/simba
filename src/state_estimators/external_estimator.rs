@@ -18,14 +18,16 @@ use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
 use super::state_estimator::{State, StateEstimator};
+use crate::constants::TIME_ROUND;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
+use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 use super::state_estimator::StateEstimatorRecord;
-use crate::sensors::sensor::Observation;
+use crate::sensors::sensor::{Observation, SensorObservation};
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external state estimation (generic).
@@ -86,7 +88,7 @@ impl ExternalEstimatorRecord {
     }
 }
 
-use crate::robot::Robot;
+use crate::node::Node;
 
 /// External estimator strategy, which does the bridge with your own strategy.
 pub struct ExternalEstimator {
@@ -137,17 +139,17 @@ impl std::fmt::Debug for ExternalEstimator {
 }
 
 impl StateEstimator for ExternalEstimator {
-    fn prediction_step(&mut self, robot: &mut Robot, time: f32) {
-        if time < self.next_time_step() {
+    fn prediction_step(&mut self, node: &mut Node, time: f32) {
+        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             println!("Error trying to update estimate too soon !");
             return;
         }
-        self.state_estimator.prediction_step(robot, time);
+        self.state_estimator.prediction_step(node, time);
     }
 
-    fn correction_step(&mut self, robot: &mut Robot, observations: &Vec<Observation>, time: f32) {
+    fn correction_step(&mut self, node: &mut Node, observations: &Vec<Observation>, time: f32) {
         self.state_estimator
-            .correction_step(robot, observations, time);
+            .correction_step(node, observations, time);
     }
 
     fn state(&self) -> State {
@@ -155,7 +157,7 @@ impl StateEstimator for ExternalEstimator {
     }
 
     fn next_time_step(&self) -> f32 {
-        self.state_estimator.next_time_step()
+        round_precision(self.state_estimator.next_time_step(), TIME_ROUND).unwrap()
     }
 }
 

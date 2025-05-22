@@ -17,7 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 
 use crate::{
-    sensors::{oriented_landmark_sensor::OrientedLandmarkSensor, sensor::Observation},
+    sensors::{oriented_landmark_sensor::OrientedLandmarkSensor, sensor::SensorObservation},
     simulator::SimulatorConfig,
     utils::{
         determinist_random_variable::{
@@ -145,8 +145,8 @@ impl FaultModel for MisassociationFault {
         &self,
         time: f32,
         period: f32,
-        obs_list: &mut Vec<Observation>,
-        obs_type: Observation,
+        obs_list: &mut Vec<SensorObservation>,
+        obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;
@@ -158,7 +158,7 @@ impl FaultModel for MisassociationFault {
                 id_list.shuffle(&mut rng);
             }
             Sort::Distance => {
-                if let Observation::OrientedRobot(_) = obs_type {
+                if let SensorObservation::OrientedRobot(_) = obs_type {
                     panic!("MisassociationFault: Distance sorting is not implemented for Robot Observation");
                 }
             }
@@ -171,20 +171,20 @@ impl FaultModel for MisassociationFault {
             }
             let random_sample = self.distribution.lock().unwrap().gen(seed);
             match obs {
-                Observation::OrientedRobot(o) => {
+                SensorObservation::OrientedRobot(o) => {
                     let new_id = id_list
                         [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
                     .0
                     .clone();
                     o.name = new_id;
                 }
-                Observation::GNSS(_) => {
+                SensorObservation::GNSS(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
-                Observation::Odometry(_) => {
+                SensorObservation::Odometry(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
-                Observation::OrientedLandmark(o) => {
+                SensorObservation::OrientedLandmark(o) => {
                     match self.sort {
                         Sort::Distance => {
                             id_list.sort_by_key(|i| {
