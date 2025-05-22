@@ -2,7 +2,7 @@
 Module providing the trait to link the simulator to external implementations.
 
 Example to use an external state estimator:
-```
+```ignore
 use simba::state_estimators::state_estimator::StateEstimator;
 use simba::{plugin_api::PluginAPI, simulator::SimulatorConfig};
 
@@ -22,10 +22,8 @@ impl PluginAPI for MyPlugin {
         ))
     }
 }
-```
+// You should use the simulator as a library. Your main.rs could be:
 
-You should use the simulator as a library. Your main.rs could be:
-```compile_fail
 use simba::simulator::Simulator;
 use std::path::Path;
 
@@ -35,10 +33,10 @@ fn main() {
     let config_path = Path::new("configs/simulator_config.yaml");
     let mut simulator = Simulator::from_config_path(
         config_path,
-        Some(Box::new(plugin)),
+        &Some(Box::new(plugin)),
         );
 
-    simulator.run(5.);
+    simulator.run();
 
 
 }

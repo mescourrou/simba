@@ -35,12 +35,14 @@ class StateEstimator(simba.StateEstimator):
     def correction_step(self, observations, time):
         print(f"Doing correction step with observations for robot:")
         for obs in observations:
+            sensor_obs = obs.sensor_observation
             # Not the best interface, but it works!
-            match obs:
-                case simba.Observation.OrientedLandmark():
-                    print(f"Observation of landmark {obs[0].id}: {obs[0].pose}")
-                case simba.Observation.Odometry():
-                    print(f"Odometry: {obs[0]}")
+            # You can also use the sensor name given in the config!
+            match sensor_obs:
+                case simba.SensorObservation.OrientedLandmark():
+                    print(f"Observation of landmark {sensor_obs[0].id}: {sensor_obs[0].pose}")
+                case simba.SensorObservation.Odometry():
+                    print(f"Odometry: {sensor_obs[0]}")
                 case _:
                     print("Other")
 
@@ -61,8 +63,8 @@ def main():
     simulator_api = SimulatorAPI()
 
     simulator = simba.Simulator.from_config(
-            "config/config_state_estimator.yaml", simulator_api, loglevel="info"
-    )
+            "config/config_state_estimator.yaml", simulator_api
+        )
     simulator.run()
 
 

@@ -40,7 +40,7 @@ def main():
     simulator_api = SimulatorAPI()
 
     simulator = simba.Simulator.from_config(
-        "config/config_controller.yaml", simulator_api, loglevel="info"
+        "config/config_controller.yaml", simulator_api
     )
     simulator.run()
 

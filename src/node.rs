@@ -41,7 +41,6 @@ use crate::utils::maths::round_precision;
 use crate::utils::time_ordered_data::TimeOrderedData;
 use crate::{node, time_analysis};
 
-
 // Node itself
 
 /// Structure managing one node.
@@ -97,7 +96,6 @@ pub struct Node {
 
     pub(crate) time_cv: Arc<TimeCv>,
     pub other_node_names: Vec<String>,
-    
 }
 
 impl Node {

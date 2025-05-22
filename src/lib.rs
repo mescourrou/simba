@@ -21,33 +21,28 @@ The entry-point for the simulator is [`simulator`], which provides a [`simulator
 struct to load a configuration, run the simulation, save the results and process the results.
 
 For example, the simulator can be used as follows:
-```
+```no_run
 use std::path::Path;
 use simba::simulator::Simulator;
 
 fn main() {
-    // Initialize the environment, essentially the logging part
+    // Initialize the environment
     Simulator::init_environment();
-
-    // Load the configuration
-    let config_path = Path::new("config_example/config.yaml");
+    println!("Load configuration...");
     let mut simulator = Simulator::from_config_path(
-        config_path,              //<- configuration path
-        None,                     //<- plugin API, to load external modules
-        Some(Box::from(Path::new("result.json"))), //<- path to save the results (None to not save)
-        true,                     //<- Analyse the results
-        false,                    //<- Show the figures after analyse
+        Path::new("config_example/config.yaml"),
+        &None, //<- plugin API, to load external modules
     );
 
     // Show the simulator loaded configuration
     simulator.show();
 
-    // Run the simulation for 60 seconds.
-    // It also save the results to "result.json",
-    // compute the results and show the figures.
-    simulator.run(60.);
-}
+    // Run the simulator for the time given in the configuration
+    // It also save the results to json
+    simulator.run();
 
+    simulator.compute_results();
+}
 
 ```
 

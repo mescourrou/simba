@@ -21,7 +21,7 @@ use std::{
 use log::debug;
 
 use crate::{
-    logger::is_enabled, node::Node, simulator::TimeCv, utils::time_ordered_data::TimeOrderedData
+    logger::is_enabled, node::Node, simulator::TimeCv, utils::time_ordered_data::TimeOrderedData,
 };
 
 use super::network::MessageFlag;
@@ -73,7 +73,6 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         }
         let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
         *circulating_messages += 1;
-        debug!("Increase circulating messages => {}", *circulating_messages);
         std::mem::drop(circulating_messages);
         match self.request_channel.lock().unwrap().send((
             node_name,
@@ -110,7 +109,6 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
 
         let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
         *circulating_messages -= 1;
-        debug!("Decrease circulating messages => {}", *circulating_messages);
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
             debug!("Result received");
         }
@@ -198,7 +196,6 @@ impl<
         {
             let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
             *circulating_messages -= 1;
-            debug!("Decrease circulating messages => {}", *circulating_messages);
             std::mem::drop(circulating_messages);
             if is_enabled(crate::logger::InternalLog::ServiceHandling) {
                 debug!("Insert request from {from} at time {time}");
@@ -235,7 +232,6 @@ impl<
             {
                 let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
                 *circulating_messages += 1;
-                debug!("Increase circulating messages => {}", *circulating_messages);
             }
             self.clients
                 .get(&from)

@@ -148,7 +148,6 @@ impl Network {
         {
             let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
             *circulating_messages += 1;
-            debug!("Increase circulating messages => {}", *circulating_messages);
         }
         self.to_network_manager
             .as_ref()
@@ -181,7 +180,6 @@ impl Network {
         {
             let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
             *circulating_messages += 1;
-            debug!("Increase circulating messages => {}", *circulating_messages);
         }
         self.to_network_manager
             .as_ref()
@@ -218,7 +216,6 @@ impl Network {
             {
                 let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
                 *circulating_messages -= 1;
-                debug!("Decrease circulating messages => {}", *circulating_messages);
             }
             let time = if msg.message_flags.contains(&MessageFlag::God) {
                 msg.time

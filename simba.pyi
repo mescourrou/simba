@@ -39,11 +39,18 @@ class OrientedRobotObservation:
         self.name: str
         self.pose: Pose
 
-class Observation(Enum):
+class SensorObservation(Enum):
     OrientedLandmark: OrientedLandmarkObservation
     Odometry: OdometryObservation
     GNSS: GNSSObservation
     OrientedRobot: OrientedRobotObservation
+    
+class Observation:
+    def __init__(self):
+        self.sensor_name: str
+        self.observer: str
+        self.time: float
+        self.sensor_observation: SensorObservation
 
 class Command:
     def __init__(self):

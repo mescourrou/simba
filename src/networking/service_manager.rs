@@ -7,7 +7,10 @@ use std::{
 use log::debug;
 
 use crate::{
-    node::Node, physics::physic::{GetRealStateReq, GetRealStateResp, Physic}, simulator::TimeCv, state_estimators::state_estimator::State
+    node::Node,
+    physics::physic::{GetRealStateReq, GetRealStateResp, Physic},
+    simulator::TimeCv,
+    state_estimators::state_estimator::State,
 };
 
 use super::{

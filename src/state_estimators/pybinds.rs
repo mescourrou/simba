@@ -25,9 +25,9 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct PythonStateEstimatorAsyncClient {
-    pub prediction_step_request: mpsc::Sender<(NodeRecord, f32)>,
+    pub prediction_step_request: mpsc::Sender<f32>,
     pub prediction_step_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    pub correction_step_request: mpsc::Sender<(NodeRecord, Vec<Observation>, f32)>,
+    pub correction_step_request: mpsc::Sender<(Vec<Observation>, f32)>,
     pub correction_step_response: Arc<Mutex<mpsc::Receiver<()>>>,
     pub state_request: mpsc::Sender<()>,
     pub state_response: Arc<Mutex<mpsc::Receiver<State>>>,
@@ -40,10 +40,12 @@ pub struct PythonStateEstimatorAsyncClient {
 }
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
-    fn prediction_step(&mut self, node: &mut Node, time: f32) {
+    fn prediction_step(&mut self, _node: &mut Node, time: f32) {
+        debug!("Start prediction step from async client");
         self.prediction_step_request
-            .send((node.record(), time))
+            .send(time)
             .unwrap();
+        debug!("Start prediction step from async client: Request sent");
         self.prediction_step_response
             .lock()
             .unwrap()
@@ -51,9 +53,9 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
             .unwrap();
     }
 
-    fn correction_step(&mut self, node: &mut Node, observations: &Vec<Observation>, time: f32) {
+    fn correction_step(&mut self, _node: &mut Node, observations: &Vec<Observation>, time: f32) {
         self.correction_step_request
-            .send((node.record(), observations.clone(), time))
+            .send((observations.clone(), time))
             .unwrap();
         self.correction_step_response
             .lock()
@@ -103,9 +105,9 @@ impl Stateful<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
 pub struct PythonStateEstimator {
     model: Py<PyAny>,
     client: PythonStateEstimatorAsyncClient,
-    prediction_step_request: Arc<Mutex<mpsc::Receiver<(NodeRecord, f32)>>>,
+    prediction_step_request: Arc<Mutex<mpsc::Receiver<f32>>>,
     prediction_step_response: mpsc::Sender<()>,
-    correction_step_request: Arc<Mutex<mpsc::Receiver<(NodeRecord, Vec<Observation>, f32)>>>,
+    correction_step_request: Arc<Mutex<mpsc::Receiver<(Vec<Observation>, f32)>>>,
     correction_step_response: mpsc::Sender<()>,
     state_request: Arc<Mutex<mpsc::Receiver<()>>>,
     state_response: mpsc::Sender<State>,
@@ -177,24 +179,26 @@ impl PythonStateEstimator {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((node, time)) = self
+        if let Ok(time) = self
             .prediction_step_request
             .clone()
             .lock()
             .unwrap()
             .try_recv()
         {
-            self.prediction_step(&node, time);
+            debug!("Request for prediction step received");
+            self.prediction_step(time);
+            debug!("Response for prediction step sent");
             self.prediction_step_response.send(()).unwrap();
         }
-        if let Ok((node, obs, time)) = self
+        if let Ok((obs, time)) = self
             .correction_step_request
             .clone()
             .lock()
             .unwrap()
             .try_recv()
         {
-            self.correction_step(&node, &obs, time);
+            self.correction_step(&obs, time);
             self.correction_step_response.send(()).unwrap();
         }
         if let Ok(()) = self.state_request.clone().lock().unwrap().try_recv() {
@@ -220,7 +224,7 @@ impl PythonStateEstimator {
         }
     }
 
-    fn prediction_step(&mut self, _node: &NodeRecord, time: f32) {
+    fn prediction_step(&mut self, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
@@ -233,7 +237,7 @@ impl PythonStateEstimator {
         });
     }
 
-    fn correction_step(&mut self, _node: &NodeRecord, observations: &Vec<Observation>, time: f32) {
+    fn correction_step(&mut self, observations: &Vec<Observation>, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of correction_step");
         }

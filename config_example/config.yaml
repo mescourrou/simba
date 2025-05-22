@@ -1,0 +1,17 @@
+---
+log:
+  included_nodes: []
+  excluded_nodes: []
+  log_level: Info
+results: ~
+base_path: "."
+max_time: 60.0
+time_mode: Centralized
+time_analysis:
+  exporter: TraceEventExporter
+  keep_last: true
+  output_path: time_performance
+  analysis_unit: s
+random_seed: ~
+robots: []
+computation_units: []

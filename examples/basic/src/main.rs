@@ -1,10 +1,9 @@
-use log::info;
 use simba::simulator::{Simulator, SimulatorConfig};
 use simba::time_analysis::TimeAnalysisConfig;
 use std::path::Path;
 
 fn main() {
-    // Initialize the environment, essentially the logging part
+    // Initialize the environment
     Simulator::init_environment();
     println!("Load configuration...");
     let mut simulator = Simulator::from_config_path(

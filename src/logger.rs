@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, RwLock};
+use std::{fmt::Display, sync::{Arc, Mutex, RwLock}};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,25 @@ impl Into<log::LevelFilter> for LogLevel {
             LogLevel::Info => log::LevelFilter::Info,
             LogLevel::Debug | LogLevel::Internal(_) => log::LevelFilter::Debug,
         }
+    }
+}
+
+impl Into<&str> for LogLevel {
+    fn into(self) -> &'static str {
+        match self {
+            LogLevel::Off => "Off",
+            LogLevel::Error => "Error",
+            LogLevel::Warn => "Warn",
+            LogLevel::Info => "Info",
+            LogLevel::Debug => "Debug",
+            LogLevel::Internal(_) => "Internal",
+        }
+    }
+}
+
+impl Display for LogLevel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", Into::<&str>::into(self.clone()))
     }
 }
 
@@ -70,8 +89,11 @@ pub fn init_log(config: &LoggerConfig) {
 
 pub fn is_enabled(internal_level: InternalLog) -> bool {
     if let InternalLog::All = internal_level {
-        return  true;
+        return true;
     }
-    INTERNAL_LOG_LEVEL.read().unwrap().contains(&InternalLog::All) ||
-    INTERNAL_LOG_LEVEL.read().unwrap().contains(&internal_level)
+    INTERNAL_LOG_LEVEL
+        .read()
+        .unwrap()
+        .contains(&InternalLog::All)
+        || INTERNAL_LOG_LEVEL.read().unwrap().contains(&internal_level)
 }

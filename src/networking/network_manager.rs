@@ -106,7 +106,6 @@ impl NetworkManager {
         for (node_name, receiver) in self.nodes_receivers.iter() {
             if let Ok(msg) = receiver.try_recv() {
                 *circulating_messages -= 1;
-                debug!("Decrease circulating messages => {}", *circulating_messages);
                 match &msg.to {
                     MessageSendMethod::Recipient(r) => {
                         if msg.range == 0.
@@ -122,7 +121,6 @@ impl NetworkManager {
                                 debug!("Receiving message from `{node_name}` for `{r}`... Sending");
                             }
                             *circulating_messages += 1;
-                            debug!("Increase circulating messages => {}", *circulating_messages);
                             self.nodes_senders
                                 .get(r)
                                 .expect(format!("Unknown node {r}").as_str())
@@ -152,7 +150,6 @@ impl NetworkManager {
                                     debug!("Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`");
                                 }
                                 *circulating_messages += 1;
-                                debug!("Increase circulating messages => {}", *circulating_messages);
                                 sender.send(msg.clone()).unwrap();
                                 message_sent = true;
                             }

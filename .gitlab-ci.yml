@@ -1,14 +1,17 @@
 variables:
   GIT_SUBMODULE_STRATEGY: recursive
   GIT_SUBMODULE_FORCE_HTTPS: "true"
-
+  PACKAGE_REGISTRY_URL: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/packages/generic/simba/${CI_COMMIT_TAG}"
 
 stages:
   - build
+  - test
+  - upload
+  - release
 
 build_rust:
-  only:
-    - master
+  rules:
+    - if: $CI_COMMIT_TAG                 # Run this job when a tag is created
   stage: build
   image: gitlab.laas.fr:4567/mescourrou/simba:latest
   script:
@@ -22,8 +25,8 @@ build_rust:
       - target/release/*.rlib
   
 build_python:
-  only:
-    - master
+  rules:
+    - if: $CI_COMMIT_TAG                 # Run this job when a tag is created
   stage: build
   image: gitlab.laas.fr:4567/mescourrou/simba:latest
   script:
@@ -34,8 +37,8 @@ build_python:
     when: on_success
 
 doc:
-  only:
-    - master
+  rules:
+    - if: $CI_COMMIT_TAG                 # Run this job when a tag is created
   stage: build
   image: rust:latest
   before_script:
@@ -51,3 +54,40 @@ doc:
   script:
     - cargo doc --no-deps --document-private-items
     - scp -i $SSH_KEY -r target/doc/ $DOC_USER@$DOC_HOST:$DOC_PATH
+
+tests:
+  only:
+    - /^release/.*$/
+  stage: test
+  image: gitlab.laas.fr:4567/mescourrou/simba:latest
+  script:
+    - source /env/bin/activate
+    - maturin develop
+    - ./test.sh
+
+upload:
+  stage: upload
+  image: curlimages/curl:latest
+  rules:
+      - if: $CI_COMMIT_TAG
+  script:
+      - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file target/release/*.rlib ${PACKAGE_REGISTRY_URL}/simba-rust-${CI_COMMIT_TAG}.rlib'
+      - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file target/wheels/*.whl ${PACKAGE_REGISTRY_URL}/simba-python-${CI_COMMIT_TAG}.whl'
+
+
+release_job:
+  stage: release
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  rules:
+    - if: $CI_COMMIT_TAG                 # Run this job when a tag is created
+  script:
+    - echo "running release_job"
+  release:                               # See https://docs.gitlab.com/ee/ci/yaml/#release for available properties
+    tag_name: '$CI_COMMIT_TAG'
+    description: '$CI_COMMIT_TAG'
+    assets:
+      links:
+        - name: Rust lib
+          url: "${PACKAGE_REGISTRY_URL}/simba-rust-${CI_COMMIT_TAG}.rlib"
+        - name: Python package
+          url: "${PACKAGE_REGISTRY_URL}/simba-python-${CI_COMMIT_TAG}.whl"

@@ -22,7 +22,7 @@ use super::navigator::{Navigator, NavigatorRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonNavigatorAsyncClient {
-    pub compute_error_request: mpsc::Sender<(NodeRecord, State)>,
+    pub compute_error_request: mpsc::Sender<State>,
     pub compute_error_response: Arc<Mutex<mpsc::Receiver<ControllerError>>>,
     pub record_request: mpsc::Sender<()>,
     pub record_response: Arc<Mutex<mpsc::Receiver<NavigatorRecord>>>,
@@ -31,9 +31,9 @@ pub struct PythonNavigatorAsyncClient {
 }
 
 impl Navigator for PythonNavigatorAsyncClient {
-    fn compute_error(&mut self, node: &mut Node, state: State) -> ControllerError {
+    fn compute_error(&mut self, _node: &mut Node, state: State) -> ControllerError {
         self.compute_error_request
-            .send((node.record(), state.clone()))
+            .send(state.clone())
             .unwrap();
         self.compute_error_response.lock().unwrap().recv().unwrap()
     }
@@ -61,7 +61,7 @@ impl Stateful<NavigatorRecord> for PythonNavigatorAsyncClient {
 pub struct PythonNavigator {
     model: Py<PyAny>,
     client: PythonNavigatorAsyncClient,
-    compute_error_request: Arc<Mutex<mpsc::Receiver<(NodeRecord, State)>>>,
+    compute_error_request: Arc<Mutex<mpsc::Receiver<State>>>,
     compute_error_response: mpsc::Sender<ControllerError>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
     record_response: mpsc::Sender<NavigatorRecord>,
@@ -111,14 +111,14 @@ impl PythonNavigator {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((node, state)) = self
+        if let Ok(state) = self
             .compute_error_request
             .clone()
             .lock()
             .unwrap()
             .try_recv()
         {
-            let error = self.compute_error(&node, &state);
+            let error = self.compute_error( &state);
             self.compute_error_response.send(error).unwrap();
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
@@ -130,7 +130,7 @@ impl PythonNavigator {
         }
     }
 
-    fn compute_error(&mut self, _node: &NodeRecord, state: &State) -> ControllerError {
+    fn compute_error(&mut self, state: &State) -> ControllerError {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of compute_error");
         }

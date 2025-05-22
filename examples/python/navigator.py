@@ -52,7 +52,7 @@ def main():
     simulator_api = SimulatorAPI()
 
     simulator = simba.Simulator.from_config(
-        "config/config_navigator.yaml", simulator_api, loglevel="info"
+        "config/config_navigator.yaml", simulator_api
     )
     simulator.run()
 

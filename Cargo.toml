@@ -1,6 +1,3 @@
-[workspace]
-members = ["example", "example_gui"]
-
 [package]
 name = "simba"
 version = "0.4.3"
