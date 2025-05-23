@@ -1,17 +1,65 @@
----
 log:
-  included_nodes: []
-  excluded_nodes: []
-  log_level: Info
-results: ~
-base_path: "."
-max_time: 60.0
-time_mode: Centralized
+  log_level:
+    Info
+results:
+  result_path: "./result.json"
+  show_figures: true
+  analyse_script: "../python_scripts/analyse_results.py"
+  figures_path: "./figures"
 time_analysis:
   exporter: TraceEventExporter
+  output_path: "time_performance"
   keep_last: true
-  output_path: time_performance
-  analysis_unit: s
-random_seed: ~
-robots: []
-computation_units: []
+time_mode: Centralized
+max_time: 60.
+robots:
+  - name: "robot1"
+    navigator:
+      TrajectoryFollower:
+        trajectory_path: "paths/path1.yaml"
+        target_speed: 0.5
+        forward_distance: 0.2
+    controller:
+      PID:
+        kp_v: 1.0
+        kp_theta: 6.0
+    sensor_manager:
+      sensors:
+        - name: "RobotSensor"
+          send_to: ["Central Unit"]
+          config:
+            RobotSensor:
+              period: 0.1
+              detection_distance: 100.0
+    #   sensors:
+    #     - OrientedLandmarkSensor:
+    #         map_path: "maps/landmarks_square.yaml"
+    #         detection_distance: 6.0
+  - name: "robot2"
+    navigator:
+      TrajectoryFollower:
+        trajectory_path: "paths/path1.yaml"
+        target_speed: 0.3
+        forward_distance: 0.2
+    controller:
+      PID:
+        kp_v: 1.0
+        kp_theta: 3.0
+    sensor_manager:
+      sensors:
+        - name: "RobotSensor"
+          send_to: ["Central Unit"]
+          config:
+            RobotSensor:
+              period: 0.1
+              detection_distance: 100.0
+computation_units:
+  - name: "Central Unit"
+    network:
+      reception_delay: 0.001
+    state_estimators:
+      - name: "central_perfect"
+        config:
+          Perfect:
+            targets: ["robot1", "robot2"]
+            prediction_period: 0.1

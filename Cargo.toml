@@ -83,5 +83,9 @@ rustflags = [
   "-C", "link-arg=dynamic_lookup",
 ]
 
+[[example]]
+name = "basic"
 
-
+[[example]]
+name = "gui"
+required-features = ["gui"]

@@ -7,3 +7,4 @@ pub mod distributions;
 pub mod geometry;
 pub mod maths;
 pub mod time_ordered_data;
+pub mod rfc;

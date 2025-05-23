@@ -523,18 +523,14 @@ impl SimulatorWrapper {
                 })),
                 None => None,
             });
-        wrapper.api.load_config.send(config_path).unwrap();
+        wrapper.api.load_config.async_call(config_path);
 
         if let Some(unwrapped_async_api) = &wrapper.async_plugin_api {
             let api_client = &unwrapped_async_api.client;
             let python_api = wrapper.python_api.as_mut().unwrap();
             while wrapper
                 .api
-                .load_config_end
-                .lock()
-                .unwrap()
-                .try_recv()
-                .is_err()
+                .load_config.try_get_result().is_none()
             {
                 if let Ok((config, simulator_config)) = api_client
                     .get_state_estimator_request
@@ -570,7 +566,7 @@ impl SimulatorWrapper {
                 python_api.check_requests();
             }
         } else {
-            wrapper.api.load_config_end.lock().unwrap().recv().unwrap();
+            wrapper.api.load_config.wait_result();
         }
 
         wrapper
@@ -579,17 +575,16 @@ impl SimulatorWrapper {
     pub fn run(&mut self) {
         self.api
             .run
-            .send(None)
-            .expect("Error while sending 'run' request");
+            .call(None);
         if let Some(python_api) = &mut self.python_api {
-            while self.api.run_end.lock().unwrap().try_recv().is_err() {
+            while self.api.run.try_get_result().is_none() {
                 python_api.check_requests();
                 if Python::with_gil(|py| py.check_signals()).is_err() {
                     break;
                 }
             }
         } else {
-            while self.api.run_end.lock().unwrap().try_recv().is_err() {
+            while self.api.run.try_get_result().is_none() {
                 if Python::with_gil(|py| py.check_signals()).is_err() {
                     break;
                 }

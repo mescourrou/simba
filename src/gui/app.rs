@@ -131,8 +131,7 @@ impl eframe::App for SimbaApp {
                 self.p
                     .api
                     .load_config
-                    .send(self.config_path.clone())
-                    .unwrap();
+                    .async_call(self.config_path.clone());
                 self.p.config_loaded = true;
             }
 
@@ -142,7 +141,7 @@ impl eframe::App for SimbaApp {
                     .clicked()
                 {
                     log::info!("Run simulation");
-                    self.p.api.run.send(Some(self.duration)).unwrap();
+                    self.p.api.run.async_call(Some(self.duration));
                 }
                 ui.vertical(|ui| {
                     for (robot, time) in
@@ -157,7 +156,7 @@ impl eframe::App for SimbaApp {
                 .clicked()
             {
                 log::info!("Analysing results");
-                self.p.api.compute_results.send(()).unwrap();
+                self.p.api.compute_results.async_call(());
             }
 
             ui.separator();
