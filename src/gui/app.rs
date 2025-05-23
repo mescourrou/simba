@@ -12,7 +12,25 @@ struct PrivateParams {
     server: Arc<Mutex<AsyncApiRunner>>,
     api: AsyncApi,
     config_loaded: bool,
+    current_draw_time: f32,
+    follow_sim_time: bool,
 }
+
+impl Default for PrivateParams {
+    fn default() -> Self {
+        let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
+        let api = server.lock().unwrap().get_api();
+        server.lock().unwrap().run(None);
+        Self {
+            server,
+            api,
+            config_loaded: false,
+            current_draw_time: 0.,
+            follow_sim_time: true,
+        }
+    }
+}
+
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -21,7 +39,7 @@ pub struct SimbaApp {
     // Example stuff:
     config_path: String,
     duration: f32,
-    #[serde(skip)]
+    #[serde(skip_serializing, skip_deserializing)]
     p: PrivateParams,
 }
 
@@ -36,7 +54,7 @@ impl Default for SimbaApp {
             p: PrivateParams {
                 server,
                 api,
-                config_loaded: false,
+                ..Default::default()
             },
         }
     }
@@ -71,7 +89,7 @@ impl SimbaApp {
             p: PrivateParams {
                 server,
                 api,
-                config_loaded: false,
+                ..Default::default()
             },
         }
     }
@@ -110,31 +128,32 @@ impl eframe::App for SimbaApp {
 
                 egui::widgets::global_dark_light_mode_buttons(ui);
             });
-        });
 
-        egui::CentralPanel::default().show(ctx, |ui| {
             // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("SiMBA: Simulator for Multi-Robot Backend Algorithms");
 
             ui.horizontal(|ui| {
                 ui.label("Config path: ");
                 ui.text_edit_singleline(&mut self.config_path);
+
+                if ui.button("Load").clicked() {
+                    log::info!("Load configuration");
+                    self.p
+                        .api
+                        .load_config
+                        .async_call(self.config_path.clone());
+                    self.p.config_loaded = true;
+                }
             });
 
             ui.horizontal(|ui| {
                 ui.label("Duration: ");
                 ui.add(egui::DragValue::new(&mut self.duration).speed(0.1));
             });
+        });
 
-            if ui.button("Load").clicked() {
-                log::info!("Load configuration");
-                self.p
-                    .api
-                    .load_config
-                    .async_call(self.config_path.clone());
-                self.p.config_loaded = true;
-            }
-
+        egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+            
             ui.horizontal(|ui| {
                 if ui
                     .add_enabled(self.p.config_loaded, egui::Button::new("Run"))
@@ -143,44 +162,36 @@ impl eframe::App for SimbaApp {
                     log::info!("Run simulation");
                     self.p.api.run.async_call(Some(self.duration));
                 }
-                ui.vertical(|ui| {
-                    for (robot, time) in
-                        self.p.api.simulator_api.current_time.lock().unwrap().iter()
-                    {
-                        ui.label(format!("Running: {robot}: {time}",));
+                let mut max_simulated_time = 0.;
+                for (_, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter()
+                {
+                    if max_simulated_time == 0. {
+                        max_simulated_time = *time;
+                    } else {
+                        max_simulated_time = max_simulated_time.min(*time);
                     }
-                })
+                }
+                // Set ALL slider size
+                ui.style_mut().spacing.slider_width = ui.available_width() - 180.;
+                if self.p.current_draw_time > max_simulated_time || self.p.follow_sim_time {
+                    self.p.current_draw_time = max_simulated_time;
+                }
+                ui.add(egui::Slider::new(&mut self.p.current_draw_time, 0.0..=self.duration));
+                ui.add(egui::Checkbox::new(&mut self.p.follow_sim_time, "Follow"));
+                if ui
+                    .add_enabled(self.p.config_loaded, egui::Button::new("Results"))
+                    .clicked()
+                {
+                    log::info!("Analysing results");
+                    self.p.api.compute_results.async_call(());
+                }
             });
-            if ui
-                .add_enabled(self.p.config_loaded, egui::Button::new("Results"))
-                .clicked()
-            {
-                log::info!("Analysing results");
-                self.p.api.compute_results.async_call(());
-            }
-
-            ui.separator();
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                powered_by_egui_and_eframe(ui);
                 egui::warn_if_debug_build(ui);
             });
         });
 
         ctx.request_repaint_after(Duration::from_secs_f32(1.0 / 60.0));
     }
-}
-
-fn powered_by_egui_and_eframe(ui: &mut egui::Ui) {
-    ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        ui.label("Powered by ");
-        ui.hyperlink_to("egui", "https://github.com/emilk/egui");
-        ui.label(" and ");
-        ui.hyperlink_to(
-            "eframe",
-            "https://github.com/emilk/egui/tree/master/crates/eframe",
-        );
-        ui.label(".");
-    });
 }
