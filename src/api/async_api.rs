@@ -9,12 +9,7 @@ use std::{
 use serde_json::Value;
 
 use crate::{
-    controllers::controller::Controller,
-    navigators::navigator::Navigator,
-    physics::physic::Physic,
-    plugin_api::PluginAPI,
-    simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig},
-    state_estimators::state_estimator::StateEstimator, utils::rfc,
+    controllers::controller::Controller, navigators::navigator::Navigator, node_factory::NodeRecord, physics::physic::Physic, plugin_api::PluginAPI, simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig}, state_estimators::state_estimator::StateEstimator, utils::rfc
 };
 
 // Run by client
@@ -22,7 +17,7 @@ use crate::{
 pub struct AsyncApi {
     pub simulator_api: Arc<SimulatorAsyncApi>,
     // Channels
-    pub load_config: rfc::RemoteFunctionCall<String, ()>,
+    pub load_config: rfc::RemoteFunctionCall<String, SimulatorConfig>,
     pub run: rfc::RemoteFunctionCall<Option<f32>, ()>,
     pub compute_results: rfc::RemoteFunctionCall<(), ()>,
 }
@@ -30,7 +25,7 @@ pub struct AsyncApi {
 // Run by the simulator
 #[derive(Clone)]
 pub struct AsyncApiServer {
-    pub load_config: rfc::RemoteFunctionCallHost<String, ()>,
+    pub load_config: rfc::RemoteFunctionCallHost<String, SimulatorConfig>,
     pub run: rfc::RemoteFunctionCallHost<Option<f32>, ()>,
     pub compute_results: rfc::RemoteFunctionCallHost<(), ()>,
 }
@@ -119,8 +114,9 @@ impl AsyncApiRunner {
                     let path = Path::new(&config_path);
                     simulator.load_config_path(path, &plugin_api);
                     println!("End loading");
+                    simulator.config()
                 });
-                
+
                 private_api.run.try_recv_closure_mut(|max_time| {
                     if need_reset {
                         simulator.reset(&plugin_api);

@@ -32,9 +32,7 @@ pub struct PythonNavigatorAsyncClient {
 
 impl Navigator for PythonNavigatorAsyncClient {
     fn compute_error(&mut self, _node: &mut Node, state: State) -> ControllerError {
-        self.compute_error_request
-            .send(state.clone())
-            .unwrap();
+        self.compute_error_request.send(state.clone()).unwrap();
         self.compute_error_response.lock().unwrap().recv().unwrap()
     }
 }
@@ -118,7 +116,7 @@ impl PythonNavigator {
             .unwrap()
             .try_recv()
         {
-            let error = self.compute_error( &state);
+            let error = self.compute_error(&state);
             self.compute_error_response.send(error).unwrap();
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {

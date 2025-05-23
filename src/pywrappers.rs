@@ -528,10 +528,7 @@ impl SimulatorWrapper {
         if let Some(unwrapped_async_api) = &wrapper.async_plugin_api {
             let api_client = &unwrapped_async_api.client;
             let python_api = wrapper.python_api.as_mut().unwrap();
-            while wrapper
-                .api
-                .load_config.try_get_result().is_none()
-            {
+            while wrapper.api.load_config.try_get_result().is_none() {
                 if let Ok((config, simulator_config)) = api_client
                     .get_state_estimator_request
                     .lock()
@@ -573,9 +570,7 @@ impl SimulatorWrapper {
     }
 
     pub fn run(&mut self) {
-        self.api
-            .run
-            .call(None);
+        self.api.run.call(None);
         if let Some(python_api) = &mut self.python_api {
             while self.api.run.try_get_result().is_none() {
                 python_api.check_requests();

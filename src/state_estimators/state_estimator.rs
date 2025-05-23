@@ -38,7 +38,7 @@ impl Default for StateConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StateRecord {
     /// Position and orientation of the robot
-    pub pose: Vec<f32>,
+    pub pose: [f32;3],
     /// Linear velocity.
     pub velocity: f32,
 }
@@ -46,7 +46,7 @@ pub struct StateRecord {
 impl Default for StateRecord {
     fn default() -> Self {
         Self {
-            pose: vec![0., 0., 0.],
+            pose: [0., 0., 0.],
             velocity: 0.,
         }
     }
@@ -110,9 +110,12 @@ impl Stateful<StateRecord> for State {
     fn record(&self) -> StateRecord {
         StateRecord {
             pose: {
-                let mut ve: Vec<f32> = vec![];
-                for coord in &self.pose {
-                    ve.push(*coord);
+                let mut ve = [0.,0.,0.];
+                for (i, coord) in self.pose.iter().enumerate() {
+                    if i > ve.len() {
+                        continue;
+                    }
+                    ve[i] = *coord;
                 }
                 ve
             },

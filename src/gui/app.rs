@@ -1,19 +1,23 @@
 use std::{
-    sync::{Arc, Mutex},
-    time::Duration,
+    cell::RefCell, collections::HashMap, ops::Range, sync::{Arc, Mutex}, time::Duration
 };
 
+use egui::{accesskit::Node, epaint, Color32, Painter, Rect, Response, Sense, Stroke, Vec2};
+
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner},
-    plugin_api::PluginAPI,
+    api::async_api::{AsyncApi, AsyncApiRunner}, node, node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimulatorConfig}, utils::time_ordered_data::TimeOrderedData
 };
+
+use super::drawables::{self, robot};
 
 struct PrivateParams {
     server: Arc<Mutex<AsyncApiRunner>>,
     api: AsyncApi,
-    config_loaded: bool,
+    config: Option<SimulatorConfig>,
     current_draw_time: f32,
     follow_sim_time: bool,
+    robots: HashMap<String, drawables::robot::Robot>,
+
 }
 
 impl Default for PrivateParams {
@@ -24,13 +28,13 @@ impl Default for PrivateParams {
         Self {
             server,
             api,
-            config_loaded: false,
+            config: None,
             current_draw_time: 0.,
             follow_sim_time: true,
+            robots: HashMap::new(),
         }
     }
 }
-
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -41,6 +45,7 @@ pub struct SimbaApp {
     duration: f32,
     #[serde(skip_serializing, skip_deserializing)]
     p: PrivateParams,
+    drawing_scale: f32,
 }
 
 impl Default for SimbaApp {
@@ -56,6 +61,7 @@ impl Default for SimbaApp {
                 api,
                 ..Default::default()
             },
+            drawing_scale: 100.,
         }
     }
 }
@@ -84,19 +90,35 @@ impl SimbaApp {
         let api = server.lock().unwrap().get_api();
         server.lock().unwrap().run(plugin_api);
         Self {
-            config_path: "".to_owned(),
-            duration: 60.,
             p: PrivateParams {
                 server,
                 api,
                 ..Default::default()
             },
+            ..Default::default()
         }
     }
 
     fn quit(&mut self) {
         self.p.server.lock().unwrap().stop();
     }
+
+    fn init_drawables(&mut self) {
+        if self.p.config.is_none() {
+            return;
+        }
+        let config = self.p.config.as_ref().unwrap();
+        for robot in &config.robots {
+            self.p.robots.insert(robot.name.clone(), drawables::robot::Robot::init(robot));
+        }
+    }
+
+    fn draw(&mut self, ui: &mut egui::Ui, viewport: Rect, response: Response, painter: Painter) {
+        for (_, robot) in &self.p.robots {
+            robot.draw(ui, &viewport, &response, &painter, self.drawing_scale, self.p.current_draw_time);
+        }
+    }
+
 }
 
 impl eframe::App for SimbaApp {
@@ -107,8 +129,17 @@ impl eframe::App for SimbaApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        // Put your widgets into a `SidePanel`, `TopPanel`, `CentralPanel`, `Window` or `Area`.
-        // For inspiration and more examples, go to https://emilk.github.io/egui
+
+        for Record{time, node} in self.p.api.simulator_api.records.lock().unwrap().try_iter() {
+            match &node {
+                NodeRecord::ComputationUnit(_) => {},
+                NodeRecord::Robot(n) => {
+                    if let Some(r) = self.p.robots.get_mut(&n.name) {
+                        r.add_record(time, n.clone());
+                    }
+                }
+            }
+        }
 
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
@@ -128,8 +159,6 @@ impl eframe::App for SimbaApp {
 
                 egui::widgets::global_dark_light_mode_buttons(ui);
             });
-
-            // The central panel the region left after adding TopPanel's and SidePanel's
             ui.heading("SiMBA: Simulator for Multi-Robot Backend Algorithms");
 
             ui.horizontal(|ui| {
@@ -138,11 +167,14 @@ impl eframe::App for SimbaApp {
 
                 if ui.button("Load").clicked() {
                     log::info!("Load configuration");
-                    self.p
-                        .api
-                        .load_config
-                        .async_call(self.config_path.clone());
-                    self.p.config_loaded = true;
+                    self.p.config = None;
+                    self.p.api.load_config.async_call(self.config_path.clone());
+                }
+                if self.p.config.is_none() {
+                    if let Some(c) = self.p.api.load_config.try_get_result() {
+                        self.p.config = Some(c.unwrap());
+                        self.init_drawables();
+                    }
                 }
             });
 
@@ -153,45 +185,107 @@ impl eframe::App for SimbaApp {
         });
 
         egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
-            
-            ui.horizontal(|ui| {
-                if ui
-                    .add_enabled(self.p.config_loaded, egui::Button::new("Run"))
-                    .clicked()
-                {
-                    log::info!("Run simulation");
-                    self.p.api.run.async_call(Some(self.duration));
-                }
-                let mut max_simulated_time = 0.;
-                for (_, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter()
-                {
-                    if max_simulated_time == 0. {
-                        max_simulated_time = *time;
-                    } else {
-                        max_simulated_time = max_simulated_time.min(*time);
+            ui.vertical(|ui| {
+                ui.add(
+                    egui::Slider::new(&mut self.drawing_scale, 1.0..=1000.)
+                        .text("Zoom")
+                        .show_value(false),
+                );
+                // Mouse wheel for zoom
+                ctx.input(|i| {
+                    if i.modifiers.ctrl {
+                        self.drawing_scale *= (i.zoom_delta() * i.zoom_delta() - 1.) / 50. + 1.;
                     }
-                }
-                // Set ALL slider size
-                ui.style_mut().spacing.slider_width = ui.available_width() - 180.;
-                if self.p.current_draw_time > max_simulated_time || self.p.follow_sim_time {
-                    self.p.current_draw_time = max_simulated_time;
-                }
-                ui.add(egui::Slider::new(&mut self.p.current_draw_time, 0.0..=self.duration));
-                ui.add(egui::Checkbox::new(&mut self.p.follow_sim_time, "Follow"));
-                if ui
-                    .add_enabled(self.p.config_loaded, egui::Button::new("Results"))
-                    .clicked()
-                {
-                    log::info!("Analysing results");
-                    self.p.api.compute_results.async_call(());
-                }
-            });
+                });
 
-            ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
-                egui::warn_if_debug_build(ui);
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(self.p.config.is_some(), egui::Button::new("Run"))
+                        .clicked()
+                    {
+                        log::info!("Run simulation");
+                        self.p.api.run.async_call(Some(self.duration));
+                    }
+                    let mut max_simulated_time = 0.;
+                    for (_, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter() {
+                        if max_simulated_time == 0. {
+                            max_simulated_time = *time;
+                        } else {
+                            max_simulated_time = max_simulated_time.min(*time);
+                        }
+                    }
+                    // Set ALL slider size
+                    ui.style_mut().spacing.slider_width = ui.available_width() - 180.;
+                    if self.p.current_draw_time > max_simulated_time || self.p.follow_sim_time {
+                        self.p.current_draw_time = max_simulated_time;
+                    }
+                    ui.add(egui::Slider::new(
+                        &mut self.p.current_draw_time,
+                        0.0..=self.duration,
+                    ));
+                    ui.add(egui::Checkbox::new(&mut self.p.follow_sim_time, "Follow"));
+                    if ui
+                        .add_enabled(self.p.config.is_some(), egui::Button::new("Results"))
+                        .clicked()
+                    {
+                        log::info!("Analysing results");
+                        self.p.api.compute_results.async_call(());
+                    }
+                });
+
+                ui.with_layout(egui::Layout::bottom_up(egui::Align::LEFT), |ui| {
+                    egui::warn_if_debug_build(ui);
+                });
             });
+        });
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            egui::ScrollArea::both()
+                .auto_shrink([false; 2])
+                .drag_to_scroll(true)
+                .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
+                .show_viewport(ui, |ui, viewport| {
+                    // let viewport = viewport * self.drawing_scale;
+                    let size = Vec2::new(10., 10.) * self.drawing_scale;
+
+                    let (response, painter) = ui.allocate_painter(size, Sense::hover());
+
+                    // Draw grid
+                    painter.rect_stroke(response.rect, 0.0, (1.0, Color32::LIGHT_GRAY));
+                    let x_min = response.rect.left();//.max(viewport.left());
+                    let x_max = response.rect.right();//.min(viewport.right());
+                    let y_min = response.rect.top();//.max(viewport.top());
+                    let y_max = response.rect.bottom();//.min(viewport.bottom());
+                    let mut x = response.rect.center().x;
+                    while x > x_min {
+                        painter.vline(x, response.rect.y_range(), (1.0, Color32::LIGHT_GRAY));
+                        x -= 1. * self.drawing_scale;
+                    }
+                    x = response.rect.center().x;
+                    while x < x_max {
+                        painter.vline(x, response.rect.y_range(), (1.0, Color32::LIGHT_GRAY));
+                        x += 1. * self.drawing_scale;
+                    }
+                    let mut y = response.rect.center().y;
+                    while y > y_min {
+                        painter.hline(response.rect.x_range(), y, (1.0, Color32::LIGHT_GRAY));
+                        y -= 1. * self.drawing_scale;
+                    }
+                    y = response.rect.center().y;
+                    while y < y_max {
+                        painter.hline(response.rect.x_range(), y, (1.0, Color32::LIGHT_GRAY));
+                        y += 1. * self.drawing_scale;
+                    }
+
+                    painter.vline(response.rect.center().x, response.rect.y_range(), (1.0, Color32::GREEN));
+                    painter.hline(response.rect.x_range(), response.rect.center().y, (1.0, Color32::RED));
+
+                    self.draw(ui, viewport, response, painter);
+                });
         });
 
         ctx.request_repaint_after(Duration::from_secs_f32(1.0 / 60.0));
     }
+    
 }
+

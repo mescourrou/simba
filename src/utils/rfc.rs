@@ -2,8 +2,6 @@ use std::sync::{mpsc, Arc, Mutex};
 
 use crate::errors::SimbaResult;
 
-
-
 #[derive(Clone)]
 pub struct RemoteFunctionCall<ParamType: Clone, ReturnType: Clone> {
     sender: mpsc::Sender<ParamType>,
@@ -66,8 +64,10 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, Retu
     }
 }
 
-
-pub fn make_pair<ParamType: Clone, ReturnType: Clone>() -> (RemoteFunctionCall<ParamType, ReturnType>, RemoteFunctionCallHost<ParamType, ReturnType>) {
+pub fn make_pair<ParamType: Clone, ReturnType: Clone>() -> (
+    RemoteFunctionCall<ParamType, ReturnType>,
+    RemoteFunctionCallHost<ParamType, ReturnType>,
+) {
     let call_pipe = mpsc::channel();
     let return_pipe = mpsc::channel();
 
@@ -79,6 +79,6 @@ pub fn make_pair<ParamType: Clone, ReturnType: Clone>() -> (RemoteFunctionCall<P
         RemoteFunctionCallHost {
             sender: return_pipe.0,
             receiver: Arc::new(Mutex::new(call_pipe.1)),
-        }
+        },
     )
 }

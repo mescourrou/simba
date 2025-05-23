@@ -39,6 +39,15 @@ pub enum PhysicRecord {
     External(external_physic::ExternalPhysicRecord),
 }
 
+impl PhysicRecord {
+    pub fn pose(&self) -> [f32;3] {
+        match self {
+            Self::External(p) => [0.,0.,0.],
+            Self::Perfect(p) => p.state.pose.into(),
+        }
+    }
+}
+
 use crate::{
     networking::service::HasService, plugin_api::PluginAPI, simulator::SimulatorConfig,
     state_estimators::state_estimator::State, stateful::Stateful,

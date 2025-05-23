@@ -2,6 +2,7 @@
 
 mod app;
 pub use app::SimbaApp;
+mod drawables;
 
 use log;
 

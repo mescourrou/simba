@@ -1,4 +1,7 @@
-use std::{fmt::Display, sync::{Arc, Mutex, RwLock}};
+use std::{
+    fmt::Display,
+    sync::{Arc, Mutex, RwLock},
+};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};

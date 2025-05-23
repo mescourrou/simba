@@ -42,9 +42,7 @@ pub struct PythonStateEstimatorAsyncClient {
 impl StateEstimator for PythonStateEstimatorAsyncClient {
     fn prediction_step(&mut self, _node: &mut Node, time: f32) {
         debug!("Start prediction step from async client");
-        self.prediction_step_request
-            .send(time)
-            .unwrap();
+        self.prediction_step_request.send(time).unwrap();
         debug!("Start prediction step from async client: Request sent");
         self.prediction_step_response
             .lock()

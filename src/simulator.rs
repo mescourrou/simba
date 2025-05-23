@@ -47,6 +47,7 @@ use crate::networking::service_manager::ServiceManager;
 use crate::node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig};
 use crate::plugin_api::PluginAPI;
 use crate::state_estimators::state_estimator::State;
+use crate::stateful::Stateful;
 use crate::time_analysis::{self, TimeAnalysisConfig};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
@@ -62,7 +63,7 @@ use serde_json::{self, Value};
 use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::sync::{Arc, Barrier, Condvar, Mutex, RwLock};
+use std::sync::{mpsc, Arc, Barrier, Condvar, Mutex, RwLock};
 use std::thread::{self, sleep, ThreadId};
 
 use log::{debug, error, info, warn};
@@ -186,11 +187,13 @@ static INCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
 pub struct SimulatorAsyncApi {
     pub current_time: Arc<Mutex<HashMap<String, f32>>>,
+    pub records: Arc<Mutex<mpsc::Receiver<Record>>>,
 }
 
 #[derive(Clone)]
 struct SimulatorAsyncApiServer {
     pub current_time: Arc<Mutex<HashMap<String, f32>>>,
+    pub records: mpsc::Sender<Record>,
 }
 
 #[derive(Debug)]
@@ -229,7 +232,7 @@ impl TimeCv {
 /// use log::info;
 /// use simba::simulator::Simulator;
 /// use std::path::Path;
-/// 
+///
 /// fn main() {
 ///
 ///     // Initialize the environment, essentially the logging part
@@ -245,7 +248,7 @@ impl TimeCv {
 ///
 ///     // It also save the results to "result.json",
 ///     simulator.run();
-/// 
+///
 ///     // compute the results and show the figures.
 ///     simulator.compute_results();
 ///
@@ -366,7 +369,10 @@ impl Simulator {
         let mut config: SimulatorConfig = match confy::load_path(config_path) {
             Ok(config) => config,
             Err(error) => {
-                println!("ERROR: Error from Confy while loading the config file : {}", error);
+                println!(
+                    "ERROR: Error from Confy while loading the config file : {}",
+                    error
+                );
                 return;
             }
         };
@@ -423,6 +429,10 @@ impl Simulator {
         time_analysis::init_from_config(&self.config.time_analysis);
 
         self.reset(plugin_api);
+    }
+
+    pub fn config(&self) -> SimulatorConfig {
+        self.config.clone()
     }
 
     /// Initialize the simulator environment.
@@ -804,7 +814,7 @@ impl Simulator {
                     let circulating_messages = time_cv.circulating_messages.lock().unwrap();
                     if *lk == nb_nodes && *circulating_messages == 0 {
                         break;
-                    } else if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) { 
+                    } else if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                         debug!(
                             "Finished nodes = {}/{nb_nodes} and circulating messages = {}",
                             *lk, *circulating_messages
@@ -850,6 +860,14 @@ impl Simulator {
                 if own_read_only {
                     node.set_in_state(previous_time);
                 } else {
+                    if let Some(api) = &async_api_server {
+                        let record = Record {
+                            time: next_time,
+                            node: node.record(),
+                        };
+                        api.records.send(record).unwrap();
+                    }
+
                     previous_time = next_time;
                 }
             } else {
@@ -997,11 +1015,14 @@ def convert(records):
     pub fn get_async_api(&mut self) -> Arc<SimulatorAsyncApi> {
         if self.async_api_server.is_none() {
             let map = Arc::new(Mutex::new(HashMap::new()));
+            let (records_tx, records_rx) = mpsc::channel();
             self.async_api_server = Some(SimulatorAsyncApiServer {
                 current_time: Arc::clone(&map),
+                records: records_tx,
             });
             self.async_api = Some(Arc::new(SimulatorAsyncApi {
                 current_time: Arc::clone(&map),
+                records: Arc::new(Mutex::new(records_rx)),
             }));
         }
         self.async_api.as_ref().unwrap().clone()
