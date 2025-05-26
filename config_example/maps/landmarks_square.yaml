@@ -1,0 +1,21 @@
+landmarks:
+  - id: 1
+    x: 5
+    y: 5
+    theta: -1
+    covariance: 0.01
+  - id: 2
+    x: 5
+    y: -5
+    theta: 1
+    covariance: 0.01
+  - id: 3
+    x: -5
+    y: 5
+    theta: 2.5
+    covariance: 0.01
+  - id: 4
+    x: -5
+    y: -5
+    theta: -2.5
+    covariance: 0.01

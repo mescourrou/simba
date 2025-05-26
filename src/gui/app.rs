@@ -15,8 +15,9 @@ struct PrivateParams {
     api: AsyncApi,
     config: Option<SimulatorConfig>,
     current_draw_time: f32,
-    follow_sim_time: bool,
     robots: HashMap<String, drawables::robot::Robot>,
+    playing: Option<(f32, std::time::Instant)>,
+    simulation_run: bool,
 
 }
 
@@ -30,8 +31,9 @@ impl Default for PrivateParams {
             api,
             config: None,
             current_draw_time: 0.,
-            follow_sim_time: true,
             robots: HashMap::new(),
+            playing: None,
+            simulation_run: false,
         }
     }
 }
@@ -46,6 +48,7 @@ pub struct SimbaApp {
     #[serde(skip_serializing, skip_deserializing)]
     p: PrivateParams,
     drawing_scale: f32,
+    follow_sim_time: bool,
 }
 
 impl Default for SimbaApp {
@@ -62,6 +65,7 @@ impl Default for SimbaApp {
                 ..Default::default()
             },
             drawing_scale: 100.,
+            follow_sim_time: true,
         }
     }
 }
@@ -109,7 +113,7 @@ impl SimbaApp {
         }
         let config = self.p.config.as_ref().unwrap();
         for robot in &config.robots {
-            self.p.robots.insert(robot.name.clone(), drawables::robot::Robot::init(robot));
+            self.p.robots.insert(robot.name.clone(), drawables::robot::Robot::init(robot, config));
         }
     }
 
@@ -205,6 +209,7 @@ impl eframe::App for SimbaApp {
                     {
                         log::info!("Run simulation");
                         self.p.api.run.async_call(Some(self.duration));
+                        self.p.simulation_run = true;
                     }
                     let mut max_simulated_time = 0.;
                     for (_, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter() {
@@ -214,16 +219,35 @@ impl eframe::App for SimbaApp {
                             max_simulated_time = max_simulated_time.min(*time);
                         }
                     }
+                    let play_pause_btn = if self.p.playing.is_none() {
+                        egui::Button::new("Play ")
+                    } else {
+                        egui::Button::new("Pause")
+                    };
+                    if ui
+                        .add_enabled(self.p.simulation_run, play_pause_btn)
+                        .clicked()
+                    {
+                        if self.p.playing.is_some() { // Press Pause
+                            self.p.playing = None;
+                        } else {
+                            self.p.playing = Some((self.p.current_draw_time, std::time::Instant::now()));
+                            self.follow_sim_time = false;
+                        }
+                    }
+                    if let Some((begin_sim_time, begin_sys_time)) = self.p.playing {
+                        self.p.current_draw_time = begin_sim_time + (std::time::Instant::now() - begin_sys_time).as_secs_f32();
+                    }
                     // Set ALL slider size
                     ui.style_mut().spacing.slider_width = ui.available_width() - 180.;
-                    if self.p.current_draw_time > max_simulated_time || self.p.follow_sim_time {
+                    if self.p.current_draw_time > max_simulated_time || self.follow_sim_time {
                         self.p.current_draw_time = max_simulated_time;
                     }
                     ui.add(egui::Slider::new(
                         &mut self.p.current_draw_time,
                         0.0..=self.duration,
                     ));
-                    ui.add(egui::Checkbox::new(&mut self.p.follow_sim_time, "Follow"));
+                    ui.add(egui::Checkbox::new(&mut self.follow_sim_time, "Follow"));
                     if ui
                         .add_enabled(self.p.config.is_some(), egui::Button::new("Results"))
                         .clicked()
@@ -246,7 +270,7 @@ impl eframe::App for SimbaApp {
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
                 .show_viewport(ui, |ui, viewport| {
                     // let viewport = viewport * self.drawing_scale;
-                    let size = Vec2::new(10., 10.) * self.drawing_scale;
+                    let size = Vec2::new(50., 50.) * self.drawing_scale;
 
                     let (response, painter) = ui.allocate_painter(size, Sense::hover());
 
@@ -284,7 +308,7 @@ impl eframe::App for SimbaApp {
                 });
         });
 
-        ctx.request_repaint_after(Duration::from_secs_f32(1.0 / 60.0));
+        ctx.request_repaint_after(Duration::from_secs_f32(1.0 / 30.0));
     }
     
 }

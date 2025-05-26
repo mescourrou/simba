@@ -67,7 +67,7 @@ impl Default for OrientedLandmarkSensorRecord {
 }
 
 /// Landmark struct, with an `id` and a `pose`, used to read the map file.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OrientedLandmark {
     pub id: i32,
     pub pose: Vector3<f32>,
@@ -378,7 +378,7 @@ impl Sensor for OrientedLandmarkSensor {
                 observation_list.push(SensorObservation::OrientedLandmark(
                     OrientedLandmarkObservation {
                         id: landmark.id,
-                        pose: rotation_matrix * landmark.pose + state.pose,
+                        pose: rotation_matrix.transpose() * (landmark.pose - state.pose),
                     },
                 ));
                 for fault_model in self.faults.lock().unwrap().iter() {
