@@ -5,6 +5,7 @@
 use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
+use libm::atan2f;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "gui")]
@@ -160,7 +161,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
     ) {
-        let obs_seed_increment = 1. / (100. * period);
+        let obs_seed_increment = 1. / (1000. * period);
         let mut seed = time;
         for obs in obs_list {
             seed += obs_seed_increment;
@@ -181,7 +182,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                             match self.variable_order[i].as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
-                                "z | orientation" => z_add = random_sample[i],
+                                "z" | "orientation" => z_add = random_sample[i],
                                 &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", self.variable_order[i])
                             }
                         }
@@ -192,7 +193,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                         z_add = random_sample[2];
                     }
 
-                    let theta = o.pose.z + theta_add; // 0 of polar angle is the direction of the robot
+                    let theta = atan2f(o.pose.y, o.pose.x) + theta_add; // 0 of polar angle is the direction of the robot
                     o.pose.x += r_add * theta.cos();
                     o.pose.y += r_add * theta.sin();
                     o.pose.z = o.pose.z + z_add;
@@ -230,7 +231,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                             match self.variable_order[i].as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
-                                "z | orientation" => z_add = random_sample[i],
+                                "z" | "orientation" => z_add = random_sample[i],
                                 &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", self.variable_order[i])
                             }
                         }
@@ -240,7 +241,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                         theta_add = random_sample[1];
                         z_add = random_sample[2];
                     }
-                    let theta = o.pose.z + theta_add; // 0 of polar angle is the direction of the landmark
+                    let theta = atan2f(o.pose.y, o.pose.x) + theta_add; // 0 of polar angle is the direction of the landmark
                     o.pose.x += r_add * theta.cos();
                     o.pose.y += r_add * theta.sin();
                     o.pose.z = o.pose.z + z_add;

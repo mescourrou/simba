@@ -11,6 +11,7 @@ use crate::gui::UIComponent;
 use crate::{
     utils::determinist_random_variable::{self, DeterministRandomVariable},
 };
+use crate::utils::format_f32;
 
 /// Configuration for a uniform random variable.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -18,6 +19,7 @@ use crate::{
 #[serde(deny_unknown_fields)]
 pub struct UniformRandomVariableConfig {
     /// Random seed for this random variable.
+    #[serde(serialize_with = "format_f32")]
     pub unique_seed: f32,
     /// Minimum value of the uniform distribution.
     pub min: Vec<f32>,
@@ -54,9 +56,9 @@ impl UIComponent for UniformRandomVariableConfig {
                 {
                     ui.horizontal(|ui| {
                         ui.label(format!("{}:", i + 1));
-                        ui.add(egui::DragValue::new(min));
+                        ui.add(egui::DragValue::new(min).max_decimals(10));
                         ui.label("-");
-                        ui.add(egui::DragValue::new(max));
+                        ui.add(egui::DragValue::new(max).max_decimals(10));
                         if ui.button("X").clicked() {
                             to_remove = Some(i);
                         }

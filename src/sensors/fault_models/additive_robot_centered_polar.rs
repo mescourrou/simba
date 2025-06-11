@@ -182,7 +182,7 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                             match self.variable_order[i].as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
-                                "z | orientation" => z_add = random_sample[i],
+                                "z" | "orientation" => z_add = random_sample[i],
                                 &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", self.variable_order[i])
                             }
                         }
@@ -216,7 +216,7 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                             match self.variable_order[i].as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
-                                "z | orientation" => z_add = random_sample[i],
+                                "z" | "orientation" => z_add = random_sample[i],
                                 &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", self.variable_order[i])
                             }
                         }

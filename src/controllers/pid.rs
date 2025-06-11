@@ -77,32 +77,32 @@ impl UIComponent for PIDConfig {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Velocity - P:");
-                    ui.add(egui::DragValue::new(&mut self.kp_v));
+                    ui.add(egui::DragValue::new(&mut self.kp_v).max_decimals(10));
                 });
 
                 ui.horizontal(|ui| {
                     ui.label("Velocity - I:");
-                    ui.add(egui::DragValue::new(&mut self.ki_v));
+                    ui.add(egui::DragValue::new(&mut self.ki_v).max_decimals(10));
                 });
 
                 ui.horizontal(|ui| {
                     ui.label("Velocity - D:");
-                    ui.add(egui::DragValue::new(&mut self.kd_v));
+                    ui.add(egui::DragValue::new(&mut self.kd_v).max_decimals(10));
                 });
 
                 ui.horizontal(|ui| {
                     ui.label("Theta - P:");
-                    ui.add(egui::DragValue::new(&mut self.kp_theta));
+                    ui.add(egui::DragValue::new(&mut self.kp_theta).max_decimals(10));
                 });
 
                 ui.horizontal(|ui| {
                     ui.label("Theta - I:");
-                    ui.add(egui::DragValue::new(&mut self.ki_theta));
+                    ui.add(egui::DragValue::new(&mut self.ki_theta).max_decimals(10));
                 });
 
                 ui.horizontal(|ui| {
                     ui.label("Theta - D:");
-                    ui.add(egui::DragValue::new(&mut self.kd_theta));
+                    ui.add(egui::DragValue::new(&mut self.kd_theta).max_decimals(10));
                 });
 
                 ui.horizontal(|ui| {
@@ -110,7 +110,7 @@ impl UIComponent for PIDConfig {
                     if self.wheel_distance < 0. {
                         self.wheel_distance = 0.;
                     }
-                    ui.add(egui::DragValue::new(&mut self.wheel_distance));
+                    ui.add(egui::DragValue::new(&mut self.wheel_distance).max_decimals(10));
                 });
             });
     }

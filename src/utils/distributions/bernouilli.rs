@@ -8,6 +8,7 @@ use crate::gui::UIComponent;
 use crate::{
     utils::determinist_random_variable::{self, DeterministRandomVariable},
 };
+use crate::utils::format_f32;
 
 /// Configuration for a uniform random variable.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -15,6 +16,7 @@ use crate::{
 #[serde(deny_unknown_fields)]
 pub struct BernouilliRandomVariableConfig {
     /// Random seed for this random variable.
+    #[serde(serialize_with = "format_f32")]
     pub unique_seed: f32,
     /// Probabilities of the random variable
     pub probability: Vec<f32>,
@@ -46,7 +48,7 @@ impl UIComponent for BernouilliRandomVariableConfig {
                 for (i, p) in self.probability.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
                         ui.label(format!("p {}:", i + 1));
-                        ui.add(egui::DragValue::new(p).clamp_range(0.0..=1.0));
+                        ui.add(egui::DragValue::new(p).clamp_range(0.0..=1.0).max_decimals(10));
                         if ui.button("X").clicked() {
                             to_remove = Some(i);
                         }

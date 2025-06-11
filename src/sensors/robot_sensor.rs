@@ -84,7 +84,7 @@ impl UIComponent for RobotSensorConfig {
                     if self.period < TIME_ROUND {
                         self.period = TIME_ROUND;
                     }
-                    ui.add(egui::DragValue::new(&mut self.period));
+                    ui.add(egui::DragValue::new(&mut self.period).max_decimals((1./TIME_ROUND) as usize));
                 });
 
                 FaultModelConfig::show_faults(
@@ -385,7 +385,7 @@ impl Sensor for RobotSensor {
             debug!("Rotation matrix: {}", rotation_matrix);
         }
 
-        for other_node_name in node.other_node_names.iter() {
+        for (i, other_node_name) in node.other_node_names.iter().enumerate() {
             if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
                 debug!("Sensing node {}", other_node_name);
             }
@@ -404,22 +404,24 @@ impl Sensor for RobotSensor {
                     debug!("Distance is {d}");
                 }
                 if d <= self.detection_distance {
+                    let robot_seed = 1. / (100. * self.period) * (i as f32);
+                    let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
                     observation_list.push(SensorObservation::OrientedRobot(
                         OrientedRobotObservation {
                             name: other_node_name.clone(),
-                            pose: rotation_matrix.transpose() * (other_state.pose - state.pose),
+                            pose,
                         },
                     ));
+                    for fault_model in self.faults.lock().unwrap().iter() {
+                        fault_model.add_faults(
+                            time + robot_seed,
+                            self.period,
+                            &mut observation_list,
+                            SensorObservation::OrientedRobot(OrientedRobotObservation::default()),
+                        );
+                    }
                 }
             };
-        }
-        for fault_model in self.faults.lock().unwrap().iter() {
-            fault_model.add_faults(
-                time,
-                self.period,
-                &mut observation_list,
-                SensorObservation::OrientedRobot(OrientedRobotObservation::default()),
-            );
         }
         self.last_time = time;
         observation_list

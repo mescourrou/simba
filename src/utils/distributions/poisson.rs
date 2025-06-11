@@ -10,6 +10,7 @@ use crate::gui::UIComponent;
 use crate::{
     utils::determinist_random_variable::{self, DeterministRandomVariable},
 };
+use crate::utils::format_f32;
 
 /// Configuration for a uniform random variable.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -17,6 +18,7 @@ use crate::{
 #[serde(deny_unknown_fields)]
 pub struct PoissonRandomVariableConfig {
     /// Random seed for this random variable.
+    #[serde(serialize_with = "format_f32")]
     pub unique_seed: f32,
     /// Probabilities of the random variable
     pub lambda: Vec<f64>,
@@ -48,7 +50,7 @@ impl UIComponent for PoissonRandomVariableConfig {
                 for (i, p) in self.lambda.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
                         ui.label(format!("lambda {}:", i + 1));
-                        ui.add(egui::DragValue::new(p));
+                        ui.add(egui::DragValue::new(p).max_decimals(10));
                         if ui.button("X").clicked() {
                             to_remove = Some(i);
                         }

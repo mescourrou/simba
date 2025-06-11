@@ -64,7 +64,7 @@ impl UIComponent for PerfectEstimatorConfig {
                     if self.prediction_period < TIME_ROUND {
                         self.prediction_period = TIME_ROUND;
                     }
-                    ui.add(egui::DragValue::new(&mut self.prediction_period));
+                    ui.add(egui::DragValue::new(&mut self.prediction_period).max_decimals((1./TIME_ROUND) as usize));
                 });
 
                 let mut possible_targets =

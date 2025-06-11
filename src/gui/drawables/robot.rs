@@ -9,18 +9,20 @@ use crate::{
     utils::time_ordered_data::TimeOrderedData,
 };
 
-use super::observations::OrientedLandmarkObservation;
+use super::observations::{OrientedLandmarkObservation, OrientedRobotObservation};
 
 pub struct Robot {
     color: Color32,
     records: TimeOrderedData<RobotRecord>,
     arrow_len: f32,
     landmark_obs: Option<OrientedLandmarkObservation>,
+    robot_obs: Option<OrientedRobotObservation>,
 }
 
 impl Robot {
     pub fn init(config: &RobotConfig, sim_config: &SimulatorConfig) -> Self {
         let mut landmark_obs = None;
+        let mut robot_obs = None;
 
         for sensor_conf in &config.sensor_manager.sensors {
             match &sensor_conf.config {
@@ -29,7 +31,9 @@ impl Robot {
                 SensorConfig::OrientedLandmarkSensor(c) => {
                     landmark_obs = Some(OrientedLandmarkObservation::init(c, sim_config))
                 }
-                SensorConfig::RobotSensor(_) => {}
+                SensorConfig::RobotSensor(c) => {
+                    robot_obs = Some(OrientedRobotObservation::init(c, sim_config))
+                }
             }
         }
 
@@ -38,6 +42,7 @@ impl Robot {
             records: TimeOrderedData::new(),
             arrow_len: 0.2,
             landmark_obs,
+            robot_obs,
         }
     }
 
@@ -83,6 +88,17 @@ impl Robot {
                 match &obs.sensor_observation {
                     SensorObservationRecord::OrientedLandmark(o) => {
                         self.landmark_obs.as_ref().unwrap().draw(
+                            ui,
+                            viewport,
+                            response,
+                            painter,
+                            scale,
+                            o,
+                            &Vector3::from(pose),
+                        )
+                    },
+                    SensorObservationRecord::OrientedRobot(o) => {
+                        self.robot_obs.as_ref().unwrap().draw(
                             ui,
                             viewport,
                             response,

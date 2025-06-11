@@ -260,9 +260,9 @@ pub fn seed_generation_component(
     use rand::random;
 
     ui.horizontal(|ui| {
-        ui.add(egui::DragValue::new(seed));
+        ui.add(egui::DragValue::new(seed).max_decimals(40));
         if ui.button("Generate").clicked() {
-            *seed = random::<f32>() * f32::MAX + f32::MIN / 2.;
+            *seed = random::<f32>() * 1000000.;
         }
     });
 }

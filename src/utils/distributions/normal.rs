@@ -9,6 +9,7 @@ use crate::gui::UIComponent;
 use crate::{
     utils::determinist_random_variable::{self, DeterministRandomVariable},
 };
+use crate::utils::format_f32;
 
 /// Configuration for a normal random variable.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -16,6 +17,7 @@ use crate::{
 #[serde(deny_unknown_fields)]
 pub struct NormalRandomVariableConfig {
     /// Random seed for this random variable.
+    #[serde(serialize_with = "format_f32")]
     unique_seed: f32,
     /// Mean of the normal distribution.
     mean: Vec<f64>,
@@ -50,7 +52,7 @@ impl UIComponent for NormalRandomVariableConfig {
                 for (i, p) in self.mean.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
                         ui.label(format!("mean {}:", i + 1));
-                        ui.add(egui::DragValue::new(p));
+                        ui.add(egui::DragValue::new(p).max_decimals(10));
                         if ui.button("X").clicked() {
                             to_remove = Some(i);
                         }
@@ -94,7 +96,7 @@ impl UIComponent for NormalRandomVariableConfig {
                             while col < size {
                                 ui.add(egui::DragValue::new(
                                     self.covariance.get_mut(row * size + col).unwrap(),
-                                ));
+                                ).max_decimals(10));
                                 col += 1;
                             }
                         });

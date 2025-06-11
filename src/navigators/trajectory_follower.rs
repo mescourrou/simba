@@ -75,7 +75,7 @@ impl UIComponent for TrajectoryFollowerConfig {
                     if self.forward_distance < 0. {
                         self.forward_distance = 0.;
                     }
-                    ui.add(egui::DragValue::new(&mut self.forward_distance));
+                    ui.add(egui::DragValue::new(&mut self.forward_distance).max_decimals(10));
                 });
 
                 ui.horizontal(|ui| {
@@ -83,7 +83,7 @@ impl UIComponent for TrajectoryFollowerConfig {
                     if self.target_speed < 0. {
                         self.target_speed = 0.;
                     }
-                    ui.add(egui::DragValue::new(&mut self.target_speed));
+                    ui.add(egui::DragValue::new(&mut self.target_speed).max_decimals(10));
                 });
             });
     }

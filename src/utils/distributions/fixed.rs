@@ -38,7 +38,7 @@ impl UIComponent for FixedRandomVariableConfig {
                 for (i, p) in self.values.iter_mut().enumerate() {
                     ui.horizontal(|ui| {
                         ui.label(format!("value {}:", i + 1));
-                        ui.add(egui::DragValue::new(p));
+                        ui.add(egui::DragValue::new(p).max_decimals(10));
                         if ui.button("X").clicked() {
                             to_remove = Some(i);
                         }

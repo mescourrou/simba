@@ -48,19 +48,19 @@ impl UIComponent for StateConfig {
     ) {
         ui.horizontal(|ui| {
             ui.label("x: ");
-            ui.add(egui::DragValue::new(self.pose.get_mut(0).unwrap()));
+            ui.add(egui::DragValue::new(self.pose.get_mut(0).unwrap()).max_decimals(10));
         });
         ui.horizontal(|ui| {
             ui.label("y: ");
-            ui.add(egui::DragValue::new(self.pose.get_mut(1).unwrap()));
+            ui.add(egui::DragValue::new(self.pose.get_mut(1).unwrap()).max_decimals(10));
         });
         ui.horizontal(|ui| {
             ui.label("θ: ");
-            ui.add(egui::DragValue::new(self.pose.get_mut(2).unwrap()));
+            ui.add(egui::DragValue::new(self.pose.get_mut(2).unwrap()).max_decimals(10));
         });
         ui.horizontal(|ui| {
             ui.label("v: ");
-            ui.add(egui::DragValue::new(&mut self.velocity));
+            ui.add(egui::DragValue::new(&mut self.velocity).max_decimals(10));
         });
     }
 }

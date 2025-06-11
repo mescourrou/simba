@@ -86,7 +86,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     if self.period < TIME_ROUND {
                         self.period = TIME_ROUND;
                     }
-                    ui.add(egui::DragValue::new(&mut self.period));
+                    ui.add(egui::DragValue::new(&mut self.period).max_decimals((1./TIME_ROUND) as usize));
                 });
 
                 ui.horizontal(|ui| {
@@ -428,10 +428,11 @@ impl Sensor for OrientedLandmarkSensor {
             .sqrt();
             if d <= self.detection_distance {
                 let landmark_seed = 1. / (100. * self.period) * (landmark.id as f32);
+                let pose = rotation_matrix.transpose() * (landmark.pose - state.pose);
                 observation_list.push(SensorObservation::OrientedLandmark(
                     OrientedLandmarkObservation {
                         id: landmark.id,
-                        pose: rotation_matrix.transpose() * (landmark.pose - state.pose),
+                        pose,
                     },
                 ));
                 for fault_model in self.faults.lock().unwrap().iter() {

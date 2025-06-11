@@ -64,7 +64,7 @@ impl UIComponent for GNSSSensorConfig {
                     if self.period < TIME_ROUND {
                         self.period = TIME_ROUND;
                     }
-                    ui.add(egui::DragValue::new(&mut self.period));
+                    ui.add(egui::DragValue::new(&mut self.period).max_decimals((1./TIME_ROUND) as usize));
                 });
 
                 FaultModelConfig::show_faults(

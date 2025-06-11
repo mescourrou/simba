@@ -85,6 +85,7 @@ use std::thread::{self, sleep, ThreadId};
 use log::{debug, error, info, warn};
 
 use pyo3::prepare_freethreaded_python;
+use crate::utils::format_option_f32;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
@@ -214,6 +215,7 @@ pub struct SimulatorConfig {
 
     #[check]
     pub time_analysis: TimeAnalysisConfig,
+    #[serde(serialize_with = "format_option_f32")]
     pub random_seed: Option<f32>,
     /// List of the robots to run, with their specific configuration.
     #[check]
@@ -299,7 +301,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
 
             ui.horizontal(|ui| {
                 ui.label("Max time: ");
-                ui.add(egui::DragValue::new(&mut self.max_time));
+                ui.add(egui::DragValue::new(&mut self.max_time).max_decimals((1./TIME_ROUND) as usize));
             });
 
             ui.horizontal(|ui| {

@@ -16,7 +16,7 @@ time_analysis:
   keep_last: true
   output_path: time_performance
   analysis_unit: s
-random_seed: ~
+random_seed: 226293.09375
 robots:
   - name: robot_1
     navigator:
@@ -53,32 +53,100 @@ robots:
           send_to: []
           config:
             OrientedLandmarkSensor:
-              detection_distance: 5.0
+              detection_distance: 10.0
               map_path: maps/landmarks_square.yaml
               period: 0.1
               faults:
                 - AdditiveObservationCenteredPolar:
                     apparition:
-                      unique_seed: -1.6517109e38
+                      unique_seed: 175306.3125
                       probability:
                         - 1.0
                     distributions:
                       - Normal:
-                          unique_seed: -1.2907323e38
+                          unique_seed: 548512.5
                           mean:
                             - 0.0
                             - 0.0
                             - 0.0
                           covariance:
-                            - 1.0
-                            - 0.0
-                            - 0.0
-                            - 0.0
                             - 0.1
                             - 0.0
                             - 0.0
                             - 0.0
+                            - 0.01
+                            - 0.0
+                            - 0.0
+                            - 0.0
                             - 0.1
+                    variable_order:
+                      - r
+                      - theta
+                      - orientation
+    network:
+      range: 0.0
+      reception_delay: 0.001
+    state_estimator_bench: []
+  - name: robot_2
+    navigator:
+      TrajectoryFollower:
+        trajectory_path: paths/path1.yaml
+        forward_distance: 0.5
+        target_speed: 0.2
+    controller:
+      PID:
+        kp_v: 1.0
+        kd_v: 0.0
+        ki_v: 0.0
+        kp_theta: 1.0
+        kd_theta: 0.1
+        ki_theta: 0.0
+        wheel_distance: 0.25
+    physic:
+      Perfect:
+        wheel_distance: 0.25
+        initial_state:
+          pose:
+            - 0.0
+            - 0.0
+            - 0.0
+          velocity: 0.0
+    state_estimator:
+      Perfect:
+        prediction_period: 0.1
+        targets:
+          - self
+    sensor_manager:
+      sensors:
+        - name: RobotSensor
+          send_to: []
+          config:
+            RobotSensor:
+              detection_distance: 5.0
+              period: 0.1
+              faults:
+                - AdditiveRobotCenteredPolar:
+                    apparition:
+                      unique_seed: 798022.0625
+                      probability:
+                        - 1.0
+                    distributions:
+                      - Normal:
+                          unique_seed: 813223.375
+                          mean:
+                            - 0.0
+                            - 0.0
+                            - 0.0
+                          covariance:
+                            - 0.1
+                            - 0.0
+                            - 0.0
+                            - 0.0
+                            - 0.00001
+                            - 0.0
+                            - 0.0
+                            - 0.0
+                            - 0.01
                     variable_order:
                       - r
                       - theta
