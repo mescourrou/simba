@@ -1,0 +1,101 @@
+---
+log:
+  included_nodes: []
+  excluded_nodes: []
+  log_level: Info
+results:
+  result_path: "./result.json"
+  show_figures: true
+  analyse_script: "../python_scripts/analyse_results.py"
+  figures_path: "./figures"
+  python_params: ~
+max_time: 60.0
+time_mode: Centralized
+time_analysis:
+  exporter: TraceEventExporter
+  keep_last: true
+  output_path: time_performance
+  analysis_unit: s
+random_seed: ~
+robots:
+  - name: robot_1
+    navigator:
+      TrajectoryFollower:
+        trajectory_path: paths/path1.yaml
+        forward_distance: 1.0
+        target_speed: 0.5
+    controller:
+      PID:
+        kp_v: 1.0
+        kd_v: 0.0
+        ki_v: 0.0
+        kp_theta: 1.0
+        kd_theta: 0.1
+        ki_theta: 0.0
+        wheel_distance: 0.25
+    physic:
+      Perfect:
+        wheel_distance: 0.25
+        initial_state:
+          pose:
+            - 0.0
+            - 0.0
+            - 0.0
+          velocity: 0.0
+    state_estimator:
+      Perfect:
+        prediction_period: 0.1
+        targets:
+          - self
+    sensor_manager:
+      sensors:
+        - name: LandmarkSensor
+          send_to: []
+          config:
+            OrientedLandmarkSensor:
+              detection_distance: 5.0
+              map_path: maps/landmarks_square.yaml
+              period: 0.1
+              faults:
+                - AdditiveObservationCenteredPolar:
+                    apparition:
+                      unique_seed: -1.6517109e38
+                      probability:
+                        - 1.0
+                    distributions:
+                      - Normal:
+                          unique_seed: -1.2907323e38
+                          mean:
+                            - 0.0
+                            - 0.0
+                            - 0.0
+                          covariance:
+                            - 1.0
+                            - 0.0
+                            - 0.0
+                            - 0.0
+                            - 0.1
+                            - 0.0
+                            - 0.0
+                            - 0.0
+                            - 0.1
+                    variable_order:
+                      - r
+                      - theta
+                      - orientation
+    network:
+      range: 0.0
+      reception_delay: 0.001
+    state_estimator_bench: []
+computation_units:
+  - name: Central Unit
+    network:
+      range: 0.0
+      reception_delay: 0.001
+    state_estimators:
+      - name: perfect
+        config:
+          Perfect:
+            prediction_period: 0.1
+            targets:
+              - robot_1

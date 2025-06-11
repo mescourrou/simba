@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 #[cfg(feature = "time-analysis")]
 use libm::ceilf;
 use serde::{Deserialize, Serialize};
+use simba_macros::ToVec;
 
 #[cfg(feature = "time-analysis")]
 use std::sync::Mutex;
@@ -12,13 +13,17 @@ use std::thread::ThreadId;
 
 #[cfg(feature = "time-analysis")]
 use log::info;
-#[cfg(feature = "time-analysis")]
 use std::collections::HashMap;
 #[cfg(feature = "time-analysis")]
 use std::thread;
 use std::time;
 #[cfg(feature = "time-analysis")]
 use std::{path::Path, time::Duration};
+
+use crate::gui::{
+    utils::{enum_radio, path_finder, string_combobox},
+    UIComponent,
+};
 
 #[cfg(feature = "time-analysis")]
 #[allow(dead_code)]
@@ -52,6 +57,46 @@ impl Default for TimeAnalysisConfig {
             output_path: "time_performance".to_string(),
             analysis_unit: "s".to_string(),
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for TimeAnalysisConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut HashMap<String, String>,
+        global_config: &crate::simulator::SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Time Analysis").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Exporter:");
+                enum_radio(ui, &mut self.exporter);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Output path: ");
+                path_finder(ui, &mut self.output_path, &global_config.base_path);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Analysis unit:");
+                string_combobox(
+                    ui,
+                    &vec![
+                        "s".to_string(),
+                        "ms".to_string(),
+                        "us".to_string(),
+                        "ns".to_string(),
+                    ],
+                    &mut self.analysis_unit,
+                    "time-analysis-unit",
+                );
+            });
+        });
     }
 }
 
@@ -717,7 +762,8 @@ pub fn save_results() {}
 
 //////////////////////////////////////////////////
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "gui", derive(ToVec))]
 pub enum ProfileExporterConfig {
     TraceEventExporter,
 }

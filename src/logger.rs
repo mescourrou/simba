@@ -1,14 +1,27 @@
 use std::{
     fmt::Display,
+    ops::DerefMut,
     sync::{Arc, Mutex, RwLock},
 };
 
 use config_checker::macros::Check;
+use libm::tanhf;
 use serde::{Deserialize, Serialize};
+use simba_macros::ToVec;
+
+use crate::{
+    gui::{
+        utils::{enum_checkbox, enum_radio, string_checkbox},
+        UIComponent,
+    },
+    simulator::SimulatorConfig,
+    utils::enum_tools::ToVec,
+};
 
 static INTERNAL_LOG_LEVEL: RwLock<Vec<InternalLog>> = RwLock::new(Vec::new());
 
-#[derive(Debug, Serialize, Deserialize, Check, Clone)]
+#[derive(Debug, Serialize, Deserialize, Check, Clone, PartialEq)]
+#[cfg_attr(feature = "gui", derive(ToVec))]
 pub enum LogLevel {
     Off,
     Error,
@@ -50,6 +63,7 @@ impl Display for LogLevel {
 }
 
 #[derive(Debug, Serialize, Deserialize, Check, Clone, PartialEq)]
+#[cfg_attr(feature = "gui", derive(ToVec))]
 pub enum InternalLog {
     All,
     NetworkMessages,
@@ -81,6 +95,62 @@ impl Default for LoggerConfig {
             excluded_nodes: Vec::new(),
             log_level: LogLevel::Info,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for LoggerConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Logger").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Log level:");
+                    enum_radio(ui, &mut self.log_level);
+                    let mut internal = false;
+                    if let LogLevel::Internal(_) = &self.log_level {
+                        internal = true;
+                    }
+                    if ui.radio(internal, "Internal").clicked() {
+                        if !internal {
+                            self.log_level = LogLevel::Internal(Vec::new());
+                        }
+                    }
+                });
+
+                ui.horizontal_wrapped(|ui| {
+                    if let LogLevel::Internal(l) = &mut self.log_level {
+                        enum_checkbox(ui, l);
+                    }
+                });
+            });
+
+            let mut node_list = Vec::from_iter(
+                global_config.robots.iter().map(|x| x.name.clone()).chain(
+                    global_config
+                        .computation_units
+                        .iter()
+                        .map(|x| x.name.clone()),
+                ),
+            );
+            node_list.push("simulator".to_string());
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Include only:");
+                string_checkbox(ui, &node_list, &mut self.included_nodes);
+            });
+
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Exclude:");
+                string_checkbox(ui, &node_list, &mut self.excluded_nodes);
+            });
+        });
     }
 }
 

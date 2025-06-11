@@ -4,9 +4,10 @@ use std::fmt::Debug;
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
+use simba_macros::{EnumToString, ToVec};
 
 use crate::{
-    sensors::sensor::SensorObservation, simulator::SimulatorConfig,
+    gui::UIComponent, sensors::sensor::SensorObservation, simulator::SimulatorConfig,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
@@ -23,7 +24,7 @@ use super::{
     misdetection::{MisdetectionFault, MisdetectionFaultConfig},
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone, Check)]
+#[derive(Debug, Serialize, Deserialize, Clone, Check, ToVec, EnumToString)]
 #[serde(deny_unknown_fields)]
 pub enum FaultModelConfig {
     AdditiveRobotCentered(AdditiveRobotCenteredFaultConfig),
@@ -32,6 +33,159 @@ pub enum FaultModelConfig {
     Clutter(ClutterFaultConfig),
     Misdetection(MisdetectionFaultConfig),
     Misassociation(MisassociationFaultConfig),
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for FaultModelConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        let self_str = self.to_string();
+        egui::CollapsingHeader::new(self_str)
+            .id_source(format!("fault-model-{}", unique_id))
+            .show(ui, |ui| {
+                match self {
+                    Self::AdditiveRobotCentered(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        unique_id,
+                    ),
+                    Self::AdditiveRobotCenteredPolar(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        unique_id,
+                    ),
+                    Self::AdditiveObservationCenteredPolar(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        unique_id,
+                    ),
+                    Self::Clutter(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        unique_id,
+                    ),
+                    Self::Misdetection(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        unique_id,
+                    ),
+                    Self::Misassociation(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        unique_id,
+                    ),
+                };
+            });
+    }
+}
+
+impl FaultModelConfig {
+    #[cfg(feature = "gui")]
+    pub fn show_faults(
+        faults: &mut Vec<FaultModelConfig>,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        use crate::{gui::utils::string_combobox, utils::enum_tools::ToVec};
+
+        ui.label("Faults:");
+        let mut fault_to_remove = None;
+        for (i, fault) in faults.iter_mut().enumerate() {
+            ui.horizontal_top(|ui| {
+                let unique_fault_id = format!("fault-{i}-{unique_id}");
+                fault.show(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    &unique_fault_id,
+                );
+
+                if ui.button("X").clicked() {
+                    fault_to_remove = Some(i);
+                }
+            });
+        }
+        if let Some(i) = fault_to_remove {
+            faults.remove(i);
+        }
+
+        ui.horizontal(|ui| {
+            let buffer_key = format!("selected-new-fault-{unique_id}");
+            if !buffer_stack.contains_key(&buffer_key) {
+                buffer_stack.insert(buffer_key.clone(), "AdditiveRobotCentered".to_string());
+            }
+            string_combobox(
+                ui,
+                &FaultModelConfig::to_vec()
+                    .iter()
+                    .map(|x| String::from(*x))
+                    .collect(),
+                buffer_stack.get_mut(&buffer_key).unwrap(),
+                format!("fault-choice-{}", unique_id),
+            );
+            if ui.button("Add").clicked() {
+                let selected_fault = buffer_stack.get(&buffer_key).unwrap();
+                match selected_fault.as_str() {
+                    "AdditiveRobotCentered" => {
+                        faults.push(FaultModelConfig::AdditiveRobotCentered(
+                            AdditiveRobotCenteredFaultConfig::default(),
+                        ))
+                    }
+                    "AdditiveRobotCenteredPolar" => {
+                        faults.push(FaultModelConfig::AdditiveRobotCenteredPolar(
+                            AdditiveRobotCenteredPolarFaultConfig::default(),
+                        ))
+                    }
+                    "AdditiveObservationCenteredPolar" => {
+                        faults.push(FaultModelConfig::AdditiveObservationCenteredPolar(
+                            AdditiveObservationCenteredPolarFaultConfig::default(),
+                        ))
+                    }
+                    "Clutter" => {
+                        faults.push(FaultModelConfig::Clutter(ClutterFaultConfig::default()))
+                    }
+                    "Misdetection" => faults.push(FaultModelConfig::Misdetection(
+                        MisdetectionFaultConfig::default(),
+                    )),
+                    "Misassociation" => faults.push(FaultModelConfig::Misassociation(
+                        MisassociationFaultConfig::default(),
+                    )),
+                    _ => panic!("Where did you find this fault?"),
+                };
+            }
+        });
+    }
 }
 
 pub fn make_fault_model_from_config(

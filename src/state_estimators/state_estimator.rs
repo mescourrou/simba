@@ -9,6 +9,7 @@ use na::SVector;
 
 extern crate confy;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::{EnumToString, ToVec};
 
 /// Configuration for [`State`] in order to load a state from the configuration.
 ///
@@ -34,11 +35,41 @@ impl Default for StateConfig {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for StateConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label("x: ");
+            ui.add(egui::DragValue::new(self.pose.get_mut(0).unwrap()));
+        });
+        ui.horizontal(|ui| {
+            ui.label("y: ");
+            ui.add(egui::DragValue::new(self.pose.get_mut(1).unwrap()));
+        });
+        ui.horizontal(|ui| {
+            ui.label("θ: ");
+            ui.add(egui::DragValue::new(self.pose.get_mut(2).unwrap()));
+        });
+        ui.horizontal(|ui| {
+            ui.label("v: ");
+            ui.add(egui::DragValue::new(&mut self.velocity));
+        });
+    }
+}
+
 /// Record for [`State`] in order to record a state.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct StateRecord {
     /// Position and orientation of the robot
-    pub pose: [f32;3],
+    pub pose: [f32; 3],
     /// Linear velocity.
     pub velocity: f32,
 }
@@ -110,7 +141,7 @@ impl Stateful<StateRecord> for State {
     fn record(&self) -> StateRecord {
         StateRecord {
             pose: {
-                let mut ve = [0.,0.,0.];
+                let mut ve = [0., 0., 0.];
                 for (i, coord) in self.pose.iter().enumerate() {
                     if i > ve.len() {
                         continue;
@@ -148,9 +179,12 @@ impl fmt::Display for State {
 
 use super::perfect_estimator::PerfectEstimatorConfig;
 use super::{external_estimator, perfect_estimator};
+use crate::gui::utils::{string_combobox, text_singleline_with_apply};
+use crate::gui::UIComponent;
 use crate::node::Node;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
+use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -166,11 +200,71 @@ use std::sync::{Arc, RwLock};
 ///     Perfect:
 ///         prediction_period: 0.01
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
 #[serde(deny_unknown_fields)]
 pub enum StateEstimatorConfig {
     Perfect(perfect_estimator::PerfectEstimatorConfig),
     External(external_estimator::ExternalEstimatorConfig),
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for StateEstimatorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        let mut current_str = self.to_string();
+        ui.horizontal(|ui| {
+            ui.label("State Estimator:");
+            string_combobox(
+                ui,
+                &StateEstimatorConfig::to_vec()
+                    .iter()
+                    .map(|x| String::from(*x))
+                    .collect(),
+                &mut current_str,
+                format!("state-estimator-choice-{}", unique_id),
+            );
+        });
+        if current_str != self.to_string() {
+            match current_str.as_str() {
+                "Perfect" => {
+                    *self = StateEstimatorConfig::Perfect(
+                        perfect_estimator::PerfectEstimatorConfig::default(),
+                    )
+                }
+                "External" => {
+                    *self = StateEstimatorConfig::External(
+                        external_estimator::ExternalEstimatorConfig::default(),
+                    )
+                }
+                _ => panic!("Where did you find this value?"),
+            };
+        }
+        match self {
+            StateEstimatorConfig::Perfect(c) => c.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+            StateEstimatorConfig::External(c) => c.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+        }
+    }
 }
 
 /// List the possible records.
@@ -328,6 +422,40 @@ impl Default for BenchStateEstimatorConfig {
                 perfect_estimator::PerfectEstimatorConfig::default(),
             ),
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for BenchStateEstimatorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Name: ");
+                text_singleline_with_apply(
+                    ui,
+                    format!("bench-name-key-{}", unique_id).as_str(),
+                    buffer_stack,
+                    &mut self.name,
+                );
+            });
+
+            self.config.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+        });
     }
 }
 

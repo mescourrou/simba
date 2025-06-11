@@ -10,6 +10,7 @@ use super::fault_models::fault_model::{
 use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
@@ -39,6 +40,41 @@ impl Default for OdometrySensorConfig {
             period: 0.1,
             faults: Vec::new(),
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for OdometrySensorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Odometry sensor")
+            .id_source(format!("odometry-sensor-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Period:");
+                    if self.period < TIME_ROUND {
+                        self.period = TIME_ROUND;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.period));
+                });
+
+                FaultModelConfig::show_faults(
+                    &mut self.faults,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
     }
 }
 

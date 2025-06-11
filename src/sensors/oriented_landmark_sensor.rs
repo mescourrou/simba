@@ -8,6 +8,8 @@ use super::fault_models::fault_model::{
 use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+use crate::gui::utils::path_finder;
+use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
@@ -51,6 +53,54 @@ impl Default for OrientedLandmarkSensorConfig {
             period: 0.1,
             faults: Vec::new(),
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for OrientedLandmarkSensorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Oriented Landmark sensor")
+            .id_source(format!("oriented-landmark-sensor-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Detection distance:");
+                    if self.detection_distance < 0. {
+                        self.detection_distance = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.detection_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Period:");
+                    if self.period < TIME_ROUND {
+                        self.period = TIME_ROUND;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.period));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Map path:");
+                    path_finder(ui, &mut self.map_path, &global_config.base_path);
+                });
+
+                FaultModelConfig::show_faults(
+                    &mut self.faults,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
     }
 }
 

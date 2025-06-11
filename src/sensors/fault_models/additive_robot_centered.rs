@@ -8,6 +8,7 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    gui::{utils::string_combobox, UIComponent},
     sensors::sensor::SensorObservation,
     utils::{
         determinist_random_variable::{
@@ -47,6 +48,72 @@ impl Default for AdditiveRobotCenteredFaultConfig {
             )],
             variable_order: Vec::new(),
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for AdditiveRobotCenteredFaultConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &crate::simulator::SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label("Apparition probability: ");
+                self.apparition.show(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
+            RandomVariableTypeConfig::show_vector(
+                &mut self.distributions,
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+            let possible_variables = vec![
+                "x",
+                "y",
+                "orientation",
+                "velocity_x",
+                "velocity_y",
+                "w",
+                "v",
+            ]
+            .iter()
+            .map(|x| String::from(*x))
+            .collect();
+            ui.horizontal(|ui| {
+                ui.label("Variable order:");
+                for (i, var) in self.variable_order.iter_mut().enumerate() {
+                    let unique_var_id = format!("variable-{i}-{unique_id}");
+                    string_combobox(ui, &possible_variables, var, unique_var_id);
+                }
+                if self.variable_order.len() > 0 && ui.button("-").clicked() {
+                    self.variable_order.pop();
+                }
+                if ui.button("+").clicked() {
+                    self.variable_order.push(
+                        possible_variables
+                            .get(self.variable_order.len().min(possible_variables.len()))
+                            .unwrap()
+                            .clone(),
+                    );
+                }
+            });
+        });
     }
 }
 

@@ -6,6 +6,8 @@ trajectory.
 use super::navigator::{Navigator, NavigatorRecord};
 use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
 
+use crate::gui::utils::path_finder;
+use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -43,6 +45,44 @@ impl Default for TrajectoryFollowerConfig {
             forward_distance: 1.0,
             target_speed: 0.5,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for TrajectoryFollowerConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Trajectory Follower")
+            .id_source(format!("trajectory-follower-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Trajectory path:");
+                    path_finder(ui, &mut self.trajectory_path, &global_config.base_path);
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Forward distance:");
+                    if self.forward_distance < 0. {
+                        self.forward_distance = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.forward_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Target speed:");
+                    if self.target_speed < 0. {
+                        self.target_speed = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.target_speed));
+                });
+            });
     }
 }
 

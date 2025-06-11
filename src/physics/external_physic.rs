@@ -18,6 +18,8 @@ use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
+use crate::gui::utils::json_config;
+use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::networking::service::HasService;
 use crate::simulator::SimulatorConfig;
@@ -53,6 +55,32 @@ impl Default for ExternalPhysicConfig {
         Self {
             config: Value::Null,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ExternalPhysicConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("External Physics").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                json_config(
+                    ui,
+                    &format!("external-physics-key-{}", &unique_id),
+                    &format!("external-physics-error-key-{}", &unique_id),
+                    buffer_stack,
+                    &mut self.config,
+                );
+            });
+        });
     }
 }
 

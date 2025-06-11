@@ -9,6 +9,7 @@ The [`PID`] controller uses three derivative of the error:
 Each component has a gain, which can be set in [`PIDConfig`].
 */
 
+use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
@@ -16,6 +17,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use log::error;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::{EnumToString, ToVec};
 
 /// Configuration of the [`PID`], it contains the 3 gains for the velocity
 /// control, 3 gain for the orientation control, and the wheel distance.
@@ -55,6 +57,61 @@ impl Default for PIDConfig {
             ki_theta: 0.,
             wheel_distance: 0.25,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for PIDConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("PID")
+            .id_source(format!("pid-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Velocity - P:");
+                    ui.add(egui::DragValue::new(&mut self.kp_v));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Velocity - I:");
+                    ui.add(egui::DragValue::new(&mut self.ki_v));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Velocity - D:");
+                    ui.add(egui::DragValue::new(&mut self.kd_v));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Theta - P:");
+                    ui.add(egui::DragValue::new(&mut self.kp_theta));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Theta - I:");
+                    ui.add(egui::DragValue::new(&mut self.ki_theta));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Theta - D:");
+                    ui.add(egui::DragValue::new(&mut self.kd_theta));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Wheel distance:");
+                    if self.wheel_distance < 0. {
+                        self.wheel_distance = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.wheel_distance));
+                });
+            });
     }
 }
 

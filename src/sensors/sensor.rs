@@ -7,6 +7,7 @@ use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::{EnumToString, ToVec};
 
 use super::{
     gnss_sensor::{self, GNSSObservation, GNSSObservationRecord},
@@ -120,13 +121,95 @@ pub enum SensorObservationRecord {
 }
 
 /// Enumerates all the possible sensors configurations.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check, EnumToString, ToVec)]
 #[serde(deny_unknown_fields)]
 pub enum SensorConfig {
-    OrientedLandmarkSensor(Box<oriented_landmark_sensor::OrientedLandmarkSensorConfig>),
+    OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorConfig),
     OdometrySensor(odometry_sensor::OdometrySensorConfig),
     GNSSSensor(gnss_sensor::GNSSSensorConfig),
     RobotSensor(robot_sensor::RobotSensorConfig),
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for SensorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        let mut current_str = self.to_string();
+        ui.horizontal(|ui| {
+            ui.label("Sensor:");
+            string_combobox(
+                ui,
+                &SensorConfig::to_vec()
+                    .iter()
+                    .map(|x| String::from(*x))
+                    .collect(),
+                &mut current_str,
+                format!("sensor-choice-{}", unique_id),
+            );
+        });
+        if current_str != self.to_string() {
+            match current_str.as_str() {
+                "OrientedLandmarkSensor" => {
+                    *self = SensorConfig::OrientedLandmarkSensor(
+                        oriented_landmark_sensor::OrientedLandmarkSensorConfig::default(),
+                    )
+                }
+                "OdometrySensor" => {
+                    *self = SensorConfig::OdometrySensor(
+                        odometry_sensor::OdometrySensorConfig::default(),
+                    )
+                }
+                "GNSSSensor" => {
+                    *self = SensorConfig::GNSSSensor(gnss_sensor::GNSSSensorConfig::default())
+                }
+                "RobotSensor" => {
+                    *self = SensorConfig::RobotSensor(robot_sensor::RobotSensorConfig::default())
+                }
+                _ => panic!("Where did you find this value?"),
+            };
+        }
+        match self {
+            SensorConfig::OrientedLandmarkSensor(c) => c.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+            SensorConfig::OdometrySensor(c) => c.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+            SensorConfig::GNSSSensor(c) => c.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+            SensorConfig::RobotSensor(c) => c.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+        }
+    }
 }
 
 /// Enumerates all the sensor records.
@@ -138,7 +221,13 @@ pub enum SensorRecord {
     RobotSensor(robot_sensor::RobotSensorRecord),
 }
 
-use crate::{node::Node, stateful::Stateful};
+use crate::{
+    gui::{utils::string_combobox, UIComponent},
+    node::Node,
+    simulator::SimulatorConfig,
+    stateful::Stateful,
+    utils::enum_tools::ToVec,
+};
 
 /// Sensor trait which need to be implemented by each sensors.
 pub trait Sensor:

@@ -4,7 +4,10 @@ use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use statrs::distribution::Poisson;
 
-use crate::utils::determinist_random_variable::DeterministRandomVariable;
+use crate::{
+    gui::UIComponent,
+    utils::determinist_random_variable::{self, DeterministRandomVariable},
+};
 
 /// Configuration for a uniform random variable.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -23,6 +26,47 @@ impl Default for PoissonRandomVariableConfig {
             unique_seed: 0.,
             lambda: vec![1.],
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for PoissonRandomVariableConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &crate::simulator::SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                let mut to_remove = None;
+                for (i, p) in self.lambda.iter_mut().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("lambda {}:", i + 1));
+                        ui.add(egui::DragValue::new(p));
+                        if ui.button("X").clicked() {
+                            to_remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = to_remove {
+                    self.lambda.remove(i);
+                }
+                if ui.button("Add").clicked() {
+                    self.lambda.push(1.0);
+                }
+            });
+            ui.label("Seed: ");
+            determinist_random_variable::seed_generation_component(
+                &mut self.unique_seed,
+                ui,
+                buffer_stack,
+                unique_id,
+            );
+        });
     }
 }
 

@@ -3,7 +3,9 @@ Module defining the [Controller]
 */
 
 use crate::{
-    stateful::Stateful, utils::determinist_random_variable::DeterministRandomVariableFactory,
+    gui::{utils::string_combobox, UIComponent},
+    stateful::Stateful,
+    utils::{determinist_random_variable::DeterministRandomVariableFactory, enum_tools::ToVec},
 };
 use std::sync::{Arc, RwLock};
 
@@ -11,6 +13,7 @@ use crate::{physics::physic::Command, plugin_api::PluginAPI, simulator::Simulato
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::{EnumToString, ToVec};
 
 /// Errors used by the controllers: lateral, orientation and velocity.
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -36,11 +39,67 @@ impl ControllerError {
 use super::{external_controller, pid};
 
 /// Enumerates the strategies configurations.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
 #[serde(deny_unknown_fields)]
 pub enum ControllerConfig {
     PID(Box<pid::PIDConfig>),
     External(Box<external_controller::ExternalControllerConfig>),
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ControllerConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        let mut current_str = self.to_string();
+        ui.horizontal(|ui| {
+            ui.label("Controller:");
+            string_combobox(
+                ui,
+                &ControllerConfig::to_vec()
+                    .iter()
+                    .map(|x| String::from(*x))
+                    .collect(),
+                &mut current_str,
+                format!("controller-choice-{}", unique_id),
+            );
+        });
+        if current_str != self.to_string() {
+            match current_str.as_str() {
+                "PID" => *self = ControllerConfig::PID(Box::new(pid::PIDConfig::default())),
+                "External" => {
+                    *self = ControllerConfig::External(Box::new(
+                        external_controller::ExternalControllerConfig::default(),
+                    ))
+                }
+                _ => panic!("Where did you find this value?"),
+            };
+        }
+        match self {
+            ControllerConfig::PID(c) => c.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+            ControllerConfig::External(c) => c.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+        }
+    }
 }
 
 /// Enumerates the strategies records.

@@ -19,6 +19,8 @@ use serde_json::Value;
 
 use super::state_estimator::{State, StateEstimator};
 use crate::constants::TIME_ROUND;
+use crate::gui::utils::json_config;
+use crate::gui::UIComponent;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::maths::round_precision;
@@ -54,6 +56,32 @@ impl Default for ExternalEstimatorConfig {
         Self {
             config: Value::Null,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ExternalEstimatorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("External State Estimator").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                json_config(
+                    ui,
+                    &format!("external-state-estimator-key-{}", &unique_id),
+                    &format!("external-state-estimator-error-key-{}", &unique_id),
+                    buffer_stack,
+                    &mut self.config,
+                );
+            });
+        });
     }
 }
 

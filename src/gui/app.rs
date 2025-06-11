@@ -1,14 +1,29 @@
 use std::{
-    cell::RefCell, collections::HashMap, ops::Range, sync::{Arc, Mutex}, time::Duration
+    cell::RefCell,
+    collections::HashMap,
+    ops::Range,
+    sync::{Arc, Mutex},
+    time::Duration,
 };
 
-use egui::{accesskit::Node, epaint, Color32, Painter, Rect, Response, Sense, Stroke, Vec2};
+use egui::{
+    accesskit::Node, epaint, Color32, Painter, Rect, Response, Sense, Stroke, Vec2, Window,
+};
+use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner}, node, node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimulatorConfig}, utils::time_ordered_data::TimeOrderedData
+    api::async_api::{AsyncApi, AsyncApiRunner},
+    node,
+    node_factory::NodeRecord,
+    plugin_api::PluginAPI,
+    simulator::{Record, SimulatorConfig},
+    utils::time_ordered_data::TimeOrderedData,
 };
 
-use super::drawables::{self, robot};
+use super::{
+    configurator::Configurator,
+    drawables::{self, robot},
+};
 
 struct PrivateParams {
     server: Arc<Mutex<AsyncApiRunner>>,
@@ -18,7 +33,7 @@ struct PrivateParams {
     robots: HashMap<String, drawables::robot::Robot>,
     playing: Option<(f32, std::time::Instant)>,
     simulation_run: bool,
-
+    configurator: Option<Configurator>,
 }
 
 impl Default for PrivateParams {
@@ -34,12 +49,13 @@ impl Default for PrivateParams {
             robots: HashMap::new(),
             playing: None,
             simulation_run: false,
+            configurator: None,
         }
     }
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
-#[derive(serde::Deserialize, serde::Serialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct SimbaApp {
     // Example stuff:
@@ -113,16 +129,25 @@ impl SimbaApp {
         }
         let config = self.p.config.as_ref().unwrap();
         for robot in &config.robots {
-            self.p.robots.insert(robot.name.clone(), drawables::robot::Robot::init(robot, config));
+            self.p.robots.insert(
+                robot.name.clone(),
+                drawables::robot::Robot::init(robot, config),
+            );
         }
     }
 
     fn draw(&mut self, ui: &mut egui::Ui, viewport: Rect, response: Response, painter: Painter) {
         for (_, robot) in &self.p.robots {
-            robot.draw(ui, &viewport, &response, &painter, self.drawing_scale, self.p.current_draw_time);
+            robot.draw(
+                ui,
+                &viewport,
+                &response,
+                &painter,
+                self.drawing_scale,
+                self.p.current_draw_time,
+            );
         }
     }
-
 }
 
 impl eframe::App for SimbaApp {
@@ -133,10 +158,9 @@ impl eframe::App for SimbaApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-
-        for Record{time, node} in self.p.api.simulator_api.records.lock().unwrap().try_iter() {
+        for Record { time, node } in self.p.api.simulator_api.records.lock().unwrap().try_iter() {
             match &node {
-                NodeRecord::ComputationUnit(_) => {},
+                NodeRecord::ComputationUnit(_) => {}
                 NodeRecord::Robot(n) => {
                     if let Some(r) = self.p.robots.get_mut(&n.name) {
                         r.add_record(time, n.clone());
@@ -178,6 +202,15 @@ impl eframe::App for SimbaApp {
                     if let Some(c) = self.p.api.load_config.try_get_result() {
                         self.p.config = Some(c.unwrap());
                         self.init_drawables();
+                    }
+                }
+                if ui.button("Configurator").clicked() {
+                    self.p.configurator = Some(Configurator::init(&self.config_path));
+                }
+                if let Some(configurator) = &mut self.p.configurator {
+                    if configurator.show(ui, ctx) {
+                        //Closing
+                        self.p.configurator = None;
                     }
                 }
             });
@@ -228,15 +261,18 @@ impl eframe::App for SimbaApp {
                         .add_enabled(self.p.simulation_run, play_pause_btn)
                         .clicked()
                     {
-                        if self.p.playing.is_some() { // Press Pause
+                        if self.p.playing.is_some() {
+                            // Press Pause
                             self.p.playing = None;
                         } else {
-                            self.p.playing = Some((self.p.current_draw_time, std::time::Instant::now()));
+                            self.p.playing =
+                                Some((self.p.current_draw_time, std::time::Instant::now()));
                             self.follow_sim_time = false;
                         }
                     }
                     if let Some((begin_sim_time, begin_sys_time)) = self.p.playing {
-                        self.p.current_draw_time = begin_sim_time + (std::time::Instant::now() - begin_sys_time).as_secs_f32();
+                        self.p.current_draw_time = begin_sim_time
+                            + (std::time::Instant::now() - begin_sys_time).as_secs_f32();
                     }
                     // Set ALL slider size
                     ui.style_mut().spacing.slider_width = ui.available_width() - 180.;
@@ -276,10 +312,10 @@ impl eframe::App for SimbaApp {
 
                     // Draw grid
                     painter.rect_stroke(response.rect, 0.0, (1.0, Color32::LIGHT_GRAY));
-                    let x_min = response.rect.left();//.max(viewport.left());
-                    let x_max = response.rect.right();//.min(viewport.right());
-                    let y_min = response.rect.top();//.max(viewport.top());
-                    let y_max = response.rect.bottom();//.min(viewport.bottom());
+                    let x_min = response.rect.left(); //.max(viewport.left());
+                    let x_max = response.rect.right(); //.min(viewport.right());
+                    let y_min = response.rect.top(); //.max(viewport.top());
+                    let y_max = response.rect.bottom(); //.min(viewport.bottom());
                     let mut x = response.rect.center().x;
                     while x > x_min {
                         painter.vline(x, response.rect.y_range(), (1.0, Color32::LIGHT_GRAY));
@@ -301,8 +337,16 @@ impl eframe::App for SimbaApp {
                         y += 1. * self.drawing_scale;
                     }
 
-                    painter.vline(response.rect.center().x, response.rect.y_range(), (1.0, Color32::GREEN));
-                    painter.hline(response.rect.x_range(), response.rect.center().y, (1.0, Color32::RED));
+                    painter.vline(
+                        response.rect.center().x,
+                        response.rect.y_range(),
+                        (1.0, Color32::GREEN),
+                    );
+                    painter.hline(
+                        response.rect.x_range(),
+                        response.rect.center().y,
+                        (1.0, Color32::RED),
+                    );
 
                     self.draw(ui, viewport, response, painter);
                 });
@@ -310,6 +354,4 @@ impl eframe::App for SimbaApp {
 
         ctx.request_repaint_after(Duration::from_secs_f32(1.0 / 30.0));
     }
-    
 }
-

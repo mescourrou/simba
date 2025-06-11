@@ -6,6 +6,7 @@ use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
 use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::networking::network::MessageFlag;
 use crate::networking::service::ServiceClient;
@@ -51,6 +52,49 @@ impl Default for RobotSensorConfig {
             period: 0.1,
             faults: Vec::new(),
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for RobotSensorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Robot sensor")
+            .id_source(format!("robot-sensor-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Detection distance:");
+                    if self.detection_distance < 0. {
+                        self.detection_distance = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.detection_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Period:");
+                    if self.period < TIME_ROUND {
+                        self.period = TIME_ROUND;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.period));
+                });
+
+                FaultModelConfig::show_faults(
+                    &mut self.faults,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
     }
 }
 

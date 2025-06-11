@@ -5,7 +5,10 @@ use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::determinist_random_variable::DeterministRandomVariable;
+use crate::{
+    gui::UIComponent,
+    utils::determinist_random_variable::{self, DeterministRandomVariable},
+};
 
 /// Configuration for a uniform random variable.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -27,6 +30,53 @@ impl Default for UniformRandomVariableConfig {
             min: vec![-1.],
             max: vec![1.],
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for UniformRandomVariableConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &crate::simulator::SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                let mut to_remove = None;
+                for (i, (min, max)) in
+                    std::iter::zip(self.min.iter_mut(), self.max.iter_mut()).enumerate()
+                {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}:", i + 1));
+                        ui.add(egui::DragValue::new(min));
+                        ui.label("-");
+                        ui.add(egui::DragValue::new(max));
+                        if ui.button("X").clicked() {
+                            to_remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = to_remove {
+                    self.min.remove(i);
+                    self.max.remove(i);
+                }
+                if ui.button("Add").clicked() {
+                    self.min.push(0.);
+                    self.max.push(1.);
+                }
+            });
+            ui.label("Seed: ");
+            determinist_random_variable::seed_generation_component(
+                &mut self.unique_seed,
+                ui,
+                buffer_stack,
+                unique_id,
+            );
+        });
     }
 }
 
