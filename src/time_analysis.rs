@@ -20,6 +20,7 @@ use std::time;
 #[cfg(feature = "time-analysis")]
 use std::{path::Path, time::Duration};
 
+#[cfg(feature = "gui")]
 use crate::gui::{
     utils::{enum_radio, path_finder, string_combobox},
     UIComponent,

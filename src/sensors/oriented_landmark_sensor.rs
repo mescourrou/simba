@@ -8,8 +8,11 @@ use super::fault_models::fault_model::{
 use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
-use crate::gui::utils::path_finder;
-use crate::gui::UIComponent;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::path_finder,
+    UIComponent,
+};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;

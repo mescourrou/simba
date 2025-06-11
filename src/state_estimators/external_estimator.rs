@@ -19,8 +19,11 @@ use serde_json::Value;
 
 use super::state_estimator::{State, StateEstimator};
 use crate::constants::TIME_ROUND;
-use crate::gui::utils::json_config;
-use crate::gui::UIComponent;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::json_config,
+    UIComponent,
+};
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::maths::round_precision;

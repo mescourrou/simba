@@ -6,8 +6,9 @@ use config_checker::macros::Check;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::{
-    gui::UIComponent,
     logger::is_enabled,
     sensors::sensor::SensorObservation,
     utils::{

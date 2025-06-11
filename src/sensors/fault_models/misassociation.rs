@@ -17,11 +17,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::from_str;
 use simba_macros::{EnumToString, ToVec};
 
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::{enum_combobox, string_combobox},
+    UIComponent,
+};
 use crate::{
-    gui::{
-        utils::{enum_combobox, string_combobox},
-        UIComponent,
-    },
     sensors::{oriented_landmark_sensor::OrientedLandmarkSensor, sensor::SensorObservation},
     simulator::SimulatorConfig,
     utils::{

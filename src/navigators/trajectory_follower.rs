@@ -6,8 +6,11 @@ trajectory.
 use super::navigator::{Navigator, NavigatorRecord};
 use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
 
-use crate::gui::utils::path_finder;
-use crate::gui::UIComponent;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::path_finder,
+    UIComponent,
+};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;

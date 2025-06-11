@@ -33,14 +33,21 @@ fn main() {
 
 // Configuration for Simulator
 extern crate confy;
-use crate::gui::utils::{enum_combobox, json_config, path_finder};
-use crate::gui::UIComponent;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::{enum_combobox, json_config, path_finder},
+    UIComponent,
+};
+#[cfg(feature = "gui")]
+use egui::{
+    CollapsingHeader,
+    Color32
+};
+#[cfg(feature = "gui")]
+use crate::utils::determinist_random_variable::seed_generation_component;
 use crate::utils::enum_tools::ToVec;
 use config_checker::macros::Check;
 use config_checker::ConfigCheckable;
-#[cfg(feature = "gui")]
-use egui::CollapsingHeader;
-use egui::Color32;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::ToVec;
@@ -57,7 +64,7 @@ use crate::state_estimators::state_estimator::State;
 use crate::stateful::Stateful;
 use crate::time_analysis::{self, TimeAnalysisConfig};
 use crate::utils::determinist_random_variable::{
-    seed_generation_component, DeterministRandomVariableFactory,
+    DeterministRandomVariableFactory,
 };
 
 use crate::node::Node;

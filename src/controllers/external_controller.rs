@@ -17,8 +17,11 @@ use config_checker::macros::Check;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
-use crate::gui::utils::json_config;
-use crate::gui::UIComponent;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::json_config,
+    UIComponent,
+};
 use crate::physics::physic::Command;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;

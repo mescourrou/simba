@@ -6,6 +6,8 @@ use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
 use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+
+#[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::networking::network::MessageFlag;

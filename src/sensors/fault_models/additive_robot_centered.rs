@@ -7,8 +7,9 @@ use std::sync::{Arc, Mutex};
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "gui")]
+use crate::gui::{utils::string_combobox, UIComponent};
 use crate::{
-    gui::{utils::string_combobox, UIComponent},
     sensors::sensor::SensorObservation,
     utils::{
         determinist_random_variable::{

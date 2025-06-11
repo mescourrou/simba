@@ -12,8 +12,11 @@ use simba_macros::{EnumToString, ToVec};
 use super::{external_navigator, trajectory_follower};
 
 use crate::controllers::controller::ControllerError;
-use crate::gui::utils::string_combobox;
-use crate::gui::UIComponent;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::string_combobox,
+    UIComponent,
+};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;

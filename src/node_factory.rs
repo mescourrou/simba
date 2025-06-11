@@ -5,12 +5,14 @@ use log::debug;
 use rand::rngs;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "gui")]
+use crate::gui::{utils::text_singleline_with_apply, UIComponent};
+
 use crate::{
     controllers::{
         controller::{self, ControllerConfig, ControllerRecord},
         pid,
     },
-    gui::{utils::text_singleline_with_apply, UIComponent},
     logger::is_enabled,
     navigators::{
         navigator::{self, NavigatorConfig, NavigatorRecord},

@@ -109,8 +109,9 @@ impl PhysicRecord {
     }
 }
 
+#[cfg(feature = "gui")]
+use crate::gui::{utils::string_combobox, UIComponent};
 use crate::{
-    gui::{utils::string_combobox, UIComponent},
     networking::service::HasService,
     plugin_api::PluginAPI,
     simulator::SimulatorConfig,

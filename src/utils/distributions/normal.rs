@@ -4,8 +4,9 @@ use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use statrs::{distribution::MultivariateNormal, statistics::MeanN};
 
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::{
-    gui::UIComponent,
     utils::determinist_random_variable::{self, DeterministRandomVariable},
 };
 

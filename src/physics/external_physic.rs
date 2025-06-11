@@ -18,8 +18,11 @@ use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
-use crate::gui::utils::json_config;
-use crate::gui::UIComponent;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::json_config,
+    UIComponent,
+};
 use crate::logger::is_enabled;
 use crate::networking::service::HasService;
 use crate::simulator::SimulatorConfig;

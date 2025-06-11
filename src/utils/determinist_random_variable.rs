@@ -20,6 +20,7 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 use simba_macros::{EnumToString, ToVec};
 
+#[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
 
 use super::distributions::{

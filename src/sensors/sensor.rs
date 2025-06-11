@@ -221,8 +221,9 @@ pub enum SensorRecord {
     RobotSensor(robot_sensor::RobotSensorRecord),
 }
 
+#[cfg(feature = "gui")]
+use crate::gui::{utils::string_combobox, UIComponent};
 use crate::{
-    gui::{utils::string_combobox, UIComponent},
     node::Node,
     simulator::SimulatorConfig,
     stateful::Stateful,

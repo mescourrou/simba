@@ -6,8 +6,11 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 use simba_macros::{EnumToString, ToVec};
 
+
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::{
-    gui::UIComponent, sensors::sensor::SensorObservation, simulator::SimulatorConfig,
+    sensors::sensor::SensorObservation, simulator::SimulatorConfig,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 

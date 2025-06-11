@@ -9,6 +9,7 @@ The [`PID`] controller uses three derivative of the error:
 Each component has a gain, which can be set in [`PIDConfig`].
 */
 
+#[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;

@@ -8,8 +8,12 @@ use std::collections::HashMap;
 
 use super::state_estimator::{State, StateRecord};
 use crate::constants::TIME_ROUND;
-use crate::gui::utils::string_checkbox;
-use crate::gui::UIComponent;
+
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::string_checkbox,
+    UIComponent,
+};
 use crate::sensors::sensor::{Observation, SensorObservation};
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;

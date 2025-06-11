@@ -2,8 +2,12 @@
 Provide the implementation of the [`Physic`] trait without any noise added to the [`Command`].
 */
 
-use crate::gui::utils::state_widget;
-use crate::gui::UIComponent;
+
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::state_widget,
+    UIComponent,
+};
 use crate::networking::service::HasService;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;

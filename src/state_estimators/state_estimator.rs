@@ -179,8 +179,12 @@ impl fmt::Display for State {
 
 use super::perfect_estimator::PerfectEstimatorConfig;
 use super::{external_estimator, perfect_estimator};
-use crate::gui::utils::{string_combobox, text_singleline_with_apply};
-use crate::gui::UIComponent;
+
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::{string_combobox, text_singleline_with_apply},
+    UIComponent,
+};
 use crate::node::Node;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;

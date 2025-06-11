@@ -11,8 +11,11 @@ use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use crate::gui::utils::{string_checkbox, text_singleline_with_apply};
-use crate::gui::UIComponent;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::{string_checkbox, text_singleline_with_apply},
+    UIComponent,
+};
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::node::{self, Node};

@@ -9,11 +9,12 @@ use libm::tanhf;
 use serde::{Deserialize, Serialize};
 use simba_macros::ToVec;
 
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::{enum_checkbox, enum_radio, string_checkbox},
+    UIComponent,
+};
 use crate::{
-    gui::{
-        utils::{enum_checkbox, enum_radio, string_checkbox},
-        UIComponent,
-    },
     simulator::SimulatorConfig,
     utils::enum_tools::ToVec,
 };

@@ -19,8 +19,11 @@ use rand::distributions::uniform::UniformFloat;
 use serde_json::Value;
 
 use crate::controllers::controller::ControllerError;
-use crate::gui::utils::json_config;
-use crate::gui::UIComponent;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::json_config,
+    UIComponent,
+};
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
 use crate::stateful::Stateful;

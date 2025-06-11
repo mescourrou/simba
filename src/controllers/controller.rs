@@ -2,8 +2,9 @@
 Module defining the [Controller]
 */
 
+#[cfg(feature = "gui")]
+use crate::gui::{utils::string_combobox, UIComponent};
 use crate::{
-    gui::{utils::string_combobox, UIComponent},
     stateful::Stateful,
     utils::{determinist_random_variable::DeterministRandomVariableFactory, enum_tools::ToVec},
 };

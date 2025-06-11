@@ -10,6 +10,7 @@ use super::fault_models::fault_model::{
 use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+#[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
