@@ -16,6 +16,8 @@ use serde_json::Value;
 
 use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCv};
@@ -44,6 +46,37 @@ impl Default for NetworkConfig {
             range: 0.,
             reception_delay: TIME_ROUND,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for NetworkConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Network").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Range (0 for no limit): ");
+                if self.range < 0. {
+                    self.range = 0.;
+                }
+                ui.add(egui::DragValue::new(&mut self.range));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Reception delay (0 not stable): ");
+                if self.reception_delay < 0. {
+                    self.reception_delay = 0.;
+                }
+                ui.add(egui::DragValue::new(&mut self.reception_delay).max_decimals((1./TIME_ROUND) as usize));
+            });
+        });
     }
 }
 

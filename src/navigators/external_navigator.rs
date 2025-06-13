@@ -15,9 +15,15 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 
 use config_checker::macros::Check;
 use pyo3::{pyclass, pymethods};
+use rand::distributions::uniform::UniformFloat;
 use serde_json::Value;
 
 use crate::controllers::controller::ControllerError;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::json_config,
+    UIComponent,
+};
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
 use crate::stateful::Stateful;
@@ -52,6 +58,32 @@ impl Default for ExternalNavigatorConfig {
         Self {
             config: Value::Null,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ExternalNavigatorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("External Navigator").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                json_config(
+                    ui,
+                    &format!("external-navigator-key-{}", &unique_id),
+                    &format!("external-navigator-error-key-{}", &unique_id),
+                    buffer_stack,
+                    &mut self.config,
+                );
+            });
+        });
     }
 }
 

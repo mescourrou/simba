@@ -42,10 +42,10 @@ impl ServiceManager {
 
     fn get_real_state_client(
         &self,
-        node_name: &str,
+        client_node_name: &str,
     ) -> Option<ServiceClient<GetRealStateReq, GetRealStateResp>> {
         if let Some(get_real_state) = &self.get_real_state {
-            Some(get_real_state.write().unwrap().new_client(node_name))
+            Some(get_real_state.write().unwrap().new_client(client_node_name))
         } else {
             None
         }

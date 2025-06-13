@@ -2,6 +2,12 @@
 Provide the implementation of the [`Physic`] trait without any noise added to the [`Command`].
 */
 
+
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::state_widget,
+    UIComponent,
+};
 use crate::networking::service::HasService;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
@@ -24,6 +30,43 @@ pub struct PerfectPhysicConfig {
     /// Starting state.
     #[check]
     pub initial_state: StateConfig,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for PerfectPhysicConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Perfect Physics")
+            .id_source(format!("perfect-physics-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Wheel distance:");
+                    if self.wheel_distance < 0. {
+                        self.wheel_distance = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.wheel_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Initial state:");
+                    self.initial_state.show(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        unique_id,
+                    );
+                });
+            });
+    }
 }
 
 impl Default for PerfectPhysicConfig {

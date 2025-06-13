@@ -110,10 +110,8 @@ impl PythonController {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((error, time)) =
-            self.make_command_request.clone().lock().unwrap().try_recv()
-        {
-            let command = self.make_command( &error, time);
+        if let Ok((error, time)) = self.make_command_request.clone().lock().unwrap().try_recv() {
+            let command = self.make_command(&error, time);
             self.make_command_response.send(command).unwrap();
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {

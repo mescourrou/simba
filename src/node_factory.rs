@@ -2,7 +2,11 @@ use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use config_checker::macros::Check;
 use log::debug;
+use rand::rngs;
 use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "gui")]
+use crate::gui::{utils::text_singleline_with_apply, UIComponent};
 
 use crate::{
     controllers::{
@@ -227,6 +231,108 @@ impl Default for RobotConfig {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for RobotConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        let name_copy = self.name.clone();
+        let current_node_name = Some(&name_copy);
+        egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Name: ");
+                text_singleline_with_apply(
+                    ui,
+                    format!("robot-name-key-{}", unique_id).as_str(),
+                    buffer_stack,
+                    &mut self.name,
+                );
+            });
+
+            self.network.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+            self.navigator.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+            self.physic.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+            self.controller.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+            self.state_estimator.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+
+            ui.label("State estimator bench:");
+            let mut seb_to_remove = None;
+            for (i, seb) in self.state_estimator_bench.iter_mut().enumerate() {
+                let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
+                ui.horizontal_top(|ui| {
+                    seb.show(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        &seb_unique_id,
+                    );
+                    if ui.button("X").clicked() {
+                        seb_to_remove = Some(i);
+                    }
+                });
+            }
+            if let Some(i) = seb_to_remove {
+                self.state_estimator_bench.remove(i);
+            }
+            if ui.button("Add State Estimator benched").clicked() {
+                self.state_estimator_bench
+                    .push(BenchStateEstimatorConfig::default());
+            }
+            self.sensor_manager.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+        });
+    }
+}
+
 /// State record of [`NodeType::Robot`].
 ///
 /// It contains the dynamic elements and the elements we want to save.
@@ -277,6 +383,68 @@ impl Default for ComputationUnitConfig {
             network: NetworkConfig::default(),
             state_estimators: Vec::new(),
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ComputationUnitConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        let name_copy = self.name.clone();
+        let current_node_name = Some(&name_copy);
+        egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Name: ");
+                text_singleline_with_apply(
+                    ui,
+                    format!("cu-name-key-{}", unique_id).as_str(),
+                    buffer_stack,
+                    &mut self.name,
+                );
+            });
+
+            self.network.show(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+
+            ui.label("State estimators:");
+            let mut se_to_remove = None;
+            for (i, seb) in self.state_estimators.iter_mut().enumerate() {
+                let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
+                ui.horizontal_top(|ui| {
+                    seb.show(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        &seb_unique_id,
+                    );
+                    if ui.button("X").clicked() {
+                        se_to_remove = Some(i);
+                    }
+                });
+            }
+            if let Some(i) = se_to_remove {
+                self.state_estimators.remove(i);
+            }
+            if ui.button("Add State Estimator").clicked() {
+                self.state_estimators
+                    .push(BenchStateEstimatorConfig::default());
+            }
+        });
     }
 }
 

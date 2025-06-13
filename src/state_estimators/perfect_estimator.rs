@@ -8,6 +8,12 @@ use std::collections::HashMap;
 
 use super::state_estimator::{State, StateRecord};
 use crate::constants::TIME_ROUND;
+
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::string_checkbox,
+    UIComponent,
+};
 use crate::sensors::sensor::{Observation, SensorObservation};
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
@@ -36,6 +42,46 @@ impl Default for PerfectEstimatorConfig {
             prediction_period: 0.1,
             targets: vec!["self".to_string()],
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for PerfectEstimatorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Perfect Estimator")
+            .id_source(format!("perfect-estimator-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Prediction period:");
+                    if self.prediction_period < TIME_ROUND {
+                        self.prediction_period = TIME_ROUND;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.prediction_period).max_decimals((1./TIME_ROUND) as usize));
+                });
+
+                let mut possible_targets =
+                    Vec::from_iter(global_config.robots.iter().map(|x| x.name.clone()));
+                possible_targets.insert(0, "self".to_string());
+                if let Some(idx) = possible_targets
+                    .iter()
+                    .position(|x| x == current_node_name.unwrap())
+                {
+                    possible_targets.remove(idx);
+                }
+
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Targets:");
+                    string_checkbox(ui, &possible_targets, &mut self.targets);
+                });
+            });
     }
 }
 
@@ -115,7 +161,8 @@ impl StateEstimator for PerfectEstimator {
                     .get_real_state(target, node, time)
                     .expect(
                         format!(
-                            "{target} does not have physics, no perfect state can be computed!"
+                            "[{}] {target} does not have physics, no perfect state can be computed!",
+                            node.name()
                         )
                         .as_str(),
                     );

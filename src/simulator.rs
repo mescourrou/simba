@@ -33,10 +33,24 @@ fn main() {
 
 // Configuration for Simulator
 extern crate confy;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::{enum_combobox, json_config, path_finder},
+    UIComponent,
+};
+#[cfg(feature = "gui")]
+use egui::{
+    CollapsingHeader,
+    Color32
+};
+#[cfg(feature = "gui")]
+use crate::utils::determinist_random_variable::seed_generation_component;
+use crate::utils::enum_tools::ToVec;
 use config_checker::macros::Check;
 use config_checker::ConfigCheckable;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::ToVec;
 
 use crate::api::internal_api::NodeClient;
 use crate::constants::TIME_ROUND;
@@ -47,13 +61,16 @@ use crate::networking::service_manager::ServiceManager;
 use crate::node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig};
 use crate::plugin_api::PluginAPI;
 use crate::state_estimators::state_estimator::State;
+use crate::stateful::Stateful;
 use crate::time_analysis::{self, TimeAnalysisConfig};
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::determinist_random_variable::{
+    DeterministRandomVariableFactory,
+};
 
 use crate::node::Node;
 use crate::utils::time_ordered_data::TimeOrderedData;
 use core::f32;
-use std::collections::HashMap;
+use std::collections::{HashMap, LinkedList};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -62,12 +79,13 @@ use serde_json::{self, Value};
 use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::sync::{Arc, Barrier, Condvar, Mutex, RwLock};
+use std::sync::{mpsc, Arc, Barrier, Condvar, Mutex, RwLock};
 use std::thread::{self, sleep, ThreadId};
 
 use log::{debug, error, info, warn};
 
 use pyo3::prepare_freethreaded_python;
+use crate::utils::format_option_f32;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
@@ -75,15 +93,15 @@ use pyo3::prepare_freethreaded_python;
 pub struct ResultConfig {
     /// Filename to save the results, in JSON format. The directory of this
     /// file is used to save the figures if results are computed.
-    pub result_path: Box<Path>,
+    pub result_path: String,
     /// Show the matplotlib figures
     pub show_figures: bool,
     /// Path to the python analyse scrit.
     /// This script should have the following entry point:
     /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
     /// If the option is none, the script is not run
-    pub analyse_script: Option<Box<Path>>,
-    pub figures_path: Option<Box<Path>>,
+    pub analyse_script: Option<String>,
+    pub figures_path: Option<String>,
     pub python_params: Value,
 }
 
@@ -91,7 +109,7 @@ impl Default for ResultConfig {
     /// Default scenario configuration: no nodes.
     fn default() -> Self {
         Self {
-            result_path: Box::from(Path::new("../results.json")),
+            result_path: String::from("../results.json"),
             show_figures: true,
             analyse_script: None,
             figures_path: None,
@@ -100,7 +118,68 @@ impl Default for ResultConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[cfg(feature = "gui")]
+impl UIComponent for ResultConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        let python_param_key = format!("result-config-python-params-{}", unique_id);
+        let python_param_error_key = format!("result-config-python-params-error-{}", unique_id);
+        CollapsingHeader::new("Results").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Result Path:");
+                path_finder(ui, &mut self.result_path, &global_config.base_path);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Show figures:");
+                ui.checkbox(&mut self.show_figures, "");
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Result Path:");
+                if let Some(script) = &mut self.analyse_script {
+                    path_finder(ui, script, &global_config.base_path);
+                    if ui.button("X").clicked() {
+                        self.analyse_script = None;
+                    }
+                } else if ui.button("+").clicked() {
+                    self.analyse_script = Some(String::from(""));
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Figure Path:");
+                if let Some(fig) = &mut self.figures_path {
+                    path_finder(ui, fig, &global_config.base_path);
+                    if ui.button("X").clicked() {
+                        self.figures_path = None;
+                    }
+                } else if ui.button("+").clicked() {
+                    self.figures_path = Some(String::from(""));
+                }
+            });
+            ui.vertical(|ui| {
+                ui.label("Python params (JSON format, null for nothing):");
+                json_config(
+                    ui,
+                    &python_param_key,
+                    &python_param_error_key,
+                    buffer_stack,
+                    &mut self.python_params,
+                );
+            });
+        });
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[cfg_attr(feature = "gui", derive(ToVec))]
 pub enum TimeMode {
     Centralized,
     Decentralized,
@@ -128,6 +207,7 @@ pub struct SimulatorConfig {
     #[check]
     pub results: Option<ResultConfig>,
 
+    #[serde(skip_serializing, skip_deserializing)]
     pub base_path: Box<Path>,
 
     pub max_time: f32,
@@ -135,6 +215,7 @@ pub struct SimulatorConfig {
 
     #[check]
     pub time_analysis: TimeAnalysisConfig,
+    #[serde(serialize_with = "format_option_f32")]
     pub random_seed: Option<f32>,
     /// List of the robots to run, with their specific configuration.
     #[check]
@@ -157,6 +238,129 @@ impl Default for SimulatorConfig {
             max_time: 60.,
             time_mode: TimeMode::Centralized,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl crate::gui::UIComponent for SimulatorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut HashMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        CollapsingHeader::new("Simulator").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                self.log.show(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
+
+            ui.horizontal_top(|ui| {
+                if let Some(result_cfg) = &mut self.results {
+                    result_cfg.show(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        unique_id,
+                    );
+                    if ui.button("X").clicked() {
+                        self.results = None;
+                    }
+                } else {
+                    ui.label("Results: ");
+                    if ui.button("+").clicked() {
+                        self.results = Some(ResultConfig::default());
+                    }
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Random seed: ");
+                if let Some(seed) = &mut self.random_seed {
+                    seed_generation_component(seed, ui, buffer_stack, unique_id);
+                    if ui.button("X").clicked() {
+                        self.random_seed = None;
+                    }
+                } else {
+                    if ui.button("+").clicked() {
+                        self.random_seed = Some(rand::random());
+                    }
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Max time: ");
+                ui.add(egui::DragValue::new(&mut self.max_time).max_decimals((1./TIME_ROUND) as usize));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Time Mode: ");
+                enum_combobox(ui, &mut self.time_mode, "time-mode");
+            });
+
+            ui.horizontal(|ui| {
+                self.time_analysis.show(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
+
+            ui.vertical(|ui| {
+                ui.label("Robots:");
+                let mut remove = None;
+                for (i, r) in self.robots.iter_mut().enumerate() {
+                    let robot_unique_id = format!("{}-{}", unique_id, &r.name);
+                    ui.horizontal_top(|ui| {
+                        r.show(ui, ctx, buffer_stack, global_config, None, &robot_unique_id);
+                        if ui.button("X").clicked() {
+                            remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = remove {
+                    self.robots.remove(i);
+                }
+                if ui.button("Add").clicked() {
+                    self.robots.push(RobotConfig::default());
+                }
+            });
+
+            ui.vertical(|ui| {
+                ui.label("Computation Units:");
+                let mut remove = None;
+                for (i, cu) in self.computation_units.iter_mut().enumerate() {
+                    let cu_unique_id = format!("{}-{}", unique_id, &cu.name);
+                    ui.horizontal_top(|ui| {
+                        cu.show(ui, ctx, buffer_stack, global_config, None, &cu_unique_id);
+                        if ui.button("X").clicked() {
+                            remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = remove {
+                    self.computation_units.remove(i);
+                }
+                if ui.button("Add").clicked() {
+                    self.computation_units
+                        .push(ComputationUnitConfig::default());
+                }
+            });
+        });
     }
 }
 
@@ -186,11 +390,13 @@ static INCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
 pub struct SimulatorAsyncApi {
     pub current_time: Arc<Mutex<HashMap<String, f32>>>,
+    pub records: Arc<Mutex<mpsc::Receiver<Record>>>,
 }
 
 #[derive(Clone)]
 struct SimulatorAsyncApiServer {
     pub current_time: Arc<Mutex<HashMap<String, f32>>>,
+    pub records: mpsc::Sender<Record>,
 }
 
 #[derive(Debug)]
@@ -229,7 +435,7 @@ impl TimeCv {
 /// use log::info;
 /// use simba::simulator::Simulator;
 /// use std::path::Path;
-/// 
+///
 /// fn main() {
 ///
 ///     // Initialize the environment, essentially the logging part
@@ -245,7 +451,7 @@ impl TimeCv {
 ///
 ///     // It also save the results to "result.json",
 ///     simulator.run();
-/// 
+///
 ///     // compute the results and show the figures.
 ///     simulator.compute_results();
 ///
@@ -366,7 +572,10 @@ impl Simulator {
         let mut config: SimulatorConfig = match confy::load_path(config_path) {
             Ok(config) => config,
             Err(error) => {
-                println!("ERROR: Error from Confy while loading the config file : {}", error);
+                println!(
+                    "ERROR: Error from Confy while loading the config file : {}",
+                    error
+                );
                 return;
             }
         };
@@ -423,6 +632,10 @@ impl Simulator {
         time_analysis::init_from_config(&self.config.time_analysis);
 
         self.reset(plugin_api);
+    }
+
+    pub fn config(&self) -> SimulatorConfig {
+        self.config.clone()
     }
 
     /// Initialize the simulator environment.
@@ -804,7 +1017,7 @@ impl Simulator {
                     let circulating_messages = time_cv.circulating_messages.lock().unwrap();
                     if *lk == nb_nodes && *circulating_messages == 0 {
                         break;
-                    } else if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) { 
+                    } else if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                         debug!(
                             "Finished nodes = {}/{nb_nodes} and circulating messages = {}",
                             *lk, *circulating_messages
@@ -850,6 +1063,14 @@ impl Simulator {
                 if own_read_only {
                     node.set_in_state(previous_time);
                 } else {
+                    if let Some(api) = &async_api_server {
+                        let record = Record {
+                            time: next_time,
+                            node: node.record(),
+                        };
+                        api.records.send(record).unwrap();
+                    }
+
                     previous_time = next_time;
                 }
             } else {
@@ -997,11 +1218,14 @@ def convert(records):
     pub fn get_async_api(&mut self) -> Arc<SimulatorAsyncApi> {
         if self.async_api_server.is_none() {
             let map = Arc::new(Mutex::new(HashMap::new()));
+            let (records_tx, records_rx) = mpsc::channel();
             self.async_api_server = Some(SimulatorAsyncApiServer {
                 current_time: Arc::clone(&map),
+                records: records_tx,
             });
             self.async_api = Some(Arc::new(SimulatorAsyncApi {
                 current_time: Arc::clone(&map),
+                records: Arc::new(Mutex::new(records_rx)),
             }));
         }
         self.async_api.as_ref().unwrap().clone()

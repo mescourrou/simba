@@ -6,6 +6,8 @@ use config_checker::macros::Check;
 use log::debug;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::{
     logger::is_enabled,
     sensors::sensor::SensorObservation,
@@ -37,6 +39,33 @@ impl Default for MisdetectionFaultConfig {
                 ..Default::default()
             },
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for MisdetectionFaultConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::HashMap<String, String>,
+        global_config: &crate::simulator::SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label("Apparition probability: ");
+                self.apparition.show(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
+        });
     }
 }
 
