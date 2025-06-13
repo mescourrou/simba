@@ -1,9 +1,5 @@
 use std::{
-    os::unix::thread::JoinHandleExt,
-    path::Path,
-    sync::{mpsc, Arc, Mutex},
-    thread::{self, sleep, JoinHandle},
-    time::Duration,
+    os::unix::thread::JoinHandleExt, path::Path, rc::Rc, sync::{mpsc, Arc, Mutex, RwLock}, thread::{self, sleep, JoinHandle}, time::Duration
 };
 
 use serde_json::Value;
@@ -32,9 +28,9 @@ pub struct AsyncApi {
 // Run by the simulator
 #[derive(Clone)]
 pub struct AsyncApiServer {
-    pub load_config: rfc::RemoteFunctionCallHost<String, SimulatorConfig>,
-    pub run: rfc::RemoteFunctionCallHost<Option<f32>, ()>,
-    pub compute_results: rfc::RemoteFunctionCallHost<(), ()>,
+    pub load_config: Arc<Mutex<rfc::RemoteFunctionCallHost<String, SimulatorConfig>>>,
+    pub run: Arc<Mutex<rfc::RemoteFunctionCallHost<Option<f32>, ()>>>,
+    pub compute_results: Arc<Mutex<rfc::RemoteFunctionCallHost<(), ()>>>,
 }
 
 // #[derive(Clone)]
@@ -67,9 +63,9 @@ impl AsyncApiRunner {
                 compute_results: results_call,
             },
             private_api: AsyncApiServer {
-                load_config: load_config_host,
-                run: run_host,
-                compute_results: results_host,
+                load_config: Arc::new(Mutex::new(load_config_host)),
+                run: Arc::new(Mutex::new(run_host)),
+                compute_results: Arc::new(Mutex::new(results_host)),
             },
             simulator,
             keep_alive_rx: Arc::new(Mutex::new(keep_alive_rx)),
@@ -105,40 +101,75 @@ impl AsyncApiRunner {
     pub fn run(&mut self, plugin_api: Option<Box<&'static dyn PluginAPI>>) {
         let private_api = self.private_api.clone();
         let keep_alive_rx = self.keep_alive_rx.clone();
-        let simulator_arc = self.simulator.clone();
+        let simulator_cloned = self.simulator.clone();
         let plugin_api = plugin_api.clone();
         self.thread_handle = Some(thread::spawn(move || {
             let plugin_api = plugin_api.clone();
-            let mut simulator = simulator_arc.lock().unwrap();
             let mut need_reset = false;
-            loop {
-                // Should not be blocking
-                if let Ok(_) = keep_alive_rx.lock().unwrap().try_recv() {
-                    break;
-                }
-                private_api.load_config.try_recv_closure_mut(|config_path| {
-                    println!("Loading config: {}", config_path);
-                    let path = Path::new(&config_path);
-                    simulator.load_config_path(path, &plugin_api);
-                    println!("End loading");
-                    simulator.config()
-                });
 
-                private_api.run.try_recv_closure_mut(|max_time| {
-                    if need_reset {
-                        simulator.reset(&plugin_api);
-                    }
-                    if let Some(max_time) = max_time {
-                        simulator.set_max_time(max_time);
-                    }
-                    simulator.run();
-                    need_reset = true;
-                });
-                private_api.compute_results.try_recv_closure_mut(|_| {
-                    simulator.compute_results();
-                    need_reset = true;
-                });
-            }
+            let load_config = private_api.load_config.clone();
+            let simulator_arc = simulator_cloned.clone();
+            let plugin_api_threaded = plugin_api.clone();
+
+            let stopping_root = Arc::new(RwLock::new(false));
+            let stopping = stopping_root.clone();
+            thread::spawn(move || {
+                while !*stopping.read().unwrap() {
+                    load_config.lock().unwrap().recv_closure_mut(|config_path| {
+                        let mut simulator = simulator_arc.lock().unwrap();
+                        println!("Loading config: {}", config_path);
+                        let path = Path::new(&config_path);
+                        simulator.load_config_path(path, &plugin_api_threaded);
+                        println!("End loading");
+                        simulator.config()
+                    });
+                }
+            });
+
+            let stopping = stopping_root.clone();
+            let run = private_api.run.clone();
+            let simulator_arc = simulator_cloned.clone();
+            let plugin_api_threaded = plugin_api.clone();
+            thread::spawn(move || {
+                while !*stopping.read().unwrap()  {
+                    run.lock().unwrap().recv_closure_mut(|max_time| {
+                        let mut simulator = simulator_arc.lock().unwrap();
+                        if need_reset {
+                            simulator.reset(&plugin_api_threaded);
+                        }
+                        if let Some(max_time) = max_time {
+                            simulator.set_max_time(max_time);
+                        }
+                        simulator.run();
+                        need_reset = true;
+                    });
+                }
+            });
+
+            let compute_results = private_api.compute_results.clone();
+            let simulator_arc = simulator_cloned.clone();
+            let stopping = stopping_root.clone();
+            thread::spawn(move || {
+                while !*stopping.read().unwrap()  {
+                    compute_results.lock().unwrap().recv_closure_mut(|_| {
+                        let simulator = simulator_arc.lock().unwrap();
+                        simulator.compute_results();
+                        need_reset = true;
+                    });
+                }
+            });
+
+
+
+            // Wait for end
+            let _ = keep_alive_rx.lock().unwrap().recv();
+
+            // Ending threads
+            *stopping_root.write().unwrap() = true;
+            private_api.load_config.lock().unwrap().stop_recv();
+            private_api.run.lock().unwrap().stop_recv();
+            private_api.compute_results.lock().unwrap().stop_recv();
+
             log::info!("AsyncApiRunner thread exited");
         }));
     }

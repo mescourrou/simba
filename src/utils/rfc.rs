@@ -38,12 +38,17 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCall<ParamType, ReturnTy
 #[derive(Clone)]
 pub struct RemoteFunctionCallHost<ParamType: Clone, ReturnType: Clone> {
     receiver: Arc<Mutex<mpsc::Receiver<ParamType>>>,
+    stop_sender: mpsc::Sender<ParamType>,
     sender: mpsc::Sender<ReturnType>,
+    stopping: bool,
 }
 
 impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, ReturnType> {
     pub fn try_recv_fn(&self, exe: fn(ParamType) -> ReturnType) {
         if let Ok(param) = self.receiver.lock().unwrap().try_recv() {
+            if self.stopping {
+                return;
+            }
             let result = exe(param);
             self.sender.send(result).unwrap();
         }
@@ -51,6 +56,9 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, Retu
 
     pub fn try_recv_closure(&self, exe: impl Fn(ParamType) -> ReturnType) {
         if let Ok(param) = self.receiver.lock().unwrap().try_recv() {
+            if self.stopping {
+                return;
+            }
             let result = exe(param);
             self.sender.send(result).unwrap();
         }
@@ -58,9 +66,49 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, Retu
 
     pub fn try_recv_closure_mut(&self, mut exe: impl FnMut(ParamType) -> ReturnType) {
         if let Ok(param) = self.receiver.lock().unwrap().try_recv() {
+            if self.stopping {
+                return;
+            }
             let result = exe(param);
             self.sender.send(result).unwrap();
         }
+    }
+
+    pub fn recv_fn(&self, exe: fn(ParamType) -> ReturnType) {
+        if let Ok(param) = self.receiver.lock().unwrap().recv() {
+            if self.stopping {
+                return;
+            }
+            let result = exe(param);
+            self.sender.send(result).unwrap();
+        }
+    }
+
+    pub fn recv_closure(&self, exe: impl Fn(ParamType) -> ReturnType) {
+        if let Ok(param) = self.receiver.lock().unwrap().recv() {
+            if self.stopping {
+                return;
+            }
+            let result = exe(param);
+            self.sender.send(result).unwrap();
+        }
+    }
+
+    pub fn recv_closure_mut(&self, mut exe: impl FnMut(ParamType) -> ReturnType) {
+        if let Ok(param) = self.receiver.lock().unwrap().recv() {
+            if self.stopping {
+                return;
+            }
+            let result = exe(param);
+            self.sender.send(result).unwrap();
+        }
+    }
+}
+
+impl<ParamType: Clone + Default, ReturnType: Clone> RemoteFunctionCallHost<ParamType, ReturnType> {
+    pub fn stop_recv(&mut self) {
+        self.stopping = true;
+        self.stop_sender.send(ParamType::default()).unwrap();
     }
 }
 
@@ -73,12 +121,14 @@ pub fn make_pair<ParamType: Clone, ReturnType: Clone>() -> (
 
     (
         RemoteFunctionCall {
-            sender: call_pipe.0,
+            sender: call_pipe.0.clone(),
             receiver: Arc::new(Mutex::new(return_pipe.1)),
         },
         RemoteFunctionCallHost {
             sender: return_pipe.0,
+            stop_sender: call_pipe.0,
             receiver: Arc::new(Mutex::new(call_pipe.1)),
+            stopping: false,
         },
     )
 }
