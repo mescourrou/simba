@@ -1,4 +1,4 @@
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex, RwLock};
 
 use crate::errors::SimbaResult;
 
@@ -40,13 +40,13 @@ pub struct RemoteFunctionCallHost<ParamType: Clone, ReturnType: Clone> {
     receiver: Arc<Mutex<mpsc::Receiver<ParamType>>>,
     stop_sender: mpsc::Sender<ParamType>,
     sender: mpsc::Sender<ReturnType>,
-    stopping: bool,
+    stopping: Arc<RwLock<bool>>,
 }
 
 impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, ReturnType> {
     pub fn try_recv_fn(&self, exe: fn(ParamType) -> ReturnType) {
         if let Ok(param) = self.receiver.lock().unwrap().try_recv() {
-            if self.stopping {
+            if *self.stopping.read().unwrap() {
                 return;
             }
             let result = exe(param);
@@ -56,7 +56,7 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, Retu
 
     pub fn try_recv_closure(&self, exe: impl Fn(ParamType) -> ReturnType) {
         if let Ok(param) = self.receiver.lock().unwrap().try_recv() {
-            if self.stopping {
+            if *self.stopping.read().unwrap() {
                 return;
             }
             let result = exe(param);
@@ -66,7 +66,7 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, Retu
 
     pub fn try_recv_closure_mut(&self, mut exe: impl FnMut(ParamType) -> ReturnType) {
         if let Ok(param) = self.receiver.lock().unwrap().try_recv() {
-            if self.stopping {
+            if *self.stopping.read().unwrap() {
                 return;
             }
             let result = exe(param);
@@ -76,7 +76,7 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, Retu
 
     pub fn recv_fn(&self, exe: fn(ParamType) -> ReturnType) {
         if let Ok(param) = self.receiver.lock().unwrap().recv() {
-            if self.stopping {
+            if *self.stopping.read().unwrap() {
                 return;
             }
             let result = exe(param);
@@ -86,7 +86,7 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, Retu
 
     pub fn recv_closure(&self, exe: impl Fn(ParamType) -> ReturnType) {
         if let Ok(param) = self.receiver.lock().unwrap().recv() {
-            if self.stopping {
+            if *self.stopping.read().unwrap() {
                 return;
             }
             let result = exe(param);
@@ -96,7 +96,7 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, Retu
 
     pub fn recv_closure_mut(&self, mut exe: impl FnMut(ParamType) -> ReturnType) {
         if let Ok(param) = self.receiver.lock().unwrap().recv() {
-            if self.stopping {
+            if *self.stopping.read().unwrap() {
                 return;
             }
             let result = exe(param);
@@ -106,8 +106,8 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, Retu
 }
 
 impl<ParamType: Clone + Default, ReturnType: Clone> RemoteFunctionCallHost<ParamType, ReturnType> {
-    pub fn stop_recv(&mut self) {
-        self.stopping = true;
+    pub fn stop_recv(&self) {
+        *self.stopping.write().unwrap() = true;
         self.stop_sender.send(ParamType::default()).unwrap();
     }
 }
@@ -128,7 +128,7 @@ pub fn make_pair<ParamType: Clone, ReturnType: Clone>() -> (
             sender: return_pipe.0,
             stop_sender: call_pipe.0,
             receiver: Arc::new(Mutex::new(call_pipe.1)),
-            stopping: false,
+            stopping: Arc::new(RwLock::new(false)),
         },
     )
 }

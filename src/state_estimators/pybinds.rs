@@ -41,9 +41,13 @@ pub struct PythonStateEstimatorAsyncClient {
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
     fn prediction_step(&mut self, _node: &mut Node, time: f32) {
-        debug!("Start prediction step from async client");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Start prediction step from async client");
+        }
         self.prediction_step_request.send(time).unwrap();
-        debug!("Start prediction step from async client: Request sent");
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Start prediction step from async client: Request sent");
+        }
         self.prediction_step_response
             .lock()
             .unwrap()
@@ -52,9 +56,15 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
     }
 
     fn correction_step(&mut self, _node: &mut Node, observations: &Vec<Observation>, time: f32) {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Start correction step from async client");
+        }
         self.correction_step_request
             .send((observations.clone(), time))
             .unwrap();
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Start correction step from async client: Request sent");
+        }
         self.correction_step_response
             .lock()
             .unwrap()
@@ -63,7 +73,13 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
     }
 
     fn next_time_step(&self) -> f32 {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Get next time step from async client");
+        }
         self.next_time_step_request.send(()).unwrap();
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Get next time step from async client: Request sent");
+        }
         self.next_time_step_response
             .lock()
             .unwrap()
@@ -72,7 +88,13 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
     }
 
     fn state(&self) -> State {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Get state from async client");
+        }
         self.state_request.send(()).unwrap();
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Get state from async client: Request sent");
+        }
         self.state_response
             .lock()
             .unwrap()
@@ -184,10 +206,14 @@ impl PythonStateEstimator {
             .unwrap()
             .try_recv()
         {
-            debug!("Request for prediction step received");
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Request for prediction step received");
+            }
             self.prediction_step(time);
-            debug!("Response for prediction step sent");
             self.prediction_step_response.send(()).unwrap();
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Response for prediction step sent");
+            }
         }
         if let Ok((obs, time)) = self
             .correction_step_request
@@ -196,11 +222,23 @@ impl PythonStateEstimator {
             .unwrap()
             .try_recv()
         {
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Request for correction step received");
+            }
             self.correction_step(&obs, time);
             self.correction_step_response.send(()).unwrap();
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Response for correction step sent");
+            }
         }
         if let Ok(()) = self.state_request.clone().lock().unwrap().try_recv() {
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Request for state received");
+            }
             self.state_response.send(self.state()).unwrap();
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Response for state sent");
+            }
         }
         if let Ok(()) = self
             .next_time_step_request
@@ -209,9 +247,16 @@ impl PythonStateEstimator {
             .unwrap()
             .try_recv()
         {
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Request for next time step received");
+            }
             self.next_time_step_response
                 .send(self.next_time_step())
                 .unwrap();
+
+            if is_enabled(crate::logger::InternalLog::API) {
+                debug!("Response for next time step sent");
+            }
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
             self.record_response.send(self.record()).unwrap();

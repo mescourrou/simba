@@ -967,6 +967,9 @@ impl Simulator {
         let mut previous_time = 0.;
         loop {
             let (mut next_time, mut read_only) = node.next_time_step();
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Got next_time: {next_time}");
+            }
             if let Some(api) = &async_api_server {
                 api.current_time
                     .lock()
@@ -1246,7 +1249,7 @@ mod tests {
 
         for _i in 0..nb_replications {
             let mut simulator =
-                Simulator::from_config_path(Path::new("config_example/config.yaml"), &None);
+                Simulator::from_config_path(Path::new("test_config/config.yaml"), &None);
 
             simulator.show();
 
@@ -1261,7 +1264,7 @@ mod tests {
             for j in 0..reference_result.len() {
                 let result_as_str = format!("{:?}", results[i][j]);
                 let reference_result_as_str = format!("{:?}", reference_result[j]);
-                assert_eq!(result_as_str, reference_result_as_str);
+                assert_eq!(result_as_str, reference_result_as_str, "{result_as_str} != {reference_result_as_str}");
             }
         }
     }

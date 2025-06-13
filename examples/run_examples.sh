@@ -1,6 +1,6 @@
 #!/bin/bash
 
-cargo run -p basic
+cd .. && cargo run --example basic && cd -
 
 cd python
 ./controller.py

@@ -1,24 +1,17 @@
 use std::sync::{Arc, Mutex};
 
+use log::debug;
 use nalgebra::{SVector, Vector2};
 use pyo3::prelude::*;
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
-    controllers::{controller::ControllerError, pybinds::PythonController},
-    navigators::pybinds::PythonNavigator,
-    physics::{physic::Command, pybinds::PythonPhysic},
-    plugin_api::PluginAPI,
-    pybinds::PythonAPI,
-    sensors::{
+    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{controller::ControllerError, pybinds::PythonController}, logger::is_enabled, navigators::pybinds::PythonNavigator, physics::{physic::Command, pybinds::PythonPhysic}, plugin_api::PluginAPI, pybinds::PythonAPI, sensors::{
         gnss_sensor::GNSSObservation,
         odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
         robot_sensor::OrientedRobotObservation,
         sensor::{Observation, SensorObservation},
-    },
-    simulator::Simulator,
-    state_estimators::{pybinds::PythonStateEstimator, state_estimator::State},
+    }, simulator::Simulator, state_estimators::{pybinds::PythonStateEstimator, state_estimator::State}
 };
 
 #[derive(Clone)]
@@ -563,14 +556,14 @@ impl SimulatorWrapper {
                 python_api.check_requests();
             }
         } else {
-            wrapper.api.load_config.wait_result();
+            wrapper.api.load_config.wait_result().unwrap();
         }
 
         wrapper
     }
 
     pub fn run(&mut self) {
-        self.api.run.call(None);
+        self.api.run.async_call(None);
         if let Some(python_api) = &mut self.python_api {
             while self.api.run.try_get_result().is_none() {
                 python_api.check_requests();
@@ -584,6 +577,9 @@ impl SimulatorWrapper {
                     break;
                 }
             }
+        }
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Stop server");
         }
         // Stop server thread
         self.server.lock().unwrap().stop();

@@ -1,3 +1,6 @@
+log:
+  log_level:
+    Internal: [All]
 results:
   result_path: "../result.json"
   show_figures: false #to test automatically

@@ -402,7 +402,6 @@ impl Node {
                 debug!("Next time after state estimator bench: {next_time_step}");
             }
         }
-
         let tpl = self
             .service_manager
             .as_ref()

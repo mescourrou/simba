@@ -428,9 +428,9 @@ impl TimeAnalysisStatistics {
                 .unwrap_or(&0.)
                 .clone(),
             n: (n as u32),
-            q1: v[ceilf(nf32 / 4.) as usize],
-            q3: v[ceilf(nf32 * 0.75) as usize],
-            q01: v[ceilf(nf32 * 0.01) as usize],
+            q1: v[(ceilf(nf32 / 4.) as usize).min(n - 1)],
+            q3: v[(ceilf(nf32 * 0.75) as usize).min(n - 1)],
+            q01: v[(ceilf(nf32 * 0.01) as usize).min(n - 1)],
             q99: v[(ceilf(nf32 * 0.99) as usize).min(n - 1)],
         }
     }
