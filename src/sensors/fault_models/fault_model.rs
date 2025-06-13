@@ -6,7 +6,6 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 use simba_macros::{EnumToString, ToVec};
 
-
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::{

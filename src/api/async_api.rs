@@ -1,5 +1,10 @@
 use std::{
-    os::unix::thread::JoinHandleExt, path::Path, rc::Rc, sync::{mpsc, Arc, Mutex, RwLock}, thread::{self, sleep, JoinHandle}, time::Duration
+    os::unix::thread::JoinHandleExt,
+    path::Path,
+    rc::Rc,
+    sync::{mpsc, Arc, Mutex, RwLock},
+    thread::{self, sleep, JoinHandle},
+    time::Duration,
 };
 
 use serde_json::Value;
@@ -132,7 +137,7 @@ impl AsyncApiRunner {
             let simulator_arc = simulator_cloned.clone();
             let plugin_api_threaded = plugin_api.clone();
             thread::spawn(move || {
-                while !*stopping.read().unwrap()  {
+                while !*stopping.read().unwrap() {
                     run.recv_closure_mut(|max_time| {
                         let mut simulator = simulator_arc.lock().unwrap();
                         if need_reset {
@@ -152,7 +157,7 @@ impl AsyncApiRunner {
             let simulator_arc = simulator_cloned.clone();
             let stopping = stopping_root.clone();
             thread::spawn(move || {
-                while !*stopping.read().unwrap()  {
+                while !*stopping.read().unwrap() {
                     compute_results.recv_closure_mut(|_| {
                         let simulator = simulator_arc.lock().unwrap();
                         simulator.compute_results();
@@ -160,8 +165,6 @@ impl AsyncApiRunner {
                     });
                 }
             });
-
-
 
             // Wait for end
             let _ = keep_alive_rx.lock().unwrap().recv();

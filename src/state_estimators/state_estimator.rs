@@ -164,6 +164,7 @@ impl Stateful<StateRecord> for State {
     }
 }
 
+use std::collections::HashMap;
 use std::fmt;
 
 impl fmt::Display for State {
@@ -174,6 +175,92 @@ impl fmt::Display for State {
             self.pose.x, self.pose.y, self.pose.z, self.velocity
         )?;
         Ok(())
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WorldStateRecord {
+    pub ego: Option<StateRecord>,
+    pub objects: HashMap<String, StateRecord>,
+    pub landmarks: HashMap<i32, StateRecord>,
+    pub occupancy_grid: Option<OccupancyGrid>,
+}
+
+impl Default for WorldStateRecord {
+    fn default() -> Self {
+        Self {
+            ego: None,
+            landmarks: HashMap::new(),
+            objects: HashMap::new(),
+            occupancy_grid: None,
+        }
+    }
+}
+
+/// Full State to be estimated.
+#[derive(Debug, Clone)]
+pub struct WorldState {
+    pub ego: Option<State>,
+    pub objects: HashMap<String, State>,
+    pub landmarks: HashMap<i32, State>,
+    pub occupancy_grid: Option<OccupancyGrid>,
+}
+
+impl WorldState {
+    pub fn new() -> Self {
+        Self {
+            ego: None,
+            objects: HashMap::new(),
+            landmarks: HashMap::new(),
+            occupancy_grid: None,
+        }
+    }
+}
+
+impl Stateful<WorldStateRecord> for WorldState {
+    fn record(&self) -> WorldStateRecord {
+        WorldStateRecord {
+            ego: match &self.ego {
+                Some(s) => Some(s.record()),
+                None => None,
+            },
+            landmarks: HashMap::from_iter(
+                self.landmarks
+                    .iter()
+                    .map(|(id, s)| (id.clone(), s.record())),
+            ),
+            objects: HashMap::from_iter(
+                self.objects.iter().map(|(id, s)| (id.clone(), s.record())),
+            ),
+            occupancy_grid: self.occupancy_grid.clone(),
+        }
+    }
+
+    fn from_record(&mut self, record: WorldStateRecord) {
+        match record.ego {
+            Some(s) => {
+                if self.ego.is_none() {
+                    self.ego = Some(State::new());
+                }
+                self.ego.as_mut().unwrap().from_record(s);
+            }
+            None => {
+                self.ego = None;
+            }
+        }
+        self.landmarks = HashMap::from_iter(record.landmarks.iter().map(|(id, s)| {
+            let mut state = State::new();
+            state.from_record(s.clone());
+            (id.clone(), state)
+        }));
+
+        self.objects = HashMap::from_iter(record.objects.iter().map(|(id, s)| {
+            let mut state = State::new();
+            state.from_record(s.clone());
+            (id.clone(), state)
+        }));
+
+        self.occupancy_grid = record.occupancy_grid.clone();
     }
 }
 
@@ -190,6 +277,7 @@ use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
+use crate::utils::occupancy_grid::OccupancyGrid;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -335,7 +423,7 @@ pub trait StateEstimator:
     fn correction_step(&mut self, robot: &mut Node, observations: &Vec<Observation>, time: f32);
 
     /// Return the current estimated state.
-    fn state(&self) -> State;
+    fn world_state(&self) -> WorldState;
 
     /// Return the next prediction step time. The correction step
     /// is called for each observation.

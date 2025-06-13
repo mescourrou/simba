@@ -12,7 +12,7 @@ use crate::{
     logger::is_enabled,
     node::Node,
     node_factory::NodeRecord,
-    pywrappers::{ObservationWrapper, SensorObservationWrapper, StateWrapper},
+    pywrappers::{ObservationWrapper, SensorObservationWrapper, StateWrapper, WorldStateWrapper},
     sensors::sensor::{Observation, SensorObservation},
     stateful::Stateful,
     utils::maths::round_precision,
@@ -20,7 +20,7 @@ use crate::{
 
 use super::{
     external_estimator::ExternalEstimatorRecord,
-    state_estimator::{State, StateEstimator, StateEstimatorRecord},
+    state_estimator::{State, StateEstimator, StateEstimatorRecord, WorldState},
 };
 
 #[derive(Debug, Clone)]
@@ -30,7 +30,7 @@ pub struct PythonStateEstimatorAsyncClient {
     pub correction_step_request: mpsc::Sender<(Vec<Observation>, f32)>,
     pub correction_step_response: Arc<Mutex<mpsc::Receiver<()>>>,
     pub state_request: mpsc::Sender<()>,
-    pub state_response: Arc<Mutex<mpsc::Receiver<State>>>,
+    pub state_response: Arc<Mutex<mpsc::Receiver<WorldState>>>,
     pub next_time_step_request: mpsc::Sender<()>,
     pub next_time_step_response: Arc<Mutex<mpsc::Receiver<f32>>>,
     pub record_request: mpsc::Sender<()>,
@@ -87,7 +87,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
             .expect("Error during call of next_time_step")
     }
 
-    fn state(&self) -> State {
+    fn world_state(&self) -> WorldState {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Get state from async client");
         }
@@ -130,7 +130,7 @@ pub struct PythonStateEstimator {
     correction_step_request: Arc<Mutex<mpsc::Receiver<(Vec<Observation>, f32)>>>,
     correction_step_response: mpsc::Sender<()>,
     state_request: Arc<Mutex<mpsc::Receiver<()>>>,
-    state_response: mpsc::Sender<State>,
+    state_response: mpsc::Sender<WorldState>,
     next_time_step_request: Arc<Mutex<mpsc::Receiver<()>>>,
     next_time_step_response: mpsc::Sender<f32>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
@@ -235,7 +235,7 @@ impl PythonStateEstimator {
             if is_enabled(crate::logger::InternalLog::API) {
                 debug!("Request for state received");
             }
-            self.state_response.send(self.state()).unwrap();
+            self.state_response.send(self.world_state()).unwrap();
             if is_enabled(crate::logger::InternalLog::API) {
                 debug!("Response for state sent");
             }
@@ -286,7 +286,7 @@ impl PythonStateEstimator {
         }
         let mut observation_py = Vec::new();
         for obs in observations {
-            observation_py.push(ObservationWrapper::from_ros(obs));
+            observation_py.push(ObservationWrapper::from_rust(obs));
         }
         Python::with_gil(|py| {
             self.model
@@ -296,11 +296,11 @@ impl PythonStateEstimator {
         });
     }
 
-    fn state(&self) -> State {
+    fn world_state(&self) -> WorldState {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of state");
         }
-        let state = Python::with_gil(|py| -> StateWrapper {
+        let state = Python::with_gil(|py| -> WorldStateWrapper {
             self.model
                 .bind(py)
                 .call_method("state", (), None)
@@ -308,7 +308,7 @@ impl PythonStateEstimator {
                 .extract()
                 .expect("The 'state' method of PythonStateEstimator does not return a correct state vector")
         });
-        state.to_ros()
+        state.to_rust()
     }
 
     fn next_time_step(&self) -> f32 {

@@ -13,8 +13,8 @@ use crate::{
     navigators::external_navigator::ExternalNavigatorRecord,
     node::Node,
     node_factory::NodeRecord,
-    pywrappers::{ControllerErrorWrapper, StateWrapper},
-    state_estimators::state_estimator::State,
+    pywrappers::{ControllerErrorWrapper, StateWrapper, WorldStateWrapper},
+    state_estimators::state_estimator::{State, WorldState},
     stateful::Stateful,
 };
 
@@ -22,7 +22,7 @@ use super::navigator::{Navigator, NavigatorRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonNavigatorAsyncClient {
-    pub compute_error_request: mpsc::Sender<State>,
+    pub compute_error_request: mpsc::Sender<WorldState>,
     pub compute_error_response: Arc<Mutex<mpsc::Receiver<ControllerError>>>,
     pub record_request: mpsc::Sender<()>,
     pub record_response: Arc<Mutex<mpsc::Receiver<NavigatorRecord>>>,
@@ -31,8 +31,10 @@ pub struct PythonNavigatorAsyncClient {
 }
 
 impl Navigator for PythonNavigatorAsyncClient {
-    fn compute_error(&mut self, _node: &mut Node, state: State) -> ControllerError {
-        self.compute_error_request.send(state.clone()).unwrap();
+    fn compute_error(&mut self, _node: &mut Node, world_state: WorldState) -> ControllerError {
+        self.compute_error_request
+            .send(world_state.clone())
+            .unwrap();
         self.compute_error_response.lock().unwrap().recv().unwrap()
     }
 }
@@ -59,7 +61,7 @@ impl Stateful<NavigatorRecord> for PythonNavigatorAsyncClient {
 pub struct PythonNavigator {
     model: Py<PyAny>,
     client: PythonNavigatorAsyncClient,
-    compute_error_request: Arc<Mutex<mpsc::Receiver<State>>>,
+    compute_error_request: Arc<Mutex<mpsc::Receiver<WorldState>>>,
     compute_error_response: mpsc::Sender<ControllerError>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
     record_response: mpsc::Sender<NavigatorRecord>,
@@ -128,7 +130,7 @@ impl PythonNavigator {
         }
     }
 
-    fn compute_error(&mut self, state: &State) -> ControllerError {
+    fn compute_error(&mut self, state: &WorldState) -> ControllerError {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of compute_error");
         }
@@ -136,12 +138,16 @@ impl PythonNavigator {
         let result = Python::with_gil(|py| -> ControllerErrorWrapper {
             self.model
                 .bind(py)
-                .call_method("compute_error", (StateWrapper::from_ros(state),), None)
+                .call_method(
+                    "compute_error",
+                    (WorldStateWrapper::from_rust(state),),
+                    None,
+                )
                 .expect("PythonNavigator does not have a correct 'compute_error' method")
                 .extract()
                 .expect("Error during the call of Python implementation of 'compute_error'")
         });
-        result.to_ros()
+        result.to_rust()
     }
 
     fn record(&self) -> NavigatorRecord {

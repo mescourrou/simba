@@ -96,7 +96,7 @@ impl Robot {
                             o,
                             &Vector3::from(pose),
                         )
-                    },
+                    }
                     SensorObservationRecord::OrientedRobot(o) => {
                         self.robot_obs.as_ref().unwrap().draw(
                             ui,

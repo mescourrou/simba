@@ -4,9 +4,12 @@ use nalgebra::{Rotation2, Rotation3, Vector2, Vector3};
 use crate::{
     node_factory::{RobotConfig, RobotRecord},
     physics::physic::PhysicConfig,
-    sensors::{oriented_landmark_sensor::{
-        self, OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,
-    }, robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig}},
+    sensors::{
+        oriented_landmark_sensor::{
+            self, OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,
+        },
+        robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig},
+    },
     simulator::SimulatorConfig,
     utils::time_ordered_data::TimeOrderedData,
 };

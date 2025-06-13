@@ -253,7 +253,7 @@ impl Node {
                 );
                 state_estimator.write().unwrap().prediction_step(self, time);
                 time_analysis::finished_time_analysis(ta);
-                let state = state_estimator.read().unwrap().state();
+                let world_state = state_estimator.read().unwrap().world_state();
 
                 // Compute the error to the planned path
                 let ta = time_analysis::time_analysis(
@@ -266,7 +266,7 @@ impl Node {
                     .unwrap()
                     .write()
                     .unwrap()
-                    .compute_error(self, state);
+                    .compute_error(self, world_state);
                 time_analysis::finished_time_analysis(ta);
 
                 // Compute the command from the error

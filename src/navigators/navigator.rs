@@ -13,13 +13,10 @@ use super::{external_navigator, trajectory_follower};
 
 use crate::controllers::controller::ControllerError;
 #[cfg(feature = "gui")]
-use crate::gui::{
-    utils::string_combobox,
-    UIComponent,
-};
+use crate::gui::{utils::string_combobox, UIComponent};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::State;
+use crate::state_estimators::state_estimator::{State, WorldState};
 
 /// Enumerate the configuration of the different strategies.
 #[derive(Serialize, Deserialize, Debug, Clone, Check, EnumToString, ToVec)]
@@ -106,7 +103,7 @@ pub trait Navigator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<NavigatorRecord>
 {
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
-    fn compute_error(&mut self, robot: &mut Node, state: State) -> ControllerError;
+    fn compute_error(&mut self, robot: &mut Node, state: WorldState) -> ControllerError;
 }
 
 /// Helper function to create a navigator from the given configuration.

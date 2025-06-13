@@ -1,17 +1,33 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use log::debug;
-use nalgebra::{SVector, Vector2};
-use pyo3::prelude::*;
+use nalgebra::{SVector, Vector2, Vector3};
+use pyo3::{prelude::*, types::PyDict};
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{controller::ControllerError, pybinds::PythonController}, logger::is_enabled, navigators::pybinds::PythonNavigator, physics::{physic::Command, pybinds::PythonPhysic}, plugin_api::PluginAPI, pybinds::PythonAPI, sensors::{
+    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
+    controllers::{controller::ControllerError, pybinds::PythonController},
+    logger::is_enabled,
+    navigators::pybinds::PythonNavigator,
+    physics::{physic::Command, pybinds::PythonPhysic},
+    plugin_api::PluginAPI,
+    pybinds::PythonAPI,
+    sensors::{
         gnss_sensor::GNSSObservation,
         odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
         robot_sensor::OrientedRobotObservation,
         sensor::{Observation, SensorObservation},
-    }, simulator::Simulator, state_estimators::{pybinds::PythonStateEstimator, state_estimator::State}
+    },
+    simulator::Simulator,
+    state_estimators::{
+        pybinds::PythonStateEstimator,
+        state_estimator::{State, WorldState},
+    },
+    utils::occupancy_grid::OccupancyGrid,
 };
 
 #[derive(Clone)]
@@ -38,7 +54,7 @@ impl ControllerErrorWrapper {
     }
 }
 impl ControllerErrorWrapper {
-    pub fn from_ros(ce: &ControllerError) -> Self {
+    pub fn from_rust(ce: &ControllerError) -> Self {
         Self {
             lateral: ce.lateral,
             theta: ce.theta,
@@ -46,7 +62,7 @@ impl ControllerErrorWrapper {
         }
     }
 
-    pub fn to_ros(&self) -> ControllerError {
+    pub fn to_rust(&self) -> ControllerError {
         ControllerError {
             lateral: self.lateral,
             theta: self.theta,
@@ -90,7 +106,7 @@ impl StateWrapper {
 }
 
 impl StateWrapper {
-    pub fn from_ros(s: &State) -> Self {
+    pub fn from_rust(s: &State) -> Self {
         Self {
             pose: Pose {
                 x: s.pose[0],
@@ -100,11 +116,145 @@ impl StateWrapper {
             velocity: s.velocity,
         }
     }
-    pub fn to_ros(&self) -> State {
+    pub fn to_rust(&self) -> State {
         State {
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
             velocity: self.velocity,
         }
+    }
+}
+
+#[derive(Clone)]
+#[pyclass(get_all, set_all)]
+#[pyo3(name = "WorldState")]
+pub struct WorldStateWrapper {
+    pub ego: Option<StateWrapper>,
+    pub objects: HashMap<String, StateWrapper>,
+    pub landmarks: HashMap<i32, StateWrapper>,
+    pub occupancy_grid: Option<OccupancyGridWrapper>,
+}
+
+#[pymethods]
+impl WorldStateWrapper {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            ego: None,
+            objects: HashMap::new(),
+            landmarks: HashMap::new(),
+            occupancy_grid: None,
+        }
+    }
+}
+
+impl WorldStateWrapper {
+    pub fn from_rust(s: &WorldState) -> Self {
+        Self {
+            ego: match &s.ego {
+                Some(st) => Some(StateWrapper::from_rust(st)),
+                None => None,
+            },
+            landmarks: HashMap::from_iter(
+                s.landmarks
+                    .iter()
+                    .map(|(id, s)| (id.clone(), StateWrapper::from_rust(s))),
+            ),
+            objects: HashMap::from_iter(
+                s.objects
+                    .iter()
+                    .map(|(id, s)| (id.clone(), StateWrapper::from_rust(s))),
+            ),
+            occupancy_grid: match &s.occupancy_grid {
+                Some(og) => Some(OccupancyGridWrapper::from_rust(og)),
+                None => None,
+            },
+        }
+    }
+    pub fn to_rust(&self) -> WorldState {
+        WorldState {
+            ego: match &self.ego {
+                Some(st) => Some(StateWrapper::to_rust(st)),
+                None => None,
+            },
+            landmarks: HashMap::from_iter(
+                self.landmarks
+                    .iter()
+                    .map(|(id, s)| (id.clone(), StateWrapper::to_rust(s))),
+            ),
+            objects: HashMap::from_iter(
+                self.objects
+                    .iter()
+                    .map(|(id, s)| (id.clone(), StateWrapper::to_rust(s))),
+            ),
+            occupancy_grid: match &self.occupancy_grid {
+                Some(og) => Some(OccupancyGridWrapper::to_rust(og)),
+                None => None,
+            },
+        }
+    }
+}
+
+#[derive(Clone)]
+#[pyclass]
+#[pyo3(name = "OccupancyGrid")]
+pub struct OccupancyGridWrapper {
+    grid: OccupancyGrid,
+}
+
+#[pymethods]
+impl OccupancyGridWrapper {
+    #[new]
+    pub fn new(
+        center: [f32; 3],
+        cell_height: f32,
+        cell_width: f32,
+        nb_rows: usize,
+        nb_cols: usize,
+    ) -> Self {
+        Self {
+            grid: OccupancyGrid::new(
+                Vector3::from(center),
+                cell_height,
+                cell_width,
+                nb_rows,
+                nb_cols,
+            ),
+        }
+    }
+
+    pub fn get_idx(&self, row: usize, col: usize) -> Option<f32> {
+        self.grid.get_idx(row, col).cloned()
+    }
+
+    pub fn set_idx(&mut self, row: usize, col: usize, value: f32) -> bool {
+        if let Some(v) = self.grid.get_idx_mut(row, col) {
+            *v = value;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_pos(&self, position: [f32; 2]) -> Option<f32> {
+        self.grid.get_pos(Vector2::from(position)).cloned()
+    }
+
+    pub fn set_pos(&mut self, position: [f32; 2], value: f32) -> bool {
+        if let Some(v) = self.grid.get_pos_mut(Vector2::from(position)) {
+            *v = value;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl OccupancyGridWrapper {
+    pub fn from_rust(s: &OccupancyGrid) -> Self {
+        Self { grid: s.clone() }
+    }
+    pub fn to_rust(&self) -> OccupancyGrid {
+        self.grid.clone()
     }
 }
 
@@ -134,7 +284,7 @@ impl OrientedLandmarkObservationWrapper {
 }
 
 impl OrientedLandmarkObservationWrapper {
-    pub fn from_ros(s: &OrientedLandmarkObservation) -> Self {
+    pub fn from_rust(s: &OrientedLandmarkObservation) -> Self {
         Self {
             id: s.id,
             pose: Pose {
@@ -144,7 +294,7 @@ impl OrientedLandmarkObservationWrapper {
             },
         }
     }
-    pub fn to_ros(&self) -> OrientedLandmarkObservation {
+    pub fn to_rust(&self) -> OrientedLandmarkObservation {
         OrientedLandmarkObservation {
             id: self.id,
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
@@ -172,13 +322,13 @@ impl OdometryObservationWrapper {
 }
 
 impl OdometryObservationWrapper {
-    pub fn from_ros(s: &OdometryObservation) -> Self {
+    pub fn from_rust(s: &OdometryObservation) -> Self {
         Self {
             linear_velocity: s.linear_velocity,
             angular_velocity: s.angular_velocity,
         }
     }
-    pub fn to_ros(&self) -> OdometryObservation {
+    pub fn to_rust(&self) -> OdometryObservation {
         OdometryObservation {
             linear_velocity: self.linear_velocity,
             angular_velocity: self.angular_velocity,
@@ -206,13 +356,13 @@ impl GNSSObservationWrapper {
 }
 
 impl GNSSObservationWrapper {
-    pub fn from_ros(s: &GNSSObservation) -> Self {
+    pub fn from_rust(s: &GNSSObservation) -> Self {
         Self {
             position: s.position.into(),
             velocity: s.velocity.into(),
         }
     }
-    pub fn to_ros(&self) -> GNSSObservation {
+    pub fn to_rust(&self) -> GNSSObservation {
         GNSSObservation {
             position: Vector2::from(self.position),
             velocity: Vector2::from(self.velocity),
@@ -246,7 +396,7 @@ impl OrientedRobotObservationWrapper {
 }
 
 impl OrientedRobotObservationWrapper {
-    pub fn from_ros(s: &OrientedRobotObservation) -> Self {
+    pub fn from_rust(s: &OrientedRobotObservation) -> Self {
         Self {
             name: s.name.clone(),
             pose: Pose {
@@ -256,7 +406,7 @@ impl OrientedRobotObservationWrapper {
             },
         }
     }
-    pub fn to_ros(&self) -> OrientedRobotObservation {
+    pub fn to_rust(&self) -> OrientedRobotObservation {
         OrientedRobotObservation {
             name: self.name.clone(),
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
@@ -283,31 +433,31 @@ impl SensorObservationWrapper {
 }
 
 impl SensorObservationWrapper {
-    pub fn from_ros(s: &SensorObservation) -> Self {
+    pub fn from_rust(s: &SensorObservation) -> Self {
         match s {
             SensorObservation::GNSS(o) => {
-                SensorObservationWrapper::GNSS(GNSSObservationWrapper::from_ros(o))
+                SensorObservationWrapper::GNSS(GNSSObservationWrapper::from_rust(o))
             }
             SensorObservation::Odometry(o) => {
-                SensorObservationWrapper::Odometry(OdometryObservationWrapper::from_ros(o))
+                SensorObservationWrapper::Odometry(OdometryObservationWrapper::from_rust(o))
             }
             SensorObservation::OrientedLandmark(o) => SensorObservationWrapper::OrientedLandmark(
-                OrientedLandmarkObservationWrapper::from_ros(o),
+                OrientedLandmarkObservationWrapper::from_rust(o),
             ),
             SensorObservation::OrientedRobot(o) => SensorObservationWrapper::OrientedRobot(
-                OrientedRobotObservationWrapper::from_ros(o),
+                OrientedRobotObservationWrapper::from_rust(o),
             ),
         }
     }
-    pub fn to_ros(&self) -> SensorObservation {
+    pub fn to_rust(&self) -> SensorObservation {
         match self {
-            SensorObservationWrapper::GNSS(o) => SensorObservation::GNSS(o.to_ros()),
-            SensorObservationWrapper::Odometry(o) => SensorObservation::Odometry(o.to_ros()),
+            SensorObservationWrapper::GNSS(o) => SensorObservation::GNSS(o.to_rust()),
+            SensorObservationWrapper::Odometry(o) => SensorObservation::Odometry(o.to_rust()),
             SensorObservationWrapper::OrientedLandmark(o) => {
-                SensorObservation::OrientedLandmark(o.to_ros())
+                SensorObservation::OrientedLandmark(o.to_rust())
             }
             SensorObservationWrapper::OrientedRobot(o) => {
-                SensorObservation::OrientedRobot(o.to_ros())
+                SensorObservation::OrientedRobot(o.to_rust())
             }
         }
     }
@@ -337,20 +487,20 @@ impl ObservationWrapper {
 }
 
 impl ObservationWrapper {
-    pub fn from_ros(s: &Observation) -> Self {
+    pub fn from_rust(s: &Observation) -> Self {
         Self {
             sensor_name: s.sensor_name.clone(),
             observer: s.observer.clone(),
             time: s.time,
-            sensor_observation: SensorObservationWrapper::from_ros(&s.sensor_observation),
+            sensor_observation: SensorObservationWrapper::from_rust(&s.sensor_observation),
         }
     }
-    pub fn to_ros(&self) -> Observation {
+    pub fn to_rust(&self) -> Observation {
         Observation {
             sensor_name: self.sensor_name.clone(),
             observer: self.observer.clone(),
             time: self.time,
-            sensor_observation: self.sensor_observation.to_ros(),
+            sensor_observation: self.sensor_observation.to_rust(),
         }
     }
 }
@@ -377,13 +527,13 @@ impl CommandWrapper {
 }
 
 impl CommandWrapper {
-    pub fn from_ros(s: &Command) -> Self {
+    pub fn from_rust(s: &Command) -> Self {
         Self {
             left_wheel_speed: s.left_wheel_speed,
             right_wheel_speed: s.right_wheel_speed,
         }
     }
-    pub fn to_ros(&self) -> Command {
+    pub fn to_rust(&self) -> Command {
         Command {
             left_wheel_speed: self.left_wheel_speed,
             right_wheel_speed: self.right_wheel_speed,

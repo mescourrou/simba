@@ -60,7 +60,7 @@ mod tests {
             perfect_estimator::PerfectEstimatorConfig,
             state_estimator::{
                 BenchStateEstimatorConfig, State, StateEstimator, StateEstimatorConfig,
-                StateEstimatorRecord,
+                StateEstimatorRecord, WorldState,
             },
         },
         stateful::Stateful,
@@ -133,8 +133,8 @@ mod tests {
         fn next_time_step(&self) -> f32 {
             round_precision(self.last_time + 0.1, TIME_ROUND).unwrap()
         }
-        fn state(&self) -> State {
-            State::new()
+        fn world_state(&self) -> WorldState {
+            WorldState::new()
         }
     }
 

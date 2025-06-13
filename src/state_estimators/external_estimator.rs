@@ -17,13 +17,10 @@ use config_checker::macros::Check;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
-use super::state_estimator::{State, StateEstimator};
+use super::state_estimator::{State, StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
-use crate::gui::{
-    utils::json_config,
-    UIComponent,
-};
+use crate::gui::{utils::json_config, UIComponent};
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::maths::round_precision;
@@ -183,8 +180,8 @@ impl StateEstimator for ExternalEstimator {
             .correction_step(node, observations, time);
     }
 
-    fn state(&self) -> State {
-        self.state_estimator.state()
+    fn world_state(&self) -> WorldState {
+        self.state_estimator.world_state()
     }
 
     fn next_time_step(&self) -> f32 {

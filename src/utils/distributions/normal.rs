@@ -6,9 +6,7 @@ use statrs::{distribution::MultivariateNormal, statistics::MeanN};
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::{
-    utils::determinist_random_variable::{self, DeterministRandomVariable},
-};
+use crate::utils::determinist_random_variable::{self, DeterministRandomVariable};
 use crate::utils::format_f32;
 
 /// Configuration for a normal random variable.
@@ -94,9 +92,12 @@ impl UIComponent for NormalRandomVariableConfig {
                         ui.vertical(|ui| {
                             let mut col = 0;
                             while col < size {
-                                ui.add(egui::DragValue::new(
-                                    self.covariance.get_mut(row * size + col).unwrap(),
-                                ).max_decimals(10));
+                                ui.add(
+                                    egui::DragValue::new(
+                                        self.covariance.get_mut(row * size + col).unwrap(),
+                                    )
+                                    .max_decimals(10),
+                                );
                                 col += 1;
                             }
                         });

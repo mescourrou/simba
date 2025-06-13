@@ -84,7 +84,10 @@ impl UIComponent for RobotSensorConfig {
                     if self.period < TIME_ROUND {
                         self.period = TIME_ROUND;
                     }
-                    ui.add(egui::DragValue::new(&mut self.period).max_decimals((1./TIME_ROUND) as usize));
+                    ui.add(
+                        egui::DragValue::new(&mut self.period)
+                            .max_decimals((1. / TIME_ROUND) as usize),
+                    );
                 });
 
                 FaultModelConfig::show_faults(

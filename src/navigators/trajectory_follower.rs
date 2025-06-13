@@ -7,10 +7,7 @@ use super::navigator::{Navigator, NavigatorRecord};
 use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
 
 #[cfg(feature = "gui")]
-use crate::gui::{
-    utils::path_finder,
-    UIComponent,
-};
+use crate::gui::{utils::path_finder, UIComponent};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -192,7 +189,7 @@ impl TrajectoryFollower {
 
 use crate::controllers::controller::ControllerError;
 use crate::node::Node;
-use crate::state_estimators::state_estimator::State;
+use crate::state_estimators::state_estimator::{State, WorldState};
 
 impl Navigator for TrajectoryFollower {
     /// Compute the error between the given `state` and the current trajectory.
@@ -204,8 +201,14 @@ impl Navigator for TrajectoryFollower {
     /// 3. Compute the orientation of the point to orient the robot to the projected point.
     /// 4. Compute the lateral error
     /// 5. Compute the velocity error
-    fn compute_error(&mut self, _robot: &mut Node, state: State) -> ControllerError {
-        let state = state.theta_modulo();
+    fn compute_error(&mut self, _robot: &mut Node, world_state: WorldState) -> ControllerError {
+        if world_state.ego.is_none() {
+            panic!(
+                "StateEstimator should provide an ego estimate for TrajectoryFollower navigator."
+            )
+        }
+
+        let state = world_state.ego.unwrap().theta_modulo();
 
         // let forward_pose = state.pose
         //     + self.forward_distance * Vector3::new(state.pose.z.cos(), state.pose.z.sin(), 0.);

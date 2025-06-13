@@ -1,10 +1,9 @@
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
-
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::{utils::determinist_random_variable::DeterministRandomVariable};
+use crate::utils::determinist_random_variable::DeterministRandomVariable;
 
 /// Configuration for a fixed random variable.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]

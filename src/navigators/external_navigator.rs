@@ -20,12 +20,9 @@ use serde_json::Value;
 
 use crate::controllers::controller::ControllerError;
 #[cfg(feature = "gui")]
-use crate::gui::{
-    utils::json_config,
-    UIComponent,
-};
+use crate::gui::{utils::json_config, UIComponent};
 use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::State;
+use crate::state_estimators::state_estimator::{State, WorldState};
 use crate::stateful::Stateful;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -169,8 +166,8 @@ impl std::fmt::Debug for ExternalNavigator {
 }
 
 impl Navigator for ExternalNavigator {
-    fn compute_error(&mut self, robot: &mut Node, state: State) -> ControllerError {
-        self.navigator.compute_error(robot, state)
+    fn compute_error(&mut self, robot: &mut Node, world_state: WorldState) -> ControllerError {
+        self.navigator.compute_error(robot, world_state)
     }
 }
 

@@ -14,10 +14,7 @@ use crate::gui::{
     utils::{enum_checkbox, enum_radio, string_checkbox},
     UIComponent,
 };
-use crate::{
-    simulator::SimulatorConfig,
-    utils::enum_tools::ToVec,
-};
+use crate::{simulator::SimulatorConfig, utils::enum_tools::ToVec};
 
 static INTERNAL_LOG_LEVEL: RwLock<Vec<InternalLog>> = RwLock::new(Vec::new());
 

@@ -4218,7 +4218,7 @@ Each component has a gain, which can be set in [`PIDConfig`].
                         .bind(py)
                         .call_method(
                             "make_command",
-                            (ControllerErrorWrapper::from_ros(error), time),
+                            (ControllerErrorWrapper::from_rust(error), time),
                             None,
                         )
                         .expect(
@@ -4229,7 +4229,7 @@ Each component has a gain, which can be set in [`PIDConfig`].
                             "Error during the call of Python implementation of 'make_command'",
                         )
                 });
-                result.to_ros()
+                result.to_rust()
             }
             fn record(&self) -> ControllerRecord {
                 if is_enabled(crate::logger::InternalLog::API) {
@@ -9615,7 +9615,7 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
                         .bind(py)
                         .call_method(
                             "compute_error",
-                            (StateWrapper::from_ros(state),),
+                            (StateWrapper::from_rust(state),),
                             None,
                         )
                         .expect(
@@ -9626,7 +9626,7 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
                             "Error during the call of Python implementation of 'compute_error'",
                         )
                 });
-                result.to_ros()
+                result.to_rust()
             }
             fn record(&self) -> NavigatorRecord {
                 if is_enabled(crate::logger::InternalLog::API) {
@@ -19476,7 +19476,7 @@ However, the [`Physic::state`] should provide the real [`State`].
                         .bind(py)
                         .call_method(
                             "apply_command",
-                            (CommandWrapper::from_ros(command), time),
+                            (CommandWrapper::from_rust(command), time),
                             None,
                         )
                         .expect(
@@ -19551,7 +19551,7 @@ However, the [`Physic::state`] should provide the real [`State`].
                             "The 'state' method of PythonPhysic does not return a correct state vector",
                         )
                 });
-                state.to_ros()
+                state.to_rust()
             }
             fn record(&self) -> PhysicRecord {
                 if is_enabled(crate::logger::InternalLog::API) {
@@ -41302,7 +41302,7 @@ by the controller should be perfect.
                 }
                 let mut observation_py = Vec::new();
                 for obs in observations {
-                    observation_py.push(ObservationWrapper::from_ros(obs));
+                    observation_py.push(ObservationWrapper::from_rust(obs));
                 }
                 Python::with_gil(|py| {
                     self.model
@@ -41348,7 +41348,7 @@ by the controller should be perfect.
                             "The 'state' method of PythonStateEstimator does not return a correct state vector",
                         )
                 });
-                state.to_ros()
+                state.to_rust()
             }
             fn next_time_step(&self) -> f32 {
                 if is_enabled(crate::logger::InternalLog::API) {
@@ -48810,14 +48810,14 @@ mod pywrappers {
         }
     }
     impl ControllerErrorWrapper {
-        pub fn from_ros(ce: &ControllerError) -> Self {
+        pub fn from_rust(ce: &ControllerError) -> Self {
             Self {
                 lateral: ce.lateral,
                 theta: ce.theta,
                 velocity: ce.velocity,
             }
         }
-        pub fn to_ros(&self) -> ControllerError {
+        pub fn to_rust(&self) -> ControllerError {
             ControllerError {
                 lateral: self.lateral,
                 theta: self.theta,
@@ -49503,7 +49503,7 @@ mod pywrappers {
         }
     }
     impl StateWrapper {
-        pub fn from_ros(s: &State) -> Self {
+        pub fn from_rust(s: &State) -> Self {
             Self {
                 pose: Pose {
                     x: s.pose[0],
@@ -49513,7 +49513,7 @@ mod pywrappers {
                 velocity: s.velocity,
             }
         }
-        pub fn to_ros(&self) -> State {
+        pub fn to_rust(&self) -> State {
             State {
                 pose: SVector::from_vec(
                     <[_]>::into_vec(
@@ -49902,7 +49902,7 @@ mod pywrappers {
         }
     }
     impl OrientedLandmarkObservationWrapper {
-        pub fn from_ros(s: &OrientedLandmarkObservation) -> Self {
+        pub fn from_rust(s: &OrientedLandmarkObservation) -> Self {
             Self {
                 id: s.id,
                 pose: Pose {
@@ -49912,7 +49912,7 @@ mod pywrappers {
                 },
             }
         }
-        pub fn to_ros(&self) -> OrientedLandmarkObservation {
+        pub fn to_rust(&self) -> OrientedLandmarkObservation {
             OrientedLandmarkObservation {
                 id: self.id,
                 pose: SVector::from_vec(
@@ -50294,13 +50294,13 @@ mod pywrappers {
         }
     }
     impl OdometryObservationWrapper {
-        pub fn from_ros(s: &OdometryObservation) -> Self {
+        pub fn from_rust(s: &OdometryObservation) -> Self {
             Self {
                 linear_velocity: s.linear_velocity,
                 angular_velocity: s.angular_velocity,
             }
         }
-        pub fn to_ros(&self) -> OdometryObservation {
+        pub fn to_rust(&self) -> OdometryObservation {
             OdometryObservation {
                 linear_velocity: self.linear_velocity,
                 angular_velocity: self.angular_velocity,
@@ -50567,13 +50567,13 @@ mod pywrappers {
         }
     }
     impl GNSSObservationWrapper {
-        pub fn from_ros(s: &GNSSObservation) -> Self {
+        pub fn from_rust(s: &GNSSObservation) -> Self {
             Self {
                 position: s.position.into(),
                 velocity: s.velocity.into(),
             }
         }
-        pub fn to_ros(&self) -> GNSSObservation {
+        pub fn to_rust(&self) -> GNSSObservation {
             GNSSObservation {
                 position: Vector2::from(self.position),
                 velocity: Vector2::from(self.velocity),
@@ -50948,7 +50948,7 @@ mod pywrappers {
         }
     }
     impl OrientedRobotObservationWrapper {
-        pub fn from_ros(s: &OrientedRobotObservation) -> Self {
+        pub fn from_rust(s: &OrientedRobotObservation) -> Self {
             Self {
                 name: s.name.clone(),
                 pose: Pose {
@@ -50958,7 +50958,7 @@ mod pywrappers {
                 },
             }
         }
-        pub fn to_ros(&self) -> OrientedRobotObservation {
+        pub fn to_rust(&self) -> OrientedRobotObservation {
             OrientedRobotObservation {
                 name: self.name.clone(),
                 pose: SVector::from_vec(
@@ -52723,39 +52723,39 @@ mod pywrappers {
         }
     }
     impl SensorObservationWrapper {
-        pub fn from_ros(s: &SensorObservation) -> Self {
+        pub fn from_rust(s: &SensorObservation) -> Self {
             match s {
                 SensorObservation::GNSS(o) => {
-                    SensorObservationWrapper::GNSS(GNSSObservationWrapper::from_ros(o))
+                    SensorObservationWrapper::GNSS(GNSSObservationWrapper::from_rust(o))
                 }
                 SensorObservation::Odometry(o) => {
                     SensorObservationWrapper::Odometry(
-                        OdometryObservationWrapper::from_ros(o),
+                        OdometryObservationWrapper::from_rust(o),
                     )
                 }
                 SensorObservation::OrientedLandmark(o) => {
                     SensorObservationWrapper::OrientedLandmark(
-                        OrientedLandmarkObservationWrapper::from_ros(o),
+                        OrientedLandmarkObservationWrapper::from_rust(o),
                     )
                 }
                 SensorObservation::OrientedRobot(o) => {
                     SensorObservationWrapper::OrientedRobot(
-                        OrientedRobotObservationWrapper::from_ros(o),
+                        OrientedRobotObservationWrapper::from_rust(o),
                     )
                 }
             }
         }
-        pub fn to_ros(&self) -> SensorObservation {
+        pub fn to_rust(&self) -> SensorObservation {
             match self {
-                SensorObservationWrapper::GNSS(o) => SensorObservation::GNSS(o.to_ros()),
+                SensorObservationWrapper::GNSS(o) => SensorObservation::GNSS(o.to_rust()),
                 SensorObservationWrapper::Odometry(o) => {
-                    SensorObservation::Odometry(o.to_ros())
+                    SensorObservation::Odometry(o.to_rust())
                 }
                 SensorObservationWrapper::OrientedLandmark(o) => {
-                    SensorObservation::OrientedLandmark(o.to_ros())
+                    SensorObservation::OrientedLandmark(o.to_rust())
                 }
                 SensorObservationWrapper::OrientedRobot(o) => {
-                    SensorObservation::OrientedRobot(o.to_ros())
+                    SensorObservation::OrientedRobot(o.to_rust())
                 }
             }
         }
@@ -53273,22 +53273,22 @@ mod pywrappers {
         }
     }
     impl ObservationWrapper {
-        pub fn from_ros(s: &Observation) -> Self {
+        pub fn from_rust(s: &Observation) -> Self {
             Self {
                 sensor_name: s.sensor_name.clone(),
                 observer: s.observer.clone(),
                 time: s.time,
-                sensor_observation: SensorObservationWrapper::from_ros(
+                sensor_observation: SensorObservationWrapper::from_rust(
                     &s.sensor_observation,
                 ),
             }
         }
-        pub fn to_ros(&self) -> Observation {
+        pub fn to_rust(&self) -> Observation {
             Observation {
                 sensor_name: self.sensor_name.clone(),
                 observer: self.observer.clone(),
                 time: self.time,
-                sensor_observation: self.sensor_observation.to_ros(),
+                sensor_observation: self.sensor_observation.to_rust(),
             }
         }
     }
@@ -53644,13 +53644,13 @@ mod pywrappers {
         }
     }
     impl CommandWrapper {
-        pub fn from_ros(s: &Command) -> Self {
+        pub fn from_rust(s: &Command) -> Self {
             Self {
                 left_wheel_speed: s.left_wheel_speed,
                 right_wheel_speed: s.right_wheel_speed,
             }
         }
-        pub fn to_ros(&self) -> Command {
+        pub fn to_rust(&self) -> Command {
             Command {
                 left_wheel_speed: self.left_wheel_speed,
                 right_wheel_speed: self.right_wheel_speed,

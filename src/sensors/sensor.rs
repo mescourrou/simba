@@ -223,12 +223,7 @@ pub enum SensorRecord {
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
-use crate::{
-    node::Node,
-    simulator::SimulatorConfig,
-    stateful::Stateful,
-    utils::enum_tools::ToVec,
-};
+use crate::{node::Node, simulator::SimulatorConfig, stateful::Stateful, utils::enum_tools::ToVec};
 
 /// Sensor trait which need to be implemented by each sensors.
 pub trait Sensor:

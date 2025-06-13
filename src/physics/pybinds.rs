@@ -191,7 +191,7 @@ impl PythonPhysic {
                 .bind(py)
                 .call_method(
                     "apply_command",
-                    (CommandWrapper::from_ros(command), time),
+                    (CommandWrapper::from_rust(command), time),
                     None,
                 )
                 .expect("PythonPhysic does not have a correct 'apply_command' method");
@@ -224,7 +224,7 @@ impl PythonPhysic {
                 .extract()
                 .expect("The 'state' method of PythonPhysic does not return a correct state vector")
         });
-        state.to_ros()
+        state.to_rust()
     }
 
     fn record(&self) -> PhysicRecord {

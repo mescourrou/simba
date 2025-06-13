@@ -9,10 +9,7 @@ use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
-use crate::gui::{
-    utils::path_finder,
-    UIComponent,
-};
+use crate::gui::{utils::path_finder, UIComponent};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
@@ -86,7 +83,10 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     if self.period < TIME_ROUND {
                         self.period = TIME_ROUND;
                     }
-                    ui.add(egui::DragValue::new(&mut self.period).max_decimals((1./TIME_ROUND) as usize));
+                    ui.add(
+                        egui::DragValue::new(&mut self.period)
+                            .max_decimals((1. / TIME_ROUND) as usize),
+                    );
                 });
 
                 ui.horizontal(|ui| {

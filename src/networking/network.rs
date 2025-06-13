@@ -74,7 +74,10 @@ impl UIComponent for NetworkConfig {
                 if self.reception_delay < 0. {
                     self.reception_delay = 0.;
                 }
-                ui.add(egui::DragValue::new(&mut self.reception_delay).max_decimals((1./TIME_ROUND) as usize));
+                ui.add(
+                    egui::DragValue::new(&mut self.reception_delay)
+                        .max_decimals((1. / TIME_ROUND) as usize),
+                );
             });
         });
     }

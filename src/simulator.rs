@@ -39,15 +39,12 @@ use crate::gui::{
     UIComponent,
 };
 #[cfg(feature = "gui")]
-use egui::{
-    CollapsingHeader,
-    Color32
-};
-#[cfg(feature = "gui")]
 use crate::utils::determinist_random_variable::seed_generation_component;
 use crate::utils::enum_tools::ToVec;
 use config_checker::macros::Check;
 use config_checker::ConfigCheckable;
+#[cfg(feature = "gui")]
+use egui::{CollapsingHeader, Color32};
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::ToVec;
@@ -63,9 +60,7 @@ use crate::plugin_api::PluginAPI;
 use crate::state_estimators::state_estimator::State;
 use crate::stateful::Stateful;
 use crate::time_analysis::{self, TimeAnalysisConfig};
-use crate::utils::determinist_random_variable::{
-    DeterministRandomVariableFactory,
-};
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 
 use crate::node::Node;
 use crate::utils::time_ordered_data::TimeOrderedData;
@@ -84,8 +79,8 @@ use std::thread::{self, sleep, ThreadId};
 
 use log::{debug, error, info, warn};
 
-use pyo3::prepare_freethreaded_python;
 use crate::utils::format_option_f32;
+use pyo3::prepare_freethreaded_python;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
@@ -301,7 +296,10 @@ impl crate::gui::UIComponent for SimulatorConfig {
 
             ui.horizontal(|ui| {
                 ui.label("Max time: ");
-                ui.add(egui::DragValue::new(&mut self.max_time).max_decimals((1./TIME_ROUND) as usize));
+                ui.add(
+                    egui::DragValue::new(&mut self.max_time)
+                        .max_decimals((1. / TIME_ROUND) as usize),
+                );
             });
 
             ui.horizontal(|ui| {
@@ -1264,7 +1262,10 @@ mod tests {
             for j in 0..reference_result.len() {
                 let result_as_str = format!("{:?}", results[i][j]);
                 let reference_result_as_str = format!("{:?}", reference_result[j]);
-                assert_eq!(result_as_str, reference_result_as_str, "{result_as_str} != {reference_result_as_str}");
+                assert_eq!(
+                    result_as_str, reference_result_as_str,
+                    "{result_as_str} != {reference_result_as_str}"
+                );
             }
         }
     }

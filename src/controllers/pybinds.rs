@@ -133,14 +133,14 @@ impl PythonController {
                 .bind(py)
                 .call_method(
                     "make_command",
-                    (ControllerErrorWrapper::from_ros(error), time),
+                    (ControllerErrorWrapper::from_rust(error), time),
                     None,
                 )
                 .expect("PythonController does not have a correct 'make_command' method")
                 .extract()
                 .expect("Error during the call of Python implementation of 'make_command'")
         });
-        result.to_ros()
+        result.to_rust()
     }
 
     fn record(&self) -> ControllerRecord {
