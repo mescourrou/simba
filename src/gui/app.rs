@@ -1,18 +1,20 @@
 use std::{
     cell::RefCell,
-    collections::HashMap,
+    collections::BTreeMap,
     ops::Range,
     sync::{Arc, Mutex},
-    time::Duration,
+    time::{self, Duration},
 };
 
 use egui::{
-    accesskit::Node, epaint, Color32, Painter, Rect, Response, Sense, Stroke, Vec2, Window,
+    accesskit::Node, epaint, Align2, Color32, Id, Painter, Rect, Response, Sense, Stroke, Vec2,
+    Window,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     api::async_api::{AsyncApi, AsyncApiRunner},
+    errors::SimbaError,
     node,
     node_factory::NodeRecord,
     plugin_api::PluginAPI,
@@ -30,10 +32,11 @@ struct PrivateParams {
     api: AsyncApi,
     config: Option<SimulatorConfig>,
     current_draw_time: f32,
-    robots: HashMap<String, drawables::robot::Robot>,
+    robots: BTreeMap<String, drawables::robot::Robot>,
     playing: Option<(f32, std::time::Instant)>,
     simulation_run: bool,
     configurator: Option<Configurator>,
+    error_buffer: Vec<(time::Instant, SimbaError)>,
 }
 
 impl Default for PrivateParams {
@@ -46,10 +49,11 @@ impl Default for PrivateParams {
             api,
             config: None,
             current_draw_time: 0.,
-            robots: HashMap::new(),
+            robots: BTreeMap::new(),
             playing: None,
             simulation_run: false,
             configurator: None,
+            error_buffer: Vec::new(),
         }
     }
 }
@@ -200,8 +204,17 @@ impl eframe::App for SimbaApp {
                 }
                 if self.p.config.is_none() {
                     if let Some(c) = self.p.api.load_config.try_get_result() {
-                        self.p.config = Some(c.unwrap());
-                        self.init_drawables();
+                        let res = c.unwrap();
+                        match res {
+                            Err(e) => {
+                                let now = time::Instant::now();
+                                self.p.error_buffer.push((now, e));
+                            }
+                            Ok(c) => {
+                                self.p.config = Some(c);
+                                self.init_drawables();
+                            }
+                        }
                     }
                 }
                 if ui.button("Configurator").clicked() {
@@ -242,6 +255,11 @@ impl eframe::App for SimbaApp {
                     {
                         log::info!("Run simulation");
                         self.p.api.run.async_call(Some(self.duration));
+                        if let Some(r) = self.p.api.run.try_get_result() {
+                            if let Err(e) = r.unwrap() {
+                                self.p.error_buffer.push((time::Instant::now(), e));
+                            }
+                        }
                         self.p.simulation_run = true;
                     }
                     let mut max_simulated_time = 0.;
@@ -290,6 +308,11 @@ impl eframe::App for SimbaApp {
                     {
                         log::info!("Analysing results");
                         self.p.api.compute_results.async_call(());
+                        if let Some(r) = self.p.api.compute_results.try_get_result() {
+                            if let Err(e) = r.unwrap() {
+                                self.p.error_buffer.push((time::Instant::now(), e));
+                            }
+                        }
                     }
                 });
 
@@ -351,6 +374,34 @@ impl eframe::App for SimbaApp {
                     self.draw(ui, viewport, response, painter);
                 });
         });
+
+        let mut to_remove = Vec::new();
+        let mut curr_y_shift = 0.;
+        for (i, (inst, e)) in self.p.error_buffer.iter_mut().enumerate().rev() {
+            if egui::Window::new("Error")
+                .id(Id::new(format!("error {i}")))
+                .anchor(Align2::RIGHT_TOP, [-50., curr_y_shift])
+                .fixed_size([500., 50.])
+                .hscroll(true)
+                .interactable(true)
+                .title_bar(false)
+                .show(ctx, |ui| {
+                    ui.colored_label(Color32::RED, e.detailed_error());
+                })
+                .unwrap()
+                .response
+                .contains_pointer()
+            {
+                *inst = time::Instant::now();
+            }
+            curr_y_shift += 60.;
+            if inst.elapsed().as_secs_f32() > 5. {
+                to_remove.push(i);
+            }
+        }
+        for i in to_remove.iter() {
+            self.p.error_buffer.remove(*i);
+        }
 
         ctx.request_repaint_after(Duration::from_secs_f32(1.0 / 30.0));
     }

@@ -55,7 +55,7 @@ impl UIComponent for NetworkConfig {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut std::collections::HashMap<String, String>,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,
@@ -178,7 +178,8 @@ impl Network {
         if self.to_network_manager.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
-                "Network is not properly setup: `set_network_manager_link` should be called.",
+                "Network is not properly setup: `set_network_manager_link` should be called."
+                    .to_string(),
             ));
         }
         {
@@ -210,7 +211,8 @@ impl Network {
         if self.to_network_manager.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
-                "Network is not properly setup: `set_network_manager_link` should be called.",
+                "Network is not properly setup: `set_network_manager_link` should be called."
+                    .to_string(),
             ));
         }
         {
@@ -238,7 +240,8 @@ impl Network {
         if self.from_network_manager.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
-                "Network is not properly setup: `set_network_manager_link` should be called.",
+                "Network is not properly setup: `set_network_manager_link` should be called."
+                    .to_string(),
             ));
         }
         for msg in self

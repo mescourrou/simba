@@ -193,7 +193,7 @@ mod tests {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
         config.max_time = PerfectEstimatorConfig::default().prediction_period * 1.5;
-        config.log.log_level = LogLevel::Internal(vec![InternalLog::All]);
+        config.log.log_level = LogLevel::Off; //LogLevel::Internal(vec![InternalLog::All]);
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             state_estimator_bench: vec![BenchStateEstimatorConfig {
@@ -222,9 +222,9 @@ mod tests {
             message_handler: message_handler.clone(),
         };
 
-        let mut simulator = Simulator::from_config(&config, &Some(Box::new(&plugin_api)));
+        let mut simulator = Simulator::from_config(&config, &Some(Box::new(&plugin_api))).unwrap();
 
-        simulator.run();
+        simulator.run().unwrap();
 
         assert!(
             message_handler.read().unwrap().last_message.is_some(),
@@ -257,6 +257,7 @@ mod tests {
     fn deadlock_service_test() {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
+        config.log.log_level = LogLevel::Off; //LogLevel::Internal(vec![InternalLog::All]);
         config.max_time = RobotSensorConfig::default().period * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
@@ -281,8 +282,8 @@ mod tests {
             ..Default::default()
         });
 
-        let mut simulator = Simulator::from_config(&config, &None);
+        let mut simulator = Simulator::from_config(&config, &None).unwrap();
 
-        simulator.run();
+        simulator.run().unwrap();
     }
 }

@@ -6,6 +6,7 @@ Provide the Manager of the nodes [`Network`]s. Only one should exist for one
 use log::debug;
 use serde_json::Value;
 
+use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
 use crate::node::Node;
 use crate::simulator::TimeCv;
@@ -13,7 +14,7 @@ use crate::state_estimators::state_estimator::State;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
 use super::network::{MessageFlag, Network};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Condvar, Mutex, RwLock};
@@ -74,31 +75,46 @@ impl NetworkManager {
 
     /// Compute the distance between two nodes at the given time, using their real pose.
     fn distance_between(
-        position_history: &HashMap<String, TimeOrderedData<State>>,
+        position_history: &BTreeMap<String, TimeOrderedData<State>>,
         node1: &String,
         node2: &String,
         time: f32,
-    ) -> f32 {
+    ) -> SimbaResult<f32> {
         let node1_pos = position_history
             .get(node1)
-            .expect(format!("Unknown node {node1}").as_str())
+            .ok_or(SimbaError::new(
+                SimbaErrorTypes::NetworkError,
+                format!("Unknown node {node1} to compute distance"),
+            ))?
             .get_data_at_time(time)
-            .expect(format!("No state data for node {node1} at time {time}").as_str())
+            .ok_or(SimbaError::new(
+                SimbaErrorTypes::NetworkError,
+                format!("No state data for node {node1} at time {time}"),
+            ))?
             .1
             .pose;
         let node2_pos = position_history
             .get(node2)
-            .expect(format!("Unknown node {node2}").as_str())
+            .ok_or(SimbaError::new(
+                SimbaErrorTypes::NetworkError,
+                format!("Unknown node {node2} to compute distance"),
+            ))?
             .get_data_at_time(time)
-            .expect(format!("No state data for node {node2} at time {time}").as_str())
+            .ok_or(SimbaError::new(
+                SimbaErrorTypes::NetworkError,
+                format!("No state data for node {node2} at time {time}"),
+            ))?
             .1
             .pose;
 
         let distance = (node1_pos.rows(0, 2) - node2_pos.rows(0, 2)).norm();
-        distance
+        Ok(distance)
     }
 
-    pub fn process_messages(&self, position_history: &HashMap<String, TimeOrderedData<State>>) {
+    pub fn process_messages(
+        &self,
+        position_history: &BTreeMap<String, TimeOrderedData<State>>,
+    ) -> SimbaResult<()> {
         let mut message_sent = false;
 
         // Keep the lock for all the processing, otherwise nodes can think that all messages are treated between the decrease and the increase of the counter
@@ -115,7 +131,7 @@ impl NetworkManager {
                                     node_name,
                                     r,
                                     msg.time,
-                                )
+                                )?
                         {
                             if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                                 debug!("Receiving message from `{node_name}` for `{r}`... Sending");
@@ -123,7 +139,10 @@ impl NetworkManager {
                             *circulating_messages += 1;
                             self.nodes_senders
                                 .get(r)
-                                .expect(format!("Unknown node {r}").as_str())
+                                .ok_or(SimbaError::new(
+                                    SimbaErrorTypes::NetworkError,
+                                    format!("Unknown recipient node {r}"),
+                                ))?
                                 .send(msg)
                                 .unwrap();
                             message_sent = true;
@@ -144,7 +163,7 @@ impl NetworkManager {
                                         node_name,
                                         recipient_name,
                                         msg.time,
-                                    )
+                                    )?
                             {
                                 if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                                     debug!("Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`");
@@ -173,5 +192,6 @@ impl NetworkManager {
             }
             std::mem::drop(lk);
         }
+        Ok(())
     }
 }

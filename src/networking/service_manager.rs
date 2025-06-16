@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     fmt::Debug,
     sync::{Arc, Condvar, Mutex, RwLock},
 };
@@ -21,7 +21,7 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct ServiceManager {
     get_real_state: Option<Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physic>>>>,
-    get_real_state_clients: HashMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
+    get_real_state_clients: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
     time_cv: Arc<TimeCv>,
 }
 
@@ -35,7 +35,7 @@ impl ServiceManager {
                 )))),
                 false => None,
             },
-            get_real_state_clients: HashMap::new(),
+            get_real_state_clients: BTreeMap::new(),
             time_cv,
         }
     }
@@ -84,7 +84,7 @@ impl ServiceManager {
 
     pub fn make_links(
         &mut self,
-        service_managers: &HashMap<String, Arc<RwLock<ServiceManager>>>,
+        service_managers: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
         node: &Node,
     ) {
         let my_name = node.name();

@@ -8,7 +8,7 @@ use config_checker::macros::Check;
 use core::f32;
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
 #[cfg(feature = "gui")]
@@ -57,7 +57,7 @@ impl UIComponent for ManagedSensorConfig {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut HashMap<String, String>,
+        buffer_stack: &mut BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,
@@ -129,7 +129,7 @@ impl UIComponent for SensorManagerConfig {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut HashMap<String, String>,
+        buffer_stack: &mut BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,
@@ -282,7 +282,7 @@ impl SensorManager {
     pub fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<Observation> {
         let mut observations = Vec::<Observation>::new();
         let mut min_next_time = None;
-        let mut obs_to_send = HashMap::new();
+        let mut obs_to_send = BTreeMap::new();
         for sensor in &mut self.sensors {
             let sensor_observations: Vec<Observation> = sensor
                 .sensor
@@ -395,6 +395,9 @@ impl MessageHandler for SensorManager {
     ) -> Result<(), ()> {
         if let Ok(obs_list) = serde_json::from_value::<Vec<Observation>>(message.clone()) {
             self.received_observations.extend(obs_list);
+            // Assure that the observations are always in the same order, for determinism:
+            self.received_observations
+                .sort_by(|a, b| a.observer.cmp(&b.observer));
             if self.received_observations.len() > 0 {
                 self.next_time = Some(time);
             }

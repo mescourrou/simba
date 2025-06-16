@@ -10821,7 +10821,7 @@ Provide the Manager of the nodes [`Network`]s. Only one should exist for one
         use crate::state_estimators::state_estimator::State;
         use crate::utils::time_ordered_data::TimeOrderedData;
         use super::network::{MessageFlag, Network};
-        use std::collections::{BTreeMap, HashMap};
+        use std::collections::{BTreeMap, BTreeMap};
         use std::sync::mpsc::{self, Receiver, Sender};
         use std::sync::{Arc, Condvar, Mutex, RwLock};
         pub enum MessageSendMethod {
@@ -10960,7 +10960,7 @@ Provide the Manager of the nodes [`Network`]s. Only one should exist for one
             }
             /// Compute the distance between two nodes at the given time, using their real pose.
             fn distance_between(
-                position_history: &HashMap<String, TimeOrderedData<State>>,
+                position_history: &BTreeMap<String, TimeOrderedData<State>>,
                 node1: &String,
                 node2: &String,
                 time: f32,
@@ -11024,7 +11024,7 @@ Provide the Manager of the nodes [`Network`]s. Only one should exist for one
             }
             pub fn process_messages(
                 &self,
-                position_history: &HashMap<String, TimeOrderedData<State>>,
+                position_history: &BTreeMap<String, TimeOrderedData<State>>,
             ) {
                 let mut message_sent = false;
                 let mut circulating_messages = self
@@ -11820,7 +11820,7 @@ To operate a service, two messages types should be defined:
         }
     }
     pub mod service_manager {
-        use std::{collections::HashMap, fmt::Debug, sync::{Arc, Condvar, Mutex, RwLock}};
+        use std::{collections::BTreeMap, fmt::Debug, sync::{Arc, Condvar, Mutex, RwLock}};
         use log::debug;
         use crate::{
             node::Node, physics::physic::{GetRealStateReq, GetRealStateResp, Physic},
@@ -11833,7 +11833,7 @@ To operate a service, two messages types should be defined:
             get_real_state: Option<
                 Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physic>>>,
             >,
-            get_real_state_clients: HashMap<
+            get_real_state_clients: BTreeMap<
                 String,
                 ServiceClient<GetRealStateReq, GetRealStateResp>,
             >,
@@ -11883,7 +11883,7 @@ To operate a service, two messages types should be defined:
                         }
                         false => None,
                     },
-                    get_real_state_clients: HashMap::new(),
+                    get_real_state_clients: BTreeMap::new(),
                     time_cv,
                 }
             }
@@ -11930,7 +11930,7 @@ To operate a service, two messages types should be defined:
             }
             pub fn make_links(
                 &mut self,
-                service_managers: &HashMap<String, Arc<RwLock<ServiceManager>>>,
+                service_managers: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
                 node: &Node,
             ) {
                 let my_name = node.name();
@@ -11978,7 +11978,7 @@ Module providing the main node manager, [`Node`], along with the configuration
 [`NodeConfig`] and the record [`NodeRecord`] structures.
 */
     use core::f32;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use std::sync::{Arc, Condvar, Mutex, RwLock};
     use config_checker::macros::Check;
     use log::{debug, info, warn};
@@ -12105,7 +12105,7 @@ Module providing the main node manager, [`Node`], along with the configuration
         /// It is used to initialize the sensor manager, which need to know the list of all nodes.
         pub fn post_creation_init(
             &mut self,
-            service_manager_list: &HashMap<String, Arc<RwLock<ServiceManager>>>,
+            service_manager_list: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
         ) -> NodeClient {
             if is_enabled(crate::logger::InternalLog::SetupSteps) {
                 {
@@ -28522,7 +28522,7 @@ available observations.
         use core::f32;
         use log::debug;
         use serde_derive::{Deserialize, Serialize};
-        use std::collections::HashMap;
+        use std::collections::BTreeMap;
         use std::sync::{Arc, RwLock};
         use crate::logger::is_enabled;
         use crate::networking::message_handler::MessageHandler;
@@ -30077,7 +30077,7 @@ available observations.
             ) -> Vec<Observation> {
                 let mut observations = Vec::<Observation>::new();
                 let mut min_next_time = None;
-                let mut obs_to_send = HashMap::new();
+                let mut obs_to_send = BTreeMap::new();
                 for sensor in &mut self.sensors {
                     let sensor_observations: Vec<Observation> = sensor
                         .sensor
@@ -35285,7 +35285,7 @@ fn main() {
     use crate::node::Node;
     use crate::utils::time_ordered_data::TimeOrderedData;
     use core::f32;
-    use std::collections::{HashMap, LinkedList};
+    use std::collections::{BTreeMap, LinkedList};
     use std::path::{Path, PathBuf};
     use std::time::Duration;
     use colored::Colorize;
@@ -37257,11 +37257,11 @@ fn main() {
     static EXCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
     static INCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
     pub struct SimulatorAsyncApi {
-        pub current_time: Arc<Mutex<HashMap<String, f32>>>,
+        pub current_time: Arc<Mutex<BTreeMap<String, f32>>>,
         pub records: Arc<Mutex<mpsc::Receiver<Record>>>,
     }
     struct SimulatorAsyncApiServer {
-        pub current_time: Arc<Mutex<HashMap<String, f32>>>,
+        pub current_time: Arc<Mutex<BTreeMap<String, f32>>>,
         pub records: mpsc::Sender<Record>,
     }
     #[automatically_derived]
@@ -37359,7 +37359,7 @@ fn main() {
         common_time: Option<Arc<Mutex<f32>>>,
         async_api: Option<Arc<SimulatorAsyncApi>>,
         async_api_server: Option<SimulatorAsyncApiServer>,
-        node_apis: HashMap<String, NodeClient>,
+        node_apis: BTreeMap<String, NodeClient>,
     }
     impl Simulator {
         /// Create a new [`Simulator`] with no nodes, and empty config.
@@ -37375,7 +37375,7 @@ fn main() {
                 async_api: None,
                 async_api_server: None,
                 common_time: Some(Arc::new(Mutex::new(f32::INFINITY))),
-                node_apis: HashMap::new(),
+                node_apis: BTreeMap::new(),
             }
         }
         /// Load the config from a file compatible with [`confy`]. Initialize the [`Simulator`].
@@ -37423,7 +37423,7 @@ fn main() {
                 TimeMode::Centralized => Some(Arc::new(Mutex::new(f32::INFINITY))),
                 TimeMode::Decentralized => None,
             };
-            let mut service_managers = HashMap::new();
+            let mut service_managers = BTreeMap::new();
             for robot_config in &config.robots {
                 self.add_robot(robot_config, plugin_api, &config);
                 let node = self.nodes.last().unwrap();
@@ -38295,7 +38295,7 @@ fn main() {
             finishing_cv: Arc<(Mutex<usize>, Condvar)>,
             nb_nodes: usize,
         ) {
-            let mut node_states: HashMap<String, TimeOrderedData<State>> = HashMap::new();
+            let mut node_states: BTreeMap<String, TimeOrderedData<State>> = BTreeMap::new();
             for (k, _) in self.node_apis.iter() {
                 node_states.insert(k.clone(), TimeOrderedData::<State>::new());
             }
@@ -38515,7 +38515,7 @@ def convert(records):
         }
         pub fn get_async_api(&mut self) -> Arc<SimulatorAsyncApi> {
             if self.async_api_server.is_none() {
-                let map = Arc::new(Mutex::new(HashMap::new()));
+                let map = Arc::new(Mutex::new(BTreeMap::new()));
                 let (records_tx, records_rx) = mpsc::channel();
                 self.async_api_server = Some(SimulatorAsyncApiServer {
                     current_time: Arc::clone(&map),
@@ -39712,7 +39712,7 @@ Module providing the [`PerfectEstimator`] strategy. This strategy uses directly
 the groundtruth to provide the estimation. It can be used when the state used
 by the controller should be perfect.
 */
-        use std::collections::HashMap;
+        use std::collections::BTreeMap;
         use super::state_estimator::{State, StateRecord};
         use crate::constants::TIME_ROUND;
         use crate::sensors::sensor::{Observation, SensorObservation};
@@ -40389,7 +40389,7 @@ by the controller should be perfect.
         /// Estimation strategy without any error.
         pub struct PerfectEstimator {
             /// Estimation of the state on the `last_time_update`.
-            states: HashMap<String, State>,
+            states: BTreeMap<String, State>,
             /// Prediction period, in seconds.
             prediction_period: f32,
             /// Last time the state was updated/predicted.
@@ -40428,7 +40428,7 @@ by the controller should be perfect.
                 _global_config: &SimulatorConfig,
                 _va_factory: &DeterministRandomVariableFactory,
             ) -> Self {
-                let mut states = HashMap::new();
+                let mut states = BTreeMap::new();
                 for target in &config.targets {
                     states.insert(target.clone(), State::new());
                 }
@@ -55146,7 +55146,7 @@ pub mod time_analysis {
     use config_checker::macros::Check;
     use serde::{Deserialize, Serialize};
     use simba_macros::ToVec;
-    use std::collections::HashMap;
+    use std::collections::BTreeMap;
     use std::time;
     use crate::gui::{
         utils::{enum_radio, path_finder, string_combobox},

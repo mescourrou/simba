@@ -2,7 +2,7 @@
 
 mod app;
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 pub use app::SimbaApp;
 mod configurator;
@@ -39,7 +39,7 @@ pub trait UIComponent {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut HashMap<String, String>,
+        buffer_stack: &mut BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,

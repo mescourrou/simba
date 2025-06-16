@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Debug, path::Path};
+use std::{collections::BTreeMap, fmt::Debug, path::Path};
 
 use egui::Color32;
 
@@ -104,7 +104,7 @@ pub fn json_config(
     ui: &mut egui::Ui,
     buffer_key: &String,
     error_key: &String,
-    buffer_stack: &mut HashMap<String, String>,
+    buffer_stack: &mut BTreeMap<String, String>,
     value: &mut serde_json::Value,
 ) {
     if !buffer_stack.contains_key(buffer_key) {
@@ -132,7 +132,7 @@ pub fn json_config(
 pub fn text_singleline_with_apply(
     ui: &mut egui::Ui,
     buffer_key: &str,
-    buffer_stack: &mut HashMap<String, String>,
+    buffer_stack: &mut BTreeMap<String, String>,
     value: &mut String,
 ) {
     if !buffer_stack.contains_key(buffer_key) {

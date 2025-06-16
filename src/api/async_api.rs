@@ -11,6 +11,7 @@ use serde_json::Value;
 
 use crate::{
     controllers::controller::Controller,
+    errors::SimbaResult,
     navigators::navigator::Navigator,
     node_factory::NodeRecord,
     physics::physic::Physic,
@@ -25,17 +26,17 @@ use crate::{
 pub struct AsyncApi {
     pub simulator_api: Arc<SimulatorAsyncApi>,
     // Channels
-    pub load_config: rfc::RemoteFunctionCall<String, SimulatorConfig>,
-    pub run: rfc::RemoteFunctionCall<Option<f32>, ()>,
-    pub compute_results: rfc::RemoteFunctionCall<(), ()>,
+    pub load_config: rfc::RemoteFunctionCall<String, SimbaResult<SimulatorConfig>>,
+    pub run: rfc::RemoteFunctionCall<Option<f32>, SimbaResult<()>>,
+    pub compute_results: rfc::RemoteFunctionCall<(), SimbaResult<()>>,
 }
 
 // Run by the simulator
 #[derive(Clone)]
 pub struct AsyncApiServer {
-    pub load_config: Arc<rfc::RemoteFunctionCallHost<String, SimulatorConfig>>,
-    pub run: Arc<rfc::RemoteFunctionCallHost<Option<f32>, ()>>,
-    pub compute_results: Arc<rfc::RemoteFunctionCallHost<(), ()>>,
+    pub load_config: Arc<rfc::RemoteFunctionCallHost<String, SimbaResult<SimulatorConfig>>>,
+    pub run: Arc<rfc::RemoteFunctionCallHost<Option<f32>, SimbaResult<()>>>,
+    pub compute_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<()>>>,
 }
 
 // #[derive(Clone)]
@@ -125,9 +126,9 @@ impl AsyncApiRunner {
                         let mut simulator = simulator_arc.lock().unwrap();
                         println!("Loading config: {}", config_path);
                         let path = Path::new(&config_path);
-                        simulator.load_config_path(path, &plugin_api_threaded);
+                        simulator.load_config_path(path, &plugin_api_threaded)?;
                         println!("End loading");
-                        simulator.config()
+                        Ok(simulator.config())
                     });
                 }
             });
@@ -141,14 +142,14 @@ impl AsyncApiRunner {
                     run.recv_closure_mut(|max_time| {
                         let mut simulator = simulator_arc.lock().unwrap();
                         if need_reset {
-                            simulator.reset(&plugin_api_threaded);
+                            simulator.reset(&plugin_api_threaded)?;
                         }
                         if let Some(max_time) = max_time {
                             simulator.set_max_time(max_time);
                         }
                         log::info!("Run...");
-                        simulator.run();
                         need_reset = true;
+                        simulator.run()
                     });
                 }
             });
@@ -160,8 +161,9 @@ impl AsyncApiRunner {
                 while !*stopping.read().unwrap() {
                     compute_results.recv_closure_mut(|_| {
                         let simulator = simulator_arc.lock().unwrap();
-                        simulator.compute_results();
+                        simulator.compute_results()?;
                         need_reset = true;
+                        Ok(())
                     });
                 }
             });

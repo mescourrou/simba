@@ -7,19 +7,20 @@ use serde::{Deserialize, Serialize};
 use simba_macros::ToVec;
 
 #[cfg(feature = "time-analysis")]
-use std::sync::Mutex;
-#[cfg(feature = "time-analysis")]
 use std::thread::ThreadId;
+#[cfg(feature = "time-analysis")]
+use std::{collections::HashMap, sync::Mutex};
 
 #[cfg(feature = "time-analysis")]
 use log::info;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 #[cfg(feature = "time-analysis")]
 use std::thread;
 use std::time;
 #[cfg(feature = "time-analysis")]
 use std::{path::Path, time::Duration};
 
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::{
     utils::{enum_radio, path_finder, string_combobox},
@@ -67,7 +68,7 @@ impl UIComponent for TimeAnalysisConfig {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut HashMap<String, String>,
+        buffer_stack: &mut BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,
@@ -435,8 +436,8 @@ impl TimeAnalysisStatistics {
         }
     }
 
-    pub fn as_map(&self) -> HashMap<String, String> {
-        let mut map = HashMap::<String, String>::new();
+    pub fn as_map(&self) -> BTreeMap<String, String> {
+        let mut map = BTreeMap::<String, String>::new();
         map.insert("mean".to_string(), self.mean.to_string());
         map.insert("median".to_string(), self.median.to_string());
         map.insert("min".to_string(), self.min.to_string());
@@ -455,7 +456,7 @@ impl TimeAnalysisStatistics {
 struct TimeAnalysisFactory {
     nodes_names: HashMap<ThreadId, String>,
     nodes_depth: HashMap<ThreadId, usize>,
-    execution_tree: HashMap<String, ExecutionTree>,
+    execution_tree: BTreeMap<String, ExecutionTree>,
     current_coordinates: HashMap<ThreadId, (i64, Vec<usize>)>,
     exporter: Box<dyn ProfilerExporter>,
     config: TimeAnalysisConfig,
@@ -470,7 +471,7 @@ impl TimeAnalysisFactory {
                     nodes_names: HashMap::new(),
                     nodes_depth: HashMap::new(),
                     current_coordinates: HashMap::new(),
-                    execution_tree: HashMap::new(),
+                    execution_tree: BTreeMap::new(),
                     exporter: Box::new(TraceEventExporter {}),
                     config: TimeAnalysisConfig::default(),
                 });
@@ -480,19 +481,20 @@ impl TimeAnalysisFactory {
         &FACTORY
     }
 
-    pub fn init_from_config(config: &TimeAnalysisConfig) {
+    pub fn init_from_config(config: &TimeAnalysisConfig) -> SimbaResult<()> {
         let factory = TimeAnalysisFactory::get_instance();
         let mut factory = factory.lock().unwrap();
-        factory._init_from_config(config);
+        factory._init_from_config(config)
     }
 
-    fn _init_from_config(&mut self, config: &TimeAnalysisConfig) {
+    fn _init_from_config(&mut self, config: &TimeAnalysisConfig) -> SimbaResult<()> {
         match config.exporter {
             ProfileExporterConfig::TraceEventExporter => {
                 self.exporter = Box::new(TraceEventExporter {});
             }
         }
         self.config = config.clone();
+        Ok(())
     }
 
     pub fn set_node_name(name: String) {
@@ -646,7 +648,7 @@ impl TimeAnalysisFactory {
     fn real_time_analysis(&self, path: &Path) {
         let path = path.with_extension("report").with_extension("csv");
 
-        let mut stats = HashMap::<String, Vec<String>>::new();
+        let mut stats = BTreeMap::<String, Vec<String>>::new();
         let mut node_headers = vec!["Unit:".to_string()];
         let mut track_headers = vec![self.config.analysis_unit.clone()];
 
@@ -660,7 +662,7 @@ impl TimeAnalysisFactory {
 
         for (node_name, profiles) in self.iter_execution_profiles() {
             node_headers.push(node_name.clone());
-            let mut map: HashMap<String, Vec<f32>> = HashMap::new();
+            let mut map: BTreeMap<String, Vec<f32>> = BTreeMap::new();
             for profile in profiles {
                 let t = profile.duration.as_secs_f32() * unit_multiplier;
                 if let Some(stat) = map.get_mut(&profile.name) {
@@ -699,8 +701,8 @@ impl TimeAnalysisFactory {
 // Expose the function depending on the compilation feature "time-analysis"
 // Feature enabled
 #[cfg(feature = "time-analysis")]
-pub fn init_from_config(config: &TimeAnalysisConfig) {
-    TimeAnalysisFactory::init_from_config(config);
+pub fn init_from_config(config: &TimeAnalysisConfig) -> SimbaResult<()> {
+    TimeAnalysisFactory::init_from_config(config)
 }
 
 #[cfg(feature = "time-analysis")]
@@ -730,7 +732,9 @@ pub fn save_results() {
 
 // Feature disabled
 #[cfg(not(feature = "time-analysis"))]
-pub fn init_from_config(_config: &TimeAnalysisConfig) {}
+pub fn init_from_config(_config: &TimeAnalysisConfig) -> SimbaResult<()> {
+    Ok(())
+}
 
 #[cfg(not(feature = "time-analysis"))]
 pub fn set_node_name(_name: String) {}

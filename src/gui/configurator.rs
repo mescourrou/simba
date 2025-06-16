@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::Path};
+use std::{collections::BTreeMap, path::Path};
 
 use crate::simulator::SimulatorConfig;
 
@@ -7,7 +7,7 @@ use super::{utils::path_finder, UIComponent};
 pub struct Configurator {
     current_config: SimulatorConfig,
     save_path: String,
-    buffer: HashMap<String, String>,
+    buffer: BTreeMap<String, String>,
 }
 
 impl Configurator {
@@ -23,7 +23,7 @@ impl Configurator {
         Configurator {
             current_config,
             save_path,
-            buffer: HashMap::new(),
+            buffer: BTreeMap::new(),
         }
     }
 

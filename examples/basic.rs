@@ -9,7 +9,8 @@ fn main() {
     let mut simulator = Simulator::from_config_path(
         Path::new("config_example/config.yaml"),
         &None, //<- plugin API, to load external modules
-    );
+    )
+    .unwrap();
 
     // Show the simulator loaded configuration
     simulator.show();

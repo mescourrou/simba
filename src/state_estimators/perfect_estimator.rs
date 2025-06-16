@@ -4,14 +4,17 @@ the groundtruth to provide the estimation. It can be used when the state used
 by the controller should be perfect.
 */
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::path::Path;
 
 use super::state_estimator::{State, StateRecord, WorldState, WorldStateRecord};
 use crate::constants::TIME_ROUND;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::{string_checkbox, path_finder}, UIComponent};
+use crate::gui::{
+    utils::{path_finder, string_checkbox},
+    UIComponent,
+};
 use crate::sensors::oriented_landmark_sensor::{self, Map, OrientedLandmarkSensor};
 use crate::sensors::sensor::{Observation, SensorObservation};
 use crate::simulator::SimulatorConfig;
@@ -52,7 +55,7 @@ impl UIComponent for PerfectEstimatorConfig {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut std::collections::HashMap<String, String>,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,

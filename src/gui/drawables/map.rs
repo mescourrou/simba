@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     path::Path,
     sync::{Mutex, RwLock},
 };

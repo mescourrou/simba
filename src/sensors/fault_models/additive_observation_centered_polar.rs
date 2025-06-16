@@ -59,7 +59,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut std::collections::HashMap<String, String>,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,

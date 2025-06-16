@@ -4,7 +4,7 @@ Module providing the main node manager, [`Node`], along with the configuration
 */
 
 use core::f32;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 
 use config_checker::macros::Check;
@@ -18,6 +18,7 @@ use crate::api::internal_api::{self, NodeClient, NodeServer};
 use crate::constants::TIME_ROUND;
 use crate::controllers::controller::{self, Controller, ControllerConfig, ControllerRecord};
 
+use crate::errors::SimbaResult;
 use crate::logger::is_enabled;
 use crate::networking::network::{Network, NetworkConfig};
 use crate::networking::service_manager::ServiceManager;
@@ -104,7 +105,7 @@ impl Node {
     /// It is used to initialize the sensor manager, which need to know the list of all nodes.
     pub fn post_creation_init(
         &mut self,
-        service_manager_list: &HashMap<String, Arc<RwLock<ServiceManager>>>,
+        service_manager_list: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
     ) -> NodeClient {
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Node post-creation initialization")
@@ -152,9 +153,9 @@ impl Node {
     ///
     /// ## Return
     /// Next time step.
-    pub fn run_next_time_step(&mut self, time: f32, read_only: bool) {
+    pub fn run_next_time_step(&mut self, time: f32, read_only: bool) -> SimbaResult<()> {
         self.process_messages();
-        self.run_time_step(time, read_only);
+        self.run_time_step(time, read_only)
     }
 
     /// Process all the messages: one-way (network) and two-way (services).
@@ -190,7 +191,7 @@ impl Node {
     /// 5. The network messages are handled
     ///
     /// Then, the node state is saved.
-    pub fn run_time_step(&mut self, time: f32, read_only: bool) {
+    pub fn run_time_step(&mut self, time: f32, read_only: bool) -> SimbaResult<()> {
         info!("Run time {}", time);
         self.set_in_state(time);
         // Update the true state
@@ -322,6 +323,7 @@ impl Node {
             // Save state (replace if needed)
             self.save_state(time);
         }
+        Ok(())
     }
 
     pub fn handle_messages(&mut self, time: f32) {
@@ -338,7 +340,7 @@ impl Node {
     }
 
     /// Computes the next time step, using state estimator, sensors and received messages.
-    pub fn next_time_step(&self) -> (f32, bool) {
+    pub fn next_time_step(&self) -> SimbaResult<(f32, bool)> {
         let mut next_time_step = f32::INFINITY;
         if let Some(state_estimator) = &self.state_estimator {
             next_time_step = state_estimator
@@ -423,7 +425,7 @@ impl Node {
                 next_time_step
             );
         }
-        (next_time_step, read_only)
+        Ok((next_time_step, read_only))
     }
 
     /// Save the current state to the given `time`.

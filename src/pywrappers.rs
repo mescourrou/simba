@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     sync::{Arc, Mutex},
 };
 
@@ -129,8 +129,8 @@ impl StateWrapper {
 #[pyo3(name = "WorldState")]
 pub struct WorldStateWrapper {
     pub ego: Option<StateWrapper>,
-    pub objects: HashMap<String, StateWrapper>,
-    pub landmarks: HashMap<i32, StateWrapper>,
+    pub objects: BTreeMap<String, StateWrapper>,
+    pub landmarks: BTreeMap<i32, StateWrapper>,
     pub occupancy_grid: Option<OccupancyGridWrapper>,
 }
 
@@ -140,8 +140,8 @@ impl WorldStateWrapper {
     pub fn new() -> Self {
         Self {
             ego: None,
-            objects: HashMap::new(),
-            landmarks: HashMap::new(),
+            objects: BTreeMap::new(),
+            landmarks: BTreeMap::new(),
             occupancy_grid: None,
         }
     }
@@ -154,12 +154,12 @@ impl WorldStateWrapper {
                 Some(st) => Some(StateWrapper::from_rust(st)),
                 None => None,
             },
-            landmarks: HashMap::from_iter(
+            landmarks: BTreeMap::from_iter(
                 s.landmarks
                     .iter()
                     .map(|(id, s)| (id.clone(), StateWrapper::from_rust(s))),
             ),
-            objects: HashMap::from_iter(
+            objects: BTreeMap::from_iter(
                 s.objects
                     .iter()
                     .map(|(id, s)| (id.clone(), StateWrapper::from_rust(s))),
@@ -176,12 +176,12 @@ impl WorldStateWrapper {
                 Some(st) => Some(StateWrapper::to_rust(st)),
                 None => None,
             },
-            landmarks: HashMap::from_iter(
+            landmarks: BTreeMap::from_iter(
                 self.landmarks
                     .iter()
                     .map(|(id, s)| (id.clone(), StateWrapper::to_rust(s))),
             ),
-            objects: HashMap::from_iter(
+            objects: BTreeMap::from_iter(
                 self.objects
                     .iter()
                     .map(|(id, s)| (id.clone(), StateWrapper::to_rust(s))),

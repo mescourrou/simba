@@ -41,7 +41,7 @@ impl UIComponent for StateConfig {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut std::collections::HashMap<String, String>,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,
@@ -164,7 +164,7 @@ impl Stateful<StateRecord> for State {
     }
 }
 
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::fmt;
 
 impl fmt::Display for State {
@@ -181,8 +181,8 @@ impl fmt::Display for State {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WorldStateRecord {
     pub ego: Option<StateRecord>,
-    pub objects: HashMap<String, StateRecord>,
-    pub landmarks: HashMap<i32, StateRecord>,
+    pub objects: BTreeMap<String, StateRecord>,
+    pub landmarks: BTreeMap<i32, StateRecord>,
     pub occupancy_grid: Option<OccupancyGrid>,
 }
 
@@ -190,8 +190,8 @@ impl Default for WorldStateRecord {
     fn default() -> Self {
         Self {
             ego: None,
-            landmarks: HashMap::new(),
-            objects: HashMap::new(),
+            landmarks: BTreeMap::new(),
+            objects: BTreeMap::new(),
             occupancy_grid: None,
         }
     }
@@ -201,8 +201,8 @@ impl Default for WorldStateRecord {
 #[derive(Debug, Clone)]
 pub struct WorldState {
     pub ego: Option<State>,
-    pub objects: HashMap<String, State>,
-    pub landmarks: HashMap<i32, State>,
+    pub objects: BTreeMap<String, State>,
+    pub landmarks: BTreeMap<i32, State>,
     pub occupancy_grid: Option<OccupancyGrid>,
 }
 
@@ -210,8 +210,8 @@ impl WorldState {
     pub fn new() -> Self {
         Self {
             ego: None,
-            objects: HashMap::new(),
-            landmarks: HashMap::new(),
+            objects: BTreeMap::new(),
+            landmarks: BTreeMap::new(),
             occupancy_grid: None,
         }
     }
@@ -224,12 +224,12 @@ impl Stateful<WorldStateRecord> for WorldState {
                 Some(s) => Some(s.record()),
                 None => None,
             },
-            landmarks: HashMap::from_iter(
+            landmarks: BTreeMap::from_iter(
                 self.landmarks
                     .iter()
                     .map(|(id, s)| (id.clone(), s.record())),
             ),
-            objects: HashMap::from_iter(
+            objects: BTreeMap::from_iter(
                 self.objects.iter().map(|(id, s)| (id.clone(), s.record())),
             ),
             occupancy_grid: self.occupancy_grid.clone(),
@@ -248,13 +248,13 @@ impl Stateful<WorldStateRecord> for WorldState {
                 self.ego = None;
             }
         }
-        self.landmarks = HashMap::from_iter(record.landmarks.iter().map(|(id, s)| {
+        self.landmarks = BTreeMap::from_iter(record.landmarks.iter().map(|(id, s)| {
             let mut state = State::new();
             state.from_record(s.clone());
             (id.clone(), state)
         }));
 
-        self.objects = HashMap::from_iter(record.objects.iter().map(|(id, s)| {
+        self.objects = BTreeMap::from_iter(record.objects.iter().map(|(id, s)| {
             let mut state = State::new();
             state.from_record(s.clone());
             (id.clone(), state)
@@ -305,7 +305,7 @@ impl UIComponent for StateEstimatorConfig {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut std::collections::HashMap<String, String>,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,
@@ -523,7 +523,7 @@ impl UIComponent for BenchStateEstimatorConfig {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut std::collections::HashMap<String, String>,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,

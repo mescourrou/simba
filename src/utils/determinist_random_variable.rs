@@ -110,7 +110,7 @@ impl UIComponent for RandomVariableTypeConfig {
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut std::collections::HashMap<String, String>,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,
@@ -216,7 +216,7 @@ impl RandomVariableTypeConfig {
         vec: &mut Vec<RandomVariableTypeConfig>,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        buffer_stack: &mut std::collections::HashMap<String, String>,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,
@@ -254,7 +254,7 @@ impl RandomVariableTypeConfig {
 pub fn seed_generation_component(
     seed: &mut f32,
     ui: &mut egui::Ui,
-    buffer_stack: &mut std::collections::HashMap<String, String>,
+    buffer_stack: &mut std::collections::BTreeMap<String, String>,
     unique_id: &String,
 ) {
     use rand::random;
