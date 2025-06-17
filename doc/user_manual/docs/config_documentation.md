@@ -4,6 +4,7 @@ This documentation is auto-generated.
 To get more information on the parameter, check the documentation (or follow the links).
 
 List of parameters:
+
 - `log`: [LoggerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/logger/struct.LoggerConfig.html)
 	- `included_nodes`: String, List
 	- `excluded_nodes`: String, List

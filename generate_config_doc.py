@@ -8,7 +8,7 @@ from typing import List, Tuple
 import IPython
 
 SOURCE_DIR = "src"
-DOC_FILE = "doc/config_documentation.md"
+DOC_FILE = "doc/user_manual/docs/config_documentation.md"
 CONFIG_SUFFIX = "Config"
 ENTRY_CONFIG = "SimulatorConfig"
 INDENT_TXT = "\t"
@@ -47,7 +47,7 @@ This documentation is auto-generated.
 
 To get more information on the parameter, check the documentation (or follow the links).
 
-List of parameters:\n""")
+List of parameters:\n\n""")
         document_config(configs[ENTRY_CONFIG][0], docfile, configs)
         
         print("Config documention written in", DOC_FILE)

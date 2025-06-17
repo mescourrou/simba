@@ -40,7 +40,7 @@ doc:
   rules:
     - if: $CI_COMMIT_TAG                 # Run this job when a tag is created
   stage: build
-  image: rust:latest
+  image: gitlab.laas.fr:4567/mescourrou/simba:latest
   before_script:
   ## Source: https://docs.gitlab.com/ee/ci/jobs/ssh_keys.html
     - command -v ssh-agent >/dev/null
@@ -53,7 +53,10 @@ doc:
     - ssh-add "$SSH_KEY"
   script:
     - cargo doc --no-deps --document-private-items
-    - scp -i $SSH_KEY -r target/doc/ $DOC_USER@$DOC_HOST:$DOC_PATH
+    - scp -i $SSH_KEY -r target/doc/ $DOC_USER@$DOC_HOST:$DOC_PATH/rust
+    - ./generate_config_doc.py
+    - cd odc/user_manual && sh ./make_doc.sh
+    - scp -i $SSH_KEY -r site/ $DOC_USER@$DOC_HOST:$DOC_PATH/user
 
 tests:
   only:
