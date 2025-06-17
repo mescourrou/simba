@@ -6,6 +6,7 @@ time_analysis:
   keep_last: true
 time_mode: Centralized
 max_time: 60.
+random_seed: 85646513.6849618
 robots:
   - name: "robot1"
     navigator:
