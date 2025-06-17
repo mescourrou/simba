@@ -187,7 +187,9 @@ impl Stateful<PhysicsRecord> for MyWonderfulPhysics {
 ///////////////////////////////////
 
 #[derive(Debug, Serialize, Deserialize)]
-struct MyWonderfulStateEstimatorRecord {}
+struct MyWonderfulStateEstimatorRecord {
+    pub last_prediction: f32,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyWonderfulStateEstimatorConfig {}
@@ -229,17 +231,20 @@ impl StateEstimator for MyWonderfulStateEstimator {
 
 impl Stateful<StateEstimatorRecord> for MyWonderfulStateEstimator {
     fn from_record(&mut self, record: StateEstimatorRecord) {
-        let _my_record: MyWonderfulStateEstimatorRecord = match record {
+        let my_record: MyWonderfulStateEstimatorRecord = match record {
             StateEstimatorRecord::External(r) => serde_json::from_value(r.record).unwrap(),
             _ => {
                 panic!("Bad record");
             }
         };
+        self.last_prediction = my_record.last_prediction;
     }
 
     fn record(&self) -> StateEstimatorRecord {
         StateEstimatorRecord::External(ExternalEstimatorRecord {
-            record: serde_json::to_value(MyWonderfulStateEstimatorRecord {}).unwrap(),
+            record: serde_json::to_value(MyWonderfulStateEstimatorRecord {
+                last_prediction: self.last_prediction,
+            }).unwrap(),
         })
     }
 }
@@ -251,6 +256,9 @@ impl Stateful<StateEstimatorRecord> for MyWonderfulStateEstimator {
 #[derive(Debug)]
 struct MyWonderfulMessageHandler {}
 
+#[derive(Debug, Serialize, Deserialize)]
+struct MyMessage {}
+
 impl MessageHandler for MyWonderfulMessageHandler {
     fn handle_message(
         &mut self,
@@ -259,8 +267,14 @@ impl MessageHandler for MyWonderfulMessageHandler {
         message: &serde_json::Value,
         time: f32,
     ) -> Result<(), ()> {
-        println!("Receive message {}", message);
-        Err(()) // if message not handled. Return Ok if successful
+        
+        match serde_json::from_value::<MyMessage>(message.clone()) {
+            Err(e) => Err(()),
+            Ok(m) => {
+                println!("Receive message {}", message);
+                Ok(())
+            }
+        }
     }
 }
 
