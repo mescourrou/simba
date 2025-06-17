@@ -565,7 +565,7 @@ impl Simulator {
         }
 
         for node in self.nodes.iter_mut() {
-            println!("Finishing initialization of {}", node.name());
+            info!("Finishing initialization of {}", node.name());
             self.node_apis
                 .insert(node.name(), node.post_creation_init(&service_managers));
         }

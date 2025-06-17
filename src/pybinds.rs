@@ -11,7 +11,7 @@ use crate::{
         CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, ObservationWrapper,
         OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
         OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
-        SimulatorWrapper, StateWrapper,
+        SimulatorWrapper, StateWrapper, WorldStateWrapper,
     },
     simulator::SimulatorConfig,
     state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},
@@ -23,6 +23,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ControllerErrorWrapper>()?;
     m.add_class::<PythonPhysic>()?;
     m.add_class::<StateWrapper>()?;
+    m.add_class::<WorldStateWrapper>()?;
     m.add_class::<PythonStateEstimator>()?;
     m.add_class::<ObservationWrapper>()?;
     m.add_class::<SensorObservationWrapper>()?;

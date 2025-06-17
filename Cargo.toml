@@ -89,5 +89,8 @@ rustflags = [
 name = "basic"
 
 [[example]]
+name = "plugin"
+
+[[example]]
 name = "gui"
 required-features = ["gui"]

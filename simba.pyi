@@ -12,6 +12,75 @@ class State:
         self.pose: Pose
         self.velocity: float
         
+class WorldState:
+    def __init__(self):
+        self.ego: State | None
+        self.objects: Dict[State]
+        self.landmarks: Dict[State]
+        self.occupancy_grid: OccupancyGrid | None
+        
+class OccupancyGrid:
+    def __init__(self, center: List[float], cell_height: float, cell_width: float, nb_rows: int, nb_cols: int):
+        """Creates an Occupancy grid
+
+        Args:
+            center (Vector of 3 floats): Pose of the center (x, y, orientation)
+            cell_height (float): Height of the cell (on the y axis)
+            cell_width (float): Width of the cell (on the x axis)
+            nb_rows (int): Number of cells vertically (on the y axis)
+            nb_cols (int): Number of cells horizontally (on the x axis)
+        """
+        raise NotImplementedError()
+
+    def get_idx(self, row: int, col: int) -> float | None:
+        """Get the value at the given index
+
+        Args:
+            row (int): row in the grid
+            col (int): column in the grid
+
+        Returns:
+            float : Value of the cell
+            None : Cell not found
+        """
+        raise NotImplementedError()
+
+    def set_idx(self, row: int, col: int, value: float) -> bool:
+        """Set the value at the given index
+
+        Args:
+            row (int): row in the grid
+            col (int): column in the grid
+
+        Returns:
+            bool : True if the cell was found and modified
+        """
+        raise NotImplementedError()
+
+    def get_pos(self, position: List[float]) -> float | None:
+        """Get the value at the given position
+
+        Args:
+            position (Vector of 2 floats) : Position to get
+
+        Returns:
+            float : Value of the cell
+            None : Cell not found
+        """
+        raise NotImplementedError()
+
+    def set_pos(self, position: List[float], value: float) -> bool:
+        """Set the value at the given position
+
+        Args:
+            position (Vector of 2 floats) : Position to set
+            value (float) : Value to set
+
+        Returns:
+            bool : True if the cell was found and modified
+        """
+        raise NotImplementedError()
+        
 class ControllerError:
     def __init__(self):
         self.lateral: float
@@ -59,7 +128,7 @@ class Command:
         
 
 class StateEstimator:
-    def state(self) -> State:
+    def state(self) -> WorldState:
         raise NotImplementedError()
     
     def record(self) -> str:
@@ -94,7 +163,7 @@ class Navigator:
     def from_record(self, record: str):
         raise NotImplementedError()
 
-    def compute_error(self, state: State) -> ControllerError:
+    def compute_error(self, world_state: WorldState) -> ControllerError:
         raise NotImplementedError()
         
 class Physics:

@@ -14,6 +14,7 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use config_checker::macros::Check;
+use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
@@ -21,6 +22,7 @@ use super::state_estimator::{State, StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
+use crate::logger::is_enabled;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::maths::round_precision;
@@ -150,7 +152,9 @@ impl ExternalEstimator {
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        println!("Config given: {:?}", config);
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Config given: {:?}", config);
+        }
         Self {
             state_estimator: plugin_api
                 .as_ref()

@@ -14,6 +14,7 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use config_checker::macros::Check;
+use log::debug;
 use pyo3::{pyclass, pymethods};
 use rand::distributions::uniform::UniformFloat;
 use serde_json::Value;
@@ -21,6 +22,7 @@ use serde_json::Value;
 use crate::controllers::controller::ControllerError;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
+use crate::logger::is_enabled;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, WorldState};
 use crate::stateful::Stateful;
@@ -149,7 +151,9 @@ impl ExternalNavigator {
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        println!("Config given: {:?}", config);
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Config given: {:?}", config);
+        }
         Self {
             navigator: plugin_api
                 .as_ref()
