@@ -23,7 +23,7 @@ robots:
       PID:
         kp_v: 1.0
         kp_theta: 6.0
-    physic:
+    physics:
       External:
         config:
           wheel_distance: 25

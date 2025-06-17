@@ -218,7 +218,7 @@ impl PID {
 use super::controller::{Controller, ControllerRecord};
 use crate::controllers::controller::ControllerError;
 use crate::node::Node;
-use crate::physics::physic::Command;
+use crate::physics::physics::Command;
 
 impl Controller for PID {
     fn make_command(&mut self, _robot: &mut Node, error: &ControllerError, time: f32) -> Command {

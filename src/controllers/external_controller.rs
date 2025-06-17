@@ -21,7 +21,7 @@ use serde_json::Value;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
-use crate::physics::physic::Command;
+use crate::physics::physics::Command;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::{

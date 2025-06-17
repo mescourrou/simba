@@ -12,7 +12,7 @@ use crate::{
     logger::is_enabled,
     node::Node,
     node_factory::NodeRecord,
-    physics::physic::Command,
+    physics::physics::Command,
     pywrappers::{CommandWrapper, ControllerErrorWrapper},
     stateful::Stateful,
 };

@@ -192,7 +192,7 @@ class PluginAPI:
     def get_navigator(self, config: Dict, global_config: Dict) -> Navigator:
         raise NotImplementedError()
     
-    def get_physic(self, config: Dict, global_config: Dict) -> Physics:
+    def get_physics(self, config: Dict, global_config: Dict) -> Physics:
         raise NotImplementedError()
     
 class Simulator:

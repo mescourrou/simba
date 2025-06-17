@@ -3,7 +3,7 @@ use nalgebra::Vector3;
 
 use crate::{
     node_factory::{RobotConfig, RobotRecord},
-    physics::physic::PhysicConfig,
+    physics::physics::PhysicsConfig,
     sensors::sensor::{SensorConfig, SensorObservation, SensorObservationRecord},
     simulator::SimulatorConfig,
     utils::time_ordered_data::TimeOrderedData,
@@ -65,7 +65,7 @@ impl Robot {
         }
 
         if let Some((_, record)) = self.records.get_data_beq_time(time) {
-            let pose = record.physic.pose();
+            let pose = record.physics.pose();
             let position = Vec2::new(pose[0], pose[1]) * scale;
 
             let position = center + position;

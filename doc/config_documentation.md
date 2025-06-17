@@ -64,7 +64,7 @@ List of parameters:
 			- `wheel_distance`: Float
 		- `External`: [ExternalControllerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/controllers/external_controller/struct.ExternalControllerConfig.html)
 			- `config`: User-specific struct
-	- `physic`: [PhysicConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/physics/physic/enum.PhysicConfig.html), Enum
+	- `physics`: [PhysicConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/physics/physic/enum.PhysicConfig.html), Enum
 		- `Perfect`: [PerfectPhysicConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/physics/perfect_physic/struct.PerfectPhysicConfig.html)
 			- `wheel_distance`: Float
 			- `initial_state`: [StateConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/state_estimators/state_estimator/struct.StateConfig.html)

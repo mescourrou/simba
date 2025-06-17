@@ -17,7 +17,7 @@ robots:
       External:
         config:
           None
-    physic:
+    physics:
       External:
         config:
           None

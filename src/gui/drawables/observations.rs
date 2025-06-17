@@ -3,7 +3,7 @@ use nalgebra::{Rotation2, Rotation3, Vector2, Vector3};
 
 use crate::{
     node_factory::{RobotConfig, RobotRecord},
-    physics::physic::PhysicConfig,
+    physics::physics::PhysicsConfig,
     sensors::{
         oriented_landmark_sensor::{
             self, OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,

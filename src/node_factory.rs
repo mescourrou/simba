@@ -24,8 +24,8 @@ use crate::{
     },
     node::Node,
     physics::{
-        perfect_physic,
-        physic::{self, PhysicConfig, PhysicRecord},
+        perfect_physics,
+        physics::{self, PhysicsConfig, PhysicsRecord},
     },
     plugin_api::PluginAPI,
     sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
@@ -138,9 +138,9 @@ impl NodeRecord {
         }
     }
 
-    pub fn physics(&self) -> Option<&PhysicRecord> {
+    pub fn physics(&self) -> Option<&PhysicsRecord> {
         match &self {
-            Self::Robot(robot_record) => Some(&robot_record.physic),
+            Self::Robot(robot_record) => Some(&robot_record.physics),
             Self::ComputationUnit(_) => None,
         }
     }
@@ -186,9 +186,9 @@ pub struct RobotConfig {
     /// [`Controller`] to use, and its configuration.
     #[check]
     pub controller: ControllerConfig,
-    /// [`Physic`] to use, and its configuration.
+    /// [`Physics`] to use, and its configuration.
     #[check]
-    pub physic: PhysicConfig,
+    pub physics: PhysicsConfig,
     /// [`StateEstimator`] to use, and its configuration.
     #[check]
     pub state_estimator: StateEstimatorConfig,
@@ -220,7 +220,7 @@ impl Default for RobotConfig {
                 trajectory_follower::TrajectoryFollowerConfig::default(),
             )),
             controller: ControllerConfig::PID(Box::new(pid::PIDConfig::default())),
-            physic: PhysicConfig::Perfect(Box::new(perfect_physic::PerfectPhysicConfig::default())),
+            physics: PhysicsConfig::Perfect(Box::new(perfect_physics::PerfectsPhysicConfig::default())),
             state_estimator: StateEstimatorConfig::Perfect(
                 perfect_estimator::PerfectEstimatorConfig::default(),
             ),
@@ -271,7 +271,7 @@ impl UIComponent for RobotConfig {
                 current_node_name,
                 unique_id,
             );
-            self.physic.show(
+            self.physics.show(
                 ui,
                 ctx,
                 buffer_stack,
@@ -344,8 +344,8 @@ pub struct RobotRecord {
     pub navigator: NavigatorRecord,
     /// Record of the [`Controller`] module.
     pub controller: ControllerRecord,
-    /// Record of the [`Physic`] module.
-    pub physic: PhysicRecord,
+    /// Record of the [`Physics`] module.
+    pub physics: PhysicsRecord,
     /// Record of the [`StateEstimator`] module.
     pub state_estimator: StateEstimatorRecord,
     /// Record of the additionnal [`StateEstimator`]s, only to evaluate them.
@@ -489,8 +489,8 @@ impl NodeFactory {
                 global_config,
                 va_factory,
             )),
-            physic: Some(physic::make_physic_from_config(
-                &config.physic,
+            physics: Some(physics::make_physics_from_config(
+                &config.physics,
                 plugin_api,
                 global_config,
                 va_factory,
@@ -581,7 +581,7 @@ impl NodeFactory {
             name: config.name.clone(),
             navigator: None,
             controller: None,
-            physic: None,
+            physics: None,
             state_estimator: None,
             sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
                 &SensorManagerConfig::default(),

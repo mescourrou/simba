@@ -1,10 +1,10 @@
 /*!
-Provide the [`Physic`] trait and the utilitary structs ([`PhysicRecord`] and [`PhysicConfig`]).
+Provide the [`Physics`] trait and the utilitary structs ([`PhysicsRecord`] and [`PhysicsConfig`]).
 
 It also defines the [`Command`] that it can take. The control is done controlling the speed of the two wheels.
 
-The [`Physic`] implementation should take a command, apply it to the internal state, and it can add noise to it.
-However, the [`Physic::state`] should provide the real [`State`].
+The [`Physics`] implementation should take a command, apply it to the internal state, and it can add noise to it.
+However, the [`Physics::state`] should provide the real [`State`].
 */
 
 extern crate confy;
@@ -23,18 +23,18 @@ pub struct Command {
     pub right_wheel_speed: f32,
 }
 
-use super::{external_physic, perfect_physic};
+use super::{external_physics, perfect_physics};
 
 /// Enumeration of the different physic implementations.
 #[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
 #[serde(deny_unknown_fields)]
-pub enum PhysicConfig {
-    Perfect(Box<perfect_physic::PerfectPhysicConfig>),
-    External(Box<external_physic::ExternalPhysicConfig>),
+pub enum PhysicsConfig {
+    Perfect(Box<perfect_physics::PerfectsPhysicConfig>),
+    External(Box<external_physics::ExternalPhysicsConfig>),
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for PhysicConfig {
+impl UIComponent for PhysicsConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -49,7 +49,7 @@ impl UIComponent for PhysicConfig {
             ui.label("Physics:");
             string_combobox(
                 ui,
-                &PhysicConfig::to_vec()
+                &PhysicsConfig::to_vec()
                     .iter()
                     .map(|x| String::from(*x))
                     .collect(),
@@ -60,20 +60,20 @@ impl UIComponent for PhysicConfig {
         if current_str != self.to_string() {
             match current_str.as_str() {
                 "Perfect" => {
-                    *self = PhysicConfig::Perfect(Box::new(
-                        perfect_physic::PerfectPhysicConfig::default(),
+                    *self = PhysicsConfig::Perfect(Box::new(
+                        perfect_physics::PerfectsPhysicConfig::default(),
                     ))
                 }
                 "External" => {
-                    *self = PhysicConfig::External(Box::new(
-                        external_physic::ExternalPhysicConfig::default(),
+                    *self = PhysicsConfig::External(Box::new(
+                        external_physics::ExternalPhysicsConfig::default(),
                     ))
                 }
                 _ => panic!("Where did you find this value?"),
             };
         }
         match self {
-            PhysicConfig::Perfect(c) => c.show(
+            PhysicsConfig::Perfect(c) => c.show(
                 ui,
                 ctx,
                 buffer_stack,
@@ -81,7 +81,7 @@ impl UIComponent for PhysicConfig {
                 current_node_name,
                 unique_id,
             ),
-            PhysicConfig::External(c) => c.show(
+            PhysicsConfig::External(c) => c.show(
                 ui,
                 ctx,
                 buffer_stack,
@@ -93,14 +93,14 @@ impl UIComponent for PhysicConfig {
     }
 }
 
-/// Enumeration of the records by physic implementations.
+/// Enumeration of the records by physics implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum PhysicRecord {
-    Perfect(perfect_physic::PerfectPhysicRecord),
-    External(external_physic::ExternalPhysicRecord),
+pub enum PhysicsRecord {
+    Perfect(perfect_physics::PerfectPhysicsRecord),
+    External(external_physics::ExternalPhysicsRecord),
 }
 
-impl PhysicRecord {
+impl PhysicsRecord {
     pub fn pose(&self) -> [f32; 3] {
         match self {
             Self::External(p) => [0., 0., 0.],
@@ -129,14 +129,14 @@ pub struct GetRealStateResp {
     pub state: State,
 }
 
-/// Physic simulation trait.
+/// Physics simulation trait.
 ///
 /// Different implementation can either use real robots, add noise to command, etc.
-pub trait Physic:
+pub trait Physics:
     std::fmt::Debug
     + std::marker::Send
     + std::marker::Sync
-    + Stateful<PhysicRecord>
+    + Stateful<PhysicsRecord>
     + HasService<GetRealStateReq, GetRealStateResp>
 {
     /// Apply the given `command` to the internal state from the last update time
@@ -154,28 +154,28 @@ pub trait Physic:
     fn state(&self, time: f32) -> &State;
 }
 
-/// Helper function to create a physic from the given configuration.
+/// Helper function to create a physics from the given configuration.
 ///
 /// ## Arguments
-/// - `config`: The configuration of the physic.
-/// - `plugin_api`: The plugin API, to be used by the physic (if needed).
+/// - `config`: The configuration of the physics.
+/// - `plugin_api`: The plugin API, to be used by the physics (if needed).
 /// - `meta_config`: The meta configuration of the simulator.
 /// - `va_factory`: Random variables factory for determinist behavior.
 /// - `time_cv`: Simulator time condition variable, used by services.
-pub fn make_physic_from_config(
-    config: &PhysicConfig,
+pub fn make_physics_from_config(
+    config: &PhysicsConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &DeterministRandomVariableFactory,
-) -> Arc<RwLock<Box<dyn Physic>>> {
+) -> Arc<RwLock<Box<dyn Physics>>> {
     Arc::new(RwLock::new(match &config {
-        PhysicConfig::Perfect(c) => Box::new(perfect_physic::PerfectPhysic::from_config(
+        PhysicsConfig::Perfect(c) => Box::new(perfect_physics::PerfectPhysics::from_config(
             c,
             plugin_api,
             global_config,
             va_factory,
-        )) as Box<dyn Physic>,
-        PhysicConfig::External(c) => Box::new(external_physic::ExternalPhysic::from_config(
+        )) as Box<dyn Physics>,
+        PhysicsConfig::External(c) => Box::new(external_physics::ExternalPhysics::from_config(
             c,
             plugin_api,
             global_config,

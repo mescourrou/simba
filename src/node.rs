@@ -23,8 +23,8 @@ use crate::logger::is_enabled;
 use crate::networking::network::{Network, NetworkConfig};
 use crate::networking::service_manager::ServiceManager;
 use crate::node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord};
-use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
-use crate::physics::{perfect_physic, physic};
+use crate::physics::physics::{Physics, PhysicsConfig, PhysicsRecord};
+use crate::physics::{perfect_physics, physics};
 
 use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::state_estimators::state_estimator::{
@@ -50,8 +50,8 @@ use crate::{node, time_analysis};
 /// * `navigator` is of [`Navigator`] trait, and defines the error to be sent
 /// to the [`Controller`] to follow the required trajectory.
 /// * `controller` is of [`Controller`] trait, it defines the command to be sent
-/// to the [`Physic`] module.
-/// * `physic` is of [`Physic`] trait. It simulates the node behaviour, its real
+/// to the [`Physics`] module.
+/// * `physics` is of [`Physics`] trait. It simulates the node behaviour, its real
 /// state. It contains a ground truth to evaluate the [`StateEstimator`].
 /// * `state_estimator` is of [`StateEstimator`] trait. It estimates the node
 /// state, and send it to the [`Navigator`].
@@ -75,8 +75,8 @@ pub struct Node {
     pub(crate) navigator: Option<Arc<RwLock<Box<dyn Navigator>>>>,
     /// [`Controller`] module, implementing the control strategy.
     pub(crate) controller: Option<Arc<RwLock<Box<dyn Controller>>>>,
-    /// [`Physic`] module, implementing the physics strategy.
-    pub(crate) physic: Option<Arc<RwLock<Box<dyn Physic>>>>,
+    /// [`Physics`] module, implementing the physics strategy.
+    pub(crate) physics: Option<Arc<RwLock<Box<dyn Physics>>>>,
     /// [`StateEstimator`] module, implementing the state estimation strategy.
     pub(crate) state_estimator: Option<Arc<RwLock<Box<dyn StateEstimator>>>>,
     /// Manages all the [`Sensor`]s and send the observations to `state_estimator`.
@@ -195,7 +195,7 @@ impl Node {
         info!("Run time {}", time);
         self.set_in_state(time);
         // Update the true state
-        if let Some(physics) = &self.physic {
+        if let Some(physics) = &self.physics {
             physics.write().unwrap().update_state(time);
             self.node_server
                 .as_ref()
@@ -285,7 +285,7 @@ impl Node {
                 time_analysis::finished_time_analysis(ta);
 
                 // Apply the command to the physics
-                self.physic
+                self.physics
                     .as_ref()
                     .unwrap()
                     .write()
@@ -465,8 +465,8 @@ impl Node {
     }
 
     /// Get a Arc clone of physics module.
-    pub fn physics(&self) -> Option<Arc<RwLock<Box<dyn Physic>>>> {
-        match &self.physic {
+    pub fn physics(&self) -> Option<Arc<RwLock<Box<dyn Physics>>>> {
+        match &self.physics {
             Some(p) => Some(Arc::clone(p)),
             None => None,
         }
@@ -522,7 +522,7 @@ impl Node {
             name: self.name.clone(),
             navigator: self.navigator.as_ref().unwrap().read().unwrap().record(),
             controller: self.controller.as_ref().unwrap().read().unwrap().record(),
-            physic: self.physic.as_ref().unwrap().read().unwrap().record(),
+            physics: self.physics.as_ref().unwrap().read().unwrap().record(),
             state_estimator: self
                 .state_estimator
                 .as_ref()

@@ -19,7 +19,7 @@ use serde_derive::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
-pub struct PerfectPhysicConfig {
+pub struct PerfectsPhysicConfig {
     /// Distance between the two wheels, to compute the angular velocity from the wheel speeds.
     #[check(ge(0.))]
     pub wheel_distance: f32,
@@ -29,7 +29,7 @@ pub struct PerfectPhysicConfig {
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for PerfectPhysicConfig {
+impl UIComponent for PerfectsPhysicConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
@@ -65,7 +65,7 @@ impl UIComponent for PerfectPhysicConfig {
     }
 }
 
-impl Default for PerfectPhysicConfig {
+impl Default for PerfectsPhysicConfig {
     fn default() -> Self {
         Self {
             wheel_distance: 0.25,
@@ -76,7 +76,7 @@ impl Default for PerfectPhysicConfig {
 
 /// Record for the [`PerfectPhysic`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PerfectPhysicRecord {
+pub struct PerfectPhysicsRecord {
     /// State at the time `last_time_update`
     pub state: StateRecord,
     /// Time of the state
@@ -110,7 +110,7 @@ pub struct PerfectPhysicRecord {
 
 /// Implementation of [`Physic`] with the command perfectly applied.
 #[derive(Debug, Clone)]
-pub struct PerfectPhysic {
+pub struct PerfectPhysics {
     /// Distance between the wheels
     wheel_distance: f32,
     /// Current state
@@ -121,11 +121,11 @@ pub struct PerfectPhysic {
     current_command: Command,
 }
 
-impl PerfectPhysic {
+impl PerfectPhysics {
     /// Makes a new [`PerfectPhysic`] situated at (0,0,0) and 25cm between wheels.
     pub fn new() -> Self {
         Self::from_config(
-            &PerfectPhysicConfig::default(),
+            &PerfectsPhysicConfig::default(),
             &None,
             &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
@@ -139,12 +139,12 @@ impl PerfectPhysic {
     /// * `plugin_api` - [`PluginAPI`] not used there.
     /// * `global_config` - Configuration of the simulator.
     pub fn from_config(
-        config: &PerfectPhysicConfig,
+        config: &PerfectsPhysicConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
         _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        PerfectPhysic {
+        PerfectPhysics {
             wheel_distance: config.wheel_distance,
             state: State::from_config(&config.initial_state),
             last_time_update: 0.,
@@ -208,10 +208,10 @@ impl PerfectPhysic {
     }
 }
 
-use super::physic::{Command, GetRealStateReq, GetRealStateResp};
-use super::physic::{Physic, PhysicRecord};
+use super::physics::{Command, GetRealStateReq, GetRealStateResp};
+use super::physics::{Physics, PhysicsRecord};
 
-impl Physic for PerfectPhysic {
+impl Physics for PerfectPhysics {
     /// Apply the given `command` perfectly.
     fn apply_command(&mut self, command: &Command, _time: f32) {
         self.current_command = command.clone();
@@ -229,7 +229,7 @@ impl Physic for PerfectPhysic {
     }
 }
 
-impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
+impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysics {
     fn handle_service_requests(
         &mut self,
         _req: GetRealStateReq,
@@ -241,17 +241,17 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysic {
     }
 }
 
-impl Stateful<PhysicRecord> for PerfectPhysic {
-    fn record(&self) -> PhysicRecord {
-        PhysicRecord::Perfect(PerfectPhysicRecord {
+impl Stateful<PhysicsRecord> for PerfectPhysics {
+    fn record(&self) -> PhysicsRecord {
+        PhysicsRecord::Perfect(PerfectPhysicsRecord {
             state: self.state.record(),
             last_time_update: self.last_time_update,
             current_command: self.current_command.clone(),
         })
     }
 
-    fn from_record(&mut self, record: PhysicRecord) {
-        if let PhysicRecord::Perfect(perfect_record) = record {
+    fn from_record(&mut self, record: PhysicsRecord) {
+        if let PhysicsRecord::Perfect(perfect_record) = record {
             self.state.from_record(perfect_record.state);
             self.last_time_update = perfect_record.last_time_update;
             self.current_command = perfect_record.current_command.clone();

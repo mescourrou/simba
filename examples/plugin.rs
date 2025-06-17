@@ -7,8 +7,8 @@ use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::navigator::{Navigator, NavigatorRecord};
 use simba::networking::message_handler::MessageHandler;
 use simba::networking::service::HasService;
-use simba::physics::external_physic::ExternalPhysicRecord;
-use simba::physics::physic::{Command, GetRealStateReq, GetRealStateResp, Physic, PhysicRecord};
+use simba::physics::external_physics::ExternalPhysicsRecord;
+use simba::physics::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 use simba::plugin_api::PluginAPI;
 use simba::simulator::{Simulator, SimulatorConfig};
 use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
@@ -145,7 +145,7 @@ impl MyWonderfulPhysics {
     }
 }
 
-impl Physic for MyWonderfulPhysics {
+impl Physics for MyWonderfulPhysics {
     fn apply_command(&mut self, command: &Command, time: f32) {}
 
     fn state(&self, time: f32) -> &State {
@@ -165,18 +165,18 @@ impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
     }
 }
 
-impl Stateful<PhysicRecord> for MyWonderfulPhysics {
-    fn from_record(&mut self, record: PhysicRecord) {
+impl Stateful<PhysicsRecord> for MyWonderfulPhysics {
+    fn from_record(&mut self, record: PhysicsRecord) {
         let _my_record: MyWonderfulNavigatorRecord = match record {
-            PhysicRecord::External(r) => serde_json::from_value(r.record).unwrap(),
+            PhysicsRecord::External(r) => serde_json::from_value(r.record).unwrap(),
             _ => {
                 panic!("Bad record");
             }
         };
     }
 
-    fn record(&self) -> PhysicRecord {
-        PhysicRecord::External(ExternalPhysicRecord {
+    fn record(&self) -> PhysicsRecord {
+        PhysicsRecord::External(ExternalPhysicsRecord {
             record: serde_json::to_value(MyWonderfulNavigatorRecord {}).unwrap(),
         })
     }
@@ -287,11 +287,11 @@ impl PluginAPI for MyWonderfulPlugin {
         ))
     }
 
-    fn get_physic(
+    fn get_physics(
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
-    ) -> Box<dyn Physic> {
+    ) -> Box<dyn Physics> {
         Box::new(MyWonderfulPhysics::from_config(
             serde_json::from_value(config.clone()).unwrap(),
         ))

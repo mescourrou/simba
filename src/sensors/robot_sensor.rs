@@ -13,7 +13,7 @@ use crate::logger::is_enabled;
 use crate::networking::network::MessageFlag;
 use crate::networking::service::ServiceClient;
 use crate::networking::service_manager;
-use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
+use crate::physics::physics::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::simulator::SimulatorConfig;
@@ -375,9 +375,9 @@ impl Sensor for RobotSensor {
         if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
             debug!("Start looking for nodes");
         }
-        let state = if let Some(arc_physic) = node.physics() {
-            let physic = arc_physic.read().unwrap();
-            physic.state(time).clone()
+        let state = if let Some(arc_physics) = node.physics() {
+            let physics = arc_physics.read().unwrap();
+            physics.state(time).clone()
         } else {
             State::new() // 0
         };

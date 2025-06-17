@@ -12,7 +12,7 @@ use crate::{
     controllers::{controller::ControllerError, pybinds::PythonController},
     logger::is_enabled,
     navigators::pybinds::PythonNavigator,
-    physics::{physic::Command, pybinds::PythonPhysic},
+    physics::{physics::Command, pybinds::PythonPhysics},
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
@@ -607,20 +607,20 @@ impl PluginAPIWrapper {
         panic!("The given PluginAPI does not provide a navigator");
     }
 
-    /// Return the [`Physic`] to be used by the
-    /// [`ExternalPhysic`](`crate::physcs::external_physic::ExternalPhysic`).
+    /// Return the [`Physics`] to be used by the
+    /// [`ExternalPhysics`](`crate::physcs::external_physics::ExternalPhysics`).
     ///
     /// # Arguments
-    /// * `config` - Config for the external physic. The configuration
+    /// * `config` - Config for the external physics. The configuration
     /// is given using [`serde_json::Value`]. It should be converted by the
     /// external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
     ///
     /// # Return
     ///
-    /// Returns the [`Physic`] to use.
-    pub fn get_physic(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonPhysic {
-        panic!("The given PluginAPI does not provide a physic");
+    /// Returns the [`Physics`] to use.
+    pub fn get_physics(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonPhysics {
+        panic!("The given PluginAPI does not provide physics");
     }
 }
 
@@ -698,10 +698,10 @@ impl SimulatorWrapper {
                     api_client.get_navigator_response.send(navigator).unwrap();
                 }
                 if let Ok((config, simulator_config)) =
-                    api_client.get_physic_request.lock().unwrap().try_recv()
+                    api_client.get_physics_request.lock().unwrap().try_recv()
                 {
-                    let physic = python_api.get_physic(&config, &simulator_config);
-                    api_client.get_physic_response.send(physic).unwrap();
+                    let physic = python_api.get_physics(&config, &simulator_config);
+                    api_client.get_physics_response.send(physic).unwrap();
                 }
                 python_api.check_requests();
             }

@@ -10,7 +10,7 @@ use crate::{
 };
 use std::sync::{Arc, RwLock};
 
-use crate::{physics::physic::Command, plugin_api::PluginAPI, simulator::SimulatorConfig};
+use crate::{physics::physics::Command, plugin_api::PluginAPI, simulator::SimulatorConfig};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};

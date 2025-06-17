@@ -8,7 +8,7 @@ use log::debug;
 
 use crate::{
     node::Node,
-    physics::physic::{GetRealStateReq, GetRealStateResp, Physic},
+    physics::physics::{GetRealStateReq, GetRealStateResp, Physics},
     simulator::TimeCv,
     state_estimators::state_estimator::State,
 };
@@ -20,7 +20,7 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct ServiceManager {
-    get_real_state: Option<Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physic>>>>,
+    get_real_state: Option<Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physics>>>>,
     get_real_state_clients: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
     time_cv: Arc<TimeCv>,
 }

@@ -14,7 +14,7 @@ use crate::{
     errors::SimbaResult,
     navigators::navigator::Navigator,
     node_factory::NodeRecord,
-    physics::physic::Physic,
+    physics::physics::Physics,
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::state_estimator::StateEstimator,
@@ -192,7 +192,7 @@ pub struct PluginAsyncAPI {
     pub get_navigator_request: mpsc::Sender<(Value, SimulatorConfig)>,
     pub get_navigator_response: Arc<Mutex<mpsc::Receiver<Box<dyn Navigator>>>>,
     pub get_physic_request: mpsc::Sender<(Value, SimulatorConfig)>,
-    pub get_physic_response: Arc<Mutex<mpsc::Receiver<Box<dyn Physic>>>>,
+    pub get_physic_response: Arc<Mutex<mpsc::Receiver<Box<dyn Physics>>>>,
 }
 
 impl PluginAsyncAPI {
@@ -214,8 +214,8 @@ impl PluginAsyncAPI {
                 get_controller_response: get_controller_response_tx,
                 get_navigator_request: Arc::new(Mutex::new(get_navigator_request_rx)),
                 get_navigator_response: get_navigator_response_tx,
-                get_physic_request: Arc::new(Mutex::new(get_physic_request_rx)),
-                get_physic_response: get_physic_response_tx,
+                get_physics_request: Arc::new(Mutex::new(get_physic_request_rx)),
+                get_physics_response: get_physic_response_tx,
             },
             get_state_estimator_request: get_state_estimator_request_tx,
             get_state_estimator_response: Arc::new(Mutex::new(get_state_estimator_response_rx)),
@@ -266,7 +266,7 @@ impl PluginAPI for PluginAsyncAPI {
         self.get_navigator_response.lock().unwrap().recv().unwrap()
     }
 
-    fn get_physic(&self, config: &Value, global_config: &SimulatorConfig) -> Box<dyn Physic> {
+    fn get_physics(&self, config: &Value, global_config: &SimulatorConfig) -> Box<dyn Physics> {
         self.get_physic_request
             .send((config.clone(), global_config.clone()))
             .unwrap();
@@ -283,6 +283,6 @@ pub struct PluginAsyncAPIClient {
     pub get_controller_response: mpsc::Sender<Box<dyn Controller>>,
     pub get_navigator_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
     pub get_navigator_response: mpsc::Sender<Box<dyn Navigator>>,
-    pub get_physic_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
-    pub get_physic_response: mpsc::Sender<Box<dyn Physic>>,
+    pub get_physics_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
+    pub get_physics_response: mpsc::Sender<Box<dyn Physics>>,
 }

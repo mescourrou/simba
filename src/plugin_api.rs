@@ -47,7 +47,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::{
     controllers::controller::Controller, navigators::navigator::Navigator,
-    networking::message_handler::MessageHandler, node::Node, physics::physic::Physic,
+    networking::message_handler::MessageHandler, node::Node, physics::physics::Physics,
     simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator,
 };
 
@@ -115,20 +115,20 @@ pub trait PluginAPI: Send + Sync {
         panic!("The given PluginAPI does not provide a navigator");
     }
 
-    /// Return the [`Physic`] to be used by the
-    /// [`ExternalPhysic`](`crate::physics::external_physic::ExternalPhysic`).
+    /// Return the [`Physics`] to be used by the
+    /// [`ExternalPhysics`](`crate::physics::external_physics::ExternalPhysics`).
     ///
     /// # Arguments
-    /// * `config` - Config for the external physic. The configuration
+    /// * `config` - Config for the external physics. The configuration
     /// is given using [`serde_json::Value`]. It should be converted by the
     /// external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
     ///
     /// # Return
     ///
-    /// Returns the [`Physic`] to use.
-    fn get_physic(&self, _config: &Value, _global_config: &SimulatorConfig) -> Box<dyn Physic> {
-        panic!("The given PluginAPI does not provide a physic");
+    /// Returns the [`Physics`] to use.
+    fn get_physics(&self, _config: &Value, _global_config: &SimulatorConfig) -> Box<dyn Physics> {
+        panic!("The given PluginAPI does not provide physics");
     }
 
     fn get_message_handlers(&self, _robot: &Node) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {

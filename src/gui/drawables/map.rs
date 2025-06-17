@@ -8,7 +8,7 @@ use egui::{Color32, Painter, Pos2, Rect, Response, Stroke, Vec2};
 
 use crate::{
     node_factory::{RobotConfig, RobotRecord},
-    physics::physic::PhysicConfig,
+    physics::physics::PhysicsConfig,
     sensors::oriented_landmark_sensor::{OrientedLandmark, OrientedLandmarkSensor},
     simulator::SimulatorConfig,
     utils::time_ordered_data::TimeOrderedData,
