@@ -201,3 +201,6 @@ class Simulator:
     
     def run(self):
         raise NotImplementedError()
+    
+def run_gui(plugin_api: PluginAPI | None):
+        raise NotImplementedError()

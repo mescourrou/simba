@@ -30,6 +30,8 @@ use crate::{
     utils::occupancy_grid::OccupancyGrid,
 };
 
+
+
 #[derive(Clone)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "ControllerError")]
@@ -744,3 +746,92 @@ impl SimulatorWrapper {
             .unwrap();
     }
 }
+
+
+#[cfg(feature = "gui")]
+#[pyfunction]
+#[pyo3(signature = (plugin_api=None))]
+pub fn run_gui(py: Python, plugin_api: Option<Py<PyAny>>) {
+    use std::{sync::RwLock, thread};
+
+    use crate::gui;
+    let async_plugin_api = match &plugin_api {
+        Some(_) => Some(PluginAsyncAPI::new()),
+        None => None,
+    };
+    let mut python_api = match plugin_api {
+        Some(a) => Some(PythonAPI::new(a)),
+        None => None,
+    };
+
+    let api_client = match &async_plugin_api {
+        Some(api) => Some(api.client.clone()),
+        None => None,
+    };
+        
+    let running = Arc::new(RwLock::new(true));
+    let local_running = running.clone();
+
+    let thread_handle = thread::spawn(move || {
+        while *running.read().unwrap() {
+            if let Some(api_client) = &api_client {
+                let python_api = python_api.as_mut().unwrap();
+                // TODO: Multiple wait can be optimized the same way than AsyncAPI runner (or maybe not as it's Python)
+                if let Ok((config, simulator_config)) = api_client
+                    .get_state_estimator_request
+                    .lock()
+                    .unwrap()
+                    .try_recv()
+                {
+                    let state_estimator =
+                        python_api.get_state_estimator(&config, &simulator_config);
+                    api_client
+                        .get_state_estimator_response
+                        .send(state_estimator)
+                        .unwrap();
+                }
+                if let Ok((config, simulator_config)) =
+                    api_client.get_controller_request.lock().unwrap().try_recv()
+                {
+                    let controller = python_api.get_controller(&config, &simulator_config);
+                    api_client.get_controller_response.send(controller).unwrap();
+                }
+                if let Ok((config, simulator_config)) =
+                    api_client.get_navigator_request.lock().unwrap().try_recv()
+                {
+                    let navigator = python_api.get_navigator(&config, &simulator_config);
+                    api_client.get_navigator_response.send(navigator).unwrap();
+                }
+                if let Ok((config, simulator_config)) =
+                    api_client.get_physics_request.lock().unwrap().try_recv()
+                {
+                    let physic = python_api.get_physics(&config, &simulator_config);
+                    api_client.get_physics_response.send(physic).unwrap();
+                }
+                python_api.check_requests();
+            }
+        }
+    });
+
+    // egui needs to be run in the main thread. However, Python get the GIL. So we need to free the GIL so that the thread spawn before can call Python functions.
+    // allow_threads reacquire the GIL when it exits the function. At this point, we are sure that the other thread is finished.
+    py.allow_threads(|| {
+        gui::run_gui(match &async_plugin_api {
+            Some(api) => Some(Box::<&dyn PluginAPI>::new(unsafe {
+                std::mem::transmute::<&dyn PluginAPI, &'static dyn PluginAPI>(api)
+            })),
+            None => None,
+        });
+        *local_running.write().unwrap() = false;
+        thread_handle.join().unwrap();
+    });
+
+}
+
+#[cfg(not(feature = "gui"))]
+#[pyfunction]
+#[pyo3(signature = (plugin_api=None))]
+pub fn run_gui(_py: Python, _plugin_api: Option<Py<PyAny>>) {
+    unimplemented!("run_gui not available. Compile python package with 'gui' feature");
+}
+

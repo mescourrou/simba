@@ -25,6 +25,7 @@ pub fn run_gui(plugin_api: Option<Box<&'static dyn PluginAPI>>) {
             .with_min_inner_size([300.0, 220.0]),
         ..Default::default()
     };
+
     eframe::run_native(
         "SiMBA",
         native_options,
@@ -32,7 +33,6 @@ pub fn run_gui(plugin_api: Option<Box<&'static dyn PluginAPI>>) {
     )
     .expect("Error during GUI execution");
 }
-
 pub trait UIComponent {
     fn show(
         &mut self,

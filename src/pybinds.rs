@@ -11,7 +11,7 @@ use crate::{
         CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, ObservationWrapper,
         OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
         OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
-        SimulatorWrapper, StateWrapper, WorldStateWrapper,
+        SimulatorWrapper, StateWrapper, WorldStateWrapper, run_gui
     },
     simulator::SimulatorConfig,
     state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},
@@ -34,8 +34,10 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PythonController>()?;
     m.add_class::<CommandWrapper>()?;
     m.add_class::<PythonNavigator>()?;
+    m.add_function(wrap_pyfunction!(run_gui, m)?)?;
     Ok(())
 }
+
 
 #[derive(Debug)]
 pub struct PythonAPI {

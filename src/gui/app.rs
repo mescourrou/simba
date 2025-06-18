@@ -94,14 +94,17 @@ impl SimbaApp {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
-        // Load previous app state (if any).
-        // Note that you must enable the `persistence` feature for this to work.
+        // // Load previous app state (if any).
+        // // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY)
-                .unwrap_or_else(|| Self::new_full(plugin_api));
+            if let Some(app) = eframe::get_value::<SimbaApp>(storage, eframe::APP_KEY) {
+                app.update_api(plugin_api)
+            } else {
+                Self::new_full(plugin_api)
+            }
+        } else {
+            Self::new_full(plugin_api)
         }
-
-        Self::new_full(plugin_api)
     }
 
     fn new_full(plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
@@ -116,6 +119,15 @@ impl SimbaApp {
             },
             ..Default::default()
         }
+    }
+
+    fn update_api(mut self, plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
+        let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
+        let api = server.lock().unwrap().get_api();
+        server.lock().unwrap().run(plugin_api);
+        self.p.server = server;
+        self.p.api = api;
+        self
     }
 
     fn quit(&mut self) {
