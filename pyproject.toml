@@ -5,7 +5,7 @@ build-backend = "maturin"
 [project]
 name = "simba"
 requires-python = ">=3.10"
-version = "0.5.0"
+version = "1.0.0"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
@@ -15,4 +15,4 @@ classifiers = [
 
 [tool.maturin]
 # "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
-features = ["pyo3/extension-module", "pyo3/abi3", "pyo3/abi3-py310", "time-analysis"]
+features = ["pyo3/extension-module", "pyo3/abi3", "pyo3/abi3-py310", "time-analysis", "gui"]
