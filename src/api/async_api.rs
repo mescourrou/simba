@@ -1,7 +1,6 @@
 use std::{
     os::unix::thread::JoinHandleExt,
     path::Path,
-    rc::Rc,
     sync::{mpsc, Arc, Mutex, RwLock},
     thread::{self, sleep, JoinHandle},
     time::Duration,
@@ -13,10 +12,9 @@ use crate::{
     controllers::controller::Controller,
     errors::SimbaResult,
     navigators::navigator::Navigator,
-    node_factory::NodeRecord,
     physics::physics::Physics,
     plugin_api::PluginAPI,
-    simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
+    simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::state_estimator::StateEstimator,
     utils::rfc,
 };

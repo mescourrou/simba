@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 
-use crate::utils::determinist_random_variable::{self, DeterministRandomVariable};
+use crate::utils::determinist_random_variable::{DeterministRandomVariable};
 use crate::utils::format_f32;
 
 /// Configuration for a uniform random variable.
@@ -40,13 +40,15 @@ impl UIComponent for UniformRandomVariableConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
+        _ctx: &egui::Context,
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        global_config: &crate::simulator::SimulatorConfig,
-        current_node_name: Option<&String>,
+        _global_config: &crate::simulator::SimulatorConfig,
+        _current_node_name: Option<&String>,
         unique_id: &String,
     ) {
         ui.horizontal_top(|ui| {
+            use crate::utils::determinist_random_variable::seed_generation_component;
+
             ui.vertical(|ui| {
                 let mut to_remove = None;
                 for (i, (min, max)) in
@@ -72,7 +74,7 @@ impl UIComponent for UniformRandomVariableConfig {
                 }
             });
             ui.label("Seed: ");
-            determinist_random_variable::seed_generation_component(
+            seed_generation_component(
                 &mut self.unique_seed,
                 ui,
                 buffer_stack,

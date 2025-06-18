@@ -53,10 +53,10 @@ impl UIComponent for TrajectoryFollowerConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
+        _current_node_name: Option<&String>,
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Trajectory Follower")
@@ -189,7 +189,7 @@ impl TrajectoryFollower {
 
 use crate::controllers::controller::ControllerError;
 use crate::node::Node;
-use crate::state_estimators::state_estimator::{State, WorldState};
+use crate::state_estimators::state_estimator::WorldState;
 
 impl Navigator for TrajectoryFollower {
     /// Compute the error between the given `state` and the current trajectory.

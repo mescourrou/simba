@@ -1,17 +1,14 @@
-use egui::{Color32, Painter, Pos2, Rect, Response, Stroke, Vec2};
-use nalgebra::{Rotation2, Rotation3, Vector2, Vector3};
+use egui::{Color32, Painter, Rect, Response, Stroke, Vec2};
+use nalgebra::{Rotation2, Vector2, Vector3};
 
 use crate::{
-    node_factory::{RobotConfig, RobotRecord},
-    physics::physics::PhysicsConfig,
     sensors::{
         oriented_landmark_sensor::{
-            self, OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,
+            OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,
         },
         robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig},
     },
     simulator::SimulatorConfig,
-    utils::time_ordered_data::TimeOrderedData,
 };
 
 use super::map::Map;
@@ -22,7 +19,7 @@ pub struct OrientedRobotObservation {
 }
 
 impl OrientedRobotObservation {
-    pub fn init(config: &RobotSensorConfig, sim_config: &SimulatorConfig) -> Self {
+    pub fn init(_config: &RobotSensorConfig, _sim_config: &SimulatorConfig) -> Self {
         Self {
             color: Color32::from_rgb(255, 165, 0), // Orange
             arrow_len: 0.2,
@@ -31,8 +28,8 @@ impl OrientedRobotObservation {
 
     pub fn draw(
         &self,
-        ui: &mut egui::Ui,
-        viewport: &Rect,
+        _ui: &mut egui::Ui,
+        _viewport: &Rect,
         response: &Response,
         painter: &Painter,
         scale: f32,
@@ -98,8 +95,8 @@ impl OrientedLandmarkObservation {
 
     pub fn draw(
         &self,
-        ui: &mut egui::Ui,
-        viewport: &Rect,
+        _ui: &mut egui::Ui,
+        _viewport: &Rect,
         response: &Response,
         painter: &Painter,
         scale: f32,

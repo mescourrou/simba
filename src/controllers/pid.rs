@@ -18,7 +18,6 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use log::error;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
 
 /// Configuration of the [`PID`], it contains the 3 gains for the velocity
 /// control, 3 gain for the orientation control, and the wheel distance.
@@ -66,10 +65,10 @@ impl UIComponent for PIDConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("PID")

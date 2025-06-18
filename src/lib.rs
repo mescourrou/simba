@@ -48,7 +48,7 @@ fn main() {
 
 */
 
-#![doc = include_str!("../doc/user_manual/config_documentation.md")]
+#![doc = include_str!("../doc/user_manual/docs/config_documentation.md")]
 
 use pyo3::prelude::*;
 

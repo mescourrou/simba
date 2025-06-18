@@ -1,10 +1,9 @@
-use egui::{Color32, Painter, Pos2, Rect, Response, Stroke, Vec2};
+use egui::{Color32, Painter, Rect, Response, Stroke, Vec2};
 use nalgebra::Vector3;
 
 use crate::{
     node_factory::{RobotConfig, RobotRecord},
-    physics::physics::PhysicsConfig,
-    sensors::sensor::{SensorConfig, SensorObservation, SensorObservationRecord},
+    sensors::sensor::{SensorConfig, SensorObservationRecord},
     simulator::SimulatorConfig,
     utils::time_ordered_data::TimeOrderedData,
 };

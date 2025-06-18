@@ -9,7 +9,6 @@ mod configurator;
 mod drawables;
 pub mod utils;
 
-use log;
 
 use crate::{
     plugin_api::PluginAPI,

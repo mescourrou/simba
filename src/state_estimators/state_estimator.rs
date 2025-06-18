@@ -40,11 +40,11 @@ impl UIComponent for StateConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
-        unique_id: &String,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        _unique_id: &String,
     ) {
         ui.horizontal(|ui| {
             ui.label("x: ");
@@ -272,10 +272,11 @@ use crate::gui::{
     utils::{string_combobox, text_singleline_with_apply},
     UIComponent,
 };
+#[cfg(feature = "gui")]
+use crate::utils::enum_tools::ToVec;
 use crate::node::Node;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
-use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
 use crate::utils::occupancy_grid::OccupancyGrid;
 use crate::{
@@ -395,7 +396,7 @@ pub fn make_state_estimator_from_config(
     };
 }
 
-use crate::sensors::sensor::{Observation, SensorObservation};
+use crate::sensors::sensor::Observation;
 
 pub trait StateEstimator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<StateEstimatorRecord>

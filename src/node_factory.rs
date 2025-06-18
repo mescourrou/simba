@@ -1,8 +1,7 @@
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
 use log::debug;
-use rand::rngs;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "gui")]
@@ -239,7 +238,7 @@ impl UIComponent for RobotConfig {
         ctx: &egui::Context,
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
+        _current_node_name: Option<&String>,
         unique_id: &String,
     ) {
         let name_copy = self.name.clone();
@@ -394,7 +393,7 @@ impl UIComponent for ComputationUnitConfig {
         ctx: &egui::Context,
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
+        _current_node_name: Option<&String>,
         unique_id: &String,
     ) {
         let name_copy = self.name.clone();
@@ -525,7 +524,6 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            time_cv: time_cv.clone(),
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -604,7 +602,6 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            time_cv: time_cv.clone(),
         };
 
         for state_estimator_config in &config.state_estimators {

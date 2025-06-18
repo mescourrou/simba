@@ -18,7 +18,7 @@ Other types can be added in the future.
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::EnumToString;
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
@@ -254,8 +254,8 @@ impl RandomVariableTypeConfig {
 pub fn seed_generation_component(
     seed: &mut f32,
     ui: &mut egui::Ui,
-    buffer_stack: &mut std::collections::BTreeMap<String, String>,
-    unique_id: &String,
+    _buffer_stack: &mut std::collections::BTreeMap<String, String>,
+    _unique_id: &String,
 ) {
     use rand::random;
 

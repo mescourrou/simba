@@ -18,7 +18,7 @@ use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
-use super::state_estimator::{State, StateEstimator, WorldState};
+use super::state_estimator::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
@@ -31,7 +31,7 @@ use crate::{
 };
 
 use super::state_estimator::StateEstimatorRecord;
-use crate::sensors::sensor::{Observation, SensorObservation};
+use crate::sensors::sensor::Observation;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external state estimation (generic).
@@ -66,10 +66,10 @@ impl UIComponent for ExternalEstimatorConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
+        _ctx: &egui::Context,
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("External State Estimator").show(ui, |ui| {

@@ -1,10 +1,9 @@
 use std::{
     collections::BTreeMap,
     fmt::Debug,
-    sync::{Arc, Condvar, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
-use log::debug;
 
 use crate::{
     node::Node,
@@ -22,7 +21,6 @@ use super::{
 pub struct ServiceManager {
     get_real_state: Option<Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physics>>>>,
     get_real_state_clients: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
-    time_cv: Arc<TimeCv>,
 }
 
 impl ServiceManager {
@@ -36,7 +34,6 @@ impl ServiceManager {
                 false => None,
             },
             get_real_state_clients: BTreeMap::new(),
-            time_cv,
         }
     }
 

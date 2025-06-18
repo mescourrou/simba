@@ -44,7 +44,7 @@ mod tests {
 
     use crate::{
         constants::TIME_ROUND,
-        logger::{InternalLog, LogLevel},
+        logger::LogLevel,
         networking::network::NetworkConfig,
         node::Node,
         node_factory::RobotConfig,
@@ -59,15 +59,15 @@ mod tests {
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
             perfect_estimator::PerfectEstimatorConfig,
             state_estimator::{
-                BenchStateEstimatorConfig, State, StateEstimator, StateEstimatorConfig,
+                BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig,
                 StateEstimatorRecord, WorldState,
             },
         },
         stateful::Stateful,
-        utils::maths::{closest_uint_modulo, round_precision},
+        utils::maths::round_precision,
     };
 
-    use super::{message_handler::MessageHandler, *};
+    use super::message_handler::MessageHandler;
 
     #[derive(Debug, Default)]
     struct NetworkHandlerTest {
@@ -107,9 +107,9 @@ mod tests {
     impl StateEstimator for StateEstimatorTest {
         fn correction_step(
             &mut self,
-            node: &mut crate::node::Node,
-            observations: &Vec<Observation>,
-            time: f32,
+            _node: &mut crate::node::Node,
+            _observations: &Vec<Observation>,
+            _time: f32,
         ) {
         }
 

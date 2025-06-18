@@ -11,16 +11,15 @@ use crate::{
     constants::TIME_ROUND,
     logger::is_enabled,
     node::Node,
-    node_factory::NodeRecord,
-    pywrappers::{ObservationWrapper, SensorObservationWrapper, StateWrapper, WorldStateWrapper},
-    sensors::sensor::{Observation, SensorObservation},
+    pywrappers::{ObservationWrapper, WorldStateWrapper},
+    sensors::sensor::Observation,
     stateful::Stateful,
     utils::maths::round_precision,
 };
 
 use super::{
     external_estimator::ExternalEstimatorRecord,
-    state_estimator::{State, StateEstimator, StateEstimatorRecord, WorldState},
+    state_estimator::{StateEstimator, StateEstimatorRecord, WorldState},
 };
 
 #[derive(Debug, Clone)]

@@ -25,11 +25,11 @@ impl UIComponent for FixedRandomVariableConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        global_config: &crate::simulator::SimulatorConfig,
-        current_node_name: Option<&String>,
-        unique_id: &String,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &crate::simulator::SimulatorConfig,
+        _current_node_name: Option<&String>,
+        _unique_id: &String,
     ) {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {

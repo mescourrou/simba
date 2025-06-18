@@ -4,10 +4,9 @@ the groundtruth to provide the estimation. It can be used when the state used
 by the controller should be perfect.
 */
 
-use std::collections::BTreeMap;
 use std::path::Path;
 
-use super::state_estimator::{State, StateRecord, WorldState, WorldStateRecord};
+use super::state_estimator::{State, WorldState, WorldStateRecord};
 use crate::constants::TIME_ROUND;
 
 #[cfg(feature = "gui")]
@@ -15,8 +14,8 @@ use crate::gui::{
     utils::{path_finder, string_checkbox},
     UIComponent,
 };
-use crate::sensors::oriented_landmark_sensor::{self, Map, OrientedLandmarkSensor};
-use crate::sensors::sensor::{Observation, SensorObservation};
+use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
+use crate::sensors::sensor::Observation;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::maths::round_precision;
@@ -24,7 +23,7 @@ use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use config_checker::macros::Check;
-use log::{debug, error, info};
+use log::{error, info};
 use serde_derive::{Deserialize, Serialize};
 
 /// Configuration for [`PerfectEstimator`].
@@ -54,8 +53,8 @@ impl UIComponent for PerfectEstimatorConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,

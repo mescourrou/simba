@@ -13,11 +13,11 @@ use crate::simulator::TimeCv;
 use crate::state_estimators::state_estimator::State;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
-use super::network::{MessageFlag, Network};
+use super::network::MessageFlag;
 use std::collections::BTreeMap;
 
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum MessageSendMethod {

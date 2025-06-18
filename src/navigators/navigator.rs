@@ -16,7 +16,7 @@ use crate::controllers::controller::ControllerError;
 use crate::gui::{utils::string_combobox, UIComponent};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::{State, WorldState};
+use crate::state_estimators::state_estimator::WorldState;
 
 /// Enumerate the configuration of the different strategies.
 #[derive(Serialize, Deserialize, Debug, Clone, Check, EnumToString, ToVec)]
@@ -96,6 +96,7 @@ pub enum NavigatorRecord {
 use crate::node::Node;
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+#[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 
 /// Trait managing the path planning, and providing the error to the planned path.

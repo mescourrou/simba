@@ -5,42 +5,33 @@ Module providing the main node manager, [`Node`], along with the configuration
 
 use core::f32;
 use std::collections::BTreeMap;
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, RwLock};
 
-use config_checker::macros::Check;
 use log::{debug, info, warn};
-use serde::{Deserialize, Serialize};
 
-use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
-use super::navigators::trajectory_follower;
+use super::navigators::navigator::Navigator;
 
 use crate::api::internal_api::{self, NodeClient, NodeServer};
 use crate::constants::TIME_ROUND;
-use crate::controllers::controller::{self, Controller, ControllerConfig, ControllerRecord};
+use crate::controllers::controller::Controller;
 
 use crate::errors::SimbaResult;
 use crate::logger::is_enabled;
-use crate::networking::network::{Network, NetworkConfig};
+use crate::networking::network::Network;
 use crate::networking::service_manager::ServiceManager;
 use crate::node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord};
-use crate::physics::physics::{Physics, PhysicsConfig, PhysicsRecord};
-use crate::physics::{perfect_physics, physics};
+use crate::physics::physics::Physics;
 
-use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::state_estimators::state_estimator::{
-    BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator, StateEstimatorConfig,
-    StateEstimatorRecord,
+    BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator,
 };
-use crate::state_estimators::{perfect_estimator, state_estimator};
 
-use crate::sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord};
+use crate::sensors::sensor_manager::SensorManager;
 
-use crate::plugin_api::PluginAPI;
 use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use crate::utils::time_ordered_data::TimeOrderedData;
-use crate::{node, time_analysis};
+use crate::time_analysis;
 
 // Node itself
 
@@ -95,7 +86,6 @@ pub struct Node {
 
     pub(crate) node_server: Option<NodeServer>,
 
-    pub(crate) time_cv: Arc<TimeCv>,
     pub other_node_names: Vec<String>,
 }
 

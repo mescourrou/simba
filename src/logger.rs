@@ -1,12 +1,11 @@
 use std::{
     fmt::Display,
-    ops::DerefMut,
-    sync::{Arc, Mutex, RwLock},
+    sync::RwLock,
 };
 
 use config_checker::macros::Check;
-use libm::tanhf;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "gui")]
 use simba_macros::ToVec;
 
 #[cfg(feature = "gui")]
@@ -14,7 +13,8 @@ use crate::gui::{
     utils::{enum_checkbox, enum_radio, string_checkbox},
     UIComponent,
 };
-use crate::{simulator::SimulatorConfig, utils::enum_tools::ToVec};
+#[cfg(feature = "gui")]
+use crate::simulator::SimulatorConfig;
 
 static INTERNAL_LOG_LEVEL: RwLock<Vec<InternalLog>> = RwLock::new(Vec::new());
 
@@ -101,11 +101,11 @@ impl UIComponent for LoggerConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
-        unique_id: &String,
+        _current_node_name: Option<&String>,
+        _unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Logger").show(ui, |ui| {
             ui.vertical(|ui| {

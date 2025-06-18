@@ -1,5 +1,4 @@
-use simba::simulator::{Simulator, SimulatorConfig};
-use simba::time_analysis::TimeAnalysisConfig;
+use simba::simulator::Simulator;
 use std::path::Path;
 
 fn main() {

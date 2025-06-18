@@ -4,10 +4,9 @@ the configuration struct [`NetworkConfig`].
 */
 
 extern crate confy;
-use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{mpsc, Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use config_checker::macros::Check;
 use log::debug;
@@ -25,7 +24,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
 use super::message_handler::MessageHandler;
-use super::network_manager::{MessageSendMethod, NetworkManager, NetworkMessage};
+use super::network_manager::{MessageSendMethod, NetworkMessage};
 
 /// Configuration for the [`Network`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -54,11 +53,11 @@ impl UIComponent for NetworkConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
-        unique_id: &String,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        _unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Network").show(ui, |ui| {
             ui.horizontal(|ui| {

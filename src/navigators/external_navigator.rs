@@ -16,7 +16,6 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
-use rand::distributions::uniform::UniformFloat;
 use serde_json::Value;
 
 use crate::controllers::controller::ControllerError;
@@ -24,7 +23,7 @@ use crate::controllers::controller::ControllerError;
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::{State, WorldState};
+use crate::state_estimators::state_estimator::WorldState;
 use crate::stateful::Stateful;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -65,10 +64,10 @@ impl UIComponent for ExternalNavigatorConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
+        _ctx: &egui::Context,
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("External Navigator").show(ui, |ui| {

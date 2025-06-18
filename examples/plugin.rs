@@ -33,7 +33,7 @@ struct MyWonderfulControllerConfig {}
 struct MyWonderfulController {}
 
 impl MyWonderfulController {
-    pub fn from_config(config: MyWonderfulControllerConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulControllerConfig) -> Self {
         Self {}
     }
 }
@@ -41,9 +41,9 @@ impl MyWonderfulController {
 impl Controller for MyWonderfulController {
     fn make_command(
         &mut self,
-        robot: &mut simba::node::Node,
-        error: &simba::controllers::controller::ControllerError,
-        time: f32,
+        _robot: &mut simba::node::Node,
+        _error: &simba::controllers::controller::ControllerError,
+        _time: f32,
     ) -> Command {
         Command {
             left_wheel_speed: 0.,
@@ -83,7 +83,7 @@ struct MyWonderfulNavigatorConfig {}
 struct MyWonderfulNavigator {}
 
 impl MyWonderfulNavigator {
-    pub fn from_config(config: MyWonderfulNavigatorConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulNavigatorConfig) -> Self {
         Self {}
     }
 }
@@ -91,8 +91,8 @@ impl MyWonderfulNavigator {
 impl Navigator for MyWonderfulNavigator {
     fn compute_error(
         &mut self,
-        robot: &mut simba::node::Node,
-        state: WorldState,
+        _robot: &mut simba::node::Node,
+        _state: WorldState,
     ) -> ControllerError {
         ControllerError {
             lateral: 0.,
@@ -135,7 +135,7 @@ struct MyWonderfulPhysics {
 }
 
 impl MyWonderfulPhysics {
-    pub fn from_config(config: MyWonderfulPhysicsConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulPhysicsConfig) -> Self {
         Self {
             state: State {
                 pose: Vector3::zeros(),
@@ -146,20 +146,20 @@ impl MyWonderfulPhysics {
 }
 
 impl Physics for MyWonderfulPhysics {
-    fn apply_command(&mut self, command: &Command, time: f32) {}
+    fn apply_command(&mut self, _command: &Command, _time: f32) {}
 
-    fn state(&self, time: f32) -> &State {
+    fn state(&self, _time: f32) -> &State {
         &self.state
     }
 
-    fn update_state(&mut self, time: f32) {}
+    fn update_state(&mut self, _time: f32) {}
 }
 
 impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
     fn handle_service_requests(
         &mut self,
-        req: GetRealStateReq,
-        time: f32,
+        _req: GetRealStateReq,
+        _time: f32,
     ) -> Result<GetRealStateResp, String> {
         Err(String::new())
     }
@@ -200,7 +200,7 @@ struct MyWonderfulStateEstimator {
 }
 
 impl MyWonderfulStateEstimator {
-    pub fn from_config(config: MyWonderfulStateEstimatorConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulStateEstimatorConfig) -> Self {
         Self {
             last_prediction: 0.,
         }
@@ -208,15 +208,15 @@ impl MyWonderfulStateEstimator {
 }
 
 impl StateEstimator for MyWonderfulStateEstimator {
-    fn prediction_step(&mut self, robot: &mut simba::node::Node, time: f32) {
+    fn prediction_step(&mut self, _robot: &mut simba::node::Node, time: f32) {
         self.last_prediction = time;
     }
 
     fn correction_step(
         &mut self,
-        robot: &mut simba::node::Node,
-        observations: &Vec<simba::sensors::sensor::Observation>,
-        time: f32,
+        _robot: &mut simba::node::Node,
+        _observations: &Vec<simba::sensors::sensor::Observation>,
+        _time: f32,
     ) {
     }
 
@@ -262,16 +262,16 @@ struct MyMessage {}
 impl MessageHandler for MyWonderfulMessageHandler {
     fn handle_message(
         &mut self,
-        robot: &mut simba::node::Node,
-        from: &String,
+        _robot: &mut simba::node::Node,
+        _from: &String,
         message: &serde_json::Value,
-        time: f32,
+        _time: f32,
     ) -> Result<(), ()> {
         
         match serde_json::from_value::<MyMessage>(message.clone()) {
-            Err(e) => Err(()),
+            Err(_) => Err(()),
             Ok(m) => {
-                println!("Receive message {}", message);
+                println!("Receive message {:?}", &m);
                 Ok(())
             }
         }

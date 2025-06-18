@@ -25,7 +25,7 @@ use na::Vector3;
 
 use std::fmt;
 use std::path::Path;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 /// Configuration of the [`OrientedLandmarkSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]

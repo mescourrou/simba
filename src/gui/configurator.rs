@@ -27,7 +27,7 @@ impl Configurator {
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) -> bool {
+    pub fn show(&mut self, _ui: &mut egui::Ui, ctx: &egui::Context) -> bool {
         let mut closing = false;
         egui::Window::new("Configurator").show(ctx, |ui| {
             if ui.button("Close").clicked() {

@@ -103,21 +103,24 @@ pub enum PhysicsRecord {
 impl PhysicsRecord {
     pub fn pose(&self) -> [f32; 3] {
         match self {
-            Self::External(p) => [0., 0., 0.],
+            Self::External(_) => [0., 0., 0.], // TODO: Find a way to get info from external record
             Self::Perfect(p) => p.state.pose.into(),
         }
     }
 }
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::{
+    gui::{utils::string_combobox, UIComponent},
+    utils::enum_tools::ToVec,
+};
 use crate::{
     networking::service::HasService,
     plugin_api::PluginAPI,
     simulator::SimulatorConfig,
     state_estimators::state_estimator::State,
     stateful::Stateful,
-    utils::{determinist_random_variable::DeterministRandomVariableFactory, enum_tools::ToVec},
+    utils::{determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 // Services

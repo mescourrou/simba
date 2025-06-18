@@ -2,7 +2,7 @@
 Provides a [`Sensor`] which can provide linear velocity and angular velocity.
 */
 
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 use super::fault_models::fault_model::{
     make_fault_model_from_config, FaultModel, FaultModelConfig,

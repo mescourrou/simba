@@ -1,30 +1,25 @@
 use std::{
-    cell::RefCell,
     collections::BTreeMap,
-    ops::Range,
     sync::{Arc, Mutex},
     time::{self, Duration},
 };
 
 use egui::{
-    accesskit::Node, epaint, Align2, Color32, Id, Painter, Rect, Response, Sense, Stroke, Vec2,
-    Window,
+    Align2, Color32, Id, Painter, Rect, Response, Sense, Vec2,
 };
 use serde::{Deserialize, Serialize};
 
 use crate::{
     api::async_api::{AsyncApi, AsyncApiRunner},
     errors::SimbaError,
-    node,
     node_factory::NodeRecord,
     plugin_api::PluginAPI,
     simulator::{Record, SimulatorConfig},
-    utils::time_ordered_data::TimeOrderedData,
 };
 
 use super::{
     configurator::Configurator,
-    drawables::{self, robot},
+    drawables::{self},
 };
 
 struct PrivateParams {

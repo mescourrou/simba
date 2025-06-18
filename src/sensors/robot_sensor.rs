@@ -10,10 +10,6 @@ use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
-use crate::networking::network::MessageFlag;
-use crate::networking::service::ServiceClient;
-use crate::networking::service_manager;
-use crate::physics::physics::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::simulator::SimulatorConfig;
@@ -28,9 +24,8 @@ use log::debug;
 extern crate nalgebra as na;
 use na::Vector3;
 
-use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 /// Configuration of the [`RobotSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]

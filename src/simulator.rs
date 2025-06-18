@@ -40,21 +40,21 @@ use crate::gui::{
 };
 #[cfg(feature = "gui")]
 use crate::utils::determinist_random_variable::seed_generation_component;
-use crate::{errors::SimbaErrorTypes, utils::enum_tools::ToVec};
+use crate::errors::SimbaErrorTypes;
 use config_checker::macros::Check;
 use config_checker::ConfigCheckable;
 #[cfg(feature = "gui")]
-use egui::{CollapsingHeader, Color32};
+use egui::CollapsingHeader;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
+#[cfg(feature = "gui")]
 use simba_macros::ToVec;
 
 use crate::api::internal_api::NodeClient;
 use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaResult};
-use crate::logger::{init_log, is_enabled, LogLevel, LoggerConfig};
+use crate::logger::{init_log, is_enabled, LoggerConfig};
 use crate::networking::network_manager::NetworkManager;
-use crate::networking::service_manager::ServiceManager;
 use crate::node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig};
 use crate::plugin_api::PluginAPI;
 use crate::state_estimators::state_estimator::State;
@@ -65,9 +65,8 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::node::Node;
 use crate::utils::time_ordered_data::TimeOrderedData;
 use core::f32;
-use std::collections::{BTreeMap, LinkedList};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
 
 use colored::Colorize;
 use serde_json::{self, Value};
@@ -75,9 +74,9 @@ use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::sync::{mpsc, Arc, Barrier, Condvar, Mutex, RwLock};
-use std::thread::{self, sleep, ThreadId};
+use std::thread::{self, ThreadId};
 
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 
 use crate::utils::format_option_f32;
 use pyo3::prepare_freethreaded_python;
@@ -118,10 +117,10 @@ impl UIComponent for ResultConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
+        _ctx: &egui::Context,
         buffer_stack: &mut BTreeMap<String, String>,
         global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
+        _current_node_name: Option<&String>,
         unique_id: &String,
     ) {
         let python_param_key = format!("result-config-python-params-{}", unique_id);
@@ -386,23 +385,15 @@ static THREAD_TIMES: RwLock<Vec<f32>> = RwLock::new(Vec::new());
 static EXCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static INCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
-pub struct LogLine {
-    pub from: String,
-    pub level: LogLevel,
-    pub message: String,
-}
-
 pub struct SimulatorAsyncApi {
     pub current_time: Arc<Mutex<BTreeMap<String, f32>>>,
     pub records: Arc<Mutex<mpsc::Receiver<Record>>>,
-    pub logs: Arc<Mutex<mpsc::Receiver<LogLine>>>,
 }
 
 #[derive(Clone)]
 struct SimulatorAsyncApiServer {
     pub current_time: Arc<Mutex<BTreeMap<String, f32>>>,
     pub records: mpsc::Sender<Record>,
-    pub logs: mpsc::Sender<LogLine>,
 }
 
 #[derive(Debug)]
@@ -896,7 +887,7 @@ impl Simulator {
         if let Err(e) = serde_json::to_writer(&recording_file, &self.config) {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
-                format!("Error during json serialization of config"),
+                format!("Error during json serialization of config: {e}"),
             ));
         }
         recording_file.write(b",\n\"records\": [\n").unwrap();
@@ -928,9 +919,9 @@ impl Simulator {
         Ok(())
     }
 
-    pub fn load_results_and_analyse(&mut self) {
+    pub fn load_results_and_analyse(&mut self) -> SimbaResult<()> {
         if self.config.results.is_none() {
-            return;
+            return Ok(());
         }
         let result_config = self.config.results.clone().unwrap();
         let filename = result_config.result_path;
@@ -943,7 +934,7 @@ impl Simulator {
 
         let results: Results = serde_json::from_str(&content).expect("Error during json parsing");
 
-        self._compute_results(results.records, &results.config);
+        self._compute_results(results.records, &results.config)
     }
 
     /// Wait the end of the simulation. If other node send messages, the simulation
@@ -1000,7 +991,7 @@ impl Simulator {
         mut node: Node,
         max_time: f32,
         nb_nodes: usize,
-        node_idx: usize,
+        _node_idx: usize,
         time_cv: Arc<TimeCv>,
         async_api_server: Option<SimulatorAsyncApiServer>,
         common_time: Option<Arc<Mutex<f32>>>,
@@ -1020,7 +1011,7 @@ impl Simulator {
             if *time_cv.force_finish.lock().unwrap() {
                 break;
             }
-            let (mut next_time, mut read_only) = node.next_time_step()?;
+            let mut next_time  = node.next_time_step()?.0;
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Got next_time: {next_time}");
             }
@@ -1058,7 +1049,7 @@ impl Simulator {
                     if buffered_msgs > 0 {
                         *lk -= 1;
                         node.handle_messages(previous_time);
-                        (next_time, read_only) = node.next_time_step()?;
+                        next_time = node.next_time_step()?.0;
                         {
                             let mut unlocked_common_time = common_time_arc.lock().unwrap();
                             if *unlocked_common_time > next_time {
@@ -1296,16 +1287,13 @@ def convert(records):
         if self.async_api_server.is_none() {
             let map = Arc::new(Mutex::new(BTreeMap::new()));
             let (records_tx, records_rx) = mpsc::channel();
-            let (logs_tx, logs_rx) = mpsc::channel();
             self.async_api_server = Some(SimulatorAsyncApiServer {
                 current_time: Arc::clone(&map),
                 records: records_tx,
-                logs: logs_tx,
             });
             self.async_api = Some(Arc::new(SimulatorAsyncApi {
                 current_time: Arc::clone(&map),
                 records: Arc::new(Mutex::new(records_rx)),
-                logs: Arc::new(Mutex::new(logs_rx)),
             }));
         }
         self.async_api.as_ref().unwrap().clone()

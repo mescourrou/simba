@@ -1,11 +1,10 @@
 extern crate proc_macro;
 
-use std::str::FromStr;
 
 use proc_macro::TokenStream;
-use proc_macro2::{Group, TokenStream as TokenStream2, TokenTree};
+use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
-use syn::{Data, Field, Fields, Ident};
+use syn::Data;
 
 #[proc_macro_derive(ToVec)]
 pub fn derive_tovec(item: TokenStream) -> TokenStream {

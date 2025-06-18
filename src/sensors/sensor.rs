@@ -3,7 +3,6 @@ Provides the [`Sensor`] trait, which is the interface for all the sensors.
 */
 
 extern crate confy;
-use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
@@ -17,6 +16,15 @@ use super::{
     },
     robot_sensor::{self, OrientedRobotObservation, OrientedRobotObservationRecord},
 };
+
+
+#[cfg(feature = "gui")]
+use crate::{
+    gui::{utils::string_combobox, UIComponent},
+    utils::enum_tools::ToVec,
+    simulator::SimulatorConfig,
+};
+use crate::{node::Node, stateful::Stateful, };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {
@@ -220,10 +228,6 @@ pub enum SensorRecord {
     GNSSSensor(gnss_sensor::GNSSSensorRecord),
     RobotSensor(robot_sensor::RobotSensorRecord),
 }
-
-#[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
-use crate::{node::Node, simulator::SimulatorConfig, stateful::Stateful, utils::enum_tools::ToVec};
 
 /// Sensor trait which need to be implemented by each sensors.
 pub trait Sensor:

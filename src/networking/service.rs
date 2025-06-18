@@ -15,13 +15,13 @@ use core::f32;
 use std::{
     collections::BTreeMap,
     fmt::Debug,
-    sync::{mpsc, Arc, Condvar, Mutex, RwLock},
+    sync::{mpsc, Arc, Mutex, RwLock},
 };
 
 use log::debug;
 
 use crate::{
-    logger::is_enabled, node::Node, simulator::TimeCv, utils::time_ordered_data::TimeOrderedData,
+    logger::is_enabled, simulator::TimeCv, utils::time_ordered_data::TimeOrderedData,
 };
 
 use super::network::MessageFlag;

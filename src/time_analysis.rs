@@ -4,21 +4,19 @@ use lazy_static::lazy_static;
 #[cfg(feature = "time-analysis")]
 use libm::ceilf;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "gui")]
 use simba_macros::ToVec;
 
 #[cfg(feature = "time-analysis")]
-use std::thread::ThreadId;
-#[cfg(feature = "time-analysis")]
-use std::{collections::HashMap, sync::Mutex};
+use std::{thread::ThreadId, collections::HashMap, sync::Mutex, path::Path, time::Duration};
 
 #[cfg(feature = "time-analysis")]
 use log::info;
+#[cfg(any(feature = "time-analysis", feature = "gui"))]
 use std::collections::BTreeMap;
 #[cfg(feature = "time-analysis")]
 use std::thread;
 use std::time;
-#[cfg(feature = "time-analysis")]
-use std::{path::Path, time::Duration};
 
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
@@ -67,11 +65,11 @@ impl UIComponent for TimeAnalysisConfig {
     fn show(
         &mut self,
         ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        buffer_stack: &mut BTreeMap<String, String>,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
-        current_node_name: Option<&String>,
-        unique_id: &String,
+        _current_node_name: Option<&String>,
+        _unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Time Analysis").show(ui, |ui| {
             ui.horizontal(|ui| {

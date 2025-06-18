@@ -1,17 +1,13 @@
 use std::{
-    collections::BTreeMap,
     path::Path,
-    sync::{Mutex, RwLock},
+    sync::Mutex,
 };
 
-use egui::{Color32, Painter, Pos2, Rect, Response, Stroke, Vec2};
+use egui::{Color32, Painter, Rect, Response, Stroke, Vec2};
 
 use crate::{
-    node_factory::{RobotConfig, RobotRecord},
-    physics::physics::PhysicsConfig,
     sensors::oriented_landmark_sensor::{OrientedLandmark, OrientedLandmarkSensor},
     simulator::SimulatorConfig,
-    utils::time_ordered_data::TimeOrderedData,
 };
 
 static LOADED_MAPS: Mutex<Vec<(String, Vec<OrientedLandmark>)>> = Mutex::new(Vec::new());
@@ -47,8 +43,8 @@ impl Map {
 
     pub fn draw(
         &self,
-        ui: &mut egui::Ui,
-        viewport: &Rect,
+        _ui: &mut egui::Ui,
+        _viewport: &Rect,
         response: &Response,
         painter: &Painter,
         scale: f32,

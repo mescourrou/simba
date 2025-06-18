@@ -3,10 +3,13 @@ Module defining the [Controller]
 */
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::{
+    gui::{utils::string_combobox, UIComponent},
+    utils::enum_tools::ToVec,
+};
 use crate::{
     stateful::Stateful,
-    utils::{determinist_random_variable::DeterministRandomVariableFactory, enum_tools::ToVec},
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use std::sync::{Arc, RwLock};
 

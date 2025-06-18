@@ -11,7 +11,6 @@ use crate::{
     controllers::external_controller::ExternalControllerRecord,
     logger::is_enabled,
     node::Node,
-    node_factory::NodeRecord,
     physics::physics::Command,
     pywrappers::{CommandWrapper, ControllerErrorWrapper},
     stateful::Stateful,

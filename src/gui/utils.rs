@@ -96,7 +96,7 @@ where
     }
 }
 
-pub fn path_finder(ui: &mut egui::Ui, path: &mut String, base: &Path) {
+pub fn path_finder(ui: &mut egui::Ui, path: &mut String, _base: &Path) {
     ui.text_edit_singleline(path);
 }
 
@@ -146,4 +146,4 @@ pub fn text_singleline_with_apply(
     }
 }
 
-pub fn state_widget(ui: &mut egui::Ui) {}
+pub fn state_widget(_ui: &mut egui::Ui) {}

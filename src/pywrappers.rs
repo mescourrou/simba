@@ -5,7 +5,7 @@ use std::{
 
 use log::debug;
 use nalgebra::{SVector, Vector2, Vector3};
-use pyo3::{prelude::*, types::PyDict};
+use pyo3::prelude::*;
 
 use crate::{
     api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
@@ -706,7 +706,7 @@ impl SimulatorWrapper {
                 python_api.check_requests();
             }
         } else {
-            wrapper.api.load_config.wait_result().unwrap();
+            wrapper.api.load_config.wait_result().unwrap().unwrap();
         }
 
         wrapper
@@ -740,6 +740,7 @@ impl SimulatorWrapper {
             .get_simulator()
             .lock()
             .unwrap()
-            .compute_results();
+            .compute_results()
+            .unwrap();
     }
 }

@@ -18,17 +18,17 @@ use crate::gui::{
 };
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
-use crate::node::{self, Node};
+use crate::node::Node;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{simulator::SimulatorConfig, stateful::Stateful};
 
 use super::gnss_sensor::GNSSSensor;
 use super::odometry_sensor::{OdometrySensor, OdometrySensorConfig};
 use super::robot_sensor::RobotSensor;
-use super::sensor::{Observation, ObservationRecord, SensorObservationRecord};
+use super::sensor::{Observation, ObservationRecord};
 use super::{
     oriented_landmark_sensor::OrientedLandmarkSensor,
-    sensor::{Sensor, SensorConfig, SensorObservation, SensorRecord},
+    sensor::{Sensor, SensorConfig, SensorRecord},
 };
 use crate::plugin_api::PluginAPI;
 
@@ -388,7 +388,7 @@ impl Stateful<SensorManagerRecord> for SensorManager {
 impl MessageHandler for SensorManager {
     fn handle_message(
         &mut self,
-        robot: &mut Node,
+        _robot: &mut Node,
         from: &String,
         message: &serde_json::Value,
         time: f32,
