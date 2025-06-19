@@ -5,7 +5,7 @@ To make your own external physic strategy, the simulator should
 be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external physic strategy is made using the
-[`PluginAPI::get_physic`] function.
+[`PluginAPI::get_physics`] function.
 
 For the [`Stateful`] trait, the generic type is [`PhysicsRecord`],
 and your implementation should return a [`PhysicsRecord::External`]

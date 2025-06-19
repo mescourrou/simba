@@ -1,5 +1,5 @@
 /*!
-Provide the implementation of the [`Physic`] trait without any noise added to the [`Command`].
+Provide the implementation of the [`Physics`] trait without any noise added to the [`Command`].
 */
 
 #[cfg(feature = "gui")]
@@ -15,7 +15,7 @@ use log::error;
 use nalgebra::SMatrix;
 use serde_derive::{Deserialize, Serialize};
 
-/// Config for the [`PerfectPhysic`].
+/// Config for the [`PerfectPhysics`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
@@ -74,7 +74,7 @@ impl Default for PerfectsPhysicConfig {
     }
 }
 
-/// Record for the [`PerfectPhysic`].
+/// Record for the [`PerfectPhysics`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PerfectPhysicsRecord {
     /// State at the time `last_time_update`
@@ -108,7 +108,7 @@ pub struct PerfectPhysicsRecord {
 //     }
 // }
 
-/// Implementation of [`Physic`] with the command perfectly applied.
+/// Implementation of [`Physics`] with the command perfectly applied.
 #[derive(Debug, Clone)]
 pub struct PerfectPhysics {
     /// Distance between the wheels
@@ -122,7 +122,7 @@ pub struct PerfectPhysics {
 }
 
 impl PerfectPhysics {
-    /// Makes a new [`PerfectPhysic`] situated at (0,0,0) and 25cm between wheels.
+    /// Makes a new [`PerfectPhysics`] situated at (0,0,0) and 25cm between wheels.
     pub fn new() -> Self {
         Self::from_config(
             &PerfectsPhysicConfig::default(),
@@ -132,10 +132,10 @@ impl PerfectPhysics {
         )
     }
 
-    /// Makes a new [`PerfectPhysic`] with the given configurations.
+    /// Makes a new [`PerfectPhysics`] with the given configurations.
     ///
     /// ## Arguments
-    /// * `config` - Configuration of [`PerfectPhysic`].
+    /// * `config` - Configuration of [`PerfectPhysics`].
     /// * `plugin_api` - [`PluginAPI`] not used there.
     /// * `global_config` - Configuration of the simulator.
     pub fn from_config(

@@ -54,8 +54,8 @@ doc:
   script:
     - cargo doc --no-deps --document-private-items
     - scp -i $SSH_KEY -r target/doc/ $DOC_USER@$DOC_HOST:$DOC_PATH/rust
-    - ./generate_config_doc.py
-    - cd odc/user_manual && sh ./make_doc.sh
+    # - ./generate_config_doc.py
+    - cd doc/user_manual && sh ./make_doc.sh
     - scp -i $SSH_KEY -r site/ $DOC_USER@$DOC_HOST:$DOC_PATH/user
 
 tests:

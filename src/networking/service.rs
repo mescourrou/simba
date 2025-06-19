@@ -3,7 +3,7 @@ Provides a service system to handle two-way communication between nodes, with th
 client node beeing blocked until the server node sends a response.
 
 The server node should create a [`Service`] and handle the requests in
-[`run_time_step`](crate::node::Robot::run_time_step). The client node should get a
+[`run_time_step`](crate::node::Node::run_time_step). The client node should get a
 [`ServiceClient`] instance to be able to make a request.
 
 To operate a service, two messages types should be defined:
@@ -55,7 +55,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
     /// method.
     ///
     /// ## Arguments
-    /// * `node` - Reference to the [`Robot`] making the request.
+    /// * `node_name` - Name of the [`Node`](crate::node::Node) making the request.
     /// * `req` - Request message to send to the server.
     /// * `time` - Time at which the request is made.
     ///
@@ -119,7 +119,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
 /// Service to handle requests from clients.
 ///
 /// Handles requests from clients, and send responses to them. The server should handle
-/// the requests in [`run_time_step`](crate::node::Robot::run_time_step).
+/// the requests in [`run_time_step`](crate::node::Node::run_time_step).
 #[derive(Debug)]
 pub struct Service<
     RequestMsg: Debug + Clone,
@@ -187,7 +187,7 @@ impl<
     /// Process the requests received from the clients.
     ///
     /// The requests are added to the buffer, to be treated later by
-    /// [`handle_service_requests`](Service::handle_service_requests).
+    /// [`handle_requests`](Service::handle_requests).
     ///
     /// ## Returns
     /// The number of requests remaining in the buffer.

@@ -65,18 +65,19 @@ List of parameters:
 			- `wheel_distance`: Float
 		- `External`: [ExternalControllerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/controllers/external_controller/struct.ExternalControllerConfig.html)
 			- `config`: User-specific struct
-	- `physics`: [PhysicConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/physics/physic/enum.PhysicConfig.html), Enum
-		- `Perfect`: [PerfectPhysicConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/physics/perfect_physic/struct.PerfectPhysicConfig.html)
+	- `physics`: [PhysicsConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/physics/physics/enum.PhysicsConfig.html), Enum
+		- `Perfect`: [PerfectsPhysicConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/physics/perfect_physics/struct.PerfectsPhysicConfig.html)
 			- `wheel_distance`: Float
 			- `initial_state`: [StateConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/state_estimators/state_estimator/struct.StateConfig.html)
 				- `pose`: Float, List
 				- `velocity`: Float
-		- `External`: [ExternalPhysicConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/physics/external_physic/struct.ExternalPhysicConfig.html)
+		- `External`: [ExternalPhysicsConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/physics/external_physics/struct.ExternalPhysicsConfig.html)
 			- `config`: User-specific struct
 	- `state_estimator`: [StateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/state_estimators/state_estimator/enum.StateEstimatorConfig.html), Enum
 		- `Perfect`: [PerfectEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/state_estimators/perfect_estimator/struct.PerfectEstimatorConfig.html)
 			- `prediction_period`: Float
 			- `targets`: String, List
+			- `map_path`: String, Optional
 		- `External`: [ExternalEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/state_estimators/external_estimator/struct.ExternalEstimatorConfig.html)
 			- `config`: User-specific struct
 	- `sensor_manager`: [SensorManagerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/sensors/sensor_manager/struct.SensorManagerConfig.html)

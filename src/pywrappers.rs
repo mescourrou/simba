@@ -553,8 +553,8 @@ impl PluginAPIWrapper {
     pub fn new() -> Self {
         Self {}
     }
-    /// Return the [`StateEstimator`](`crate::state_estimators::state_estimators::StateEstimator`) to be used by the
-    /// [`ExternalEstimator`](`crate::state_estimators::external_estimator::ExternalEstimator`).
+    /// Return the [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to be used by the
+    /// [`ExternalEstimator`](crate::state_estimators::external_estimator::ExternalEstimator).
     ///
     /// # Arguments
     /// * `config` - Config for the external state estimator. The configuration
@@ -564,7 +564,7 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`StateEstimator`] to use.
+    /// Returns the [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to use.
     pub fn get_state_estimator(
         &self,
         _config: Py<PyAny>,
@@ -573,8 +573,8 @@ impl PluginAPIWrapper {
         panic!("The given PluginAPI does not provide a state estimator");
     }
 
-    /// Return the [`Controller`] to be used by the
-    /// [`ExternalController`](`crate::controllers::external_controller::ExternalController`).
+    /// Return the [`Controller`](crate::controllers::controller::Controller) to be used by the
+    /// [`ExternalController`](crate::controllers::external_controller::ExternalController).
     ///
     /// # Arguments
     /// * `config` - Config for the external controller. The configuration
@@ -584,7 +584,7 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`Controller`] to use.
+    /// Returns the [`Controller`](crate::controllers::controller::Controller) to use.
     pub fn get_controller(
         &self,
         _config: Py<PyAny>,
@@ -593,8 +593,8 @@ impl PluginAPIWrapper {
         panic!("The given PluginAPI does not provide a controller");
     }
 
-    /// Return the [`Navigator`] to be used by the
-    /// [`ExternalNavigator`](`crate::navigators::external_navigator::ExternalNavigator`).
+    /// Return the [`Navigator`](crate::navigators::navigator::Navigator) to be used by the
+    /// [`ExternalNavigator`](crate::navigators::external_navigator::ExternalNavigator).
     ///
     /// # Arguments
     /// * `config` - Config for the external navigator. The configuration
@@ -604,13 +604,13 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`Navigator`] to use.
+    /// Returns the [`Navigator`](crate::navigators::navigator::Navigator) to use.
     pub fn get_navigator(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonNavigator {
         panic!("The given PluginAPI does not provide a navigator");
     }
 
-    /// Return the [`Physics`] to be used by the
-    /// [`ExternalPhysics`](`crate::physcs::external_physics::ExternalPhysics`).
+    /// Return the [`Physics`](crate::physics::physics::Physics) to be used by the
+    /// [`ExternalPhysics`](crate::physics::external_physics::ExternalPhysics).
     ///
     /// # Arguments
     /// * `config` - Config for the external physics. The configuration
@@ -620,7 +620,7 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`Physics`] to use.
+    /// Returns the [`Physics`](crate::physics::physics::Physics) to use.
     pub fn get_physics(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonPhysics {
         panic!("The given PluginAPI does not provide physics");
     }
@@ -830,7 +830,7 @@ pub fn run_gui(py: Python, plugin_api: Option<Py<PyAny>>) {
 
 #[cfg(not(feature = "gui"))]
 #[pyfunction]
-#[pyo3(signature = (plugin_api=None))]
+#[pyo3(signature = (_plugin_api=None))]
 pub fn run_gui(_py: Python, _plugin_api: Option<Py<PyAny>>) {
     unimplemented!("run_gui not available. Compile python package with 'gui' feature");
 }

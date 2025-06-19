@@ -1,5 +1,5 @@
 /*!
-Provide the Manager of the nodes [`Network`]s. Only one should exist for one
+Provide the Manager of the nodes [`Network`](crate::networking::network::Network)s. Only one should exist for one
 [`Simulator`](crate::simulator::Simulator).
 */
 
@@ -35,7 +35,7 @@ pub struct NetworkMessage {
     pub message_flags: Vec<MessageFlag>,
 }
 
-/// Manages the [`Network`]s, making the link between them, and keep a list.
+/// Manages the [`Network`](crate::networking::network::Network)s, making the link between them, and keep a list.
 #[derive(Debug)]
 pub struct NetworkManager {
     nodes_senders: BTreeMap<String, Sender<NetworkMessage>>,
@@ -52,11 +52,10 @@ impl NetworkManager {
         }
     }
 
-    /// Add a new [`Network`] node to the network. It creates the links to each existing network.
+    /// Add a new [`Network`](crate::networking::network::Network) node to the network. It creates the links to each existing network.
     ///
     /// ## Argument
     /// * `node` - Reference to the [`Node`].
-    /// * `network` - [`Network`] to add.
     pub fn register_node_network(&mut self, node: &mut Node) {
         if let Some(network) = node.network() {
             let node_name = node.name();

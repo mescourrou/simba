@@ -179,27 +179,27 @@ impl NodeRecord {
 pub struct RobotConfig {
     /// Name of the robot.
     pub name: String,
-    /// [`Navigator`] to use, and its configuration.
+    /// [`Navigator`](crate::navigators::navigator::Navigator) to use, and its configuration.
     #[check]
     pub navigator: NavigatorConfig,
-    /// [`Controller`] to use, and its configuration.
+    /// [`Controller`](crate::controllers::controller::Controller) to use, and its configuration.
     #[check]
     pub controller: ControllerConfig,
-    /// [`Physics`] to use, and its configuration.
+    /// [`Physics`](crate::physics::physics::Physics) to use, and its configuration.
     #[check]
     pub physics: PhysicsConfig,
-    /// [`StateEstimator`] to use, and its configuration.
+    /// [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to use, and its configuration.
     #[check]
     pub state_estimator: StateEstimatorConfig,
-    /// [`SensorManager`] configuration, which defines the [`Sensor`]s used.
+    /// [`SensorManager`] configuration, which defines the [`Sensor`](crate::sensors::sensor::Sensor)s used.
     #[check]
     pub sensor_manager: SensorManagerConfig,
     /// [`Network`] configuration.
     #[check]
     pub network: NetworkConfig,
 
-    /// Additional [`StateEstimator`] to be evaluated but without a feedback
-    /// loop with the [`Navigator`]
+    /// Additional [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to be evaluated but without a feedback
+    /// loop with the [`Navigator`](crate::navigators::navigator::Navigator)
     #[check]
     pub state_estimator_bench: Vec<BenchStateEstimatorConfig>,
 }
@@ -208,7 +208,7 @@ impl Default for RobotConfig {
     /// Default configuration, using:
     /// * Default [`TrajectoryFollower`](trajectory_follower::TrajectoryFollower) navigator.
     /// * Default [`PID`](pid::PID) controller.
-    /// * Default [`PerfectPhysic`](perfect_physic::PerfectPhysic) physics.
+    /// * Default [`PerfectPhysics`](perfect_physics::PerfectPhysics) physics.
     /// * Default [`PerfectEstimator`](perfect_estimator::PerfectEstimator) state estimator.
     /// * Default [`SensorManager`] config (no sensors).
     /// * Default [`Network`] config.
@@ -339,15 +339,15 @@ impl UIComponent for RobotConfig {
 pub struct RobotRecord {
     /// Name of the robot.
     pub name: String,
-    /// Record of the [`Navigator`] module.
+    /// Record of the [`Navigator`](crate::navigators::navigator::Navigator) module.
     pub navigator: NavigatorRecord,
-    /// Record of the [`Controller`] module.
+    /// Record of the [`Controller`](crate::controllers::controller::Controller) module.
     pub controller: ControllerRecord,
-    /// Record of the [`Physics`] module.
+    /// Record of the [`Physics`](crate::physics::physics::Physics) module.
     pub physics: PhysicsRecord,
-    /// Record of the [`StateEstimator`] module.
+    /// Record of the [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) module.
     pub state_estimator: StateEstimatorRecord,
-    /// Record of the additionnal [`StateEstimator`]s, only to evaluate them.
+    /// Record of the additionnal [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator)s, only to evaluate them.
     pub state_estimator_bench: Vec<BenchStateEstimatorRecord>,
 
     pub sensors: SensorManagerRecord,
@@ -368,7 +368,7 @@ pub struct ComputationUnitConfig {
     #[check]
     pub network: NetworkConfig,
 
-    /// [`StateEstimator`]s
+    /// [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator)s
     #[check]
     pub state_estimators: Vec<BenchStateEstimatorConfig>,
 }

@@ -244,7 +244,7 @@ pub trait Sensor:
     /// * `time` - Time at which the observations are taken.
     ///
     /// ## Return
-    /// List of [`GenericObservation`]s, could be empty if no [`Sensor`] provided observation
+    /// List of [`SensorObservation`]s, could be empty if no [`Sensor`] provided observation
     /// at this `time`.
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation>;
 

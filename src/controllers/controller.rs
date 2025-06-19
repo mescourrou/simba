@@ -116,7 +116,7 @@ pub enum ControllerRecord {
 use crate::node::Node;
 
 /// Controller strategy, which compute the [`Command`] to be sent to the
-/// [`Physic`](crate::physics::physic::Physic) module, from the given `error`.
+/// [`Physics`](crate::physics::physics::Physics) module, from the given `error`.
 pub trait Controller:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<ControllerRecord>
 {
@@ -128,7 +128,7 @@ pub trait Controller:
     /// * `time` - Current time.
     ///
     /// ## Return
-    /// Command to apply to the [`Physic`](crate::physics::physic::Physic).
+    /// Command to apply to the [`Physics`](crate::physics::physics::Physics).
     fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command;
 }
 

@@ -1,7 +1,7 @@
 /*!
 Module which provides communication tools between nodes.
 
-Each [`Robot`](crate::node::Robot) includes a [`Network`](network::Network).
+Each [`Node`](crate::node::Node) includes a [`Network`](network::Network).
 The [`NetworkManager`](network_manager::NetworkManager) makes the link between the
 [`Network`](network::Network)s and is owned by the [`Simulator`](crate::simulator::Simulator).
 
@@ -13,7 +13,7 @@ There are two main ways to communicate between nodes.
 receiver [`Network`](network::Network) and is stored in a time ordered buffer. The receiver
 unwraps the message when it reaches the time of the message. If the message is sent in the
 past, the receiver will go back in time to unwrap the message. The message treatment is done
-in [`run_time_step`](crate::node::Robot::run_time_step), at the end. The message is
+in [`run_time_step`](crate::node::Node::run_time_step), at the end. The message is
 then passed from one [`MessageHandler`](message_handler::MessageHandler) to the next until
 one of them handles the message.
 
@@ -22,7 +22,7 @@ This is done using the [`Service`](service::Service) and [`ServiceClient`](servi
 The server node proposes a service, and then a client node need to get a
 [`ServiceClient`](service::ServiceClient) instance to be able to make a request. The client
 sends a request to the server, and is blocked until the server sends a response. The server
-node should handle the requests in [`run_time_step`](crate::node::Robot::run_time_step).
+node should handle the requests in [`run_time_step`](crate::node::Node::run_time_step).
 */
 
 pub mod message_handler;

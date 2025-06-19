@@ -1,6 +1,5 @@
 /*!
-Module providing the main node manager, [`Node`], along with the configuration
-[`NodeConfig`] and the record [`NodeRecord`] structures.
+Module providing the main node manager, [`Node`]. The building of the Nodes is done by [`NodeFactory`](crate::node_factory::NodeFactory).
 */
 
 use core::f32;
@@ -47,7 +46,7 @@ use crate::time_analysis;
 /// * `state_estimator` is of [`StateEstimator`] trait. It estimates the node
 /// state, and send it to the [`Navigator`].
 ///
-/// * `sensor_manager`, of type [`SensorManager`], manages the [`Sensor`]s. The
+/// * `sensor_manager`, of type [`SensorManager`], manages the [`Sensor`](crate::sensors::sensor::Sensor)s. The
 /// observations of the sensors are sent to the [`StateEstimator`].
 /// * `network` is the node [`Network`] interface. It manages the reception and
 /// the send of messages to other nodes.
@@ -70,7 +69,7 @@ pub struct Node {
     pub(crate) physics: Option<Arc<RwLock<Box<dyn Physics>>>>,
     /// [`StateEstimator`] module, implementing the state estimation strategy.
     pub(crate) state_estimator: Option<Arc<RwLock<Box<dyn StateEstimator>>>>,
-    /// Manages all the [`Sensor`]s and send the observations to `state_estimator`.
+    /// Manages all the [`Sensor`](crate::sensors::sensor::Sensor)s and send the observations to `state_estimator`.
     pub(crate) sensor_manager: Option<Arc<RwLock<SensorManager>>>,
     /// [`Network`] interface to receive and send messages with other nodes.
     pub(crate) network: Option<Arc<RwLock<Network>>>,
@@ -425,7 +424,7 @@ impl Node {
 
     /// Set the node in the state just before `time` (but different).
     ///
-    /// It should be called for the minimal time before using [`Node::save_state`].
+    /// It should be called for the minimal time before using private method `save_state`.
     pub fn set_in_state(&mut self, time: f32) {
         let state_at_time = self.state_history.get_data_before_time(time);
         if state_at_time.is_none() {

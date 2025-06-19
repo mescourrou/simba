@@ -182,13 +182,17 @@ pub enum TimeMode {
 /// Scenario configuration for the simulator.
 /// The Simulator configuration is the root of the scenario configuration.
 ///
-/// This config contains an item, `nodes`, which list the nodes [`NodeConfig`].
+/// This config contains an item, `robots`, which list the robot nodes [`RobotConfig`]
+/// and a list of `computation_units`: [`ComputationUnitConfig`].
 ///
 /// ## Example in yaml:
 /// ```ignore
-/// nodes:
-///     - NodeConfig 1
-///     - NodeConfig 2
+/// robots:
+///     - RobotConfig 1
+///     - RobotConfig 2
+/// computation_units:
+///     - ComputationUnitConfig 1
+///     - ComputationUnitConfig 2
 /// ```
 ///
 ///
@@ -419,15 +423,15 @@ impl TimeCv {
 ///
 /// To run the scenario, there are two mandatory steps:
 /// * Load the config using [`Simulator::from_config_path`] (from a file), or using
-/// [`Simulator::from_config`] with the [`SimulatorConfig`] and [`SimulatorMetaConfig`]
-/// structs directly.
+/// [`Simulator::from_config`] with the [`SimulatorConfig`] structs directly.
 /// * Run the scenario, once the config is loaded, the scenario can be run using
 /// [`Simulator::run`].
 ///
 /// Optionnal steps are the following:
 /// * Initialize the environment with [`Simulator::init_environment`]. It initialize the logging environment.
 /// * Use [`Simulator::show`] to print in the console the configuration loaded.
-/// * Get the results with [`Simulator::get_results`], providing the full list of all [`Record`]s.
+/// * Compute the results with [`Simulator::compute_results`].
+/// * Get the records with [`Simulator::get_records`], providing the full list of all [`Record`]s.
 ///
 /// ## Example
 /// ```no_run
@@ -497,7 +501,7 @@ impl Simulator {
     /// Load the config from a file compatible with [`confy`]. Initialize the [`Simulator`].
     ///
     /// ## Arguments
-    /// * `config_path` - `Path` to the config file (see example in [`config_example/config.yaml`]).
+    /// * `config_path` - `Path` to the config file (see example in `config_example/config.yaml`).
     /// * `plugin_api`  - Provide an implementation of [`PluginAPI`] if you want to use external modules.
     /// * `result_path` - Path to the file to save the results.
     /// * `compute_results` - Enable the computation of the results, using python script.
@@ -519,7 +523,6 @@ impl Simulator {
     /// ## Arguments
     /// * `config` - Scenario configuration ([`SimulatorConfig`]).
     /// * `plugin_api`  - Provide an implementation of [`PluginAPI`] if you want to use external modules.
-    /// * `meta_config` - Simulator run configuration ([`SimulatorMetaConfig`]).
     ///
     /// ## Return
     /// Returns a [`Simulator`] ready to be run.
@@ -718,15 +721,15 @@ impl Simulator {
         Ok(())
     }
 
-    /// Add a [`Node`] of type [`Robot`](NodeType::Robot) to the [`Simulator`].
+    /// Add a [`Node`] of type [`Robot`](crate::node_factory::NodeType::Robot) to the [`Simulator`].
     ///
     /// This function add the [`Node`] to the [`Simulator`] list and to the [`NetworkManager`].
     /// It also adds the [`NetworkManager`] to the new [`Node`].
     ///
     /// ## Argumants
-    /// * `robot_config` - Configuration of the [`Node`].
+    /// * `robot_config` - Configuration of the [`Robot`](crate::node_factory::NodeType::Robot).
     /// * `plugin_api` - Implementation of [`PluginAPI`] for the use of external modules.
-    /// * `meta_config` - Configuration of the simulation run.
+    /// * `global_config` - Full configuration of the simulation.
     fn add_robot(
         &mut self,
         robot_config: &RobotConfig,
@@ -780,7 +783,7 @@ impl Simulator {
     /// This function starts one thread by [`Node`]. It waits that the thread finishes.
     ///
     /// After the scenario is done, the results are saved, and they are analysed, following
-    /// the configuration give ([`SimulatorMetaConfig`]).
+    /// the configuration give ([`SimulatorConfig`]).
     pub fn run(&mut self) -> SimbaResult<()> {
         let mut handles = vec![];
         let max_time = self.config.max_time;
@@ -839,7 +842,7 @@ impl Simulator {
     }
 
     /// Returns the list of all [`Record`]s produced by [`Simulator::run`].
-    pub fn get_results(&self) -> Vec<Record> {
+    pub fn get_records(&self) -> Vec<Record> {
         let mut records = Vec::new();
         for node in self.nodes.iter() {
             let node_history = node.record_history();
@@ -892,7 +895,7 @@ impl Simulator {
         }
         recording_file.write(b",\n\"records\": [\n").unwrap();
 
-        let results = self.get_results();
+        let results = self.get_records();
 
         let mut first_row = true;
         for row in &results {
@@ -1157,7 +1160,7 @@ impl Simulator {
     }
 
     pub fn compute_results(&self) -> SimbaResult<()> {
-        let results = self.get_results();
+        let results = self.get_records();
         self._compute_results(results, &self.config)
     }
 
@@ -1319,7 +1322,7 @@ mod tests {
 
             simulator.run().unwrap();
 
-            results.push(simulator.get_results());
+            results.push(simulator.get_records());
             println!("OK");
         }
 

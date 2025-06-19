@@ -91,10 +91,10 @@ pub enum MessageFlag {
     ReadOnly,
 }
 
-/// Network interface for [`Robot`].
+/// Network interface for [`Node`].
 ///
-/// Each [`Robot`] should have a [`Network`] instance. Through this interface,
-/// the robots can send messages to other robots using pair-to-pair communication,
+/// Each [`Node`] should have a [`Network`] instance. Through this interface,
+/// the nodes can send messages to other nodes using pair-to-pair communication,
 /// or broadcast diffusion.
 pub struct Network {
     /// Name of the robot (will be in the 'from' field of the sent messages).

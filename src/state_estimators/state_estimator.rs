@@ -403,13 +403,13 @@ pub trait StateEstimator:
 {
     /// Prediction step of the state estimator.
     ///
-    /// The prediction step should be able to compute the state of the robot at the given time.
+    /// The prediction step should be able to compute the state of the node at the given time.
     ///
     /// ## Arguments
-    /// * `robot` -- mutable reference on the current [`Robot`] to be able to interact with
+    /// * `node` -- mutable reference on the current [`Node`] to be able to interact with
     /// other modules.
     /// * `time` -- Time to reach.
-    fn prediction_step(&mut self, robot: &mut Node, time: f32);
+    fn prediction_step(&mut self, node: &mut Node, time: f32);
 
     /// Correction step of the state estimator.
     ///
@@ -417,7 +417,7 @@ pub trait StateEstimator:
     /// types, the implementation should not assert a specific type.
     ///
     /// ## Arguments
-    /// * `robot` -- mutable reference on the current [`Robot`] to be able to interact with
+    /// * `node` -- mutable reference on the current [`Node`] to be able to interact with
     /// other modules.
     /// * `observations` -- Observation vector.
     /// * `time` -- Current time.

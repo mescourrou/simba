@@ -13,7 +13,7 @@ pub trait MessageHandler: std::marker::Send + std::marker::Sync + Debug {
     /// Handle the given `message` or not.
     ///
     /// ## Arguments
-    /// * `robot` - Reference to the [`Robot`], to access the modules.
+    /// * `node` - Reference to the [`Node`], to access the modules.
     /// * `from` - Emitter of the message.
     /// * `message` - Serialized message using [`serde_json::Value`]/
     /// * `time` - Time of the message.
@@ -23,7 +23,7 @@ pub trait MessageHandler: std::marker::Send + std::marker::Sync + Debug {
     /// * `Err` - The message was not handled and should be sent to the next handler.
     fn handle_message(
         &mut self,
-        robot: &mut Node,
+        node: &mut Node,
         from: &String,
         message: &Value,
         time: f32,

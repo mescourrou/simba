@@ -1,11 +1,12 @@
 /*!
-Multi robot simulator with multi-threading and without ticking time
+Multi robot simulator with multi-threading and without ticking time.
 
 This crate provides a multi-robots simulator where each robot is executed in a separated thread.
 The time is not linear, the simulator jump to the next time step as soon as possible, letting
 the possibility to run faster than time, but also to take more time if needed.
 
-All the simulator execution is based on the configuration file given. The configuration documentation is available below.
+All the simulator execution is based on the configuration file given. The configuration documentation is available below
+and more extensively [here](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/user).
 
 The simulator is modular and external modules can be used (through the [`plugin_api`]). There
 are three main components:
