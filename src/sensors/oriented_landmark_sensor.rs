@@ -8,6 +8,8 @@ use super::fault_models::fault_model::{
 use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+#[cfg(feature = "gui")]
+use crate::gui::{utils::path_finder, UIComponent};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
@@ -23,7 +25,7 @@ use na::Vector3;
 
 use std::fmt;
 use std::path::Path;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 /// Configuration of the [`OrientedLandmarkSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -54,6 +56,57 @@ impl Default for OrientedLandmarkSensorConfig {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for OrientedLandmarkSensorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Oriented Landmark sensor")
+            .id_source(format!("oriented-landmark-sensor-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Detection distance:");
+                    if self.detection_distance < 0. {
+                        self.detection_distance = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.detection_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Period:");
+                    if self.period < TIME_ROUND {
+                        self.period = TIME_ROUND;
+                    }
+                    ui.add(
+                        egui::DragValue::new(&mut self.period)
+                            .max_decimals((1. / TIME_ROUND) as usize),
+                    );
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Map path:");
+                    path_finder(ui, &mut self.map_path, &global_config.base_path);
+                });
+
+                FaultModelConfig::show_faults(
+                    &mut self.faults,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
+    }
+}
+
 /// Record of the [`OrientedLandmarkSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OrientedLandmarkSensorRecord {
@@ -67,7 +120,7 @@ impl Default for OrientedLandmarkSensorRecord {
 }
 
 /// Landmark struct, with an `id` and a `pose`, used to read the map file.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OrientedLandmark {
     pub id: i32,
     pub pose: Vector3<f32>,
@@ -375,10 +428,11 @@ impl Sensor for OrientedLandmarkSensor {
             .sqrt();
             if d <= self.detection_distance {
                 let landmark_seed = 1. / (100. * self.period) * (landmark.id as f32);
+                let pose = rotation_matrix.transpose() * (landmark.pose - state.pose);
                 observation_list.push(SensorObservation::OrientedLandmark(
                     OrientedLandmarkObservation {
                         id: landmark.id,
-                        pose: rotation_matrix * landmark.pose + state.pose,
+                        pose,
                     },
                 ));
                 for fault_model in self.faults.lock().unwrap().iter() {

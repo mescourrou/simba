@@ -1,11 +1,12 @@
 /*!
-Multi robot simulator with multi-threading and without ticking time
+Multi robot simulator with multi-threading and without ticking time.
 
 This crate provides a multi-robots simulator where each robot is executed in a separated thread.
 The time is not linear, the simulator jump to the next time step as soon as possible, letting
 the possibility to run faster than time, but also to take more time if needed.
 
-All the simulator execution is based on the configuration file given. The configuration documentation is available below.
+All the simulator execution is based on the configuration file given. The configuration documentation is available below
+and more extensively [here](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/user).
 
 The simulator is modular and external modules can be used (through the [`plugin_api`]). There
 are three main components:
@@ -32,23 +33,23 @@ fn main() {
     let mut simulator = Simulator::from_config_path(
         Path::new("config_example/config.yaml"),
         &None, //<- plugin API, to load external modules
-    );
+    ).unwrap();
 
     // Show the simulator loaded configuration
     simulator.show();
 
     // Run the simulator for the time given in the configuration
     // It also save the results to json
-    simulator.run();
+    simulator.run().unwrap();
 
-    simulator.compute_results();
+    simulator.compute_results().unwrap();
 }
 
 ```
 
 */
 
-#![doc = include_str!("../doc/config_documentation.md")]
+#![doc = include_str!("../doc/user_manual/docs/config_documentation.md")]
 
 use pyo3::prelude::*;
 

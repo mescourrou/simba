@@ -1,6 +1,8 @@
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::utils::determinist_random_variable::DeterministRandomVariable;
 
 /// Configuration for a fixed random variable.
@@ -15,6 +17,40 @@ pub struct FixedRandomVariableConfig {
 impl Default for FixedRandomVariableConfig {
     fn default() -> Self {
         Self { values: vec![0.] }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for FixedRandomVariableConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &crate::simulator::SimulatorConfig,
+        _current_node_name: Option<&String>,
+        _unique_id: &String,
+    ) {
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                let mut to_remove = None;
+                for (i, p) in self.values.iter_mut().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("value {}:", i + 1));
+                        ui.add(egui::DragValue::new(p).max_decimals(10));
+                        if ui.button("X").clicked() {
+                            to_remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = to_remove {
+                    self.values.remove(i);
+                }
+                if ui.button("Add").clicked() {
+                    self.values.push(1.0);
+                }
+            });
+        });
     }
 }
 

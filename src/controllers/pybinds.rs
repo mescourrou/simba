@@ -11,8 +11,7 @@ use crate::{
     controllers::external_controller::ExternalControllerRecord,
     logger::is_enabled,
     node::Node,
-    node_factory::NodeRecord,
-    physics::physic::Command,
+    physics::physics::Command,
     pywrappers::{CommandWrapper, ControllerErrorWrapper},
     stateful::Stateful,
 };
@@ -110,10 +109,8 @@ impl PythonController {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((error, time)) =
-            self.make_command_request.clone().lock().unwrap().try_recv()
-        {
-            let command = self.make_command( &error, time);
+        if let Ok((error, time)) = self.make_command_request.clone().lock().unwrap().try_recv() {
+            let command = self.make_command(&error, time);
             self.make_command_response.send(command).unwrap();
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
@@ -135,14 +132,14 @@ impl PythonController {
                 .bind(py)
                 .call_method(
                     "make_command",
-                    (ControllerErrorWrapper::from_ros(error), time),
+                    (ControllerErrorWrapper::from_rust(error), time),
                     None,
                 )
                 .expect("PythonController does not have a correct 'make_command' method")
                 .extract()
                 .expect("Error during the call of Python implementation of 'make_command'")
         });
-        result.to_ros()
+        result.to_rust()
     }
 
     fn record(&self) -> ControllerRecord {

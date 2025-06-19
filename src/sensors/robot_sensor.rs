@@ -6,11 +6,10 @@ use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
 use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::logger::is_enabled;
-use crate::networking::network::MessageFlag;
-use crate::networking::service::ServiceClient;
-use crate::networking::service_manager;
-use crate::physics::physic::{GetRealStateReq, GetRealStateResp};
 use crate::plugin_api::PluginAPI;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::simulator::SimulatorConfig;
@@ -25,9 +24,8 @@ use log::debug;
 extern crate nalgebra as na;
 use na::Vector3;
 
-use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 /// Configuration of the [`RobotSensor`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -51,6 +49,52 @@ impl Default for RobotSensorConfig {
             period: 0.1,
             faults: Vec::new(),
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for RobotSensorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Robot sensor")
+            .id_source(format!("robot-sensor-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Detection distance:");
+                    if self.detection_distance < 0. {
+                        self.detection_distance = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.detection_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Period:");
+                    if self.period < TIME_ROUND {
+                        self.period = TIME_ROUND;
+                    }
+                    ui.add(
+                        egui::DragValue::new(&mut self.period)
+                            .max_decimals((1. / TIME_ROUND) as usize),
+                    );
+                });
+
+                FaultModelConfig::show_faults(
+                    &mut self.faults,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
     }
 }
 
@@ -326,9 +370,9 @@ impl Sensor for RobotSensor {
         if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
             debug!("Start looking for nodes");
         }
-        let state = if let Some(arc_physic) = node.physics() {
-            let physic = arc_physic.read().unwrap();
-            physic.state(time).clone()
+        let state = if let Some(arc_physics) = node.physics() {
+            let physics = arc_physics.read().unwrap();
+            physics.state(time).clone()
         } else {
             State::new() // 0
         };
@@ -339,7 +383,7 @@ impl Sensor for RobotSensor {
             debug!("Rotation matrix: {}", rotation_matrix);
         }
 
-        for other_node_name in node.other_node_names.iter() {
+        for (i, other_node_name) in node.other_node_names.iter().enumerate() {
             if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
                 debug!("Sensing node {}", other_node_name);
             }
@@ -358,22 +402,24 @@ impl Sensor for RobotSensor {
                     debug!("Distance is {d}");
                 }
                 if d <= self.detection_distance {
+                    let robot_seed = 1. / (100. * self.period) * (i as f32);
+                    let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
                     observation_list.push(SensorObservation::OrientedRobot(
                         OrientedRobotObservation {
                             name: other_node_name.clone(),
-                            pose: rotation_matrix.transpose() * (other_state.pose - state.pose),
+                            pose,
                         },
                     ));
+                    for fault_model in self.faults.lock().unwrap().iter() {
+                        fault_model.add_faults(
+                            time + robot_seed,
+                            self.period,
+                            &mut observation_list,
+                            SensorObservation::OrientedRobot(OrientedRobotObservation::default()),
+                        );
+                    }
                 }
             };
-        }
-        for fault_model in self.faults.lock().unwrap().iter() {
-            fault_model.add_faults(
-                time,
-                self.period,
-                &mut observation_list,
-                SensorObservation::OrientedRobot(OrientedRobotObservation::default()),
-            );
         }
         self.last_time = time;
         observation_list

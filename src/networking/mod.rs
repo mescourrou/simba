@@ -1,7 +1,7 @@
 /*!
 Module which provides communication tools between nodes.
 
-Each [`Robot`](crate::node::Robot) includes a [`Network`](network::Network).
+Each [`Node`](crate::node::Node) includes a [`Network`](network::Network).
 The [`NetworkManager`](network_manager::NetworkManager) makes the link between the
 [`Network`](network::Network)s and is owned by the [`Simulator`](crate::simulator::Simulator).
 
@@ -13,7 +13,7 @@ There are two main ways to communicate between nodes.
 receiver [`Network`](network::Network) and is stored in a time ordered buffer. The receiver
 unwraps the message when it reaches the time of the message. If the message is sent in the
 past, the receiver will go back in time to unwrap the message. The message treatment is done
-in [`run_time_step`](crate::node::Robot::run_time_step), at the end. The message is
+in [`run_time_step`](crate::node::Node::run_time_step), at the end. The message is
 then passed from one [`MessageHandler`](message_handler::MessageHandler) to the next until
 one of them handles the message.
 
@@ -22,7 +22,7 @@ This is done using the [`Service`](service::Service) and [`ServiceClient`](servi
 The server node proposes a service, and then a client node need to get a
 [`ServiceClient`](service::ServiceClient) instance to be able to make a request. The client
 sends a request to the server, and is blocked until the server sends a response. The server
-node should handle the requests in [`run_time_step`](crate::node::Robot::run_time_step).
+node should handle the requests in [`run_time_step`](crate::node::Node::run_time_step).
 */
 
 pub mod message_handler;
@@ -44,7 +44,7 @@ mod tests {
 
     use crate::{
         constants::TIME_ROUND,
-        logger::{InternalLog, LogLevel},
+        logger::LogLevel,
         networking::network::NetworkConfig,
         node::Node,
         node_factory::RobotConfig,
@@ -59,15 +59,15 @@ mod tests {
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
             perfect_estimator::PerfectEstimatorConfig,
             state_estimator::{
-                BenchStateEstimatorConfig, State, StateEstimator, StateEstimatorConfig,
-                StateEstimatorRecord,
+                BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig,
+                StateEstimatorRecord, WorldState,
             },
         },
         stateful::Stateful,
-        utils::maths::{closest_uint_modulo, round_precision},
+        utils::maths::round_precision,
     };
 
-    use super::{message_handler::MessageHandler, *};
+    use super::message_handler::MessageHandler;
 
     #[derive(Debug, Default)]
     struct NetworkHandlerTest {
@@ -107,9 +107,9 @@ mod tests {
     impl StateEstimator for StateEstimatorTest {
         fn correction_step(
             &mut self,
-            node: &mut crate::node::Node,
-            observations: &Vec<Observation>,
-            time: f32,
+            _node: &mut crate::node::Node,
+            _observations: &Vec<Observation>,
+            _time: f32,
         ) {
         }
 
@@ -133,8 +133,8 @@ mod tests {
         fn next_time_step(&self) -> f32 {
             round_precision(self.last_time + 0.1, TIME_ROUND).unwrap()
         }
-        fn state(&self) -> State {
-            State::new()
+        fn world_state(&self) -> WorldState {
+            WorldState::new()
         }
     }
 
@@ -193,7 +193,7 @@ mod tests {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
         config.max_time = PerfectEstimatorConfig::default().prediction_period * 1.5;
-        config.log.log_level = LogLevel::Internal(vec![InternalLog::All]);
+        config.log.log_level = LogLevel::Off; //LogLevel::Internal(vec![InternalLog::All]);
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             state_estimator_bench: vec![BenchStateEstimatorConfig {
@@ -222,9 +222,9 @@ mod tests {
             message_handler: message_handler.clone(),
         };
 
-        let mut simulator = Simulator::from_config(&config, &Some(Box::new(&plugin_api)));
+        let mut simulator = Simulator::from_config(&config, &Some(Box::new(&plugin_api))).unwrap();
 
-        simulator.run();
+        simulator.run().unwrap();
 
         assert!(
             message_handler.read().unwrap().last_message.is_some(),
@@ -257,6 +257,7 @@ mod tests {
     fn deadlock_service_test() {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
+        config.log.log_level = LogLevel::Off; //LogLevel::Internal(vec![InternalLog::All]);
         config.max_time = RobotSensorConfig::default().period * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
@@ -281,8 +282,8 @@ mod tests {
             ..Default::default()
         });
 
-        let mut simulator = Simulator::from_config(&config, &None);
+        let mut simulator = Simulator::from_config(&config, &None).unwrap();
 
-        simulator.run();
+        simulator.run().unwrap();
     }
 }

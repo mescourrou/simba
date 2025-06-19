@@ -5,8 +5,6 @@ import json
 import numpy as np
 import math
 
-import simba.simba
-
 class Physics(simba.Physics):
     def __init__(self, config):
         self.last_time = 0.
@@ -73,7 +71,7 @@ class Physics(simba.Physics):
 
 
 class SimulatorAPI(simba.PluginAPI):
-    def get_physic(self, config, global_config):
+    def get_physics(self, config, global_config):
         config = json.loads(config)
         return Physics(config)
 

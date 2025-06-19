@@ -8,9 +8,14 @@ use config_checker::macros::Check;
 use core::f32;
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::{string_checkbox, text_singleline_with_apply},
+    UIComponent,
+};
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::node::Node;
@@ -20,10 +25,10 @@ use crate::{simulator::SimulatorConfig, stateful::Stateful};
 use super::gnss_sensor::GNSSSensor;
 use super::odometry_sensor::{OdometrySensor, OdometrySensorConfig};
 use super::robot_sensor::RobotSensor;
-use super::sensor::{Observation, ObservationRecord, SensorObservationRecord};
+use super::sensor::{Observation, ObservationRecord};
 use super::{
     oriented_landmark_sensor::OrientedLandmarkSensor,
-    sensor::{Sensor, SensorConfig, SensorObservation, SensorRecord},
+    sensor::{Sensor, SensorConfig, SensorRecord},
 };
 use crate::plugin_api::PluginAPI;
 
@@ -46,6 +51,61 @@ impl Default for ManagedSensorConfig {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for ManagedSensorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut BTreeMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new(&self.name)
+            .id_source(format!("managed-sensor-{}", unique_id).as_str())
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Name: ");
+                    text_singleline_with_apply(
+                        ui,
+                        format!("managed-sensor-name-key-{}", unique_id).as_str(),
+                        buffer_stack,
+                        &mut self.name,
+                    );
+                });
+
+                let mut node_list = Vec::from_iter(
+                    global_config.robots.iter().map(|x| x.name.clone()).chain(
+                        global_config
+                            .computation_units
+                            .iter()
+                            .map(|x| x.name.clone()),
+                    ),
+                );
+                if let Some(idx) = node_list
+                    .iter()
+                    .position(|x| x == current_node_name.unwrap())
+                {
+                    node_list.remove(idx);
+                }
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Send to:");
+                    string_checkbox(ui, &node_list, &mut self.send_to);
+                });
+
+                self.config.show(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
+    }
+}
+
 /// Configuration listing all the [`SensorConfig`]s.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
@@ -60,6 +120,47 @@ impl Default for SensorManagerConfig {
         Self {
             sensors: Vec::new(),
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for SensorManagerConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut BTreeMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Sensor Manager")
+            .id_source(format!("sensor-manager-{}", unique_id))
+            .show(ui, |ui| {
+                let mut sensor_to_remove = None;
+                for (i, sensor) in self.sensors.iter_mut().enumerate() {
+                    let sensor_unique_id = format!("{}-{}", unique_id, &sensor.name);
+                    ui.horizontal_top(|ui| {
+                        sensor.show(
+                            ui,
+                            ctx,
+                            buffer_stack,
+                            global_config,
+                            current_node_name,
+                            &sensor_unique_id,
+                        );
+                        if ui.button("X").clicked() {
+                            sensor_to_remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = sensor_to_remove {
+                    self.sensors.remove(i);
+                }
+                if ui.button("Add").clicked() {
+                    self.sensors.push(ManagedSensorConfig::default());
+                }
+            });
     }
 }
 
@@ -181,7 +282,7 @@ impl SensorManager {
     pub fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<Observation> {
         let mut observations = Vec::<Observation>::new();
         let mut min_next_time = None;
-        let mut obs_to_send = HashMap::new();
+        let mut obs_to_send = BTreeMap::new();
         for sensor in &mut self.sensors {
             let sensor_observations: Vec<Observation> = sensor
                 .sensor
@@ -287,13 +388,16 @@ impl Stateful<SensorManagerRecord> for SensorManager {
 impl MessageHandler for SensorManager {
     fn handle_message(
         &mut self,
-        robot: &mut Node,
+        _robot: &mut Node,
         from: &String,
         message: &serde_json::Value,
         time: f32,
     ) -> Result<(), ()> {
         if let Ok(obs_list) = serde_json::from_value::<Vec<Observation>>(message.clone()) {
             self.received_observations.extend(obs_list);
+            // Assure that the observations are always in the same order, for determinism:
+            self.received_observations
+                .sort_by(|a, b| a.observer.cmp(&b.observer));
             if self.received_observations.len() > 0 {
                 self.next_time = Some(time);
             }

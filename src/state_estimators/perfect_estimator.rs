@@ -4,11 +4,18 @@ the groundtruth to provide the estimation. It can be used when the state used
 by the controller should be perfect.
 */
 
-use std::collections::HashMap;
+use std::path::Path;
 
-use super::state_estimator::{State, StateRecord};
+use super::state_estimator::{State, WorldState, WorldStateRecord};
 use crate::constants::TIME_ROUND;
-use crate::sensors::sensor::{Observation, SensorObservation};
+
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::{path_finder, string_checkbox},
+    UIComponent,
+};
+use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
+use crate::sensors::sensor::Observation;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::maths::round_precision;
@@ -16,7 +23,7 @@ use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use config_checker::macros::Check;
-use log::{debug, error, info};
+use log::{error, info};
 use serde_derive::{Deserialize, Serialize};
 
 /// Configuration for [`PerfectEstimator`].
@@ -28,6 +35,7 @@ pub struct PerfectEstimatorConfig {
     #[check(ge(0.))]
     pub prediction_period: f32,
     pub targets: Vec<String>,
+    pub map_path: Option<String>,
 }
 
 impl Default for PerfectEstimatorConfig {
@@ -35,7 +43,66 @@ impl Default for PerfectEstimatorConfig {
         Self {
             prediction_period: 0.1,
             targets: vec!["self".to_string()],
+            map_path: None,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for PerfectEstimatorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Perfect Estimator")
+            .id_source(format!("perfect-estimator-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Prediction period:");
+                    if self.prediction_period < TIME_ROUND {
+                        self.prediction_period = TIME_ROUND;
+                    }
+                    ui.add(
+                        egui::DragValue::new(&mut self.prediction_period)
+                            .max_decimals((1. / TIME_ROUND) as usize),
+                    );
+                });
+
+                let mut possible_targets =
+                    Vec::from_iter(global_config.robots.iter().map(|x| x.name.clone()));
+                possible_targets.insert(0, "self".to_string());
+                if let Some(idx) = possible_targets
+                    .iter()
+                    .position(|x| x == current_node_name.unwrap())
+                {
+                    possible_targets.remove(idx);
+                }
+
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Targets:");
+                    string_checkbox(ui, &possible_targets, &mut self.targets);
+                });
+
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Map path:");
+                    let mut enabled = self.map_path.is_some();
+                    ui.checkbox(&mut enabled, "Enable");
+                    if enabled {
+                        path_finder(
+                            ui,
+                            self.map_path.as_mut().unwrap(),
+                            &global_config.base_path,
+                        );
+                    } else {
+                        self.map_path = None;
+                    }
+                });
+            });
     }
 }
 
@@ -43,7 +110,7 @@ impl Default for PerfectEstimatorConfig {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PerfectEstimatorRecord {
     /// Current state estimated
-    pub states: Vec<(String, StateRecord)>,
+    pub world_state: WorldStateRecord,
     /// Last change of state
     pub last_time_update: f32,
 }
@@ -52,7 +119,7 @@ pub struct PerfectEstimatorRecord {
 #[derive(Debug)]
 pub struct PerfectEstimator {
     /// Estimation of the state on the `last_time_update`.
-    states: HashMap<String, State>,
+    world_state: WorldState,
     /// Prediction period, in seconds.
     prediction_period: f32,
     /// Last time the state was updated/predicted.
@@ -74,16 +141,38 @@ impl PerfectEstimator {
     pub fn from_config(
         config: &PerfectEstimatorConfig,
         _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        _global_config: &SimulatorConfig,
+        global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        let mut states = HashMap::new();
+        let mut world_state = WorldState::new();
         for target in &config.targets {
-            states.insert(target.clone(), State::new());
+            if target == "self" {
+                world_state.ego = Some(State::new());
+            } else {
+                world_state.objects.insert(target.clone(), State::new());
+            }
         }
+        if let Some(map_path) = &config.map_path {
+            let mut map_path = Path::new(map_path);
+            let joined_path = global_config.base_path.join(&map_path);
+            if map_path.is_relative() {
+                map_path = joined_path.as_path();
+            }
+            let landmarks = OrientedLandmarkSensor::load_map_from_path(&map_path);
+            for landmark in landmarks {
+                world_state.landmarks.insert(
+                    landmark.id,
+                    State {
+                        pose: landmark.pose,
+                        velocity: 0.,
+                    },
+                );
+            }
+        }
+
         Self {
             prediction_period: config.prediction_period,
-            states,
+            world_state,
             last_time_update: 0.,
         }
     }
@@ -99,27 +188,27 @@ impl StateEstimator for PerfectEstimator {
             return;
         }
         info!("Doing prediction step");
-        for (target, state) in &mut self.states {
-            if target.to_lowercase() == "self".to_string() {
-                let arc_physic = node
-                    .physics()
-                    .expect("Node with state_estimator should have physics");
-                let physic = arc_physic.read().unwrap();
+        if let Some(ego) = &mut self.world_state.ego {
+            let arc_physic = node
+                .physics()
+                .expect("Node with state_estimator should have physics");
+            let physic = arc_physic.read().unwrap();
 
-                *state = physic.state(time).clone();
-            } else {
-                *state = node
-                    .service_manager()
-                    .read()
-                    .unwrap()
-                    .get_real_state(target, node, time)
-                    .expect(
-                        format!(
-                            "{target} does not have physics, no perfect state can be computed!"
-                        )
-                        .as_str(),
-                    );
-            }
+            *ego = physic.state(time).clone();
+        }
+        for (target, state) in &mut self.world_state.objects {
+            *state = node
+                .service_manager()
+                .read()
+                .unwrap()
+                .get_real_state(target, node, time)
+                .expect(
+                    format!(
+                        "[{}] {target} does not have physics, no perfect state can be computed!",
+                        node.name()
+                    )
+                    .as_str(),
+                );
         }
         self.last_time_update = time;
     }
@@ -128,14 +217,8 @@ impl StateEstimator for PerfectEstimator {
         info!("Got observations at time {_time}: {:?}", _observations);
     }
 
-    fn state(&self) -> State {
-        if self.states.contains_key(&"self".to_string()) {
-            self.states["self"].clone()
-        } else {
-            panic!(
-                "PerfectEstimator should contain the target 'self' to be used in the control loop."
-            );
-        }
+    fn world_state(&self) -> WorldState {
+        self.world_state.clone()
     }
 
     fn next_time_step(&self) -> f32 {
@@ -145,28 +228,17 @@ impl StateEstimator for PerfectEstimator {
 
 impl Stateful<StateEstimatorRecord> for PerfectEstimator {
     fn record(&self) -> StateEstimatorRecord {
-        let mut state_records = Vec::new();
-        for (target, state) in &self.states {
-            state_records.push((target.clone(), state.record()));
-        }
         StateEstimatorRecord::Perfect(PerfectEstimatorRecord {
-            states: state_records,
+            world_state: self.world_state.record(),
             last_time_update: self.last_time_update,
         })
     }
 
     fn from_record(&mut self, record: StateEstimatorRecord) {
         if let StateEstimatorRecord::Perfect(record_state_estimator) = record {
-            for (target, state_record) in &record_state_estimator.states {
-                self.states
-                    .get_mut(target)
-                    .expect(
-                        format!("Target {target} not found among the PerfectEstimator targets")
-                            .as_str(),
-                    )
-                    .from_record(state_record.clone());
-                self.last_time_update = record_state_estimator.last_time_update;
-            }
+            self.world_state
+                .from_record(record_state_estimator.world_state);
+            self.last_time_update = record_state_estimator.last_time_update;
         } else {
             error!(
                 "Using a StateEstimatorRecord type which does not match the used StateEstimator (PerfectEstimator)"

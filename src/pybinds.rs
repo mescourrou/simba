@@ -6,12 +6,12 @@ use crate::{
     controllers::{controller::Controller, pybinds::PythonController},
     logger::is_enabled,
     navigators::{navigator::Navigator, pybinds::PythonNavigator},
-    physics::{physic::Physic, pybinds::PythonPhysic},
+    physics::{physics::Physics, pybinds::PythonPhysics},
     pywrappers::{
         CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, ObservationWrapper,
         OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
         OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
-        SimulatorWrapper, StateWrapper,
+        SimulatorWrapper, StateWrapper, WorldStateWrapper, run_gui
     },
     simulator::SimulatorConfig,
     state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},
@@ -21,8 +21,9 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SimulatorWrapper>()?;
     m.add_class::<PluginAPIWrapper>()?;
     m.add_class::<ControllerErrorWrapper>()?;
-    m.add_class::<PythonPhysic>()?;
+    m.add_class::<PythonPhysics>()?;
     m.add_class::<StateWrapper>()?;
+    m.add_class::<WorldStateWrapper>()?;
     m.add_class::<PythonStateEstimator>()?;
     m.add_class::<ObservationWrapper>()?;
     m.add_class::<SensorObservationWrapper>()?;
@@ -33,8 +34,10 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PythonController>()?;
     m.add_class::<CommandWrapper>()?;
     m.add_class::<PythonNavigator>()?;
+    m.add_function(wrap_pyfunction!(run_gui, m)?)?;
     Ok(())
 }
+
 
 #[derive(Debug)]
 pub struct PythonAPI {
@@ -42,7 +45,7 @@ pub struct PythonAPI {
     state_estimators: Vec<PythonStateEstimator>,
     controllers: Vec<PythonController>,
     navigators: Vec<PythonNavigator>,
-    physics: Vec<PythonPhysic>,
+    physics: Vec<PythonPhysics>,
 }
 
 impl PythonAPI {
@@ -68,8 +71,8 @@ impl PythonAPI {
         for navigator in &mut self.navigators {
             navigator.check_requests();
         }
-        for physic in &mut self.physics {
-            physic.check_requests();
+        for physics in &mut self.physics {
+            physics.check_requests();
         }
     }
 
@@ -169,19 +172,19 @@ impl PythonAPI {
         st
     }
 
-    pub fn get_physic(
+    pub fn get_physics(
         &mut self,
         config: &Value,
         global_config: &SimulatorConfig,
-    ) -> Box<dyn Physic> {
+    ) -> Box<dyn Physics> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling Python API");
         }
-        self.physics.push(PythonPhysic::new(Python::with_gil(|py| {
+        self.physics.push(PythonPhysics::new(Python::with_gil(|py| {
             self.api
                 .bind(py)
                 .call_method(
-                    "get_physic",
+                    "get_physics",
                     (
                         config.to_string(),
                         serde_json::to_string(global_config)
@@ -189,9 +192,9 @@ impl PythonAPI {
                     ),
                     None,
                 )
-                .expect("Error during execution of python method 'get_physic'")
+                .expect("Error during execution of python method 'get_physics'")
                 .extract()
-                .expect("Expecting function return of PythonPhysic but failed")
+                .expect("Expecting function return of PythonPhysics but failed")
         })));
         let st = Box::new(self.physics.last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {

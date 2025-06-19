@@ -1,14 +1,14 @@
 /*!
-Module providing the interface to use external [`Physic`].
+Module providing the interface to use external [`Physics`].
 
 To make your own external physic strategy, the simulator should
 be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external physic strategy is made using the
-[`PluginAPI::get_physic`] function.
+[`PluginAPI::get_physics`] function.
 
-For the [`Stateful`] trait, the generic type is [`PhysicRecord`],
-and your implementation should return a [`PhysicRecord::External`]
+For the [`Stateful`] trait, the generic type is [`PhysicsRecord`],
+and your implementation should return a [`PhysicsRecord::External`]
 type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
@@ -18,6 +18,8 @@ use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
+#[cfg(feature = "gui")]
+use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::networking::service::HasService;
 use crate::simulator::SimulatorConfig;
@@ -29,26 +31,26 @@ use crate::{
 
 use serde_derive::{Deserialize, Serialize};
 
-/// Config for the external physic (generic).
+/// Config for the external physics (generic).
 ///
-/// The config for [`ExternalPhysic`] uses a [`serde_json::Value`] to
+/// The config for [`ExternalPhysics`] uses a [`serde_json::Value`] to
 /// integrate your own configuration inside the full simulator config.
 ///
 /// In the yaml file, the config could be:
 /// ```YAML
-/// physic:
+/// physics:
 ///     External:
-///         parameter_of_my_own_physic: true
+///         parameter_of_my_own_physics: true
 /// ```
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
-pub struct ExternalPhysicConfig {
+pub struct ExternalPhysicsConfig {
     /// Config serialized.
     #[serde(flatten)]
     pub config: Value,
 }
 
-impl Default for ExternalPhysicConfig {
+impl Default for ExternalPhysicsConfig {
     fn default() -> Self {
         Self {
             config: Value::Null,
@@ -56,22 +58,48 @@ impl Default for ExternalPhysicConfig {
     }
 }
 
-/// Record for the external physic (generic).
+#[cfg(feature = "gui")]
+impl UIComponent for ExternalPhysicsConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("External Physics").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                json_config(
+                    ui,
+                    &format!("external-physics-key-{}", &unique_id),
+                    &format!("external-physics-error-key-{}", &unique_id),
+                    buffer_stack,
+                    &mut self.config,
+                );
+            });
+        });
+    }
+}
+
+/// Record for the external physics (generic).
 ///
-/// Like [`ExternalPhysicConfig`], [`ExternalPhysic`] uses a [`serde_json::Value`]
+/// Like [`ExternalPhysicsConfig`], [`ExternalPhysics`] uses a [`serde_json::Value`]
 /// to take every record.
 ///
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
-pub struct ExternalPhysicRecord {
+pub struct ExternalPhysicsRecord {
     /// Record serialized.
     #[serde(flatten)]
     pub record: Value,
 }
 
-impl Default for ExternalPhysicRecord {
+impl Default for ExternalPhysicsRecord {
     fn default() -> Self {
         Self {
             record: Value::Null,
@@ -80,43 +108,43 @@ impl Default for ExternalPhysicRecord {
 }
 
 #[pymethods]
-impl ExternalPhysicRecord {
+impl ExternalPhysicsRecord {
     #[getter]
     fn record(&self) -> String {
         self.record.to_string()
     }
 }
 
-use super::physic::{Command, GetRealStateReq, GetRealStateResp, Physic, PhysicRecord};
+use super::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 
-/// External physic strategy, which does the bridge with your own strategy.
-pub struct ExternalPhysic {
-    /// External physic.
-    physic: Box<dyn Physic>,
+/// External physics strategy, which does the bridge with your own strategy.
+pub struct ExternalPhysics {
+    /// External physics.
+    physics: Box<dyn Physics>,
 }
 
-impl ExternalPhysic {
-    /// Creates a new [`ExternalPhysic`]
+impl ExternalPhysics {
+    /// Creates a new [`ExternalPhysics`]
     pub fn new() -> Self {
         Self::from_config(
-            &ExternalPhysicConfig::default(),
+            &ExternalPhysicsConfig::default(),
             &None,
             &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
         )
     }
 
-    /// Creates a new [`ExternalPhysic`] from the given config.
+    /// Creates a new [`ExternalPhysics`] from the given config.
     ///
     /// <div class="warning">The `plugin_api` is required here !</div>
     ///
     ///  ## Arguments
-    /// * `config` -- Scenario config of the External physic.
+    /// * `config` -- Scenario config of the External physics.
     /// * `plugin_api` -- Required [`PluginAPI`] implementation.
     /// * `global_config` -- Simulator config.
     /// * `_va_factory` -- Factory for Determinists random variables
     pub fn from_config(
-        config: &ExternalPhysicConfig,
+        config: &ExternalPhysicsConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
@@ -125,45 +153,45 @@ impl ExternalPhysic {
             debug!("Config given: {:?}", config);
         }
         Self {
-            physic: plugin_api
+            physics: plugin_api
                 .as_ref()
                 .expect("Plugin API not set!")
-                .get_physic(&config.config, global_config),
+                .get_physics(&config.config, global_config),
         }
     }
 }
 
-impl std::fmt::Debug for ExternalPhysic {
+impl std::fmt::Debug for ExternalPhysics {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ExternalPhysic {{}}")
+        write!(f, "ExternalPhysics {{}}")
     }
 }
 
-impl Physic for ExternalPhysic {
+impl Physics for ExternalPhysics {
     fn apply_command(&mut self, command: &Command, time: f32) {
-        self.physic.apply_command(command, time);
+        self.physics.apply_command(command, time);
     }
 
     fn state(&self, time: f32) -> &State {
-        self.physic.state(time)
+        self.physics.state(time)
     }
 
     fn update_state(&mut self, time: f32) {
-        self.physic.update_state(time);
+        self.physics.update_state(time);
     }
 }
 
-impl Stateful<PhysicRecord> for ExternalPhysic {
-    fn record(&self) -> PhysicRecord {
-        self.physic.record()
+impl Stateful<PhysicsRecord> for ExternalPhysics {
+    fn record(&self) -> PhysicsRecord {
+        self.physics.record()
     }
 
-    fn from_record(&mut self, record: PhysicRecord) {
-        self.physic.from_record(record);
+    fn from_record(&mut self, record: PhysicsRecord) {
+        self.physics.from_record(record);
     }
 }
 
-impl HasService<GetRealStateReq, GetRealStateResp> for ExternalPhysic {
+impl HasService<GetRealStateReq, GetRealStateResp> for ExternalPhysics {
     fn handle_service_requests(
         &mut self,
         _req: GetRealStateReq,

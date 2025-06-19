@@ -4,7 +4,10 @@ use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use statrs::{distribution::MultivariateNormal, statistics::MeanN};
 
-use crate::utils::determinist_random_variable::DeterministRandomVariable;
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
+use crate::utils::determinist_random_variable::{DeterministRandomVariable};
+use crate::utils::format_f32;
 
 /// Configuration for a normal random variable.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -12,6 +15,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariable;
 #[serde(deny_unknown_fields)]
 pub struct NormalRandomVariableConfig {
     /// Random seed for this random variable.
+    #[serde(serialize_with = "format_f32")]
     unique_seed: f32,
     /// Mean of the normal distribution.
     mean: Vec<f64>,
@@ -26,6 +30,91 @@ impl Default for NormalRandomVariableConfig {
             mean: vec![0.],
             covariance: vec![1.],
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for NormalRandomVariableConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &crate::simulator::SimulatorConfig,
+        _current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        ui.horizontal_top(|ui| {
+            use crate::utils::determinist_random_variable::seed_generation_component;
+
+            ui.vertical(|ui| {
+                let mut to_remove = None;
+                for (i, p) in self.mean.iter_mut().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("mean {}:", i + 1));
+                        ui.add(egui::DragValue::new(p).max_decimals(10));
+                        if ui.button("X").clicked() {
+                            to_remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = to_remove {
+                    let previous_size = self.mean.len();
+                    self.mean.remove(i);
+
+                    // Remove column
+                    for row in (0..previous_size).rev() {
+                        self.covariance.remove(row * previous_size + i);
+                    }
+                    let new_size = self.mean.len();
+                    // Remove row (matrix is now not squared)
+                    for col in (0..new_size).rev() {
+                        self.covariance.remove(i * new_size + col);
+                    }
+                }
+                if ui.button("Add").clicked() {
+                    self.mean.push(1.0);
+                    let new_size = self.mean.len();
+                    // Insert 0 at the end of each row
+                    for row in 0..new_size - 1 {
+                        self.covariance.insert((row + 1) * new_size - 1, 0.);
+                    }
+                    // Insert last element of n-1th row
+                    self.covariance.push(0.);
+                    // Insert last row
+                    self.covariance.resize(new_size * new_size, 0.);
+                }
+            });
+            ui.vertical(|ui| {
+                ui.label("Covariance: ");
+                let size = self.mean.len();
+                ui.horizontal(|ui| {
+                    let mut row = 0;
+                    while row < size {
+                        ui.vertical(|ui| {
+                            let mut col = 0;
+                            while col < size {
+                                ui.add(
+                                    egui::DragValue::new(
+                                        self.covariance.get_mut(row * size + col).unwrap(),
+                                    )
+                                    .max_decimals(10),
+                                );
+                                col += 1;
+                            }
+                        });
+                        row += 1;
+                    }
+                });
+            });
+            ui.label("Seed: ");
+            seed_generation_component(
+                &mut self.unique_seed,
+                ui,
+                buffer_stack,
+                unique_id,
+            );
+        });
     }
 }
 

@@ -1,14 +1,13 @@
 use std::{
-    collections::HashMap,
+    collections::BTreeMap,
     fmt::Debug,
-    sync::{Arc, Condvar, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
-use log::debug;
 
 use crate::{
     node::Node,
-    physics::physic::{GetRealStateReq, GetRealStateResp, Physic},
+    physics::physics::{GetRealStateReq, GetRealStateResp, Physics},
     simulator::TimeCv,
     state_estimators::state_estimator::State,
 };
@@ -20,9 +19,8 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct ServiceManager {
-    get_real_state: Option<Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physic>>>>,
-    get_real_state_clients: HashMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
-    time_cv: Arc<TimeCv>,
+    get_real_state: Option<Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physics>>>>,
+    get_real_state_clients: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
 }
 
 impl ServiceManager {
@@ -35,17 +33,16 @@ impl ServiceManager {
                 )))),
                 false => None,
             },
-            get_real_state_clients: HashMap::new(),
-            time_cv,
+            get_real_state_clients: BTreeMap::new(),
         }
     }
 
     fn get_real_state_client(
         &self,
-        node_name: &str,
+        client_node_name: &str,
     ) -> Option<ServiceClient<GetRealStateReq, GetRealStateResp>> {
         if let Some(get_real_state) = &self.get_real_state {
-            Some(get_real_state.write().unwrap().new_client(node_name))
+            Some(get_real_state.write().unwrap().new_client(client_node_name))
         } else {
             None
         }
@@ -84,7 +81,7 @@ impl ServiceManager {
 
     pub fn make_links(
         &mut self,
-        service_managers: &HashMap<String, Arc<RwLock<ServiceManager>>>,
+        service_managers: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
         node: &Node,
     ) {
         let my_name = node.name();

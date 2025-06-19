@@ -1,5 +1,12 @@
 # Changelogs
 
+## v1.0.0
+- New GUI for simulation and configuration
+- Better documentation
+- Async API wait optimization
+- [soft breaking] Error management
+- [breaking] World State given to the navigator instead of only robot pose
+
 ## v0.5.0
 - [breaking] Network node generalization
     Allows:

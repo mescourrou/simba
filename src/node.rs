@@ -1,45 +1,36 @@
 /*!
-Module providing the main node manager, [`Node`], along with the configuration
-[`NodeConfig`] and the record [`NodeRecord`] structures.
+Module providing the main node manager, [`Node`]. The building of the Nodes is done by [`NodeFactory`](crate::node_factory::NodeFactory).
 */
 
 use core::f32;
-use std::collections::HashMap;
-use std::sync::{Arc, Condvar, Mutex, RwLock};
+use std::collections::BTreeMap;
+use std::sync::{Arc, RwLock};
 
-use config_checker::macros::Check;
 use log::{debug, info, warn};
-use serde::{Deserialize, Serialize};
 
-use super::navigators::navigator::{Navigator, NavigatorConfig, NavigatorRecord};
-use super::navigators::trajectory_follower;
+use super::navigators::navigator::Navigator;
 
 use crate::api::internal_api::{self, NodeClient, NodeServer};
 use crate::constants::TIME_ROUND;
-use crate::controllers::controller::{self, Controller, ControllerConfig, ControllerRecord};
+use crate::controllers::controller::Controller;
 
+use crate::errors::SimbaResult;
 use crate::logger::is_enabled;
-use crate::networking::network::{Network, NetworkConfig};
+use crate::networking::network::Network;
 use crate::networking::service_manager::ServiceManager;
 use crate::node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord};
-use crate::physics::physic::{Physic, PhysicConfig, PhysicRecord};
-use crate::physics::{perfect_physic, physic};
+use crate::physics::physics::Physics;
 
-use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::state_estimators::state_estimator::{
-    BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator, StateEstimatorConfig,
-    StateEstimatorRecord,
+    BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator,
 };
-use crate::state_estimators::{perfect_estimator, state_estimator};
 
-use crate::sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord};
+use crate::sensors::sensor_manager::SensorManager;
 
-use crate::plugin_api::PluginAPI;
 use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use crate::utils::time_ordered_data::TimeOrderedData;
-use crate::{node, time_analysis};
+use crate::time_analysis;
 
 // Node itself
 
@@ -49,13 +40,13 @@ use crate::{node, time_analysis};
 /// * `navigator` is of [`Navigator`] trait, and defines the error to be sent
 /// to the [`Controller`] to follow the required trajectory.
 /// * `controller` is of [`Controller`] trait, it defines the command to be sent
-/// to the [`Physic`] module.
-/// * `physic` is of [`Physic`] trait. It simulates the node behaviour, its real
+/// to the [`Physics`] module.
+/// * `physics` is of [`Physics`] trait. It simulates the node behaviour, its real
 /// state. It contains a ground truth to evaluate the [`StateEstimator`].
 /// * `state_estimator` is of [`StateEstimator`] trait. It estimates the node
 /// state, and send it to the [`Navigator`].
 ///
-/// * `sensor_manager`, of type [`SensorManager`], manages the [`Sensor`]s. The
+/// * `sensor_manager`, of type [`SensorManager`], manages the [`Sensor`](crate::sensors::sensor::Sensor)s. The
 /// observations of the sensors are sent to the [`StateEstimator`].
 /// * `network` is the node [`Network`] interface. It manages the reception and
 /// the send of messages to other nodes.
@@ -74,11 +65,11 @@ pub struct Node {
     pub(crate) navigator: Option<Arc<RwLock<Box<dyn Navigator>>>>,
     /// [`Controller`] module, implementing the control strategy.
     pub(crate) controller: Option<Arc<RwLock<Box<dyn Controller>>>>,
-    /// [`Physic`] module, implementing the physics strategy.
-    pub(crate) physic: Option<Arc<RwLock<Box<dyn Physic>>>>,
+    /// [`Physics`] module, implementing the physics strategy.
+    pub(crate) physics: Option<Arc<RwLock<Box<dyn Physics>>>>,
     /// [`StateEstimator`] module, implementing the state estimation strategy.
     pub(crate) state_estimator: Option<Arc<RwLock<Box<dyn StateEstimator>>>>,
-    /// Manages all the [`Sensor`]s and send the observations to `state_estimator`.
+    /// Manages all the [`Sensor`](crate::sensors::sensor::Sensor)s and send the observations to `state_estimator`.
     pub(crate) sensor_manager: Option<Arc<RwLock<SensorManager>>>,
     /// [`Network`] interface to receive and send messages with other nodes.
     pub(crate) network: Option<Arc<RwLock<Network>>>,
@@ -94,7 +85,6 @@ pub struct Node {
 
     pub(crate) node_server: Option<NodeServer>,
 
-    pub(crate) time_cv: Arc<TimeCv>,
     pub other_node_names: Vec<String>,
 }
 
@@ -104,7 +94,7 @@ impl Node {
     /// It is used to initialize the sensor manager, which need to know the list of all nodes.
     pub fn post_creation_init(
         &mut self,
-        service_manager_list: &HashMap<String, Arc<RwLock<ServiceManager>>>,
+        service_manager_list: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
     ) -> NodeClient {
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Node post-creation initialization")
@@ -152,9 +142,9 @@ impl Node {
     ///
     /// ## Return
     /// Next time step.
-    pub fn run_next_time_step(&mut self, time: f32, read_only: bool) {
+    pub fn run_next_time_step(&mut self, time: f32, read_only: bool) -> SimbaResult<()> {
         self.process_messages();
-        self.run_time_step(time, read_only);
+        self.run_time_step(time, read_only)
     }
 
     /// Process all the messages: one-way (network) and two-way (services).
@@ -190,11 +180,11 @@ impl Node {
     /// 5. The network messages are handled
     ///
     /// Then, the node state is saved.
-    pub fn run_time_step(&mut self, time: f32, read_only: bool) {
+    pub fn run_time_step(&mut self, time: f32, read_only: bool) -> SimbaResult<()> {
         info!("Run time {}", time);
         self.set_in_state(time);
         // Update the true state
-        if let Some(physics) = &self.physic {
+        if let Some(physics) = &self.physics {
             physics.write().unwrap().update_state(time);
             self.node_server
                 .as_ref()
@@ -253,7 +243,7 @@ impl Node {
                 );
                 state_estimator.write().unwrap().prediction_step(self, time);
                 time_analysis::finished_time_analysis(ta);
-                let state = state_estimator.read().unwrap().state();
+                let world_state = state_estimator.read().unwrap().world_state();
 
                 // Compute the error to the planned path
                 let ta = time_analysis::time_analysis(
@@ -266,7 +256,7 @@ impl Node {
                     .unwrap()
                     .write()
                     .unwrap()
-                    .compute_error(self, state);
+                    .compute_error(self, world_state);
                 time_analysis::finished_time_analysis(ta);
 
                 // Compute the command from the error
@@ -284,7 +274,7 @@ impl Node {
                 time_analysis::finished_time_analysis(ta);
 
                 // Apply the command to the physics
-                self.physic
+                self.physics
                     .as_ref()
                     .unwrap()
                     .write()
@@ -322,6 +312,7 @@ impl Node {
             // Save state (replace if needed)
             self.save_state(time);
         }
+        Ok(())
     }
 
     pub fn handle_messages(&mut self, time: f32) {
@@ -338,7 +329,7 @@ impl Node {
     }
 
     /// Computes the next time step, using state estimator, sensors and received messages.
-    pub fn next_time_step(&self) -> (f32, bool) {
+    pub fn next_time_step(&self) -> SimbaResult<(f32, bool)> {
         let mut next_time_step = f32::INFINITY;
         if let Some(state_estimator) = &self.state_estimator {
             next_time_step = state_estimator
@@ -402,7 +393,6 @@ impl Node {
                 debug!("Next time after state estimator bench: {next_time_step}");
             }
         }
-
         let tpl = self
             .service_manager
             .as_ref()
@@ -424,7 +414,7 @@ impl Node {
                 next_time_step
             );
         }
-        (next_time_step, read_only)
+        Ok((next_time_step, read_only))
     }
 
     /// Save the current state to the given `time`.
@@ -434,7 +424,7 @@ impl Node {
 
     /// Set the node in the state just before `time` (but different).
     ///
-    /// It should be called for the minimal time before using [`Node::save_state`].
+    /// It should be called for the minimal time before using private method `save_state`.
     pub fn set_in_state(&mut self, time: f32) {
         let state_at_time = self.state_history.get_data_before_time(time);
         if state_at_time.is_none() {
@@ -464,8 +454,8 @@ impl Node {
     }
 
     /// Get a Arc clone of physics module.
-    pub fn physics(&self) -> Option<Arc<RwLock<Box<dyn Physic>>>> {
-        match &self.physic {
+    pub fn physics(&self) -> Option<Arc<RwLock<Box<dyn Physics>>>> {
+        match &self.physics {
             Some(p) => Some(Arc::clone(p)),
             None => None,
         }
@@ -521,7 +511,7 @@ impl Node {
             name: self.name.clone(),
             navigator: self.navigator.as_ref().unwrap().read().unwrap().record(),
             controller: self.controller.as_ref().unwrap().read().unwrap().record(),
-            physic: self.physic.as_ref().unwrap().read().unwrap().record(),
+            physics: self.physics.as_ref().unwrap().read().unwrap().record(),
             state_estimator: self
                 .state_estimator
                 .as_ref()

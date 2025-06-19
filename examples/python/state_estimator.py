@@ -8,13 +8,13 @@ class StateEstimator(simba.StateEstimator):
         self.last_time = 0
         self.period = config["period"]
 
-    def state(self) -> simba.State:
-        state = simba.State()
-        state.pose.x = 1
-        state.pose.y = 2
-        state.pose.theta = 0
-        state.velocity = 3
-        return state
+    def state(self) -> simba.WorldState:
+        world_state = simba.WorldState()
+        world_state.ego.pose.x = 1
+        world_state.ego.pose.y = 2
+        world_state.ego.pose.theta = 0
+        world_state.ego.velocity = 3
+        return world_state
 
     def record(self) -> str:
         print("This is record from python!")

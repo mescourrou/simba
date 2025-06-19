@@ -14,10 +14,14 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use config_checker::macros::Check;
+use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
-use crate::physics::physic::Command;
+#[cfg(feature = "gui")]
+use crate::gui::{utils::json_config, UIComponent};
+use crate::logger::is_enabled;
+use crate::physics::physics::Command;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::{
@@ -51,6 +55,32 @@ impl Default for ExternalControllerConfig {
         Self {
             config: Value::Null,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ExternalControllerConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("External Controller").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                json_config(
+                    ui,
+                    &format!("external-controller-key-{}", &unique_id),
+                    &format!("external-controller-error-key-{}", &unique_id),
+                    buffer_stack,
+                    &mut self.config,
+                );
+            });
+        });
     }
 }
 
@@ -119,7 +149,9 @@ impl ExternalController {
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        println!("Config given: {:?}", config);
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Config given: {:?}", config);
+        }
         Self {
             controller: plugin_api
                 .as_ref()

@@ -14,11 +14,15 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use config_checker::macros::Check;
+use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
-use super::state_estimator::{State, StateEstimator};
+use super::state_estimator::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
+#[cfg(feature = "gui")]
+use crate::gui::{utils::json_config, UIComponent};
+use crate::logger::is_enabled;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
 use crate::utils::maths::round_precision;
@@ -27,7 +31,7 @@ use crate::{
 };
 
 use super::state_estimator::StateEstimatorRecord;
-use crate::sensors::sensor::{Observation, SensorObservation};
+use crate::sensors::sensor::Observation;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external state estimation (generic).
@@ -54,6 +58,32 @@ impl Default for ExternalEstimatorConfig {
         Self {
             config: Value::Null,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ExternalEstimatorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("External State Estimator").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                json_config(
+                    ui,
+                    &format!("external-state-estimator-key-{}", &unique_id),
+                    &format!("external-state-estimator-error-key-{}", &unique_id),
+                    buffer_stack,
+                    &mut self.config,
+                );
+            });
+        });
     }
 }
 
@@ -122,7 +152,9 @@ impl ExternalEstimator {
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        println!("Config given: {:?}", config);
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Config given: {:?}", config);
+        }
         Self {
             state_estimator: plugin_api
                 .as_ref()
@@ -152,8 +184,8 @@ impl StateEstimator for ExternalEstimator {
             .correction_step(node, observations, time);
     }
 
-    fn state(&self) -> State {
-        self.state_estimator.state()
+    fn world_state(&self) -> WorldState {
+        self.state_estimator.world_state()
     }
 
     fn next_time_step(&self) -> f32 {

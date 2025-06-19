@@ -10,13 +10,13 @@ use serde_json::Value;
 use crate::{
     logger::is_enabled,
     networking::service::HasService,
-    physics::external_physic::ExternalPhysicRecord,
+    physics::external_physics::ExternalPhysicsRecord,
     pywrappers::{CommandWrapper, StateWrapper},
     state_estimators::state_estimator::State,
     stateful::Stateful,
 };
 
-use super::physic::{Command, GetRealStateReq, GetRealStateResp, Physic, PhysicRecord};
+use super::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonPhysicAsyncClient {
@@ -27,13 +27,13 @@ pub struct PythonPhysicAsyncClient {
     update_state_request: mpsc::Sender<f32>,
     update_state_response: Arc<Mutex<mpsc::Receiver<()>>>,
     record_request: mpsc::Sender<()>,
-    record_response: Arc<Mutex<mpsc::Receiver<PhysicRecord>>>,
-    from_record_request: mpsc::Sender<PhysicRecord>,
+    record_response: Arc<Mutex<mpsc::Receiver<PhysicsRecord>>>,
+    from_record_request: mpsc::Sender<PhysicsRecord>,
     from_record_response: Arc<Mutex<mpsc::Receiver<()>>>,
     last_state: State,
 }
 
-impl Physic for PythonPhysicAsyncClient {
+impl Physics for PythonPhysicAsyncClient {
     fn apply_command(&mut self, command: &Command, time: f32) {
         self.apply_command_request
             .send((command.clone(), time))
@@ -53,13 +53,13 @@ impl Physic for PythonPhysicAsyncClient {
     }
 }
 
-impl Stateful<PhysicRecord> for PythonPhysicAsyncClient {
-    fn from_record(&mut self, record: PhysicRecord) {
+impl Stateful<PhysicsRecord> for PythonPhysicAsyncClient {
+    fn from_record(&mut self, record: PhysicsRecord) {
         self.from_record_request.send(record).unwrap();
         self.from_record_response.lock().unwrap().recv().unwrap();
     }
 
-    fn record(&self) -> PhysicRecord {
+    fn record(&self) -> PhysicsRecord {
         self.record_request.send(()).unwrap();
         self.record_response
             .lock()
@@ -84,7 +84,7 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysicAsyncClient {
 #[derive(Debug)]
 #[pyclass(subclass)]
 #[pyo3(name = "Physics")]
-pub struct PythonPhysic {
+pub struct PythonPhysics {
     model: Py<PyAny>,
     client: PythonPhysicAsyncClient,
     apply_command_request: Arc<Mutex<mpsc::Receiver<(Command, f32)>>>,
@@ -94,15 +94,15 @@ pub struct PythonPhysic {
     update_state_request: Arc<Mutex<mpsc::Receiver<f32>>>,
     update_state_response: mpsc::Sender<()>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
-    record_response: mpsc::Sender<PhysicRecord>,
-    from_record_request: Arc<Mutex<mpsc::Receiver<PhysicRecord>>>,
+    record_response: mpsc::Sender<PhysicsRecord>,
+    from_record_request: Arc<Mutex<mpsc::Receiver<PhysicsRecord>>>,
     from_record_response: mpsc::Sender<()>,
 }
 
 #[pymethods]
-impl PythonPhysic {
+impl PythonPhysics {
     #[new]
-    pub fn new(py_model: Py<PyAny>) -> PythonPhysic {
+    pub fn new(py_model: Py<PyAny>) -> PythonPhysics {
         if is_enabled(crate::logger::InternalLog::API) {
             Python::with_gil(|py| {
                 debug!("Model got: {}", py_model.bind(py).dir().unwrap());
@@ -119,7 +119,7 @@ impl PythonPhysic {
         let (from_record_request_tx, from_record_request_rx) = mpsc::channel();
         let (from_record_response_tx, from_record_response_rx) = mpsc::channel();
 
-        PythonPhysic {
+        PythonPhysics {
             model: py_model,
             client: PythonPhysicAsyncClient {
                 apply_command_request: apply_command_request_tx,
@@ -148,7 +148,7 @@ impl PythonPhysic {
     }
 }
 
-impl PythonPhysic {
+impl PythonPhysics {
     pub fn get_client(&self) -> PythonPhysicAsyncClient {
         self.client.clone()
     }
@@ -191,10 +191,10 @@ impl PythonPhysic {
                 .bind(py)
                 .call_method(
                     "apply_command",
-                    (CommandWrapper::from_ros(command), time),
+                    (CommandWrapper::from_rust(command), time),
                     None,
                 )
-                .expect("PythonPhysic does not have a correct 'apply_command' method");
+                .expect("PythonPhysics does not have a correct 'apply_command' method");
         });
     }
 
@@ -207,7 +207,7 @@ impl PythonPhysic {
             self.model
                 .bind(py)
                 .call_method("update_state", (time,), None)
-                .expect("PythonPhysic does not have a correct 'update_state' method");
+                .expect("PythonPhysics does not have a correct 'update_state' method");
         });
     }
 
@@ -220,14 +220,14 @@ impl PythonPhysic {
             self.model
                 .bind(py)
                 .call_method("state", (time,), None)
-                .expect("PythonPhysic does not have a correct 'state' method")
+                .expect("PythonPhysics does not have a correct 'state' method")
                 .extract()
-                .expect("The 'state' method of PythonPhysic does not return a correct state vector")
+                .expect("The 'state' method of PythonPhysics does not return a correct state vector")
         });
-        state.to_ros()
+        state.to_rust()
     }
 
-    fn record(&self) -> PhysicRecord {
+    fn record(&self) -> PhysicsRecord {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
@@ -235,22 +235,22 @@ impl PythonPhysic {
             self.model
                 .bind(py)
                 .call_method("record", (), None)
-                .expect("Python implementation of PythonPhysic does not have a correct 'record' method")
+                .expect("Python implementation of PythonPhysics does not have a correct 'record' method")
                 .extract()
-                .expect("The 'record' method of PythonPhysic does not return a valid EstimatorRecord type")
+                .expect("The 'record' method of PythonPhysics does not return a valid EstimatorRecord type")
         });
-        let record = ExternalPhysicRecord {
+        let record = ExternalPhysicsRecord {
             record: Value::from_str(record_str.as_str()).expect(
                 "Impossible to get serde_json::Value from the input serialized python structure",
             ),
         };
         // record.clone()
-        // StateEstimatorRecord::External(PythonPhysic::record(&self))
-        PhysicRecord::External(record)
+        // StateEstimatorRecord::External(PythonPhysics::record(&self))
+        PhysicsRecord::External(record)
     }
 
-    fn from_record(&mut self, record: PhysicRecord) {
-        if let PhysicRecord::External(record) = record {
+    fn from_record(&mut self, record: PhysicsRecord) {
+        if let PhysicsRecord::External(record) = record {
             if is_enabled(crate::logger::InternalLog::API) {
                 debug!("Calling python implementation of from_record");
             }
@@ -258,7 +258,7 @@ impl PythonPhysic {
                 self.model
                     .bind(py)
                     .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None)
-                    .expect("Python implementation of PythonPhysic does not have a correct 'from_record' method");
+                    .expect("Python implementation of PythonPhysics does not have a correct 'from_record' method");
             });
         }
     }

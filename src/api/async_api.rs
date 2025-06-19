@@ -1,7 +1,7 @@
 use std::{
     os::unix::thread::JoinHandleExt,
     path::Path,
-    sync::{mpsc, Arc, Mutex},
+    sync::{mpsc, Arc, Mutex, RwLock},
     thread::{self, sleep, JoinHandle},
     time::Duration,
 };
@@ -10,11 +10,13 @@ use serde_json::Value;
 
 use crate::{
     controllers::controller::Controller,
+    errors::SimbaResult,
     navigators::navigator::Navigator,
-    physics::physic::Physic,
+    physics::physics::Physics,
     plugin_api::PluginAPI,
     simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::state_estimator::StateEstimator,
+    utils::rfc,
 };
 
 // Run by client
@@ -22,23 +24,17 @@ use crate::{
 pub struct AsyncApi {
     pub simulator_api: Arc<SimulatorAsyncApi>,
     // Channels
-    pub load_config: mpsc::Sender<String>,
-    pub load_config_end: Arc<Mutex<mpsc::Receiver<()>>>,
-    pub run: mpsc::Sender<Option<f32>>,
-    pub run_end: Arc<Mutex<mpsc::Receiver<()>>>,
-    pub compute_results: mpsc::Sender<()>,
-    pub compute_results_end: Arc<Mutex<mpsc::Receiver<()>>>,
+    pub load_config: rfc::RemoteFunctionCall<String, SimbaResult<SimulatorConfig>>,
+    pub run: rfc::RemoteFunctionCall<Option<f32>, SimbaResult<()>>,
+    pub compute_results: rfc::RemoteFunctionCall<(), SimbaResult<()>>,
 }
 
 // Run by the simulator
 #[derive(Clone)]
 pub struct AsyncApiServer {
-    pub load_config: Arc<Mutex<mpsc::Receiver<String>>>,
-    pub load_config_end: mpsc::Sender<()>,
-    pub run: Arc<Mutex<mpsc::Receiver<Option<f32>>>>,
-    pub run_end: mpsc::Sender<()>,
-    pub compute_results: Arc<Mutex<mpsc::Receiver<()>>>,
-    pub compute_results_end: mpsc::Sender<()>,
+    pub load_config: Arc<rfc::RemoteFunctionCallHost<String, SimbaResult<SimulatorConfig>>>,
+    pub run: Arc<rfc::RemoteFunctionCallHost<Option<f32>, SimbaResult<()>>>,
+    pub compute_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<()>>>,
 }
 
 // #[derive(Clone)]
@@ -58,31 +54,22 @@ impl AsyncApiRunner {
     }
 
     pub fn new_with_simulator(simulator: Arc<Mutex<Simulator>>) -> Self {
-        let (load_config_tx, load_config_rx) = mpsc::channel();
-        let (load_config_end_tx, load_config_end_rx) = mpsc::channel();
-        let (run_tx, run_rx) = mpsc::channel();
-        let (run_end_tx, run_end_rx) = mpsc::channel();
-        let (results_tx, results_rx) = mpsc::channel();
-        let (results_end_tx, results_end_rx) = mpsc::channel();
+        let (load_config_call, load_config_host) = rfc::make_pair();
+        let (run_call, run_host) = rfc::make_pair();
+        let (results_call, results_host) = rfc::make_pair();
         let (keep_alive_tx, keep_alive_rx) = mpsc::channel();
         let simulator_api = simulator.lock().unwrap().get_async_api();
         Self {
             public_api: AsyncApi {
                 simulator_api,
-                load_config: load_config_tx,
-                load_config_end: Arc::new(Mutex::new(load_config_end_rx)),
-                run: run_tx,
-                run_end: Arc::new(Mutex::new(run_end_rx)),
-                compute_results: results_tx,
-                compute_results_end: Arc::new(Mutex::new(results_end_rx)),
+                load_config: load_config_call,
+                run: run_call,
+                compute_results: results_call,
             },
             private_api: AsyncApiServer {
-                load_config: Arc::new(Mutex::new(load_config_rx)),
-                load_config_end: load_config_end_tx,
-                run: Arc::new(Mutex::new(run_rx)),
-                run_end: run_end_tx,
-                compute_results: Arc::new(Mutex::new(results_rx)),
-                compute_results_end: results_end_tx,
+                load_config: Arc::new(load_config_host),
+                run: Arc::new(run_host),
+                compute_results: Arc::new(results_host),
             },
             simulator,
             keep_alive_rx: Arc::new(Mutex::new(keep_alive_rx)),
@@ -118,53 +105,76 @@ impl AsyncApiRunner {
     pub fn run(&mut self, plugin_api: Option<Box<&'static dyn PluginAPI>>) {
         let private_api = self.private_api.clone();
         let keep_alive_rx = self.keep_alive_rx.clone();
-        let simulator_arc = self.simulator.clone();
+        let simulator_cloned = self.simulator.clone();
         let plugin_api = plugin_api.clone();
         self.thread_handle = Some(thread::spawn(move || {
+            println!("AsyncApiRunner thread started");
             let plugin_api = plugin_api.clone();
-            let mut simulator = simulator_arc.lock().unwrap();
             let mut need_reset = false;
-            loop {
-                // Should not be blocking
-                if let Ok(_) = keep_alive_rx.lock().unwrap().try_recv() {
-                    break;
+
+            let load_config = private_api.load_config.clone();
+            let simulator_arc = simulator_cloned.clone();
+            let plugin_api_threaded = plugin_api.clone();
+
+            let stopping_root = Arc::new(RwLock::new(false));
+            let stopping = stopping_root.clone();
+            thread::spawn(move || {
+                while !*stopping.read().unwrap() {
+                    load_config.recv_closure_mut(|config_path| {
+                        let mut simulator = simulator_arc.lock().unwrap();
+                        println!("Loading config: {}", config_path);
+                        let path = Path::new(&config_path);
+                        simulator.load_config_path(path, &plugin_api_threaded)?;
+                        println!("End loading");
+                        Ok(simulator.config())
+                    });
                 }
-                if let Ok(config_path) = private_api.load_config.lock().unwrap().try_recv() {
-                    println!("Loading config: {}", config_path);
-                    let path = Path::new(&config_path);
-                    simulator.load_config_path(path, &plugin_api);
-                    println!("End loading");
-                    private_api.load_config_end.send(()).unwrap();
+            });
+
+            let stopping = stopping_root.clone();
+            let run = private_api.run.clone();
+            let simulator_arc = simulator_cloned.clone();
+            let plugin_api_threaded = plugin_api.clone();
+            thread::spawn(move || {
+                while !*stopping.read().unwrap() {
+                    run.recv_closure_mut(|max_time| {
+                        let mut simulator = simulator_arc.lock().unwrap();
+                        if need_reset {
+                            simulator.reset(&plugin_api_threaded)?;
+                        }
+                        if let Some(max_time) = max_time {
+                            simulator.set_max_time(max_time);
+                        }
+                        log::info!("Run...");
+                        need_reset = true;
+                        simulator.run()
+                    });
                 }
-                if let Ok(max_time) = private_api.run.lock().unwrap().try_recv() {
-                    if need_reset {
-                        simulator.reset(&plugin_api);
-                    }
-                    if let Some(max_time) = max_time {
-                        simulator.set_max_time(max_time);
-                    }
-                    simulator.run();
-                    need_reset = true;
-                    private_api
-                        .run_end
-                        .send(())
-                        .expect("Error during sending 'end' information");
+            });
+
+            let compute_results = private_api.compute_results.clone();
+            let simulator_arc = simulator_cloned.clone();
+            let stopping = stopping_root.clone();
+            thread::spawn(move || {
+                while !*stopping.read().unwrap() {
+                    compute_results.recv_closure_mut(|_| {
+                        let simulator = simulator_arc.lock().unwrap();
+                        simulator.compute_results()?;
+                        need_reset = true;
+                        Ok(())
+                    });
                 }
-                if private_api
-                    .compute_results
-                    .lock()
-                    .unwrap()
-                    .try_recv()
-                    .is_ok()
-                {
-                    simulator.compute_results();
-                    need_reset = true;
-                    private_api
-                        .compute_results_end
-                        .send(())
-                        .expect("Error during sending 'end' information");
-                }
-            }
+            });
+
+            // Wait for end
+            let _ = keep_alive_rx.lock().unwrap().recv();
+
+            // Ending threads
+            *stopping_root.write().unwrap() = true;
+            private_api.load_config.stop_recv();
+            private_api.run.stop_recv();
+            private_api.compute_results.stop_recv();
+
             log::info!("AsyncApiRunner thread exited");
         }));
     }
@@ -180,7 +190,7 @@ pub struct PluginAsyncAPI {
     pub get_navigator_request: mpsc::Sender<(Value, SimulatorConfig)>,
     pub get_navigator_response: Arc<Mutex<mpsc::Receiver<Box<dyn Navigator>>>>,
     pub get_physic_request: mpsc::Sender<(Value, SimulatorConfig)>,
-    pub get_physic_response: Arc<Mutex<mpsc::Receiver<Box<dyn Physic>>>>,
+    pub get_physic_response: Arc<Mutex<mpsc::Receiver<Box<dyn Physics>>>>,
 }
 
 impl PluginAsyncAPI {
@@ -202,8 +212,8 @@ impl PluginAsyncAPI {
                 get_controller_response: get_controller_response_tx,
                 get_navigator_request: Arc::new(Mutex::new(get_navigator_request_rx)),
                 get_navigator_response: get_navigator_response_tx,
-                get_physic_request: Arc::new(Mutex::new(get_physic_request_rx)),
-                get_physic_response: get_physic_response_tx,
+                get_physics_request: Arc::new(Mutex::new(get_physic_request_rx)),
+                get_physics_response: get_physic_response_tx,
             },
             get_state_estimator_request: get_state_estimator_request_tx,
             get_state_estimator_response: Arc::new(Mutex::new(get_state_estimator_response_rx)),
@@ -254,7 +264,7 @@ impl PluginAPI for PluginAsyncAPI {
         self.get_navigator_response.lock().unwrap().recv().unwrap()
     }
 
-    fn get_physic(&self, config: &Value, global_config: &SimulatorConfig) -> Box<dyn Physic> {
+    fn get_physics(&self, config: &Value, global_config: &SimulatorConfig) -> Box<dyn Physics> {
         self.get_physic_request
             .send((config.clone(), global_config.clone()))
             .unwrap();
@@ -271,6 +281,6 @@ pub struct PluginAsyncAPIClient {
     pub get_controller_response: mpsc::Sender<Box<dyn Controller>>,
     pub get_navigator_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
     pub get_navigator_response: mpsc::Sender<Box<dyn Navigator>>,
-    pub get_physic_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
-    pub get_physic_response: mpsc::Sender<Box<dyn Physic>>,
+    pub get_physics_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
+    pub get_physics_response: mpsc::Sender<Box<dyn Physics>>,
 }

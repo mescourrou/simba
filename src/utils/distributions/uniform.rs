@@ -5,7 +5,11 @@ use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 
-use crate::utils::determinist_random_variable::DeterministRandomVariable;
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
+
+use crate::utils::determinist_random_variable::{DeterministRandomVariable};
+use crate::utils::format_f32;
 
 /// Configuration for a uniform random variable.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -13,6 +17,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariable;
 #[serde(deny_unknown_fields)]
 pub struct UniformRandomVariableConfig {
     /// Random seed for this random variable.
+    #[serde(serialize_with = "format_f32")]
     pub unique_seed: f32,
     /// Minimum value of the uniform distribution.
     pub min: Vec<f32>,
@@ -27,6 +32,55 @@ impl Default for UniformRandomVariableConfig {
             min: vec![-1.],
             max: vec![1.],
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for UniformRandomVariableConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &crate::simulator::SimulatorConfig,
+        _current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        ui.horizontal_top(|ui| {
+            use crate::utils::determinist_random_variable::seed_generation_component;
+
+            ui.vertical(|ui| {
+                let mut to_remove = None;
+                for (i, (min, max)) in
+                    std::iter::zip(self.min.iter_mut(), self.max.iter_mut()).enumerate()
+                {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{}:", i + 1));
+                        ui.add(egui::DragValue::new(min).max_decimals(10));
+                        ui.label("-");
+                        ui.add(egui::DragValue::new(max).max_decimals(10));
+                        if ui.button("X").clicked() {
+                            to_remove = Some(i);
+                        }
+                    });
+                }
+                if let Some(i) = to_remove {
+                    self.min.remove(i);
+                    self.max.remove(i);
+                }
+                if ui.button("Add").clicked() {
+                    self.min.push(0.);
+                    self.max.push(1.);
+                }
+            });
+            ui.label("Seed: ");
+            seed_generation_component(
+                &mut self.unique_seed,
+                ui,
+                buffer_stack,
+                unique_id,
+            );
+        });
     }
 }
 

@@ -15,7 +15,13 @@ use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
+use simba_macros::{EnumToString, ToVec};
 
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::{enum_combobox, string_combobox},
+    UIComponent,
+};
 use crate::{
     sensors::{oriented_landmark_sensor::OrientedLandmarkSensor, sensor::SensorObservation},
     simulator::SimulatorConfig,
@@ -32,7 +38,7 @@ use crate::{
 
 use super::fault_model::FaultModel;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, EnumToString, ToVec)]
 pub enum Sort {
     None,
     Random,
@@ -40,7 +46,7 @@ pub enum Sort {
     Distance,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, EnumToString)]
 pub enum Source {
     Map(String),
     Robots,
@@ -74,6 +80,66 @@ impl Default for MisassociationFaultConfig {
             sort: Sort::Random,
             source: Source::Robots,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for MisassociationFaultConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        global_config: &crate::simulator::SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label("Apparition probability: ");
+                self.apparition.show(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
+            ui.horizontal(|ui| {
+                ui.label("Distribution:");
+                self.distribution.show(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Sort:");
+                enum_combobox(ui, &mut self.sort, unique_id);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Source:");
+                let possible_values = vec!["Robots".to_string(), "Map".to_string()];
+                let mut current_source = self.source.to_string();
+                string_combobox(ui, &possible_values, &mut current_source, unique_id);
+                if let Source::Map(path) = &mut self.source {
+                    ui.text_edit_singleline(path);
+                }
+                if current_source != self.source.to_string() {
+                    match current_source.as_str() {
+                        "Robots" => self.source = Source::Robots,
+                        "Map" => self.source = Source::Map("".to_string()),
+                        _ => panic!("Where did you find this value?"),
+                    };
+                }
+            });
+        });
     }
 }
 

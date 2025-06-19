@@ -14,12 +14,16 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use config_checker::macros::Check;
+use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
 use crate::controllers::controller::ControllerError;
+#[cfg(feature = "gui")]
+use crate::gui::{utils::json_config, UIComponent};
+use crate::logger::is_enabled;
 use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::State;
+use crate::state_estimators::state_estimator::WorldState;
 use crate::stateful::Stateful;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -52,6 +56,32 @@ impl Default for ExternalNavigatorConfig {
         Self {
             config: Value::Null,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ExternalNavigatorConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("External Navigator").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                json_config(
+                    ui,
+                    &format!("external-navigator-key-{}", &unique_id),
+                    &format!("external-navigator-error-key-{}", &unique_id),
+                    buffer_stack,
+                    &mut self.config,
+                );
+            });
+        });
     }
 }
 
@@ -120,7 +150,9 @@ impl ExternalNavigator {
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        println!("Config given: {:?}", config);
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Config given: {:?}", config);
+        }
         Self {
             navigator: plugin_api
                 .as_ref()
@@ -137,8 +169,8 @@ impl std::fmt::Debug for ExternalNavigator {
 }
 
 impl Navigator for ExternalNavigator {
-    fn compute_error(&mut self, robot: &mut Node, state: State) -> ControllerError {
-        self.navigator.compute_error(robot, state)
+    fn compute_error(&mut self, robot: &mut Node, world_state: WorldState) -> ControllerError {
+        self.navigator.compute_error(robot, world_state)
     }
 }
 

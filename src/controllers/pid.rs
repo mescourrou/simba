@@ -9,6 +9,8 @@ The [`PID`] controller uses three derivative of the error:
 Each component has a gain, which can be set in [`PIDConfig`].
 */
 
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
@@ -55,6 +57,61 @@ impl Default for PIDConfig {
             ki_theta: 0.,
             wheel_distance: 0.25,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for PIDConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("PID")
+            .id_source(format!("pid-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Velocity - P:");
+                    ui.add(egui::DragValue::new(&mut self.kp_v).max_decimals(10));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Velocity - I:");
+                    ui.add(egui::DragValue::new(&mut self.ki_v).max_decimals(10));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Velocity - D:");
+                    ui.add(egui::DragValue::new(&mut self.kd_v).max_decimals(10));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Theta - P:");
+                    ui.add(egui::DragValue::new(&mut self.kp_theta).max_decimals(10));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Theta - I:");
+                    ui.add(egui::DragValue::new(&mut self.ki_theta).max_decimals(10));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Theta - D:");
+                    ui.add(egui::DragValue::new(&mut self.kd_theta).max_decimals(10));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Wheel distance:");
+                    if self.wheel_distance < 0. {
+                        self.wheel_distance = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.wheel_distance).max_decimals(10));
+                });
+            });
     }
 }
 
@@ -160,7 +217,7 @@ impl PID {
 use super::controller::{Controller, ControllerRecord};
 use crate::controllers::controller::ControllerError;
 use crate::node::Node;
-use crate::physics::physic::Command;
+use crate::physics::physics::Command;
 
 impl Controller for PID {
     fn make_command(&mut self, _robot: &mut Node, error: &ControllerError, time: f32) -> Command {

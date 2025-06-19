@@ -1,13 +1,18 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
-use nalgebra::{SVector, Vector2};
+use log::debug;
+use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::prelude::*;
 
 use crate::{
     api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
     controllers::{controller::ControllerError, pybinds::PythonController},
+    logger::is_enabled,
     navigators::pybinds::PythonNavigator,
-    physics::{physic::Command, pybinds::PythonPhysic},
+    physics::{physics::Command, pybinds::PythonPhysics},
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
@@ -18,8 +23,14 @@ use crate::{
         sensor::{Observation, SensorObservation},
     },
     simulator::Simulator,
-    state_estimators::{pybinds::PythonStateEstimator, state_estimator::State},
+    state_estimators::{
+        pybinds::PythonStateEstimator,
+        state_estimator::{State, WorldState},
+    },
+    utils::occupancy_grid::OccupancyGrid,
 };
+
+
 
 #[derive(Clone)]
 #[pyclass(get_all, set_all)]
@@ -45,7 +56,7 @@ impl ControllerErrorWrapper {
     }
 }
 impl ControllerErrorWrapper {
-    pub fn from_ros(ce: &ControllerError) -> Self {
+    pub fn from_rust(ce: &ControllerError) -> Self {
         Self {
             lateral: ce.lateral,
             theta: ce.theta,
@@ -53,7 +64,7 @@ impl ControllerErrorWrapper {
         }
     }
 
-    pub fn to_ros(&self) -> ControllerError {
+    pub fn to_rust(&self) -> ControllerError {
         ControllerError {
             lateral: self.lateral,
             theta: self.theta,
@@ -97,7 +108,7 @@ impl StateWrapper {
 }
 
 impl StateWrapper {
-    pub fn from_ros(s: &State) -> Self {
+    pub fn from_rust(s: &State) -> Self {
         Self {
             pose: Pose {
                 x: s.pose[0],
@@ -107,11 +118,145 @@ impl StateWrapper {
             velocity: s.velocity,
         }
     }
-    pub fn to_ros(&self) -> State {
+    pub fn to_rust(&self) -> State {
         State {
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
             velocity: self.velocity,
         }
+    }
+}
+
+#[derive(Clone)]
+#[pyclass(get_all, set_all)]
+#[pyo3(name = "WorldState")]
+pub struct WorldStateWrapper {
+    pub ego: Option<StateWrapper>,
+    pub objects: BTreeMap<String, StateWrapper>,
+    pub landmarks: BTreeMap<i32, StateWrapper>,
+    pub occupancy_grid: Option<OccupancyGridWrapper>,
+}
+
+#[pymethods]
+impl WorldStateWrapper {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            ego: None,
+            objects: BTreeMap::new(),
+            landmarks: BTreeMap::new(),
+            occupancy_grid: None,
+        }
+    }
+}
+
+impl WorldStateWrapper {
+    pub fn from_rust(s: &WorldState) -> Self {
+        Self {
+            ego: match &s.ego {
+                Some(st) => Some(StateWrapper::from_rust(st)),
+                None => None,
+            },
+            landmarks: BTreeMap::from_iter(
+                s.landmarks
+                    .iter()
+                    .map(|(id, s)| (id.clone(), StateWrapper::from_rust(s))),
+            ),
+            objects: BTreeMap::from_iter(
+                s.objects
+                    .iter()
+                    .map(|(id, s)| (id.clone(), StateWrapper::from_rust(s))),
+            ),
+            occupancy_grid: match &s.occupancy_grid {
+                Some(og) => Some(OccupancyGridWrapper::from_rust(og)),
+                None => None,
+            },
+        }
+    }
+    pub fn to_rust(&self) -> WorldState {
+        WorldState {
+            ego: match &self.ego {
+                Some(st) => Some(StateWrapper::to_rust(st)),
+                None => None,
+            },
+            landmarks: BTreeMap::from_iter(
+                self.landmarks
+                    .iter()
+                    .map(|(id, s)| (id.clone(), StateWrapper::to_rust(s))),
+            ),
+            objects: BTreeMap::from_iter(
+                self.objects
+                    .iter()
+                    .map(|(id, s)| (id.clone(), StateWrapper::to_rust(s))),
+            ),
+            occupancy_grid: match &self.occupancy_grid {
+                Some(og) => Some(OccupancyGridWrapper::to_rust(og)),
+                None => None,
+            },
+        }
+    }
+}
+
+#[derive(Clone)]
+#[pyclass]
+#[pyo3(name = "OccupancyGrid")]
+pub struct OccupancyGridWrapper {
+    grid: OccupancyGrid,
+}
+
+#[pymethods]
+impl OccupancyGridWrapper {
+    #[new]
+    pub fn new(
+        center: [f32; 3],
+        cell_height: f32,
+        cell_width: f32,
+        nb_rows: usize,
+        nb_cols: usize,
+    ) -> Self {
+        Self {
+            grid: OccupancyGrid::new(
+                Vector3::from(center),
+                cell_height,
+                cell_width,
+                nb_rows,
+                nb_cols,
+            ),
+        }
+    }
+
+    pub fn get_idx(&self, row: usize, col: usize) -> Option<f32> {
+        self.grid.get_idx(row, col).cloned()
+    }
+
+    pub fn set_idx(&mut self, row: usize, col: usize, value: f32) -> bool {
+        if let Some(v) = self.grid.get_idx_mut(row, col) {
+            *v = value;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn get_pos(&self, position: [f32; 2]) -> Option<f32> {
+        self.grid.get_pos(Vector2::from(position)).cloned()
+    }
+
+    pub fn set_pos(&mut self, position: [f32; 2], value: f32) -> bool {
+        if let Some(v) = self.grid.get_pos_mut(Vector2::from(position)) {
+            *v = value;
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl OccupancyGridWrapper {
+    pub fn from_rust(s: &OccupancyGrid) -> Self {
+        Self { grid: s.clone() }
+    }
+    pub fn to_rust(&self) -> OccupancyGrid {
+        self.grid.clone()
     }
 }
 
@@ -141,7 +286,7 @@ impl OrientedLandmarkObservationWrapper {
 }
 
 impl OrientedLandmarkObservationWrapper {
-    pub fn from_ros(s: &OrientedLandmarkObservation) -> Self {
+    pub fn from_rust(s: &OrientedLandmarkObservation) -> Self {
         Self {
             id: s.id,
             pose: Pose {
@@ -151,7 +296,7 @@ impl OrientedLandmarkObservationWrapper {
             },
         }
     }
-    pub fn to_ros(&self) -> OrientedLandmarkObservation {
+    pub fn to_rust(&self) -> OrientedLandmarkObservation {
         OrientedLandmarkObservation {
             id: self.id,
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
@@ -179,13 +324,13 @@ impl OdometryObservationWrapper {
 }
 
 impl OdometryObservationWrapper {
-    pub fn from_ros(s: &OdometryObservation) -> Self {
+    pub fn from_rust(s: &OdometryObservation) -> Self {
         Self {
             linear_velocity: s.linear_velocity,
             angular_velocity: s.angular_velocity,
         }
     }
-    pub fn to_ros(&self) -> OdometryObservation {
+    pub fn to_rust(&self) -> OdometryObservation {
         OdometryObservation {
             linear_velocity: self.linear_velocity,
             angular_velocity: self.angular_velocity,
@@ -213,13 +358,13 @@ impl GNSSObservationWrapper {
 }
 
 impl GNSSObservationWrapper {
-    pub fn from_ros(s: &GNSSObservation) -> Self {
+    pub fn from_rust(s: &GNSSObservation) -> Self {
         Self {
             position: s.position.into(),
             velocity: s.velocity.into(),
         }
     }
-    pub fn to_ros(&self) -> GNSSObservation {
+    pub fn to_rust(&self) -> GNSSObservation {
         GNSSObservation {
             position: Vector2::from(self.position),
             velocity: Vector2::from(self.velocity),
@@ -253,7 +398,7 @@ impl OrientedRobotObservationWrapper {
 }
 
 impl OrientedRobotObservationWrapper {
-    pub fn from_ros(s: &OrientedRobotObservation) -> Self {
+    pub fn from_rust(s: &OrientedRobotObservation) -> Self {
         Self {
             name: s.name.clone(),
             pose: Pose {
@@ -263,7 +408,7 @@ impl OrientedRobotObservationWrapper {
             },
         }
     }
-    pub fn to_ros(&self) -> OrientedRobotObservation {
+    pub fn to_rust(&self) -> OrientedRobotObservation {
         OrientedRobotObservation {
             name: self.name.clone(),
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
@@ -290,31 +435,31 @@ impl SensorObservationWrapper {
 }
 
 impl SensorObservationWrapper {
-    pub fn from_ros(s: &SensorObservation) -> Self {
+    pub fn from_rust(s: &SensorObservation) -> Self {
         match s {
             SensorObservation::GNSS(o) => {
-                SensorObservationWrapper::GNSS(GNSSObservationWrapper::from_ros(o))
+                SensorObservationWrapper::GNSS(GNSSObservationWrapper::from_rust(o))
             }
             SensorObservation::Odometry(o) => {
-                SensorObservationWrapper::Odometry(OdometryObservationWrapper::from_ros(o))
+                SensorObservationWrapper::Odometry(OdometryObservationWrapper::from_rust(o))
             }
             SensorObservation::OrientedLandmark(o) => SensorObservationWrapper::OrientedLandmark(
-                OrientedLandmarkObservationWrapper::from_ros(o),
+                OrientedLandmarkObservationWrapper::from_rust(o),
             ),
             SensorObservation::OrientedRobot(o) => SensorObservationWrapper::OrientedRobot(
-                OrientedRobotObservationWrapper::from_ros(o),
+                OrientedRobotObservationWrapper::from_rust(o),
             ),
         }
     }
-    pub fn to_ros(&self) -> SensorObservation {
+    pub fn to_rust(&self) -> SensorObservation {
         match self {
-            SensorObservationWrapper::GNSS(o) => SensorObservation::GNSS(o.to_ros()),
-            SensorObservationWrapper::Odometry(o) => SensorObservation::Odometry(o.to_ros()),
+            SensorObservationWrapper::GNSS(o) => SensorObservation::GNSS(o.to_rust()),
+            SensorObservationWrapper::Odometry(o) => SensorObservation::Odometry(o.to_rust()),
             SensorObservationWrapper::OrientedLandmark(o) => {
-                SensorObservation::OrientedLandmark(o.to_ros())
+                SensorObservation::OrientedLandmark(o.to_rust())
             }
             SensorObservationWrapper::OrientedRobot(o) => {
-                SensorObservation::OrientedRobot(o.to_ros())
+                SensorObservation::OrientedRobot(o.to_rust())
             }
         }
     }
@@ -344,20 +489,20 @@ impl ObservationWrapper {
 }
 
 impl ObservationWrapper {
-    pub fn from_ros(s: &Observation) -> Self {
+    pub fn from_rust(s: &Observation) -> Self {
         Self {
             sensor_name: s.sensor_name.clone(),
             observer: s.observer.clone(),
             time: s.time,
-            sensor_observation: SensorObservationWrapper::from_ros(&s.sensor_observation),
+            sensor_observation: SensorObservationWrapper::from_rust(&s.sensor_observation),
         }
     }
-    pub fn to_ros(&self) -> Observation {
+    pub fn to_rust(&self) -> Observation {
         Observation {
             sensor_name: self.sensor_name.clone(),
             observer: self.observer.clone(),
             time: self.time,
-            sensor_observation: self.sensor_observation.to_ros(),
+            sensor_observation: self.sensor_observation.to_rust(),
         }
     }
 }
@@ -384,13 +529,13 @@ impl CommandWrapper {
 }
 
 impl CommandWrapper {
-    pub fn from_ros(s: &Command) -> Self {
+    pub fn from_rust(s: &Command) -> Self {
         Self {
             left_wheel_speed: s.left_wheel_speed,
             right_wheel_speed: s.right_wheel_speed,
         }
     }
-    pub fn to_ros(&self) -> Command {
+    pub fn to_rust(&self) -> Command {
         Command {
             left_wheel_speed: self.left_wheel_speed,
             right_wheel_speed: self.right_wheel_speed,
@@ -408,8 +553,8 @@ impl PluginAPIWrapper {
     pub fn new() -> Self {
         Self {}
     }
-    /// Return the [`StateEstimator`](`crate::state_estimators::state_estimators::StateEstimator`) to be used by the
-    /// [`ExternalEstimator`](`crate::state_estimators::external_estimator::ExternalEstimator`).
+    /// Return the [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to be used by the
+    /// [`ExternalEstimator`](crate::state_estimators::external_estimator::ExternalEstimator).
     ///
     /// # Arguments
     /// * `config` - Config for the external state estimator. The configuration
@@ -419,7 +564,7 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`StateEstimator`] to use.
+    /// Returns the [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to use.
     pub fn get_state_estimator(
         &self,
         _config: Py<PyAny>,
@@ -428,8 +573,8 @@ impl PluginAPIWrapper {
         panic!("The given PluginAPI does not provide a state estimator");
     }
 
-    /// Return the [`Controller`] to be used by the
-    /// [`ExternalController`](`crate::controllers::external_controller::ExternalController`).
+    /// Return the [`Controller`](crate::controllers::controller::Controller) to be used by the
+    /// [`ExternalController`](crate::controllers::external_controller::ExternalController).
     ///
     /// # Arguments
     /// * `config` - Config for the external controller. The configuration
@@ -439,7 +584,7 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`Controller`] to use.
+    /// Returns the [`Controller`](crate::controllers::controller::Controller) to use.
     pub fn get_controller(
         &self,
         _config: Py<PyAny>,
@@ -448,8 +593,8 @@ impl PluginAPIWrapper {
         panic!("The given PluginAPI does not provide a controller");
     }
 
-    /// Return the [`Navigator`] to be used by the
-    /// [`ExternalNavigator`](`crate::navigators::external_navigator::ExternalNavigator`).
+    /// Return the [`Navigator`](crate::navigators::navigator::Navigator) to be used by the
+    /// [`ExternalNavigator`](crate::navigators::external_navigator::ExternalNavigator).
     ///
     /// # Arguments
     /// * `config` - Config for the external navigator. The configuration
@@ -459,25 +604,25 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`Navigator`] to use.
+    /// Returns the [`Navigator`](crate::navigators::navigator::Navigator) to use.
     pub fn get_navigator(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonNavigator {
         panic!("The given PluginAPI does not provide a navigator");
     }
 
-    /// Return the [`Physic`] to be used by the
-    /// [`ExternalPhysic`](`crate::physcs::external_physic::ExternalPhysic`).
+    /// Return the [`Physics`](crate::physics::physics::Physics) to be used by the
+    /// [`ExternalPhysics`](crate::physics::external_physics::ExternalPhysics).
     ///
     /// # Arguments
-    /// * `config` - Config for the external physic. The configuration
+    /// * `config` - Config for the external physics. The configuration
     /// is given using [`serde_json::Value`]. It should be converted by the
     /// external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
     ///
     /// # Return
     ///
-    /// Returns the [`Physic`] to use.
-    pub fn get_physic(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonPhysic {
-        panic!("The given PluginAPI does not provide a physic");
+    /// Returns the [`Physics`](crate::physics::physics::Physics) to use.
+    pub fn get_physics(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonPhysics {
+        panic!("The given PluginAPI does not provide physics");
     }
 }
 
@@ -523,19 +668,12 @@ impl SimulatorWrapper {
                 })),
                 None => None,
             });
-        wrapper.api.load_config.send(config_path).unwrap();
+        wrapper.api.load_config.async_call(config_path);
 
         if let Some(unwrapped_async_api) = &wrapper.async_plugin_api {
             let api_client = &unwrapped_async_api.client;
             let python_api = wrapper.python_api.as_mut().unwrap();
-            while wrapper
-                .api
-                .load_config_end
-                .lock()
-                .unwrap()
-                .try_recv()
-                .is_err()
-            {
+            while wrapper.api.load_config.try_get_result().is_none() {
                 if let Ok((config, simulator_config)) = api_client
                     .get_state_estimator_request
                     .lock()
@@ -562,38 +700,38 @@ impl SimulatorWrapper {
                     api_client.get_navigator_response.send(navigator).unwrap();
                 }
                 if let Ok((config, simulator_config)) =
-                    api_client.get_physic_request.lock().unwrap().try_recv()
+                    api_client.get_physics_request.lock().unwrap().try_recv()
                 {
-                    let physic = python_api.get_physic(&config, &simulator_config);
-                    api_client.get_physic_response.send(physic).unwrap();
+                    let physic = python_api.get_physics(&config, &simulator_config);
+                    api_client.get_physics_response.send(physic).unwrap();
                 }
                 python_api.check_requests();
             }
         } else {
-            wrapper.api.load_config_end.lock().unwrap().recv().unwrap();
+            wrapper.api.load_config.wait_result().unwrap().unwrap();
         }
 
         wrapper
     }
 
     pub fn run(&mut self) {
-        self.api
-            .run
-            .send(None)
-            .expect("Error while sending 'run' request");
+        self.api.run.async_call(None);
         if let Some(python_api) = &mut self.python_api {
-            while self.api.run_end.lock().unwrap().try_recv().is_err() {
+            while self.api.run.try_get_result().is_none() {
                 python_api.check_requests();
                 if Python::with_gil(|py| py.check_signals()).is_err() {
                     break;
                 }
             }
         } else {
-            while self.api.run_end.lock().unwrap().try_recv().is_err() {
+            while self.api.run.try_get_result().is_none() {
                 if Python::with_gil(|py| py.check_signals()).is_err() {
                     break;
                 }
             }
+        }
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Stop server");
         }
         // Stop server thread
         self.server.lock().unwrap().stop();
@@ -604,6 +742,96 @@ impl SimulatorWrapper {
             .get_simulator()
             .lock()
             .unwrap()
-            .compute_results();
+            .compute_results()
+            .unwrap();
     }
 }
+
+
+#[cfg(feature = "gui")]
+#[pyfunction]
+#[pyo3(signature = (plugin_api=None))]
+pub fn run_gui(py: Python, plugin_api: Option<Py<PyAny>>) {
+    use std::{sync::RwLock, thread};
+
+    use crate::gui;
+    let async_plugin_api = match &plugin_api {
+        Some(_) => Some(PluginAsyncAPI::new()),
+        None => None,
+    };
+    let mut python_api = match plugin_api {
+        Some(a) => Some(PythonAPI::new(a)),
+        None => None,
+    };
+
+    let api_client = match &async_plugin_api {
+        Some(api) => Some(api.client.clone()),
+        None => None,
+    };
+        
+    let running = Arc::new(RwLock::new(true));
+    let local_running = running.clone();
+
+    let thread_handle = thread::spawn(move || {
+        while *running.read().unwrap() {
+            if let Some(api_client) = &api_client {
+                let python_api = python_api.as_mut().unwrap();
+                // TODO: Multiple wait can be optimized the same way than AsyncAPI runner (or maybe not as it's Python)
+                if let Ok((config, simulator_config)) = api_client
+                    .get_state_estimator_request
+                    .lock()
+                    .unwrap()
+                    .try_recv()
+                {
+                    let state_estimator =
+                        python_api.get_state_estimator(&config, &simulator_config);
+                    api_client
+                        .get_state_estimator_response
+                        .send(state_estimator)
+                        .unwrap();
+                }
+                if let Ok((config, simulator_config)) =
+                    api_client.get_controller_request.lock().unwrap().try_recv()
+                {
+                    let controller = python_api.get_controller(&config, &simulator_config);
+                    api_client.get_controller_response.send(controller).unwrap();
+                }
+                if let Ok((config, simulator_config)) =
+                    api_client.get_navigator_request.lock().unwrap().try_recv()
+                {
+                    let navigator = python_api.get_navigator(&config, &simulator_config);
+                    api_client.get_navigator_response.send(navigator).unwrap();
+                }
+                if let Ok((config, simulator_config)) =
+                    api_client.get_physics_request.lock().unwrap().try_recv()
+                {
+                    let physic = python_api.get_physics(&config, &simulator_config);
+                    api_client.get_physics_response.send(physic).unwrap();
+                }
+                python_api.check_requests();
+            }
+        }
+    });
+
+    // egui needs to be run in the main thread. However, Python get the GIL. So we need to free the GIL so that the thread spawn before can call Python functions.
+    // allow_threads reacquire the GIL when it exits the function. At this point, we are sure that the other thread is finished.
+    py.allow_threads(|| {
+        gui::run_gui(match &async_plugin_api {
+            Some(api) => Some(Box::<&dyn PluginAPI>::new(unsafe {
+                std::mem::transmute::<&dyn PluginAPI, &'static dyn PluginAPI>(api)
+            })),
+            None => None,
+        });
+        *local_running.write().unwrap() = false;
+        thread_handle.join().unwrap();
+    });
+
+}
+
+#[cfg(not(feature = "gui"))]
+#[pyfunction]
+#[pyo3(signature = (_plugin_api=None))]
+pub fn run_gui(_py: Python, _plugin_api: Option<Py<PyAny>>) {
+    unimplemented!("run_gui not available. Compile python package with 'gui' feature");
+}
+

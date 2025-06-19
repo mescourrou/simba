@@ -24,12 +24,12 @@ class Navigator(simba.Navigator):
         record = json.loads(record)
         print(f"Receiving record: {record}")
 
-    def compute_error(self, state) -> simba.ControllerError:
+    def compute_error(self, world_state: simba.WorldState) -> simba.ControllerError:
         error = simba.ControllerError()
-        v = state.velocity
-        x = state.pose.x
-        y = state.pose.y
-        theta = state.pose.theta
+        v = world_state.ego.velocity
+        x = world_state.ego.pose.x
+        y = world_state.ego.pose.y
+        theta = world_state.ego.pose.theta
         
         # Very bad error computation, but that's an example
         pose = np.array([x, y, theta])

@@ -4,21 +4,26 @@ use lazy_static::lazy_static;
 #[cfg(feature = "time-analysis")]
 use libm::ceilf;
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "gui")]
+use simba_macros::ToVec;
 
 #[cfg(feature = "time-analysis")]
-use std::sync::Mutex;
-#[cfg(feature = "time-analysis")]
-use std::thread::ThreadId;
+use std::{thread::ThreadId, collections::HashMap, sync::Mutex, path::Path, time::Duration};
 
 #[cfg(feature = "time-analysis")]
 use log::info;
-#[cfg(feature = "time-analysis")]
-use std::collections::HashMap;
+#[cfg(any(feature = "time-analysis", feature = "gui"))]
+use std::collections::BTreeMap;
 #[cfg(feature = "time-analysis")]
 use std::thread;
 use std::time;
-#[cfg(feature = "time-analysis")]
-use std::{path::Path, time::Duration};
+
+use crate::errors::SimbaResult;
+#[cfg(feature = "gui")]
+use crate::gui::{
+    utils::{enum_radio, path_finder, string_combobox},
+    UIComponent,
+};
 
 #[cfg(feature = "time-analysis")]
 #[allow(dead_code)]
@@ -52,6 +57,46 @@ impl Default for TimeAnalysisConfig {
             output_path: "time_performance".to_string(),
             analysis_unit: "s".to_string(),
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for TimeAnalysisConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut BTreeMap<String, String>,
+        global_config: &crate::simulator::SimulatorConfig,
+        _current_node_name: Option<&String>,
+        _unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Time Analysis").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Exporter:");
+                enum_radio(ui, &mut self.exporter);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Output path: ");
+                path_finder(ui, &mut self.output_path, &global_config.base_path);
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Analysis unit:");
+                string_combobox(
+                    ui,
+                    &vec![
+                        "s".to_string(),
+                        "ms".to_string(),
+                        "us".to_string(),
+                        "ns".to_string(),
+                    ],
+                    &mut self.analysis_unit,
+                    "time-analysis-unit",
+                );
+            });
+        });
     }
 }
 
@@ -382,15 +427,15 @@ impl TimeAnalysisStatistics {
                 .unwrap_or(&0.)
                 .clone(),
             n: (n as u32),
-            q1: v[ceilf(nf32 / 4.) as usize],
-            q3: v[ceilf(nf32 * 0.75) as usize],
-            q01: v[ceilf(nf32 * 0.01) as usize],
+            q1: v[(ceilf(nf32 / 4.) as usize).min(n - 1)],
+            q3: v[(ceilf(nf32 * 0.75) as usize).min(n - 1)],
+            q01: v[(ceilf(nf32 * 0.01) as usize).min(n - 1)],
             q99: v[(ceilf(nf32 * 0.99) as usize).min(n - 1)],
         }
     }
 
-    pub fn as_map(&self) -> HashMap<String, String> {
-        let mut map = HashMap::<String, String>::new();
+    pub fn as_map(&self) -> BTreeMap<String, String> {
+        let mut map = BTreeMap::<String, String>::new();
         map.insert("mean".to_string(), self.mean.to_string());
         map.insert("median".to_string(), self.median.to_string());
         map.insert("min".to_string(), self.min.to_string());
@@ -409,7 +454,7 @@ impl TimeAnalysisStatistics {
 struct TimeAnalysisFactory {
     nodes_names: HashMap<ThreadId, String>,
     nodes_depth: HashMap<ThreadId, usize>,
-    execution_tree: HashMap<String, ExecutionTree>,
+    execution_tree: BTreeMap<String, ExecutionTree>,
     current_coordinates: HashMap<ThreadId, (i64, Vec<usize>)>,
     exporter: Box<dyn ProfilerExporter>,
     config: TimeAnalysisConfig,
@@ -424,7 +469,7 @@ impl TimeAnalysisFactory {
                     nodes_names: HashMap::new(),
                     nodes_depth: HashMap::new(),
                     current_coordinates: HashMap::new(),
-                    execution_tree: HashMap::new(),
+                    execution_tree: BTreeMap::new(),
                     exporter: Box::new(TraceEventExporter {}),
                     config: TimeAnalysisConfig::default(),
                 });
@@ -434,19 +479,20 @@ impl TimeAnalysisFactory {
         &FACTORY
     }
 
-    pub fn init_from_config(config: &TimeAnalysisConfig) {
+    pub fn init_from_config(config: &TimeAnalysisConfig) -> SimbaResult<()> {
         let factory = TimeAnalysisFactory::get_instance();
         let mut factory = factory.lock().unwrap();
-        factory._init_from_config(config);
+        factory._init_from_config(config)
     }
 
-    fn _init_from_config(&mut self, config: &TimeAnalysisConfig) {
+    fn _init_from_config(&mut self, config: &TimeAnalysisConfig) -> SimbaResult<()> {
         match config.exporter {
             ProfileExporterConfig::TraceEventExporter => {
                 self.exporter = Box::new(TraceEventExporter {});
             }
         }
         self.config = config.clone();
+        Ok(())
     }
 
     pub fn set_node_name(name: String) {
@@ -600,7 +646,7 @@ impl TimeAnalysisFactory {
     fn real_time_analysis(&self, path: &Path) {
         let path = path.with_extension("report").with_extension("csv");
 
-        let mut stats = HashMap::<String, Vec<String>>::new();
+        let mut stats = BTreeMap::<String, Vec<String>>::new();
         let mut node_headers = vec!["Unit:".to_string()];
         let mut track_headers = vec![self.config.analysis_unit.clone()];
 
@@ -614,7 +660,7 @@ impl TimeAnalysisFactory {
 
         for (node_name, profiles) in self.iter_execution_profiles() {
             node_headers.push(node_name.clone());
-            let mut map: HashMap<String, Vec<f32>> = HashMap::new();
+            let mut map: BTreeMap<String, Vec<f32>> = BTreeMap::new();
             for profile in profiles {
                 let t = profile.duration.as_secs_f32() * unit_multiplier;
                 if let Some(stat) = map.get_mut(&profile.name) {
@@ -653,8 +699,8 @@ impl TimeAnalysisFactory {
 // Expose the function depending on the compilation feature "time-analysis"
 // Feature enabled
 #[cfg(feature = "time-analysis")]
-pub fn init_from_config(config: &TimeAnalysisConfig) {
-    TimeAnalysisFactory::init_from_config(config);
+pub fn init_from_config(config: &TimeAnalysisConfig) -> SimbaResult<()> {
+    TimeAnalysisFactory::init_from_config(config)
 }
 
 #[cfg(feature = "time-analysis")]
@@ -684,7 +730,9 @@ pub fn save_results() {
 
 // Feature disabled
 #[cfg(not(feature = "time-analysis"))]
-pub fn init_from_config(_config: &TimeAnalysisConfig) {}
+pub fn init_from_config(_config: &TimeAnalysisConfig) -> SimbaResult<()> {
+    Ok(())
+}
 
 #[cfg(not(feature = "time-analysis"))]
 pub fn set_node_name(_name: String) {}
@@ -717,7 +765,8 @@ pub fn save_results() {}
 
 //////////////////////////////////////////////////
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "gui", derive(ToVec))]
 pub enum ProfileExporterConfig {
     TraceEventExporter,
 }

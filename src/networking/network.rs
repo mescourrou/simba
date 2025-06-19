@@ -4,10 +4,9 @@ the configuration struct [`NetworkConfig`].
 */
 
 extern crate confy;
-use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{mpsc, Arc, Condvar, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use config_checker::macros::Check;
 use log::debug;
@@ -16,6 +15,8 @@ use serde_json::Value;
 
 use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCv};
@@ -23,7 +24,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
 use super::message_handler::MessageHandler;
-use super::network_manager::{MessageSendMethod, NetworkManager, NetworkMessage};
+use super::network_manager::{MessageSendMethod, NetworkMessage};
 
 /// Configuration for the [`Network`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -47,6 +48,40 @@ impl Default for NetworkConfig {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for NetworkConfig {
+    fn show(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        _unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Network").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Range (0 for no limit): ");
+                if self.range < 0. {
+                    self.range = 0.;
+                }
+                ui.add(egui::DragValue::new(&mut self.range));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Reception delay (0 not stable): ");
+                if self.reception_delay < 0. {
+                    self.reception_delay = 0.;
+                }
+                ui.add(
+                    egui::DragValue::new(&mut self.reception_delay)
+                        .max_decimals((1. / TIME_ROUND) as usize),
+                );
+            });
+        });
+    }
+}
+
 /// Transmission mode for messages.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 pub enum MessageFlag {
@@ -56,10 +91,10 @@ pub enum MessageFlag {
     ReadOnly,
 }
 
-/// Network interface for [`Robot`].
+/// Network interface for [`Node`].
 ///
-/// Each [`Robot`] should have a [`Network`] instance. Through this interface,
-/// the robots can send messages to other robots using pair-to-pair communication,
+/// Each [`Node`] should have a [`Network`] instance. Through this interface,
+/// the nodes can send messages to other nodes using pair-to-pair communication,
 /// or broadcast diffusion.
 pub struct Network {
     /// Name of the robot (will be in the 'from' field of the sent messages).
@@ -142,7 +177,8 @@ impl Network {
         if self.to_network_manager.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
-                "Network is not properly setup: `set_network_manager_link` should be called.",
+                "Network is not properly setup: `set_network_manager_link` should be called."
+                    .to_string(),
             ));
         }
         {
@@ -174,7 +210,8 @@ impl Network {
         if self.to_network_manager.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
-                "Network is not properly setup: `set_network_manager_link` should be called.",
+                "Network is not properly setup: `set_network_manager_link` should be called."
+                    .to_string(),
             ));
         }
         {
@@ -202,7 +239,8 @@ impl Network {
         if self.from_network_manager.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
-                "Network is not properly setup: `set_network_manager_link` should be called.",
+                "Network is not properly setup: `set_network_manager_link` should be called."
+                    .to_string(),
             ));
         }
         for msg in self
