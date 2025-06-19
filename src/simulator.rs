@@ -205,7 +205,7 @@ pub struct SimulatorConfig {
     #[check]
     pub results: Option<ResultConfig>,
 
-    #[serde(skip_serializing, skip_deserializing)]
+    #[serde(skip_deserializing)]
     pub base_path: Box<Path>,
 
     pub max_time: f32,
