@@ -20,9 +20,7 @@ use std::{
 
 use log::debug;
 
-use crate::{
-    logger::is_enabled, simulator::TimeCv, utils::time_ordered_data::TimeOrderedData,
-};
+use crate::{logger::is_enabled, simulator::TimeCv, utils::time_ordered_data::TimeOrderedData};
 
 use super::network::MessageFlag;
 

@@ -1,7 +1,8 @@
-use egui::{Color32, Painter, Rect, Response, Stroke, Vec2};
+use egui::{Color32, Painter, Rect, Response, Shape, Stroke, Vec2};
 use nalgebra::Vector3;
 
 use crate::{
+    gui::app::PainterInfo,
     node_factory::{RobotConfig, RobotRecord},
     sensors::sensor::{SensorConfig, SensorObservationRecord},
     simulator::SimulatorConfig,
@@ -52,20 +53,24 @@ impl Robot {
         &self,
         ui: &mut egui::Ui,
         viewport: &Rect,
-        response: &Response,
-        painter: &Painter,
+        painter_info: &PainterInfo,
         scale: f32,
         time: f32,
-    ) {
-        let center = response.rect.center();
+    ) -> Result<Vec<Shape>, Vec2> {
+        let mut shapes = Vec::new();
+        let center = painter_info.zero(scale);
 
         if let Some(lobs) = &self.landmark_obs {
-            lobs.draw_map(ui, viewport, response, painter, scale);
+            shapes.extend(lobs.draw_map(ui, viewport, painter_info, scale)?);
         }
 
         if let Some((_, record)) = self.records.get_data_beq_time(time) {
             let pose = record.physics.pose();
-            let position = Vec2::new(pose[0], pose[1]) * scale;
+            let position = Vec2::new(pose[0], pose[1]);
+            if !painter_info.is_inside(&position) {
+                return Err(position);
+            }
+            let position = position * scale;
 
             let position = center + position;
             let arrow_tip = position
@@ -74,42 +79,41 @@ impl Robot {
                     y: self.arrow_len * pose[2].sin() * scale,
                 };
 
-            painter.circle_filled(position, 0.1 * scale, self.color);
-            painter.line_segment(
+            shapes.push(Shape::circle_filled(position, 0.1 * scale, self.color));
+            shapes.push(Shape::line_segment(
                 [position, arrow_tip],
                 Stroke {
                     color: self.color,
                     width: 0.05 * scale,
                 },
-            );
+            ));
 
             for obs in &record.sensors.last_observations {
                 match &obs.sensor_observation {
                     SensorObservationRecord::OrientedLandmark(o) => {
-                        self.landmark_obs.as_ref().unwrap().draw(
+                        shapes.extend(self.landmark_obs.as_ref().unwrap().draw(
                             ui,
                             viewport,
-                            response,
-                            painter,
+                            painter_info,
                             scale,
                             o,
                             &Vector3::from(pose),
-                        )
+                        )?)
                     }
                     SensorObservationRecord::OrientedRobot(o) => {
-                        self.robot_obs.as_ref().unwrap().draw(
+                        shapes.extend(self.robot_obs.as_ref().unwrap().draw(
                             ui,
                             viewport,
-                            response,
-                            painter,
+                            painter_info,
                             scale,
                             o,
                             &Vector3::from(pose),
-                        )
+                        )?)
                     }
                     _ => {}
                 }
             }
         }
+        Ok(shapes)
     }
 }

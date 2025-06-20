@@ -6,7 +6,7 @@ use statrs::distribution::Exp;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::utils::determinist_random_variable::{DeterministRandomVariable};
+use crate::utils::determinist_random_variable::DeterministRandomVariable;
 use crate::utils::format_f32;
 
 /// Configuration for a uniform random variable.
@@ -43,7 +43,6 @@ impl UIComponent for ExponentialRandomVariableConfig {
     ) {
         use crate::utils::determinist_random_variable::seed_generation_component;
         ui.horizontal_top(|ui| {
-
             ui.vertical(|ui| {
                 let mut to_remove = None;
                 for (i, p) in self.lambda.iter_mut().enumerate() {
@@ -63,12 +62,7 @@ impl UIComponent for ExponentialRandomVariableConfig {
                 }
             });
             ui.label("Seed: ");
-            seed_generation_component(
-                &mut self.unique_seed,
-                ui,
-                buffer_stack,
-                unique_id,
-            );
+            seed_generation_component(&mut self.unique_seed, ui, buffer_stack, unique_id);
         });
     }
 }

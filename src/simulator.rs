@@ -33,6 +33,7 @@ fn main() {
 
 // Configuration for Simulator
 extern crate confy;
+use crate::errors::SimbaErrorTypes;
 #[cfg(feature = "gui")]
 use crate::gui::{
     utils::{enum_combobox, json_config, path_finder},
@@ -40,7 +41,6 @@ use crate::gui::{
 };
 #[cfg(feature = "gui")]
 use crate::utils::determinist_random_variable::seed_generation_component;
-use crate::errors::SimbaErrorTypes;
 use config_checker::macros::Check;
 use config_checker::ConfigCheckable;
 #[cfg(feature = "gui")]
@@ -1014,7 +1014,7 @@ impl Simulator {
             if *time_cv.force_finish.lock().unwrap() {
                 break;
             }
-            let mut next_time  = node.next_time_step()?.0;
+            let mut next_time = node.next_time_step()?.0;
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Got next_time: {next_time}");
             }

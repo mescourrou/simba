@@ -28,9 +28,9 @@ use crate::state_estimators::state_estimator::{
 use crate::sensors::sensor_manager::SensorManager;
 
 use crate::stateful::Stateful;
+use crate::time_analysis;
 use crate::utils::maths::round_precision;
 use crate::utils::time_ordered_data::TimeOrderedData;
-use crate::time_analysis;
 
 // Node itself
 

@@ -9,7 +9,6 @@ mod configurator;
 mod drawables;
 pub mod utils;
 
-
 use crate::{
     plugin_api::PluginAPI,
     simulator::{Simulator, SimulatorConfig},
@@ -28,9 +27,8 @@ pub fn run_gui(plugin_api: Option<Box<&dyn PluginAPI>>) {
 
     // UNSAFE !! But relatively safe as run_native does not exit while GUI is running.
     // When GUI is leaving, the simulator which uses plugin_api is expected to be closed.
-    let static_plugin_api: Option<Box<&'static dyn PluginAPI>> = unsafe {
-        std::mem::transmute(plugin_api)
-    };
+    let static_plugin_api: Option<Box<&'static dyn PluginAPI>> =
+        unsafe { std::mem::transmute(plugin_api) };
     eframe::run_native(
         "SiMBA",
         native_options,

@@ -6,7 +6,7 @@ use statrs::{distribution::MultivariateNormal, statistics::MeanN};
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::utils::determinist_random_variable::{DeterministRandomVariable};
+use crate::utils::determinist_random_variable::DeterministRandomVariable;
 use crate::utils::format_f32;
 
 /// Configuration for a normal random variable.
@@ -108,12 +108,7 @@ impl UIComponent for NormalRandomVariableConfig {
                 });
             });
             ui.label("Seed: ");
-            seed_generation_component(
-                &mut self.unique_seed,
-                ui,
-                buffer_stack,
-                unique_id,
-            );
+            seed_generation_component(&mut self.unique_seed, ui, buffer_stack, unique_id);
         });
     }
 }

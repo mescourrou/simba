@@ -272,11 +272,11 @@ use crate::gui::{
     utils::{string_combobox, text_singleline_with_apply},
     UIComponent,
 };
-#[cfg(feature = "gui")]
-use crate::utils::enum_tools::ToVec;
 use crate::node::Node;
 use crate::simulator::SimulatorConfig;
 use crate::stateful::Stateful;
+#[cfg(feature = "gui")]
+use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
 use crate::utils::occupancy_grid::OccupancyGrid;
 use crate::{

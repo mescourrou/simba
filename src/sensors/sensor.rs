@@ -17,14 +17,13 @@ use super::{
     robot_sensor::{self, OrientedRobotObservation, OrientedRobotObservationRecord},
 };
 
-
 #[cfg(feature = "gui")]
 use crate::{
     gui::{utils::string_combobox, UIComponent},
-    utils::enum_tools::ToVec,
     simulator::SimulatorConfig,
+    utils::enum_tools::ToVec,
 };
-use crate::{node::Node, stateful::Stateful, };
+use crate::{node::Node, stateful::Stateful};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {

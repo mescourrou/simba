@@ -8,8 +8,7 @@ use crate::{
     utils::enum_tools::ToVec,
 };
 use crate::{
-    stateful::Stateful,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    stateful::Stateful, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use std::sync::{Arc, RwLock};
 

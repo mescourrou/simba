@@ -4,9 +4,7 @@ use std::{
     time::{self, Duration},
 };
 
-use egui::{
-    Align2, Color32, Id, Painter, Rect, Response, Sense, Vec2,
-};
+use egui::{Align2, Color32, Id, Painter, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -22,6 +20,84 @@ use super::{
     drawables::{self},
 };
 
+pub struct PainterInfo {
+    pub top_left: Pos2,
+    pub bottom_right: Pos2,
+    pub shift: Pos2,
+}
+
+impl Default for PainterInfo {
+    fn default() -> Self {
+        Self {
+            top_left: Pos2 { x: -10., y: -10. },
+            bottom_right: Pos2 { x: 10., y: 10. },
+            shift: Pos2 { x: 0., y: 0. },
+        }
+    }
+}
+
+impl PainterInfo {
+    pub fn zero(&self, scale: f32) -> Pos2 {
+        Pos2 {
+            x: -self.top_left.x * scale + self.shift.x,
+            y: -self.top_left.y * scale + self.shift.y,
+        }
+    }
+
+    pub fn include_point(&mut self, pt: Vec2) {
+        if pt.x < self.top_left.x {
+            // Left of paint area
+            self.top_left.x = pt.x * 1.1;
+        } else if pt.x > self.bottom_right.x {
+            // Right of paint area
+            self.bottom_right.x = pt.x * 1.1;
+        }
+
+        if pt.y < self.top_left.y {
+            // Above paint area
+            self.top_left.y = pt.y * 1.1;
+        } else if pt.y > self.bottom_right.y {
+            // Bottom of paint area
+            self.bottom_right.y = pt.y * 1.1;
+        }
+    }
+
+    pub fn size(&self) -> Vec2 {
+        Vec2 {
+            x: self.bottom_right.x - self.top_left.x,
+            y: self.bottom_right.y - self.top_left.y,
+        }
+    }
+
+    pub fn is_inside(&self, pt: &Vec2) -> bool {
+        if pt.x < self.top_left.x || pt.x > self.bottom_right.x {
+            return false;
+        }
+
+        if pt.y < self.top_left.y || pt.y > self.bottom_right.y {
+            return false;
+        }
+
+        true
+    }
+
+    pub fn set_shift(&mut self, shift: Pos2) {
+        self.shift = shift;
+    }
+
+    pub fn rect_painter(&self, scale: f32) -> Rect {
+        let size = self.size();
+        Rect {
+            min: self.shift,
+            max: self.shift
+                + Vec2 {
+                    x: size.x * scale,
+                    y: size.y * scale,
+                },
+        }
+    }
+}
+
 struct PrivateParams {
     server: Arc<Mutex<AsyncApiRunner>>,
     api: AsyncApi,
@@ -32,6 +108,7 @@ struct PrivateParams {
     simulation_run: bool,
     configurator: Option<Configurator>,
     error_buffer: Vec<(time::Instant, SimbaError)>,
+    painter_info: PainterInfo,
 }
 
 impl Default for PrivateParams {
@@ -49,6 +126,7 @@ impl Default for PrivateParams {
             simulation_run: false,
             configurator: None,
             error_buffer: Vec::new(),
+            painter_info: PainterInfo::default(),
         }
     }
 }
@@ -147,18 +225,21 @@ impl SimbaApp {
         }
     }
 
-    fn draw(&mut self, ui: &mut egui::Ui, viewport: Rect, response: Response, painter: Painter) {
+    fn draw(&mut self, ui: &mut egui::Ui, viewport: Rect) -> Result<Vec<Shape>, Vec2> {
+        let mut shapes = Vec::new();
         for (_, robot) in &self.p.robots {
-            robot.draw(
+            shapes.extend(robot.draw(
                 ui,
                 &viewport,
-                &response,
-                &painter,
+                &self.p.painter_info,
                 self.drawing_scale,
                 self.p.current_draw_time,
-            );
+            )?);
         }
+        Ok(shapes)
     }
+
+    fn react(&mut self, ui: &mut egui::Ui, viewport: Rect, response: &Response) {}
 }
 
 impl eframe::App for SimbaApp {
@@ -335,50 +416,76 @@ impl eframe::App for SimbaApp {
                 .drag_to_scroll(true)
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
                 .show_viewport(ui, |ui, viewport| {
-                    // let viewport = viewport * self.drawing_scale;
-                    let size = Vec2::new(50., 50.) * self.drawing_scale;
+                    let mut shapes = Vec::new();
+                    loop {
+                        let rect = self.p.painter_info.rect_painter(self.drawing_scale);
 
+                        // Draw grid
+                        shapes.push(Shape::rect_stroke(rect, 0.0, (1.0, Color32::LIGHT_GRAY)));
+                        let x_min = rect.left(); //.max(viewport.left());
+                        let x_max = rect.right(); //.min(viewport.right());
+                        let y_min = rect.top(); //.max(viewport.top());
+                        let y_max = rect.bottom(); //.min(viewport.bottom());
+                        let zero = self.p.painter_info.zero(self.drawing_scale);
+                        let mut x = zero.x;
+                        while x > x_min {
+                            shapes.push(Shape::vline(
+                                x,
+                                rect.y_range(),
+                                (1.0, Color32::LIGHT_GRAY),
+                            ));
+                            x -= 1. * self.drawing_scale;
+                        }
+                        x = zero.x;
+                        while x < x_max {
+                            shapes.push(Shape::vline(
+                                x,
+                                rect.y_range(),
+                                (1.0, Color32::LIGHT_GRAY),
+                            ));
+                            x += 1. * self.drawing_scale;
+                        }
+                        let mut y = zero.y;
+                        while y > y_min {
+                            shapes.push(Shape::hline(
+                                rect.x_range(),
+                                y,
+                                (1.0, Color32::LIGHT_GRAY),
+                            ));
+                            y -= 1. * self.drawing_scale;
+                        }
+                        y = zero.y;
+                        while y < y_max {
+                            shapes.push(Shape::hline(
+                                rect.x_range(),
+                                y,
+                                (1.0, Color32::LIGHT_GRAY),
+                            ));
+                            y += 1. * self.drawing_scale;
+                        }
+
+                        shapes.push(Shape::vline(zero.x, rect.y_range(), (1.0, Color32::GREEN)));
+                        shapes.push(Shape::hline(rect.x_range(), zero.y, (1.0, Color32::RED)));
+
+                        match self.draw(ui, viewport) {
+                            Err(request_pos) => {
+                                self.p.painter_info.include_point(request_pos);
+                            }
+                            Ok(s) => {
+                                shapes.extend(s);
+                                break;
+                            }
+                        }
+                        shapes.clear();
+                    }
+
+                    let size = self.p.painter_info.size() * self.drawing_scale;
                     let (response, painter) = ui.allocate_painter(size, Sense::hover());
+                    painter.extend(shapes);
 
-                    // Draw grid
-                    painter.rect_stroke(response.rect, 0.0, (1.0, Color32::LIGHT_GRAY));
-                    let x_min = response.rect.left(); //.max(viewport.left());
-                    let x_max = response.rect.right(); //.min(viewport.right());
-                    let y_min = response.rect.top(); //.max(viewport.top());
-                    let y_max = response.rect.bottom(); //.min(viewport.bottom());
-                    let mut x = response.rect.center().x;
-                    while x > x_min {
-                        painter.vline(x, response.rect.y_range(), (1.0, Color32::LIGHT_GRAY));
-                        x -= 1. * self.drawing_scale;
-                    }
-                    x = response.rect.center().x;
-                    while x < x_max {
-                        painter.vline(x, response.rect.y_range(), (1.0, Color32::LIGHT_GRAY));
-                        x += 1. * self.drawing_scale;
-                    }
-                    let mut y = response.rect.center().y;
-                    while y > y_min {
-                        painter.hline(response.rect.x_range(), y, (1.0, Color32::LIGHT_GRAY));
-                        y -= 1. * self.drawing_scale;
-                    }
-                    y = response.rect.center().y;
-                    while y < y_max {
-                        painter.hline(response.rect.x_range(), y, (1.0, Color32::LIGHT_GRAY));
-                        y += 1. * self.drawing_scale;
-                    }
+                    self.p.painter_info.set_shift(response.rect.left_top());
 
-                    painter.vline(
-                        response.rect.center().x,
-                        response.rect.y_range(),
-                        (1.0, Color32::GREEN),
-                    );
-                    painter.hline(
-                        response.rect.x_range(),
-                        response.rect.center().y,
-                        (1.0, Color32::RED),
-                    );
-
-                    self.draw(ui, viewport, response, painter);
+                    // self.react(ui, viewport, &response);
                 });
         });
 

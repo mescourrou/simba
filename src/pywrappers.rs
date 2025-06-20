@@ -30,8 +30,6 @@ use crate::{
     utils::occupancy_grid::OccupancyGrid,
 };
 
-
-
 #[derive(Clone)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "ControllerError")]
@@ -747,7 +745,6 @@ impl SimulatorWrapper {
     }
 }
 
-
 #[cfg(feature = "gui")]
 #[pyfunction]
 #[pyo3(signature = (plugin_api=None))]
@@ -768,7 +765,7 @@ pub fn run_gui(py: Python, plugin_api: Option<Py<PyAny>>) {
         Some(api) => Some(api.client.clone()),
         None => None,
     };
-        
+
     let running = Arc::new(RwLock::new(true));
     let local_running = running.clone();
 
@@ -825,7 +822,6 @@ pub fn run_gui(py: Python, plugin_api: Option<Py<PyAny>>) {
         *local_running.write().unwrap() = false;
         thread_handle.join().unwrap();
     });
-
 }
 
 #[cfg(not(feature = "gui"))]
@@ -834,4 +830,3 @@ pub fn run_gui(py: Python, plugin_api: Option<Py<PyAny>>) {
 pub fn run_gui(_py: Python, _plugin_api: Option<Py<PyAny>>) {
     unimplemented!("run_gui not available. Compile python package with 'gui' feature");
 }
-

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use simba_macros::ToVec;
 
 #[cfg(feature = "time-analysis")]
-use std::{thread::ThreadId, collections::HashMap, sync::Mutex, path::Path, time::Duration};
+use std::{collections::HashMap, path::Path, sync::Mutex, thread::ThreadId, time::Duration};
 
 #[cfg(feature = "time-analysis")]
 use log::info;

@@ -219,7 +219,9 @@ impl Default for RobotConfig {
                 trajectory_follower::TrajectoryFollowerConfig::default(),
             )),
             controller: ControllerConfig::PID(Box::new(pid::PIDConfig::default())),
-            physics: PhysicsConfig::Perfect(Box::new(perfect_physics::PerfectsPhysicConfig::default())),
+            physics: PhysicsConfig::Perfect(Box::new(
+                perfect_physics::PerfectsPhysicConfig::default(),
+            )),
             state_estimator: StateEstimatorConfig::Perfect(
                 perfect_estimator::PerfectEstimatorConfig::default(),
             ),

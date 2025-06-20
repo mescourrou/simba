@@ -1,7 +1,4 @@
-use std::{
-    fmt::Display,
-    sync::RwLock,
-};
+use std::{fmt::Display, sync::RwLock};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};

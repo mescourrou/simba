@@ -244,7 +244,8 @@ impl Stateful<StateEstimatorRecord> for MyWonderfulStateEstimator {
         StateEstimatorRecord::External(ExternalEstimatorRecord {
             record: serde_json::to_value(MyWonderfulStateEstimatorRecord {
                 last_prediction: self.last_prediction,
-            }).unwrap(),
+            })
+            .unwrap(),
         })
     }
 }
@@ -267,7 +268,6 @@ impl MessageHandler for MyWonderfulMessageHandler {
         message: &serde_json::Value,
         _time: f32,
     ) -> Result<(), ()> {
-        
         match serde_json::from_value::<MyMessage>(message.clone()) {
             Err(_) => Err(()),
             Ok(m) => {
