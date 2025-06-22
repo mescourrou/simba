@@ -47,6 +47,7 @@ use config_checker::ConfigCheckable;
 use egui::CollapsingHeader;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::EnumToString;
 #[cfg(feature = "gui")]
 use simba_macros::ToVec;
 
@@ -114,7 +115,7 @@ impl Default for ResultConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ResultConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -170,10 +171,54 @@ impl UIComponent for ResultConfig {
             });
         });
     }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        CollapsingHeader::new("Results").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("Result Path: {}", self.result_path)); 
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Show figures: ");
+                if self.show_figures {
+                    ui.label("Yes");
+                } else {
+                    ui.label("No");
+                }
+                
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Result Path: ");
+                if let Some(script) = &self.analyse_script {
+                    ui.label(script); 
+                } else {
+                    ui.label("None");
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Figure Path: ");
+                if let Some(path) = &self.figures_path {
+                    ui.label(path); 
+                } else {
+                    ui.label("None");
+                }
+            });
+            ui.vertical(|ui| {
+                ui.label("Python params: ");
+                ui.label(self.python_params.to_string());
+            });
+        });
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(feature = "gui", derive(ToVec))]
+#[cfg_attr(feature = "gui", derive(ToVec, EnumToString))]
 pub enum TimeMode {
     Centralized,
     Decentralized,
@@ -241,7 +286,7 @@ impl Default for SimulatorConfig {
 
 #[cfg(feature = "gui")]
 impl crate::gui::UIComponent for SimulatorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -252,7 +297,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
     ) {
         CollapsingHeader::new("Simulator").show(ui, |ui| {
             ui.horizontal(|ui| {
-                self.log.show(
+                self.log.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
@@ -264,7 +309,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
 
             ui.horizontal_top(|ui| {
                 if let Some(result_cfg) = &mut self.results {
-                    result_cfg.show(
+                    result_cfg.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
@@ -311,7 +356,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
             });
 
             ui.horizontal(|ui| {
-                self.time_analysis.show(
+                self.time_analysis.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
@@ -327,7 +372,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
                 for (i, r) in self.robots.iter_mut().enumerate() {
                     let robot_unique_id = format!("{}-{}", unique_id, &r.name);
                     ui.horizontal_top(|ui| {
-                        r.show(ui, ctx, buffer_stack, global_config, None, &robot_unique_id);
+                        r.show_mut(ui, ctx, buffer_stack, global_config, None, &robot_unique_id);
                         if ui.button("X").clicked() {
                             remove = Some(i);
                         }
@@ -347,7 +392,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
                 for (i, cu) in self.computation_units.iter_mut().enumerate() {
                     let cu_unique_id = format!("{}-{}", unique_id, &cu.name);
                     ui.horizontal_top(|ui| {
-                        cu.show(ui, ctx, buffer_stack, global_config, None, &cu_unique_id);
+                        cu.show_mut(ui, ctx, buffer_stack, global_config, None, &cu_unique_id);
                         if ui.button("X").clicked() {
                             remove = Some(i);
                         }
@@ -359,6 +404,78 @@ impl crate::gui::UIComponent for SimulatorConfig {
                 if ui.button("Add").clicked() {
                     self.computation_units
                         .push(ComputationUnitConfig::default());
+                }
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        CollapsingHeader::new("Simulator").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                self.log.show(
+                    ui,
+                    ctx,
+                    unique_id,
+                );
+            });
+
+            ui.horizontal_top(|ui| {
+                if let Some(result_cfg) = &self.results {
+                    result_cfg.show(
+                        ui,
+                        ctx,
+                        unique_id,
+                    );
+                } else {
+                    ui.label("Results disabled");
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Random seed: ");
+                if let Some(seed) = &self.random_seed {
+                    ui.label(format!("{}", seed));
+                } else {
+                    ui.label("Disabled");
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Max time: ");
+                ui.label(format!("{}", self.max_time));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Time Mode: ");
+                ui.label(format!("{}", self.time_mode.to_string()));
+            });
+
+            ui.horizontal(|ui| {
+                self.time_analysis.show(
+                    ui,
+                    ctx,
+                    unique_id,
+                );
+            });
+
+            ui.vertical(|ui| {
+                ui.label("Robots:");
+                for r in &self.robots {
+                    let robot_unique_id = format!("{}-{}", unique_id, &r.name);
+                    r.show(ui, ctx, &robot_unique_id);
+                }
+            });
+
+            ui.vertical(|ui| {
+                ui.label("Computation Units:");
+                for cu in &self.computation_units {
+                    let cu_unique_id = format!("{}-{}", unique_id, &cu.name);
+                    cu.show(ui, ctx, &cu_unique_id);
                 }
             });
         });

@@ -54,7 +54,7 @@ impl Default for RobotSensorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for RobotSensorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -85,13 +85,39 @@ impl UIComponent for RobotSensorConfig {
                     );
                 });
 
-                FaultModelConfig::show_faults(
+                FaultModelConfig::show_faults_mut(
                     &mut self.faults,
                     ui,
                     ctx,
                     buffer_stack,
                     global_config,
                     current_node_name,
+                    unique_id,
+                );
+            });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Robot sensor")
+            .id_source(format!("robot-sensor-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Detection distance: {}", self.detection_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Period: {}", self.period));
+                });
+
+                FaultModelConfig::show_faults(
+                    &self.faults,
+                    ui,
+                    ctx,
                     unique_id,
                 );
             });
@@ -107,6 +133,19 @@ pub struct RobotSensorRecord {
 impl Default for RobotSensorRecord {
     fn default() -> Self {
         Self { last_time: 0. }
+    }
+}
+
+
+#[cfg(feature = "gui")]
+impl UIComponent for RobotSensorRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.label(format!("Last time: {}", self.last_time));
     }
 }
 
@@ -300,6 +339,21 @@ pub struct OrientedRobotObservationRecord {
     pub name: String,
     /// Pose of the Robot
     pub pose: [f32; 3],
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for OrientedRobotObservationRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            ui.label(format!("Name: {}", self.name));
+            ui.label(format!("Pose: ({}, {}, {})", self.pose[0], self.pose[1], self.pose[2]));
+        });
+    }
 }
 
 /// Sensor which observe the other Robots.

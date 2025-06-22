@@ -53,7 +53,7 @@ impl Default for ManagedSensorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ManagedSensorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -94,12 +94,40 @@ impl UIComponent for ManagedSensorConfig {
                     string_checkbox(ui, &node_list, &mut self.send_to);
                 });
 
-                self.config.show(
+                self.config.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
                     global_config,
                     current_node_name,
+                    unique_id,
+                );
+            });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new(&self.name)
+            .id_source(format!("managed-sensor-{}", unique_id).as_str())
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Name: {}", self.name));
+                });
+
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Send to: ");
+                    for to in &self.send_to {
+                        ui.label(format!("{}, ", to));
+                    }
+                });
+
+                self.config.show(
+                    ui,
+                    ctx,
                     unique_id,
                 );
             });
@@ -125,7 +153,7 @@ impl Default for SensorManagerConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for SensorManagerConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -141,7 +169,7 @@ impl UIComponent for SensorManagerConfig {
                 for (i, sensor) in self.sensors.iter_mut().enumerate() {
                     let sensor_unique_id = format!("{}-{}", unique_id, &sensor.name);
                     ui.horizontal_top(|ui| {
-                        sensor.show(
+                        sensor.show_mut(
                             ui,
                             ctx,
                             buffer_stack,
@@ -162,6 +190,28 @@ impl UIComponent for SensorManagerConfig {
                 }
             });
     }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Sensor Manager")
+            .id_source(format!("sensor-manager-{}", unique_id))
+            .show(ui, |ui| {
+                for sensor in &self.sensors {
+                    let sensor_unique_id = format!("{}-{}", unique_id, &sensor.name);
+                    ui.horizontal_top(|ui| {
+                        sensor.show(
+                            ui,
+                            ctx,
+                            &sensor_unique_id,
+                        );
+                    });
+                }
+            });
+    }
 }
 
 /// Record listing all the [`SensorRecord`]s and the next observation time.
@@ -171,6 +221,40 @@ pub struct SensorManagerRecord {
     pub next_time: Option<f32>,
     pub last_observations: Vec<ObservationRecord>,
     pub received_observations: Vec<ObservationRecord>,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for SensorManagerRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        egui::CollapsingHeader::new("Sensors").show(ui, |ui| {
+            for s in &self.sensors {
+                egui::CollapsingHeader::new(&s.name).show(ui, |ui| {
+                    s.record.show(ui, ctx, unique_id);
+                });
+            }
+        });
+
+        egui::CollapsingHeader::new("Last observations").show(ui, |ui| {
+            for (i, o) in self.last_observations.iter().enumerate() {
+                egui::CollapsingHeader::new(format!("#{}", i)).show(ui, |ui| {
+                    o.show(ui, ctx, unique_id);
+                });
+            }
+        });
+
+        egui::CollapsingHeader::new("Received observations").show(ui, |ui| {
+            for (i, o) in self.received_observations.iter().enumerate() {
+                egui::CollapsingHeader::new(format!("#{}", i)).show(ui, |ui| {
+                    o.show(ui, ctx, unique_id);
+                });
+            }
+        });
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

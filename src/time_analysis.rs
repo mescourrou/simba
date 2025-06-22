@@ -4,6 +4,7 @@ use lazy_static::lazy_static;
 #[cfg(feature = "time-analysis")]
 use libm::ceilf;
 use serde::{Deserialize, Serialize};
+use simba_macros::EnumToString;
 #[cfg(feature = "gui")]
 use simba_macros::ToVec;
 
@@ -62,7 +63,7 @@ impl Default for TimeAnalysisConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for TimeAnalysisConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -95,6 +96,27 @@ impl UIComponent for TimeAnalysisConfig {
                     &mut self.analysis_unit,
                     "time-analysis-unit",
                 );
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Time Analysis").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("Exporter: {}", self.exporter.to_string()));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label(format!("Output path: {}", self.output_path));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label(format!("Analysis unit: {}", self.analysis_unit));
             });
         });
     }
@@ -766,7 +788,7 @@ pub fn save_results() {}
 //////////////////////////////////////////////////
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "gui", derive(ToVec))]
+#[cfg_attr(feature = "gui", derive(ToVec, EnumToString))]
 pub enum ProfileExporterConfig {
     TraceEventExporter,
 }

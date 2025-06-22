@@ -58,7 +58,7 @@ impl Default for OrientedLandmarkSensorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OrientedLandmarkSensorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -94,13 +94,43 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     path_finder(ui, &mut self.map_path, &global_config.base_path);
                 });
 
-                FaultModelConfig::show_faults(
+                FaultModelConfig::show_faults_mut(
                     &mut self.faults,
                     ui,
                     ctx,
                     buffer_stack,
                     global_config,
                     current_node_name,
+                    unique_id,
+                );
+            });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Oriented Landmark sensor")
+            .id_source(format!("oriented-landmark-sensor-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Detection distance: {}", self.detection_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Period: {}", self.period));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Map path: {}", self.map_path));
+                });
+
+                FaultModelConfig::show_faults(
+                    &self.faults,
+                    ui,
+                    ctx,
                     unique_id,
                 );
             });
@@ -116,6 +146,18 @@ pub struct OrientedLandmarkSensorRecord {
 impl Default for OrientedLandmarkSensorRecord {
     fn default() -> Self {
         Self { last_time: 0. }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for OrientedLandmarkSensorRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.label(format!("Last time: {}", self.last_time));
     }
 }
 
@@ -309,6 +351,21 @@ pub struct OrientedLandmarkObservationRecord {
     pub id: i32,
     /// Pose of the landmark
     pub pose: [f32; 3],
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for OrientedLandmarkObservationRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            ui.label(format!("Id: {}", self.id));
+            ui.label(format!("Pose: ({}, {}, {})", self.pose[0], self.pose[1], self.pose[2]));
+        });
+    }
 }
 
 /// Map, containing multiple [`OrientedLandmark`], used for the map file.

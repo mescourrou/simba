@@ -47,7 +47,7 @@ impl Default for GNSSSensorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for GNSSSensorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -70,13 +70,35 @@ impl UIComponent for GNSSSensorConfig {
                     );
                 });
 
-                FaultModelConfig::show_faults(
+                FaultModelConfig::show_faults_mut(
                     &mut self.faults,
                     ui,
                     ctx,
                     buffer_stack,
                     global_config,
                     current_node_name,
+                    unique_id,
+                );
+            });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("GNSS sensor")
+            .id_source(format!("gnss-sensor-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Period: {}", self.period));
+                });
+
+                FaultModelConfig::show_faults(
+                    &self.faults,
+                    ui,
+                    ctx,
                     unique_id,
                 );
             });
@@ -95,6 +117,19 @@ impl Default for GNSSSensorRecord {
     }
 }
 
+
+#[cfg(feature = "gui")]
+impl UIComponent for GNSSSensorRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.label(format!("Last time: {}", self.last_time));
+    }
+}
+
 /// Observation of the odometry.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GNSSObservation {
@@ -106,6 +141,21 @@ pub struct GNSSObservation {
 pub struct GNSSObservationRecord {
     pub position: [f32; 2],
     pub velocity: [f32; 2],
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for GNSSObservationRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            ui.label(format!("Position: ({}, {})", self.position[0], self.position[1]));
+            ui.label(format!("Velocity: ({}, {})", self.velocity[0], self.velocity[1]));
+        });
+    }
 }
 
 impl Stateful<GNSSObservationRecord> for GNSSObservation {

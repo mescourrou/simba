@@ -106,7 +106,7 @@ pub enum RandomVariableTypeConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for RandomVariableTypeConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -166,7 +166,7 @@ impl UIComponent for RandomVariableTypeConfig {
             RandomVariableTypeConfig::None => {
                 ui.label("None");
             }
-            RandomVariableTypeConfig::Fixed(c) => c.show(
+            RandomVariableTypeConfig::Fixed(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -174,7 +174,7 @@ impl UIComponent for RandomVariableTypeConfig {
                 current_node_name,
                 unique_id,
             ),
-            RandomVariableTypeConfig::Uniform(c) => c.show(
+            RandomVariableTypeConfig::Uniform(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -182,7 +182,7 @@ impl UIComponent for RandomVariableTypeConfig {
                 current_node_name,
                 unique_id,
             ),
-            RandomVariableTypeConfig::Normal(c) => c.show(
+            RandomVariableTypeConfig::Normal(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -190,7 +190,7 @@ impl UIComponent for RandomVariableTypeConfig {
                 current_node_name,
                 unique_id,
             ),
-            RandomVariableTypeConfig::Poisson(c) => c.show(
+            RandomVariableTypeConfig::Poisson(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -198,7 +198,7 @@ impl UIComponent for RandomVariableTypeConfig {
                 current_node_name,
                 unique_id,
             ),
-            RandomVariableTypeConfig::Exponential(c) => c.show(
+            RandomVariableTypeConfig::Exponential(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -208,11 +208,53 @@ impl UIComponent for RandomVariableTypeConfig {
             ),
         };
     }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(format!("Type: {}", self.to_string()));
+        });
+        
+        match self {
+            RandomVariableTypeConfig::None => {
+                ui.label("None");
+            }
+            RandomVariableTypeConfig::Fixed(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
+            RandomVariableTypeConfig::Uniform(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
+            RandomVariableTypeConfig::Normal(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
+            RandomVariableTypeConfig::Poisson(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
+            RandomVariableTypeConfig::Exponential(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
+        };
+    }
 }
 
 #[cfg(feature = "gui")]
 impl RandomVariableTypeConfig {
-    pub fn show_vector(
+    pub fn show_vector_mut(
         vec: &mut Vec<RandomVariableTypeConfig>,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -227,7 +269,7 @@ impl RandomVariableTypeConfig {
             for (i, dist) in vec.iter_mut().enumerate() {
                 ui.horizontal_top(|ui| {
                     let dist_unique_id = format!("distribution-{i}-{unique_id}");
-                    dist.show(
+                    dist.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
@@ -245,6 +287,27 @@ impl RandomVariableTypeConfig {
             }
             if ui.button("Add").clicked() {
                 vec.push(Self::None);
+            }
+        });
+    }
+
+    pub fn show_vector(
+        vec: &Vec<RandomVariableTypeConfig>,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.vertical(|ui| {
+            ui.label("Distributions: ");
+            for (i, dist) in vec.iter().enumerate() {
+                ui.horizontal_top(|ui| {
+                    let dist_unique_id = format!("distribution-{i}-{unique_id}");
+                    dist.show(
+                        ui,
+                        ctx,
+                        &dist_unique_id,
+                    );
+                });
             }
         });
     }

@@ -39,6 +39,22 @@ impl ControllerError {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for ControllerError {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            ui.label(format!("lateral: {}", self.lateral));
+            ui.label(format!("theta: {}", self.theta));
+            ui.label(format!("velocity: {}", self.velocity));
+        });
+    }
+}
+
 use super::{external_controller, pid};
 
 /// Enumerates the strategies configurations.
@@ -51,7 +67,7 @@ pub enum ControllerConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ControllerConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -85,7 +101,7 @@ impl UIComponent for ControllerConfig {
             };
         }
         match self {
-            ControllerConfig::PID(c) => c.show(
+            ControllerConfig::PID(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -93,12 +109,35 @@ impl UIComponent for ControllerConfig {
                 current_node_name,
                 unique_id,
             ),
-            ControllerConfig::External(c) => c.show(
+            ControllerConfig::External(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
                 global_config,
                 current_node_name,
+                unique_id,
+            ),
+        }
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(format!("Controller: {}", self.to_string()));
+        });
+        match self {
+            ControllerConfig::PID(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
+            ControllerConfig::External(c) => c.show(
+                ui,
+                ctx,
                 unique_id,
             ),
         }
@@ -110,6 +149,32 @@ impl UIComponent for ControllerConfig {
 pub enum ControllerRecord {
     PID(pid::PIDRecord),
     External(external_controller::ExternalControllerRecord),
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ControllerRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            match self {
+                Self::PID(r) => {
+                    egui::CollapsingHeader::new("PID").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+                Self::External(r) => {
+                    egui::CollapsingHeader::new("ExternalController").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+
+            }
+        });
+    }
 }
 
 use crate::node::Node;

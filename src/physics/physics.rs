@@ -23,6 +23,21 @@ pub struct Command {
     pub right_wheel_speed: f32,
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for Command {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            ui.label(format!("Left wheel speed: {}", self.left_wheel_speed));
+            ui.label(format!("Right wheel speed: {}", self.right_wheel_speed));
+        });
+    }
+}
+
 use super::{external_physics, perfect_physics};
 
 /// Enumeration of the different physic implementations.
@@ -35,7 +50,7 @@ pub enum PhysicsConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PhysicsConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -73,7 +88,7 @@ impl UIComponent for PhysicsConfig {
             };
         }
         match self {
-            PhysicsConfig::Perfect(c) => c.show(
+            PhysicsConfig::Perfect(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -81,12 +96,36 @@ impl UIComponent for PhysicsConfig {
                 current_node_name,
                 unique_id,
             ),
-            PhysicsConfig::External(c) => c.show(
+            PhysicsConfig::External(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
                 global_config,
                 current_node_name,
+                unique_id,
+            ),
+        }
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(format!("Physics: {}", self.to_string()));
+
+        });
+        match self {
+            PhysicsConfig::Perfect(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
+            PhysicsConfig::External(c) => c.show(
+                ui,
+                ctx,
                 unique_id,
             ),
         }
@@ -108,6 +147,33 @@ impl PhysicsRecord {
         }
     }
 }
+
+#[cfg(feature = "gui")]
+impl UIComponent for PhysicsRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            match self {
+                Self::Perfect(r) => {
+                    egui::CollapsingHeader::new("Perfect").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+                Self::External(r) => {
+                    egui::CollapsingHeader::new("ExternalPhysics").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+
+            }
+        });
+    }
+}
+
 
 #[cfg(feature = "gui")]
 use crate::{

@@ -2,6 +2,7 @@ use std::{fmt::Display, sync::RwLock};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
+use simba_macros::EnumToString;
 #[cfg(feature = "gui")]
 use simba_macros::ToVec;
 
@@ -58,7 +59,7 @@ impl Display for LogLevel {
 }
 
 #[derive(Debug, Serialize, Deserialize, Check, Clone, PartialEq)]
-#[cfg_attr(feature = "gui", derive(ToVec))]
+#[cfg_attr(feature = "gui", derive(ToVec, EnumToString))]
 pub enum InternalLog {
     All,
     NetworkMessages,
@@ -95,7 +96,7 @@ impl Default for LoggerConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for LoggerConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -144,6 +145,42 @@ impl UIComponent for LoggerConfig {
             ui.horizontal_wrapped(|ui| {
                 ui.label("Exclude:");
                 string_checkbox(ui, &node_list, &mut self.excluded_nodes);
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Logger").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Log level: {}", self.log_level.to_string()));
+                    if let LogLevel::Internal(v) = &self.log_level {
+                        ui.label("(");
+                        for iv in v {
+                            ui.label(format!("{}, ", iv.to_string()));    
+                        }
+                        ui.label(")");
+                    }
+                });
+            });
+
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Include only:");
+                for n in &self.included_nodes {
+                    ui.label(format!("{n}, "));
+                }
+            });
+
+            ui.horizontal_wrapped(|ui| {
+                ui.label("Exclude:");
+                for n in &self.excluded_nodes {
+                    ui.label(format!("{n}, "));
+                }
             });
         });
     }

@@ -62,7 +62,7 @@ impl Default for PIDConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PIDConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -113,6 +113,45 @@ impl UIComponent for PIDConfig {
                 });
             });
     }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("PID")
+            .id_source(format!("pid-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Velocity - P: {}", self.kp_v));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Velocity - I: {}", self.ki_v));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Velocity - D: {}", self.kd_v));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Theta - P: {}", self.kp_theta));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Theta - I: {}", self.ki_theta));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Theta - D: {}", self.kd_theta));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Wheel distance: {}", self.wheel_distance));
+                });
+            });
+    }
 }
 
 /// Record of the [`PID`] controller.
@@ -141,6 +180,26 @@ impl Default for PIDRecord {
             previous_velocity_error: 0.,
             previous_theta_error: 0.,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for PIDRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            egui::CollapsingHeader::new("Command").show(ui, |ui| {
+                self.command.show(ui, ctx, unique_id);
+            });
+            ui.label(format!("velocity: {}", self.velocity));
+            ui.label(format!("last command time: {}", self.last_command_time));
+            ui.label(format!("velocity integral: {}", self.v_integral));
+            ui.label(format!("theta integral: {}", self.theta_integral));
+        });
     }
 }
 

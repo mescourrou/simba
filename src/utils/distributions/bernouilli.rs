@@ -31,7 +31,7 @@ impl Default for BernouilliRandomVariableConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for BernouilliRandomVariableConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -66,6 +66,24 @@ impl UIComponent for BernouilliRandomVariableConfig {
             });
             ui.label("Seed: ");
             seed_generation_component(&mut self.unique_seed, ui, buffer_stack, unique_id);
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                for (i, p) in self.probability.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("p {}: {}", i + 1, p));
+                    });
+                }
+            });
+            ui.label(format!("Seed: {}", self.unique_seed));
         });
     }
 }

@@ -234,7 +234,7 @@ impl Default for RobotConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for RobotConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -256,7 +256,7 @@ impl UIComponent for RobotConfig {
                 );
             });
 
-            self.network.show(
+            self.network.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -264,7 +264,7 @@ impl UIComponent for RobotConfig {
                 current_node_name,
                 unique_id,
             );
-            self.navigator.show(
+            self.navigator.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -272,7 +272,7 @@ impl UIComponent for RobotConfig {
                 current_node_name,
                 unique_id,
             );
-            self.physics.show(
+            self.physics.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -280,7 +280,7 @@ impl UIComponent for RobotConfig {
                 current_node_name,
                 unique_id,
             );
-            self.controller.show(
+            self.controller.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -288,7 +288,7 @@ impl UIComponent for RobotConfig {
                 current_node_name,
                 unique_id,
             );
-            self.state_estimator.show(
+            self.state_estimator.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -302,7 +302,7 @@ impl UIComponent for RobotConfig {
             for (i, seb) in self.state_estimator_bench.iter_mut().enumerate() {
                 let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
                 ui.horizontal_top(|ui| {
-                    seb.show(
+                    seb.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
@@ -322,12 +322,69 @@ impl UIComponent for RobotConfig {
                 self.state_estimator_bench
                     .push(BenchStateEstimatorConfig::default());
             }
-            self.sensor_manager.show(
+            self.sensor_manager.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
                 global_config,
                 current_node_name,
+                unique_id,
+            );
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("Name: {}", self.name));
+            });
+
+            self.network.show(
+                ui,
+                ctx,
+                unique_id,
+            );
+            self.navigator.show(
+                ui,
+                ctx,
+                unique_id,
+            );
+            self.physics.show(
+                ui,
+                ctx,
+                unique_id,
+            );
+            self.controller.show(
+                ui,
+                ctx,
+                unique_id,
+            );
+            self.state_estimator.show(
+                ui,
+                ctx,
+                unique_id,
+            );
+
+            ui.label("State estimator bench:");
+            for seb in &self.state_estimator_bench {
+                let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
+                ui.horizontal_top(|ui| {
+                    seb.show(
+                        ui,
+                        ctx,
+                        &seb_unique_id,
+                    );
+                });
+            }
+            
+            self.sensor_manager.show(
+                ui,
+                ctx,
                 unique_id,
             );
         });
@@ -353,6 +410,48 @@ pub struct RobotRecord {
     pub state_estimator_bench: Vec<BenchStateEstimatorRecord>,
 
     pub sensors: SensorManagerRecord,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for RobotRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+
+            ui.label(format!("Name: {}", self.name));
+
+            egui::CollapsingHeader::new("Navigator").show(ui, |ui| {
+                self.navigator.show(ui, ctx, unique_id);
+            });
+
+            egui::CollapsingHeader::new("Controller").show(ui, |ui| {
+                self.controller.show(ui, ctx, unique_id);
+            });
+
+            egui::CollapsingHeader::new("Physics").show(ui, |ui| {
+                self.physics.show(ui, ctx, unique_id);
+            });
+
+            egui::CollapsingHeader::new("State Estimator").show(ui, |ui| {
+                self.state_estimator.show(ui, ctx, unique_id);
+            });
+
+            ui.label("State Estimator bench:");
+            for se in &self.state_estimator_bench {
+                egui::CollapsingHeader::new(&se.name).show(ui, |ui| {
+                    se.record.show(ui, ctx, unique_id);
+                });
+            }
+
+            egui::CollapsingHeader::new("Sensors").show(ui, |ui| {
+                self.sensors.show(ui, ctx, unique_id);
+            });
+        });
+    }
 }
 
 ////////////////////////
@@ -389,7 +488,7 @@ impl Default for ComputationUnitConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ComputationUnitConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -411,7 +510,7 @@ impl UIComponent for ComputationUnitConfig {
                 );
             });
 
-            self.network.show(
+            self.network.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -425,7 +524,7 @@ impl UIComponent for ComputationUnitConfig {
             for (i, seb) in self.state_estimators.iter_mut().enumerate() {
                 let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
                 ui.horizontal_top(|ui| {
-                    seb.show(
+                    seb.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
@@ -447,6 +546,37 @@ impl UIComponent for ComputationUnitConfig {
             }
         });
     }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("Name: {}", self.name));
+            });
+
+            self.network.show(
+                ui,
+                ctx,
+                unique_id,
+            );
+
+            ui.label("State estimators:");
+            for seb in &self.state_estimators {
+                let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
+                ui.horizontal_top(|ui| {
+                    seb.show(
+                        ui,
+                        ctx,
+                        &seb_unique_id,
+                    );
+                });
+            }
+        });
+    }
 }
 
 /// State record of [`NodeType::ComputationUnit`].
@@ -458,6 +588,32 @@ pub struct ComputationUnitRecord {
     pub name: String,
     pub state_estimators: Vec<BenchStateEstimatorRecord>,
     pub sensor_manager: SensorManagerRecord,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ComputationUnitRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+
+            ui.label(format!("Name: {}", self.name));
+
+            ui.label("State Estimators:");
+            for se in &self.state_estimators {
+                egui::CollapsingHeader::new(&se.name).show(ui, |ui| {
+                    se.record.show(ui, ctx, unique_id);
+                });
+            }
+
+            egui::CollapsingHeader::new("Sensor Manager").show(ui, |ui| {
+                self.sensor_manager.show(ui, ctx, unique_id);
+            });
+        });
+    }
 }
 
 ////////////////////////

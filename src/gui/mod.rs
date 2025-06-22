@@ -37,7 +37,7 @@ pub fn run_gui(plugin_api: Option<Box<&dyn PluginAPI>>) {
     .expect("Error during GUI execution");
 }
 pub trait UIComponent {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -45,5 +45,17 @@ pub trait UIComponent {
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
         unique_id: &String,
+    ) {
+        unimplemented!("Mutable UIComponent not implemented.");
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
     );
+    //  {
+    //     unimplemented!("Immutable UIComponent not implemented.");
+    // }
 }

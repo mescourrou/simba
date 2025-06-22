@@ -54,7 +54,7 @@ impl Default for AdditiveRobotCenteredFaultConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for AdditiveRobotCenteredFaultConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -66,7 +66,7 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Apparition probability: ");
-                self.apparition.show(
+                self.apparition.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
@@ -75,7 +75,7 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                     unique_id,
                 );
             });
-            RandomVariableTypeConfig::show_vector(
+            RandomVariableTypeConfig::show_vector_mut(
                 &mut self.distributions,
                 ui,
                 ctx,
@@ -112,6 +112,36 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                             .unwrap()
                             .clone(),
                     );
+                }
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label("Apparition probability: ");
+                self.apparition.show(
+                    ui,
+                    ctx,
+                    unique_id,
+                );
+            });
+            RandomVariableTypeConfig::show_vector(
+                &self.distributions,
+                ui,
+                ctx,
+                unique_id,
+            );
+            ui.horizontal(|ui| {
+                ui.label("Variable order:");
+                for var in self.variable_order.iter() {
+                    ui.label(format!("{}, ", var));
                 }
             });
         });

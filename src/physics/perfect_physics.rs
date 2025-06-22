@@ -30,7 +30,7 @@ pub struct PerfectsPhysicConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PerfectsPhysicConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -52,12 +52,36 @@ impl UIComponent for PerfectsPhysicConfig {
 
                 ui.horizontal(|ui| {
                     ui.label("Initial state:");
-                    self.initial_state.show(
+                    self.initial_state.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
                         global_config,
                         current_node_name,
+                        unique_id,
+                    );
+                });
+            });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Perfect Physics")
+            .id_source(format!("perfect-physics-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Wheel distance: {}", self.wheel_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Initial state:");
+                    self.initial_state.show(
+                        ui,
+                        ctx,
                         unique_id,
                     );
                 });
@@ -83,6 +107,26 @@ pub struct PerfectPhysicsRecord {
     pub last_time_update: f32,
     /// Current command applied.
     pub current_command: Command,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for PerfectPhysicsRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            egui::CollapsingHeader::new("State").show(ui, |ui| {
+                self.state.show(ui, ctx, unique_id);
+            });
+
+            egui::CollapsingHeader::new("Current command").show(ui, |ui| {
+                self.current_command.show(ui, ctx, unique_id);
+            });
+        });
+    }
 }
 
 // Services

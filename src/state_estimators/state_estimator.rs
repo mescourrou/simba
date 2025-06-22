@@ -37,7 +37,7 @@ impl Default for StateConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for StateConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -63,6 +63,26 @@ impl UIComponent for StateConfig {
             ui.add(egui::DragValue::new(&mut self.velocity).max_decimals(10));
         });
     }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _unique_id: &String,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(format!("x: {}", self.pose.get(0).unwrap()));
+        });
+        ui.horizontal(|ui| {
+            ui.label(format!("y: {}", self.pose.get(1).unwrap()));
+        });
+        ui.horizontal(|ui| {
+            ui.label(format!("θ: {}", self.pose.get(2).unwrap()));
+        });
+        ui.horizontal(|ui| {
+            ui.label(format!("v: {}", self.velocity));
+        });
+    }
 }
 
 /// Record for [`State`] in order to record a state.
@@ -80,6 +100,21 @@ impl Default for StateRecord {
             pose: [0., 0., 0.],
             velocity: 0.,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for StateRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            ui.label(format!("pose: ({}, {}, {})", self.pose[0], self.pose[1], self.pose[2]));
+            ui.label(format!("velocity: {}", self.velocity));
+        });
     }
 }
 
@@ -197,6 +232,44 @@ impl Default for WorldStateRecord {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for WorldStateRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            if let Some(s) = &self.ego {
+                egui::CollapsingHeader::new("Ego").show(ui, |ui| {
+                    s.show(ui, ctx, unique_id);
+                });
+            } else {
+                ui.label("ego: None");
+            }
+
+            egui::CollapsingHeader::new("Landmarks").show(ui, |ui| {
+                for (i, l) in &self.landmarks {
+                    egui::CollapsingHeader::new(format!("Landmark {i}")).show(ui, |ui| {
+                        l.show(ui, ctx, unique_id);
+                    });
+                }
+            });
+
+            egui::CollapsingHeader::new("Objects").show(ui, |ui| {
+                for (n, l) in &self.objects {
+                    egui::CollapsingHeader::new(format!("Object {n}")).show(ui, |ui| {
+                        l.show(ui, ctx, unique_id);
+                    });
+                }
+            });
+
+            ui.label("Occupancy Grid: Not viewable");
+        });
+    }
+}
+
 /// Full State to be estimated.
 #[derive(Debug, Clone)]
 pub struct WorldState {
@@ -302,7 +375,7 @@ pub enum StateEstimatorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for StateEstimatorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -340,7 +413,7 @@ impl UIComponent for StateEstimatorConfig {
             };
         }
         match self {
-            StateEstimatorConfig::Perfect(c) => c.show(
+            StateEstimatorConfig::Perfect(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -348,12 +421,35 @@ impl UIComponent for StateEstimatorConfig {
                 current_node_name,
                 unique_id,
             ),
-            StateEstimatorConfig::External(c) => c.show(
+            StateEstimatorConfig::External(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
                 global_config,
                 current_node_name,
+                unique_id,
+            ),
+        }
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(format!("State Estimator: {}", self.to_string()));
+        });
+        match self {
+            StateEstimatorConfig::Perfect(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
+            StateEstimatorConfig::External(c) => c.show(
+                ui,
+                ctx,
                 unique_id,
             ),
         }
@@ -365,6 +461,32 @@ impl UIComponent for StateEstimatorConfig {
 pub enum StateEstimatorRecord {
     Perfect(perfect_estimator::PerfectEstimatorRecord),
     External(external_estimator::ExternalEstimatorRecord),
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for StateEstimatorRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            match self {
+                Self::Perfect(r) => {
+                    egui::CollapsingHeader::new("Perfect").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+                Self::External(r) => {
+                    egui::CollapsingHeader::new("ExternalStateEstimator").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+
+            }
+        });
+    }
 }
 
 /**
@@ -520,7 +642,7 @@ impl Default for BenchStateEstimatorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for BenchStateEstimatorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -540,7 +662,7 @@ impl UIComponent for BenchStateEstimatorConfig {
                 );
             });
 
-            self.config.show(
+            self.config.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -550,6 +672,26 @@ impl UIComponent for BenchStateEstimatorConfig {
             );
         });
     }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("Name: {}", self.name));
+            });
+
+            self.config.show(
+                ui,
+                ctx,
+                unique_id,
+            );
+        });
+    }
+
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

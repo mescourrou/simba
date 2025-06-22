@@ -39,7 +39,7 @@ pub enum FaultModelConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for FaultModelConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -53,7 +53,7 @@ impl UIComponent for FaultModelConfig {
             .id_source(format!("fault-model-{}", unique_id))
             .show(ui, |ui| {
                 match self {
-                    Self::AdditiveRobotCentered(cfg) => cfg.show(
+                    Self::AdditiveRobotCentered(cfg) => cfg.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
@@ -61,7 +61,7 @@ impl UIComponent for FaultModelConfig {
                         current_node_name,
                         unique_id,
                     ),
-                    Self::AdditiveRobotCenteredPolar(cfg) => cfg.show(
+                    Self::AdditiveRobotCenteredPolar(cfg) => cfg.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
@@ -69,7 +69,7 @@ impl UIComponent for FaultModelConfig {
                         current_node_name,
                         unique_id,
                     ),
-                    Self::AdditiveObservationCenteredPolar(cfg) => cfg.show(
+                    Self::AdditiveObservationCenteredPolar(cfg) => cfg.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
@@ -77,7 +77,7 @@ impl UIComponent for FaultModelConfig {
                         current_node_name,
                         unique_id,
                     ),
-                    Self::Clutter(cfg) => cfg.show(
+                    Self::Clutter(cfg) => cfg.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
@@ -85,7 +85,7 @@ impl UIComponent for FaultModelConfig {
                         current_node_name,
                         unique_id,
                     ),
-                    Self::Misdetection(cfg) => cfg.show(
+                    Self::Misdetection(cfg) => cfg.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
@@ -93,7 +93,7 @@ impl UIComponent for FaultModelConfig {
                         current_node_name,
                         unique_id,
                     ),
-                    Self::Misassociation(cfg) => cfg.show(
+                    Self::Misassociation(cfg) => cfg.show_mut(
                         ui,
                         ctx,
                         buffer_stack,
@@ -104,11 +104,56 @@ impl UIComponent for FaultModelConfig {
                 };
             });
     }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        let self_str = self.to_string();
+        egui::CollapsingHeader::new(self_str)
+            .id_source(format!("fault-model-{}", unique_id))
+            .show(ui, |ui| {
+                match self {
+                    Self::AdditiveRobotCentered(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        unique_id,
+                    ),
+                    Self::AdditiveRobotCenteredPolar(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        unique_id,
+                    ),
+                    Self::AdditiveObservationCenteredPolar(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        unique_id,
+                    ),
+                    Self::Clutter(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        unique_id,
+                    ),
+                    Self::Misdetection(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        unique_id,
+                    ),
+                    Self::Misassociation(cfg) => cfg.show(
+                        ui,
+                        ctx,
+                        unique_id,
+                    ),
+                };
+            });
+    }
 }
 
+#[cfg(feature = "gui")]
 impl FaultModelConfig {
-    #[cfg(feature = "gui")]
-    pub fn show_faults(
+    pub fn show_faults_mut(
         faults: &mut Vec<FaultModelConfig>,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -124,7 +169,7 @@ impl FaultModelConfig {
         for (i, fault) in faults.iter_mut().enumerate() {
             ui.horizontal_top(|ui| {
                 let unique_fault_id = format!("fault-{i}-{unique_id}");
-                fault.show(
+                fault.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
@@ -187,6 +232,26 @@ impl FaultModelConfig {
                 };
             }
         });
+    }
+
+    pub fn show_faults(
+        faults: &Vec<FaultModelConfig>,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+
+        ui.label("Faults:");
+        for (i, fault) in faults.iter().enumerate() {
+            ui.horizontal_top(|ui| {
+                let unique_fault_id = format!("fault-{i}-{unique_id}");
+                fault.show(
+                    ui,
+                    ctx,
+                    &unique_fault_id,
+                );
+            });
+        }
     }
 }
 

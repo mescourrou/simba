@@ -85,7 +85,7 @@ impl Default for MisassociationFaultConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for MisassociationFaultConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -97,7 +97,7 @@ impl UIComponent for MisassociationFaultConfig {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Apparition probability: ");
-                self.apparition.show(
+                self.apparition.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
@@ -108,7 +108,7 @@ impl UIComponent for MisassociationFaultConfig {
             });
             ui.horizontal(|ui| {
                 ui.label("Distribution:");
-                self.distribution.show(
+                self.distribution.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
@@ -137,6 +137,44 @@ impl UIComponent for MisassociationFaultConfig {
                         "Map" => self.source = Source::Map("".to_string()),
                         _ => panic!("Where did you find this value?"),
                     };
+                }
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label("Apparition probability: ");
+                self.apparition.show(
+                    ui,
+                    ctx,
+                    unique_id,
+                );
+            });
+            ui.horizontal(|ui| {
+                ui.label("Distribution:");
+                self.distribution.show(
+                    ui,
+                    ctx,
+                    unique_id,
+                );
+            });
+
+            ui.horizontal(|ui| {
+                ui.label(format!("Sort: {}", self.sort.to_string()));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label(format!("Source: {}", self.source.to_string()));
+                
+                if let Source::Map(path) = &self.source {
+                    ui.label(format!("({})", path));
                 }
             });
         });

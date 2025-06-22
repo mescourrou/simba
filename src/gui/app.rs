@@ -8,11 +8,7 @@ use egui::{Align2, Color32, Id, Painter, Pos2, Rect, Response, Sense, Shape, Vec
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner},
-    errors::SimbaError,
-    node_factory::NodeRecord,
-    plugin_api::PluginAPI,
-    simulator::{Record, SimulatorConfig},
+    api::async_api::{AsyncApi, AsyncApiRunner}, errors::SimbaError, gui::UIComponent, node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimulatorConfig}
 };
 
 use super::{
@@ -95,6 +91,18 @@ impl PainterInfo {
                     y: size.y * scale,
                 },
         }
+    }
+
+    pub fn is_position_clicked(&self, response_click: Option<Pos2>, scale: f32, position: Vec2) -> bool {
+        if let Some(click_pos) = response_click {
+            let position = self.zero(scale) + position * scale;
+            let dist = (click_pos - position).length();
+            if dist < 10. {
+                return true;
+            }
+        }
+        return false;
+
     }
 }
 
@@ -239,7 +247,18 @@ impl SimbaApp {
         Ok(shapes)
     }
 
-    fn react(&mut self, ui: &mut egui::Ui, viewport: Rect, response: &Response) {}
+    fn react(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, viewport: Rect, response: &Response) {
+        for (_, robot) in &mut self.p.robots {
+            robot.react(
+                ui,
+                ctx,
+                response,
+                &self.p.painter_info,
+                self.drawing_scale,
+                self.p.current_draw_time,
+            );
+        }
+    }
 }
 
 impl eframe::App for SimbaApp {
@@ -410,6 +429,17 @@ impl eframe::App for SimbaApp {
             });
         });
 
+        egui::SidePanel::right("right-panel").show(ctx, |ui| {
+            egui::CollapsingHeader::new("Configuration").show(ui, |ui| {
+                egui::ScrollArea::both().show(ui, |ui| {
+                    if let Some(cfg) = &self.p.config {
+                        let unique_id = String::new();
+                        cfg.show(ui, ctx, &unique_id);
+                    }
+                });
+            });
+        });
+
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both()
                 .auto_shrink([false; 2])
@@ -480,12 +510,12 @@ impl eframe::App for SimbaApp {
                     }
 
                     let size = self.p.painter_info.size() * self.drawing_scale;
-                    let (response, painter) = ui.allocate_painter(size, Sense::hover());
+                    let (response, painter) = ui.allocate_painter(size, Sense::click());
                     painter.extend(shapes);
 
                     self.p.painter_info.set_shift(response.rect.left_top());
 
-                    // self.react(ui, viewport, &response);
+                    self.react(ui, ctx, viewport, &response);
                 });
         });
 
