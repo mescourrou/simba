@@ -16,17 +16,17 @@ Here is a list of available and considered features. The order is not a priority
 - [X] Time performance analysis
 - [X] Complex noise addition and faults
 - [X] Simple Graphical User Interface
-- [ ] Synchronous robot run option
+- [X] Synchronous robot run option
 - [ ] Possibility to read data from file instead of simulation: test state estimation algorithms on real data
 - [ ] Export data to file
 - [ ] ROS2 interface (rosbag reading)
 - [ ] Gazebo interface (maybe)
 - [ ] C++ bindings
-- [ ] Advanced Graphical User Interface (real time + replay)
+- [X] Advanced Graphical User Interface (real time + replay)
 - [ ] Extend PluginAPI to sensors
 - [ ] Controllable sensors
 - [ ] New faults: delay, activation windows
-- [ ] Central algorithm possibility
+- [X] Central algorithm possibility
 
 ## Cargo Features:
 - "time-analysis": enable time analysis features (with performance report compatible with [https://profiler.firefox.com/](https://profiler.firefox.com/)). May slow down the simulation (shared memory).
