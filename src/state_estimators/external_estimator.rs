@@ -63,7 +63,7 @@ impl Default for ExternalEstimatorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ExternalEstimatorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -82,6 +82,20 @@ impl UIComponent for ExternalEstimatorConfig {
                     buffer_stack,
                     &mut self.config,
                 );
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("External State Estimator").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                ui.label(self.config.to_string());
             });
         });
     }
@@ -107,6 +121,19 @@ impl Default for ExternalEstimatorRecord {
         Self {
             record: Value::Null,
         }
+    }
+}
+
+
+#[cfg(feature = "gui")]
+impl UIComponent for ExternalEstimatorRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.label(self.record.to_string());
     }
 }
 

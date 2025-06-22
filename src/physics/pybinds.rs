@@ -222,7 +222,9 @@ impl PythonPhysics {
                 .call_method("state", (time,), None)
                 .expect("PythonPhysics does not have a correct 'state' method")
                 .extract()
-                .expect("The 'state' method of PythonPhysics does not return a correct state vector")
+                .expect(
+                    "The 'state' method of PythonPhysics does not return a correct state vector",
+                )
         });
         state.to_rust()
     }

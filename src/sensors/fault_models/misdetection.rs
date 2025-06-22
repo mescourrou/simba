@@ -44,7 +44,7 @@ impl Default for MisdetectionFaultConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for MisdetectionFaultConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -56,12 +56,30 @@ impl UIComponent for MisdetectionFaultConfig {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Apparition probability: ");
-                self.apparition.show(
+                self.apparition.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
                     global_config,
                     current_node_name,
+                    unique_id,
+                );
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.vertical(|ui| {
+            ui.horizontal(|ui| {
+                ui.label("Apparition probability: ");
+                self.apparition.show(
+                    ui,
+                    ctx,
                     unique_id,
                 );
             });

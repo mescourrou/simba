@@ -9,6 +9,8 @@ use log::debug;
 use na::{DMatrix, SVector};
 use nalgebra::Vector2;
 
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::{logger::is_enabled, stateful::Stateful};
 
 use crate::utils::geometry::*;
@@ -45,6 +47,18 @@ pub struct TrajectoryRecord {
 impl TrajectoryRecord {
     pub fn default() -> Self {
         Self { current_segment: 0 }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for TrajectoryRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.label(format!("Current segment: {}", self.current_segment));
     }
 }
 

@@ -50,7 +50,7 @@ impl Default for NetworkConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for NetworkConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -77,6 +77,23 @@ impl UIComponent for NetworkConfig {
                     egui::DragValue::new(&mut self.reception_delay)
                         .max_decimals((1. / TIME_ROUND) as usize),
                 );
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Network").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("Range (0 for no limit): {}", self.range));
+            });
+
+            ui.horizontal(|ui| {
+                ui.label(format!("Reception delay (0 not stable): {}", self.reception_delay));
             });
         });
     }

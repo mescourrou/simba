@@ -28,7 +28,7 @@ pub enum NavigatorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for NavigatorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -66,7 +66,7 @@ impl UIComponent for NavigatorConfig {
             };
         }
         match self {
-            NavigatorConfig::TrajectoryFollower(c) => c.show(
+            NavigatorConfig::TrajectoryFollower(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -74,12 +74,36 @@ impl UIComponent for NavigatorConfig {
                 current_node_name,
                 unique_id,
             ),
-            NavigatorConfig::External(c) => c.show(
+            NavigatorConfig::External(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
                 global_config,
                 current_node_name,
+                unique_id,
+            ),
+        }
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(format!("Navigator: {}", self.to_string()));
+        });
+        
+        match self {
+            NavigatorConfig::TrajectoryFollower(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
+            NavigatorConfig::External(c) => c.show(
+                ui,
+                ctx,
                 unique_id,
             ),
         }
@@ -91,6 +115,32 @@ impl UIComponent for NavigatorConfig {
 pub enum NavigatorRecord {
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerRecord),
     External(external_navigator::ExternalNavigatorRecord),
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for NavigatorRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            match self {
+                Self::TrajectoryFollower(r) => {
+                    egui::CollapsingHeader::new("TrajectoryFollower").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+                Self::External(r) => {
+                    egui::CollapsingHeader::new("ExternalNavigator").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+
+            }
+        });
+    }
 }
 
 use crate::node::Node;

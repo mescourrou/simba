@@ -22,7 +22,7 @@ impl Default for FixedRandomVariableConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for FixedRandomVariableConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -48,6 +48,23 @@ impl UIComponent for FixedRandomVariableConfig {
                 }
                 if ui.button("Add").clicked() {
                     self.values.push(1.0);
+                }
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _unique_id: &String,
+    ) {
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                for (i, p) in self.values.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("value {}: {}", i + 1, p));
+                    });
                 }
             });
         });

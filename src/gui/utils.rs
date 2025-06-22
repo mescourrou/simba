@@ -1,6 +1,7 @@
 use std::{collections::BTreeMap, fmt::Debug, path::Path};
 
 use egui::Color32;
+use serde::Serialize;
 
 use crate::utils::enum_tools::ToVec;
 

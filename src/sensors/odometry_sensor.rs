@@ -47,7 +47,7 @@ impl Default for OdometrySensorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OdometrySensorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -67,13 +67,35 @@ impl UIComponent for OdometrySensorConfig {
                     ui.add(egui::DragValue::new(&mut self.period));
                 });
 
-                FaultModelConfig::show_faults(
+                FaultModelConfig::show_faults_mut(
                     &mut self.faults,
                     ui,
                     ctx,
                     buffer_stack,
                     global_config,
                     current_node_name,
+                    unique_id,
+                );
+            });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Odometry sensor")
+            .id_source(format!("odometry-sensor-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Period: {}", self.period));
+                });
+
+                FaultModelConfig::show_faults(
+                    &self.faults,
+                    ui,
+                    ctx,
                     unique_id,
                 );
             });
@@ -93,6 +115,21 @@ impl Default for OdometrySensorRecord {
             last_time: 0.,
             last_state: StateRecord::default(),
         }
+    }
+}
+
+
+#[cfg(feature = "gui")]
+impl UIComponent for OdometrySensorRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.label(format!("Last time: {}", self.last_time));
+        ui.label("Last state: ");
+        self.last_state.show(ui, ctx, unique_id);
     }
 }
 
@@ -121,6 +158,21 @@ impl Stateful<OdometryObservationRecord> for OdometryObservation {
 pub struct OdometryObservationRecord {
     pub linear_velocity: f32,
     pub angular_velocity: f32,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for OdometryObservationRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            ui.label(format!("Linear velocity: {}", self.linear_velocity));
+            ui.label(format!("Angular velocity: {}", self.angular_velocity));
+        });
+    }
 }
 
 /// Sensor which observes the robot's odometry

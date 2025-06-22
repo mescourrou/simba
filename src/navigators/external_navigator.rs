@@ -61,7 +61,7 @@ impl Default for ExternalNavigatorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ExternalNavigatorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -80,6 +80,20 @@ impl UIComponent for ExternalNavigatorConfig {
                     buffer_stack,
                     &mut self.config,
                 );
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("External Navigator").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                ui.label(self.config.to_string());
             });
         });
     }
@@ -113,6 +127,18 @@ impl ExternalNavigatorRecord {
     #[getter]
     fn record(&self) -> String {
         self.record.to_string()
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ExternalNavigatorRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.label(self.record.to_string());
     }
 }
 

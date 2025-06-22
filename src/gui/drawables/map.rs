@@ -1,11 +1,9 @@
-use std::{
-    path::Path,
-    sync::Mutex,
-};
+use std::{path::Path, sync::Mutex};
 
-use egui::{Color32, Painter, Rect, Response, Stroke, Vec2};
+use egui::{Color32, Painter, Rect, Response, Shape, Stroke, Vec2};
 
 use crate::{
+    gui::app::PainterInfo,
     sensors::oriented_landmark_sensor::{OrientedLandmark, OrientedLandmarkSensor},
     simulator::SimulatorConfig,
 };
@@ -45,21 +43,28 @@ impl Map {
         &self,
         _ui: &mut egui::Ui,
         _viewport: &Rect,
-        response: &Response,
-        painter: &Painter,
+        painter_info: &PainterInfo,
         scale: f32,
-    ) {
-        let center = response.rect.center();
+    ) -> Result<Vec<Shape>, Vec2> {
+        let mut shapes = Vec::new();
+        let center = painter_info.zero(scale);
         for landmark in &self.landmarks {
-            let position = Vec2::new(landmark.pose[0], landmark.pose[1]) * scale;
-            let position = center + position;
+            let position = Vec2::new(landmark.pose[0], landmark.pose[1]);
+            if !painter_info.is_inside(&position) {
+                return Err(position);
+            }
             let arrow_tip = position
                 + Vec2 {
-                    x: self.arrow_len * landmark.pose[2].cos() * scale,
-                    y: self.arrow_len * landmark.pose[2].sin() * scale,
+                    x: self.arrow_len * landmark.pose[2].cos(),
+                    y: self.arrow_len * landmark.pose[2].sin(),
                 };
+            if !painter_info.is_inside(&arrow_tip) {
+                return Err(arrow_tip);
+            }
+            let position = center + position * scale;
+            let arrow_tip = center + arrow_tip * scale;
 
-            painter.rect_filled(
+            shapes.push(Shape::rect_filled(
                 Rect::from_center_size(
                     position,
                     Vec2 {
@@ -69,14 +74,15 @@ impl Map {
                 ),
                 0.01 * scale,
                 self.color,
-            );
-            painter.line_segment(
+            ));
+            shapes.push(Shape::line_segment(
                 [position, arrow_tip],
                 Stroke {
                     color: self.color,
                     width: 0.05 * scale,
                 },
-            );
+            ));
         }
+        Ok(shapes)
     }
 }

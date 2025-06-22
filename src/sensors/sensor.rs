@@ -17,14 +17,13 @@ use super::{
     robot_sensor::{self, OrientedRobotObservation, OrientedRobotObservationRecord},
 };
 
-
 #[cfg(feature = "gui")]
 use crate::{
     gui::{utils::string_combobox, UIComponent},
-    utils::enum_tools::ToVec,
     simulator::SimulatorConfig,
+    utils::enum_tools::ToVec,
 };
-use crate::{node::Node, stateful::Stateful, };
+use crate::{node::Node, stateful::Stateful};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {
@@ -70,6 +69,22 @@ pub struct ObservationRecord {
     pub observer: String,
     pub time: f32,
     pub sensor_observation: SensorObservationRecord,
+}
+
+
+#[cfg(feature = "gui")]
+impl UIComponent for ObservationRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.label(format!("Sensor name: {}", self.sensor_name));
+        ui.label(format!("Observer: {}", self.observer));
+        ui.label(format!("Time: {}", self.time));
+        self.sensor_observation.show(ui, ctx, unique_id);
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -128,6 +143,27 @@ pub enum SensorObservationRecord {
     OrientedRobot(OrientedRobotObservationRecord),
 }
 
+
+#[cfg(feature = "gui")]
+impl UIComponent for SensorObservationRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            match self {
+                Self::OrientedLandmark(r) => r.show(ui, ctx, unique_id),
+                Self::Odometry(r) => r.show(ui, ctx, unique_id),
+                Self::GNSS(r) => r.show(ui, ctx, unique_id),
+                Self::OrientedRobot(r) => r.show(ui, ctx, unique_id),
+
+            }
+        });
+    }
+}
+
 /// Enumerates all the possible sensors configurations.
 #[derive(Serialize, Deserialize, Debug, Clone, Check, EnumToString, ToVec)]
 #[serde(deny_unknown_fields)]
@@ -140,7 +176,7 @@ pub enum SensorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for SensorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
@@ -184,36 +220,69 @@ impl UIComponent for SensorConfig {
             };
         }
         match self {
-            SensorConfig::OrientedLandmarkSensor(c) => c.show(
+            SensorConfig::OrientedLandmarkSensor(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
                 global_config,
                 current_node_name,
+                unique_id,
+            ),
+            SensorConfig::OdometrySensor(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+            SensorConfig::GNSSSensor(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+            SensorConfig::RobotSensor(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+        }
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.horizontal(|ui| {
+            ui.label(format!("Sensor: {}", self.to_string()));
+        });
+        match self {
+            SensorConfig::OrientedLandmarkSensor(c) => c.show(
+                ui,
+                ctx,
                 unique_id,
             ),
             SensorConfig::OdometrySensor(c) => c.show(
                 ui,
                 ctx,
-                buffer_stack,
-                global_config,
-                current_node_name,
                 unique_id,
             ),
             SensorConfig::GNSSSensor(c) => c.show(
                 ui,
                 ctx,
-                buffer_stack,
-                global_config,
-                current_node_name,
                 unique_id,
             ),
             SensorConfig::RobotSensor(c) => c.show(
                 ui,
                 ctx,
-                buffer_stack,
-                global_config,
-                current_node_name,
                 unique_id,
             ),
         }
@@ -227,6 +296,42 @@ pub enum SensorRecord {
     OdometrySensor(odometry_sensor::OdometrySensorRecord),
     GNSSSensor(gnss_sensor::GNSSSensorRecord),
     RobotSensor(robot_sensor::RobotSensorRecord),
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for SensorRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            match self {
+                Self::OrientedLandmarkSensor(r) => {
+                    egui::CollapsingHeader::new("OrientedLandmark").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+                Self::OdometrySensor(r) => {
+                    egui::CollapsingHeader::new("OdometrySensor").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+                Self::GNSSSensor(r) => {
+                    egui::CollapsingHeader::new("GNSSSensor").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+                Self::RobotSensor(r) => {
+                    egui::CollapsingHeader::new("RobotSensor").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+
+            }
+        });
+    }
 }
 
 /// Sensor trait which need to be implemented by each sensors.

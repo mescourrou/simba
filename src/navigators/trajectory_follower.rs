@@ -50,7 +50,7 @@ impl Default for TrajectoryFollowerConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for TrajectoryFollowerConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -84,6 +84,29 @@ impl UIComponent for TrajectoryFollowerConfig {
                 });
             });
     }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Trajectory Follower")
+            .id_source(format!("trajectory-follower-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Trajectory path: {}", self.trajectory_path));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Forward distance: {}", self.forward_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Target speed: {}", self.target_speed));
+                });
+            });
+    }
 }
 
 /// Record of the [`TrajectoryFollower`].
@@ -103,6 +126,28 @@ impl Default for TrajectoryFollowerRecord {
             trajectory: TrajectoryRecord::default(),
             projected_point: [0., 0.],
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for TrajectoryFollowerRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            egui::CollapsingHeader::new("Error").show(ui, |ui| {
+                self.error.show(ui, ctx, unique_id);
+            });
+
+            egui::CollapsingHeader::new("Trajectory").show(ui, |ui| {
+                self.trajectory.show(ui, ctx, unique_id);
+            });
+
+            ui.label(format!("Projected point: ({}, {})", self.projected_point[0], self.projected_point[1]));
+        });
     }
 }
 

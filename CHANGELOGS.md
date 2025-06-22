@@ -1,5 +1,12 @@
 # Changelogs
 
+## v1.0.1
+- Introspection GUI tools for records and current config
+- Extend simulation GUI area dynamically
+- Fix PluginAPI usage for GUI in Rust
+- Export base_path in SimulatorConfig when serializing
+- Fix config doc link to rust doc
+
 ## v1.0.0
 - New GUI for simulation and configuration
 - Better documentation

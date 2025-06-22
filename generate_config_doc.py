@@ -17,7 +17,7 @@ LIST = "List"
 
 ENUMERATION_COMMENT = "Enum"
 
-BASE_DOC_URL = "https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/doc/simba/"
+BASE_DOC_URL = "https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/"
 
 ADDITIONNAL_CONFIG_ITEMS = ["Source", "Sort", "TimeMode", "LogLevel", "InternalLog"]
 

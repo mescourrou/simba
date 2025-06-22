@@ -48,7 +48,7 @@ impl Configurator {
 
             egui::ScrollArea::vertical().show(ui, |ui| {
                 let unique_id = String::new();
-                self.current_config.show(
+                self.current_config.show_mut(
                     ui,
                     ctx,
                     &mut self.buffer,

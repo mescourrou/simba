@@ -50,7 +50,7 @@ impl Default for PerfectEstimatorConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PerfectEstimatorConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -104,6 +104,37 @@ impl UIComponent for PerfectEstimatorConfig {
                 });
             });
     }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("Perfect Estimator")
+            .id_source(format!("perfect-estimator-{}", unique_id))
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label(format!("Prediction period: {}", self.prediction_period));
+                });
+
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Targets: ");
+                    for t in &self.targets {
+                        ui.label(format!("{t}, "));
+                    }
+                });
+
+                ui.horizontal_wrapped(|ui| {
+                    ui.label("Map path: ");
+                    if let Some(p) = &self.map_path {
+                        ui.label(p);
+                    } else {
+                        ui.label("None");
+                    }
+                });
+            });
+    }
 }
 
 /// Record for [`PerfectEstimator`].
@@ -112,18 +143,35 @@ pub struct PerfectEstimatorRecord {
     /// Current state estimated
     pub world_state: WorldStateRecord,
     /// Last change of state
-    pub last_time_update: f32,
+    pub last_time_prediction: f32,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for PerfectEstimatorRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.vertical(|ui| {
+            egui::CollapsingHeader::new("World state").show(ui, |ui| {
+                self.world_state.show(ui, ctx, unique_id);
+            });
+            ui.label(format!("Last prediction time: {}", self.last_time_prediction));
+        });
+    }
 }
 
 /// Estimation strategy without any error.
 #[derive(Debug)]
 pub struct PerfectEstimator {
-    /// Estimation of the state on the `last_time_update`.
+    /// Estimation of the state on the `last_time_prediction`.
     world_state: WorldState,
     /// Prediction period, in seconds.
     prediction_period: f32,
     /// Last time the state was updated/predicted.
-    last_time_update: f32,
+    last_time_prediction: f32,
 }
 
 impl PerfectEstimator {
@@ -173,7 +221,7 @@ impl PerfectEstimator {
         Self {
             prediction_period: config.prediction_period,
             world_state,
-            last_time_update: 0.,
+            last_time_prediction: 0.,
         }
     }
 }
@@ -210,7 +258,7 @@ impl StateEstimator for PerfectEstimator {
                     .as_str(),
                 );
         }
-        self.last_time_update = time;
+        self.last_time_prediction = time;
     }
 
     fn correction_step(&mut self, _node: &mut Node, _observations: &Vec<Observation>, _time: f32) {
@@ -222,7 +270,7 @@ impl StateEstimator for PerfectEstimator {
     }
 
     fn next_time_step(&self) -> f32 {
-        round_precision(self.last_time_update + self.prediction_period, TIME_ROUND).unwrap()
+        round_precision(self.last_time_prediction + self.prediction_period, TIME_ROUND).unwrap()
     }
 }
 
@@ -230,7 +278,7 @@ impl Stateful<StateEstimatorRecord> for PerfectEstimator {
     fn record(&self) -> StateEstimatorRecord {
         StateEstimatorRecord::Perfect(PerfectEstimatorRecord {
             world_state: self.world_state.record(),
-            last_time_update: self.last_time_update,
+            last_time_prediction: self.last_time_prediction,
         })
     }
 
@@ -238,7 +286,7 @@ impl Stateful<StateEstimatorRecord> for PerfectEstimator {
         if let StateEstimatorRecord::Perfect(record_state_estimator) = record {
             self.world_state
                 .from_record(record_state_estimator.world_state);
-            self.last_time_update = record_state_estimator.last_time_update;
+            self.last_time_prediction = record_state_estimator.last_time_prediction;
         } else {
             error!(
                 "Using a StateEstimatorRecord type which does not match the used StateEstimator (PerfectEstimator)"

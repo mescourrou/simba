@@ -1,6 +1,6 @@
 [package]
 name = "simba"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2021"
 
 crate-type = ["cdylib"]
@@ -37,7 +37,7 @@ rand = "0.8.5"
 rand_chacha = "0.3.1"
 statrs = "0.17.1"
 
-config-checker = { git = "https://github.com/mescourrou/rust_config_checker" }
+config-checker = { git = "https://github.com/mescourrou/rust_config_checker", branch = "master"}
 
 simba-macros ={ path = "./macros" , version = "*"}
 

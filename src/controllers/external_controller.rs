@@ -60,7 +60,7 @@ impl Default for ExternalControllerConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ExternalControllerConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -79,6 +79,20 @@ impl UIComponent for ExternalControllerConfig {
                     buffer_stack,
                     &mut self.config,
                 );
+            });
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        egui::CollapsingHeader::new("External Controller").show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                ui.label(self.config.to_string());
             });
         });
     }
@@ -106,6 +120,19 @@ impl Default for ExternalControllerRecord {
         }
     }
 }
+
+#[cfg(feature = "gui")]
+impl UIComponent for ExternalControllerRecord {
+    fn show(
+            &self,
+            ui: &mut egui::Ui,
+            ctx: &egui::Context,
+            unique_id: &String,
+        ) {
+        ui.label(self.record.to_string());
+    }
+}
+
 
 #[pymethods]
 impl ExternalControllerRecord {

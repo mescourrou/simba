@@ -4,7 +4,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-
 use crate::{
     node::Node,
     physics::physics::{GetRealStateReq, GetRealStateResp, Physics},

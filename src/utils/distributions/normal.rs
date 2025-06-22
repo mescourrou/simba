@@ -6,7 +6,7 @@ use statrs::{distribution::MultivariateNormal, statistics::MeanN};
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::utils::determinist_random_variable::{DeterministRandomVariable};
+use crate::utils::determinist_random_variable::DeterministRandomVariable;
 use crate::utils::format_f32;
 
 /// Configuration for a normal random variable.
@@ -35,7 +35,7 @@ impl Default for NormalRandomVariableConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for NormalRandomVariableConfig {
-    fn show(
+    fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
@@ -108,12 +108,42 @@ impl UIComponent for NormalRandomVariableConfig {
                 });
             });
             ui.label("Seed: ");
-            seed_generation_component(
-                &mut self.unique_seed,
-                ui,
-                buffer_stack,
-                unique_id,
-            );
+            seed_generation_component(&mut self.unique_seed, ui, buffer_stack, unique_id);
+        });
+    }
+
+    fn show(
+        &self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        unique_id: &String,
+    ) {
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                for (i, p) in self.mean.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("mean {}: {}", i + 1, p));
+                    });
+                }
+            });
+            ui.vertical(|ui| {
+                ui.label("Covariance: ");
+                let size = self.mean.len();
+                ui.horizontal(|ui| {
+                    let mut row = 0;
+                    while row < size {
+                        ui.vertical(|ui| {
+                            let mut col = 0;
+                            while col < size {
+                                ui.label(format!("{}", self.covariance.get(row * size + col).unwrap()));
+                                col += 1;
+                            }
+                        });
+                        row += 1;
+                    }
+                });
+            });
+            ui.label(format!("Seed: {}", self.unique_seed));
         });
     }
 }
