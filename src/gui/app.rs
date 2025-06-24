@@ -310,8 +310,7 @@ impl eframe::App for SimbaApp {
                     self.p.api.load_config.async_call(self.config_path.clone());
                 }
                 if self.p.config.is_none() {
-                    if let Some(c) = self.p.api.load_config.try_get_result() {
-                        let res = c.unwrap();
+                    if let Some(res) = self.p.api.load_config.try_get_result() {
                         match res {
                             Err(e) => {
                                 let now = time::Instant::now();
@@ -362,12 +361,12 @@ impl eframe::App for SimbaApp {
                     {
                         log::info!("Run simulation");
                         self.p.api.run.async_call(Some(self.duration));
-                        if let Some(r) = self.p.api.run.try_get_result() {
-                            if let Err(e) = r.unwrap() {
-                                self.p.error_buffer.push((time::Instant::now(), e));
-                            }
-                        }
                         self.p.simulation_run = true;
+                    }
+                    if let Some(r) = self.p.api.run.try_get_result() {
+                        if let Err(e) = r {
+                            self.p.error_buffer.push((time::Instant::now(), e));
+                        }
                     }
                     let mut max_simulated_time = 0.;
                     for (_, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter() {
@@ -415,10 +414,10 @@ impl eframe::App for SimbaApp {
                     {
                         log::info!("Analysing results");
                         self.p.api.compute_results.async_call(());
-                        if let Some(r) = self.p.api.compute_results.try_get_result() {
-                            if let Err(e) = r.unwrap() {
-                                self.p.error_buffer.push((time::Instant::now(), e));
-                            }
+                    }
+                    if let Some(r) = self.p.api.compute_results.try_get_result() {
+                        if let Err(e) = r {
+                            self.p.error_buffer.push((time::Instant::now(), e));
                         }
                     }
                 });

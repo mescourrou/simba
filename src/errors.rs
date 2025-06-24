@@ -24,6 +24,7 @@ pub struct SimbaError {
 
 impl SimbaError {
     pub fn new(error_type: SimbaErrorTypes, what: String) -> Self {
+        log::error!("{}: {what}", error_type.to_string());
         Self { error_type, what }
     }
 
