@@ -8,7 +8,7 @@ use egui::{Align2, Color32, Id, Painter, Pos2, Rect, Response, Sense, Shape, Vec
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner}, errors::SimbaError, gui::UIComponent, node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimulatorConfig}
+    api::async_api::{AsyncApi, AsyncApiRunner}, constants::TIME_ROUND_DECIMALS, errors::SimbaError, gui::UIComponent, node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimulatorConfig}
 };
 
 use super::{
@@ -406,7 +406,7 @@ impl eframe::App for SimbaApp {
                     ui.add(egui::Slider::new(
                         &mut self.p.current_draw_time,
                         0.0..=self.duration,
-                    ));
+                    ).fixed_decimals(TIME_ROUND_DECIMALS));
                     ui.add(egui::Checkbox::new(&mut self.follow_sim_time, "Follow"));
                     if ui
                         .add_enabled(self.p.config.is_some(), egui::Button::new("Results"))
