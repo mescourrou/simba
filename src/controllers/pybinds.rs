@@ -128,16 +128,22 @@ impl PythonController {
         }
         // let node_record = node.record();
         let result = Python::with_gil(|py| -> CommandWrapper {
-            self.model
+            match self.model
                 .bind(py)
                 .call_method(
                     "make_command",
                     (ControllerErrorWrapper::from_rust(error), time),
                     None,
-                )
-                .expect("PythonController does not have a correct 'make_command' method")
-                .extract()
-                .expect("Error during the call of Python implementation of 'make_command'")
+                ) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error while calling 'make_command' method of PythonController.");
+                    }
+                    Ok(r) => {
+                        r.extract()
+                        .expect("Error during the call of Python implementation of 'make_command'")
+                    }
+                }
         });
         result.to_rust()
     }
@@ -147,12 +153,18 @@ impl PythonController {
             debug!("Calling python implementation of record");
         }
         let record_str: String = Python::with_gil(|py| {
-            self.model
+            match self.model
                 .bind(py)
-                .call_method("record", (), None)
-                .expect("Python implementation of PythonController does not have a correct 'record' method")
-                .extract()
-                .expect("The 'record' method of PythonController does not return a valid EstimatorRecord type")
+                .call_method("record", (), None) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error while calling 'record' method of PythonController.");
+                    }
+                    Ok(r) => {
+                        r.extract()
+                        .expect("The 'record' method of PythonController does not return a valid EstimatorRecord type")
+                    }
+                }
         });
         let record = ExternalControllerRecord {
             record: Value::from_str(record_str.as_str()).expect(
@@ -170,10 +182,12 @@ impl PythonController {
                 debug!("Calling python implementation of from_record");
             }
             Python::with_gil(|py| {
-                self.model
+                if let Err(e) = self.model
                     .bind(py)
-                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None)
-                    .expect("Python implementation of PythonController does not have a correct 'from_record' method");
+                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None) {
+                        e.display(py);
+                        panic!("Error while calling 'from_record' method of PythonController.");
+                    }
             });
         }
     }

@@ -25,10 +25,10 @@ def analyse(records: dict, config: dict, figure_path: str, figure_type: str, add
             
         turtle_data = all_turtles_data[turtle_name]
             
-        if "physic" in record["node"][node_type]:
+        if "physics" in record["node"][node_type]:
             turtle_data.times.append(t)
             try:
-                perfect_physics = record["node"][node_type]["physic"]["Perfect"]
+                perfect_physics = record["node"][node_type]["physics"]["Perfect"]
                 real_pose = None
                 if "states" in perfect_physics:
                     states = perfect_physics["states"]
@@ -40,8 +40,8 @@ def analyse(records: dict, config: dict, figure_path: str, figure_type: str, add
                 if real_pose is None:
                     raise Exception()
             except: # For external Physics (in python example)
-                print(record["node"][node_type]["physic"])
-                real_pose = record["node"][node_type]["physic"]["External"]["state"][0:3]
+                print(record["node"][node_type]["physics"])
+                real_pose = record["node"][node_type]["physics"]["External"]["state"][0:3]
             turtle_data.positions.append(real_pose)
         
     f, ax = plt.subplots()

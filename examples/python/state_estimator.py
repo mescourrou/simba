@@ -40,7 +40,7 @@ class StateEstimator(simba.StateEstimator):
             # You can also use the sensor name given in the config!
             match sensor_obs:
                 case simba.SensorObservation.OrientedLandmark():
-                    print(f"Observation of landmark {sensor_obs[0].id}: {sensor_obs[0].pose}")
+                    print(f"Observation of landmark {sensor_obs[0].id}: {sensor_obs.as_oriented_landmark().pose}")
                 case simba.SensorObservation.Odometry():
                     print(f"Odometry: {sensor_obs[0]}")
                 case _:

@@ -272,10 +272,12 @@ impl PythonStateEstimator {
         }
         // let node_record = node.record();
         Python::with_gil(|py| {
-            self.model
+            if let Err(e) = self.model
                 .bind(py)
-                .call_method("prediction_step", (time,), None)
-                .expect("Python implementation of PythonStateEstimator does not have a correct 'prediction_step' method");
+                .call_method("prediction_step", (time,), None) {
+                    e.display(py);
+                    panic!("Error while calling 'prediction_step' method of PythonStateEstimator.");
+                }
         });
     }
 
@@ -288,10 +290,12 @@ impl PythonStateEstimator {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
         Python::with_gil(|py| {
-            self.model
+            if let Err(e) = self.model
                 .bind(py)
-                .call_method("correction_step", (observation_py, time), None)
-                .expect("Python implementation of PythonStateEstimator does not have a correct 'correction_step' method");
+                .call_method("correction_step", (observation_py, time), None) {
+                    e.display(py);
+                    panic!("Error while calling 'correction_step' method of PythonStateEstimator.");
+                }
         });
     }
 
@@ -300,12 +304,18 @@ impl PythonStateEstimator {
             debug!("Calling python implementation of state");
         }
         let state = Python::with_gil(|py| -> WorldStateWrapper {
-            self.model
+            match self.model
                 .bind(py)
-                .call_method("state", (), None)
-                .expect("Python implementation of PythonStateEstimator does not have a correct 'state' method")
-                .extract()
-                .expect("The 'state' method of PythonStateEstimator does not return a correct state vector")
+                .call_method("state", (), None) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error while calling 'state' method of PythonStateEstimator.");
+                    }
+                    Ok(r) => {
+                        r.extract()
+                        .expect("The 'state' method of PythonStateEstimator does not return a correct state vector")
+                    }
+                }
         });
         state.to_rust()
     }
@@ -316,12 +326,18 @@ impl PythonStateEstimator {
             debug!("Calling python implementation of next_time_step");
         }
         let time = Python::with_gil(|py| {
-            self.model
+            match self.model
                 .bind(py)
-                .call_method("next_time_step", (), None)
-                .expect("Python implementation of PythonStateEstimator does not have a correct 'next_time_step' method")
-                .extract()
-                .expect("The 'next_time_step' method of PythonStateEstimator does not return a correct time for next step")
+                .call_method("next_time_step", (), None) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error while calling 'next_time_step' method of PythonStateEstimator.");
+                    }
+                    Ok(r) => {
+                        r.extract()
+                        .expect("The 'next_time_step' method of PythonStateEstimator does not return a correct time for next step")
+                    }
+                }
         });
         round_precision(time, TIME_ROUND).unwrap()
     }
@@ -331,12 +347,18 @@ impl PythonStateEstimator {
             debug!("Calling python implementation of record");
         }
         let record_str: String = Python::with_gil(|py| {
-            self.model
+            match self.model
                 .bind(py)
-                .call_method("record", (), None)
-                .expect("Python implementation of PythonStateEstimator does not have a correct 'record' method")
-                .extract()
-                .expect("The 'record' method of PythonStateEstimator does not return a valid EstimatorRecord type")
+                .call_method("record", (), None) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error while calling 'record' method of PythonStateEstimator.");
+                    }
+                    Ok(r) => {
+                        r.extract()
+                        .expect("The 'record' method of PythonStateEstimator does not return a valid EstimatorRecord type")
+                    }
+                }
         });
         let record = ExternalEstimatorRecord {
             record: Value::from_str(record_str.as_str()).expect(
@@ -354,10 +376,12 @@ impl PythonStateEstimator {
                 debug!("Calling python implementation of from_record");
             }
             Python::with_gil(|py| {
-                self.model
+                if let Err(e) = self.model
                     .bind(py)
-                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None)
-                    .expect("Python implementation of PythonStateEstimator does not have a correct 'from_record' method");
+                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None) {
+                        e.display(py);
+                        panic!("Error while calling 'from_record' method of PythonStateEstimator.");
+                    }
             });
         }
     }
