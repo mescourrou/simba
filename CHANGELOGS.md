@@ -1,5 +1,11 @@
 # Changelogs
 
+## v1.0.2
+- Facilitate python development
+- Upload wheel file with the right name for pip install
+- Fix missing observations generation
+- Fix error return for run and results in GUI
+
 ## v1.0.1
 - Introspection GUI tools for records and current config
 - Extend simulation GUI area dynamically
