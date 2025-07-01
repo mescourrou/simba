@@ -135,16 +135,22 @@ impl PythonNavigator {
         }
         // let node_record = node.record();
         let result = Python::with_gil(|py| -> ControllerErrorWrapper {
-            self.model
+            match self.model
                 .bind(py)
                 .call_method(
                     "compute_error",
                     (WorldStateWrapper::from_rust(state),),
                     None,
-                )
-                .expect("PythonNavigator does not have a correct 'compute_error' method")
-                .extract()
-                .expect("Error during the call of Python implementation of 'compute_error'")
+                ) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error while calling 'compute_error' method of PythonNavigator.");
+                    }
+                    Ok(r) => {
+                        r.extract()
+                        .expect("Error during the call of Python implementation of 'compute_error'")
+                    }
+                }
         });
         result.to_rust()
     }
@@ -154,12 +160,18 @@ impl PythonNavigator {
             debug!("Calling python implementation of record");
         }
         let record_str: String = Python::with_gil(|py| {
-            self.model
+            match self.model
                 .bind(py)
-                .call_method("record", (), None)
-                .expect("Python implementation of PythonNavigator does not have a correct 'record' method")
-                .extract()
-                .expect("The 'record' method of PythonNavigator does not return a valid EstimatorRecord type")
+                .call_method("record", (), None) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error while calling 'record' method of PythonNavigator.");
+                    }
+                    Ok(r) => {
+                        r.extract()
+                        .expect("The 'record' method of PythonNavigator does not return a valid EstimatorRecord type")
+                    }
+                }
         });
         let record = ExternalNavigatorRecord {
             record: Value::from_str(record_str.as_str()).expect(
@@ -177,10 +189,12 @@ impl PythonNavigator {
                 debug!("Calling python implementation of from_record");
             }
             Python::with_gil(|py| {
-                self.model
+                if let Err(e) = self.model
                     .bind(py)
-                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None)
-                    .expect("Python implementation of PythonNavigator does not have a correct 'from_record' method");
+                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None) {
+                        e.display(py);
+                        panic!("Error while calling 'from_record' method of PythonNavigator.");
+                    }
             });
         }
     }

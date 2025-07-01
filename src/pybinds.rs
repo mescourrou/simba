@@ -85,7 +85,7 @@ impl PythonAPI {
         }
         self.state_estimators
             .push(PythonStateEstimator::new(Python::with_gil(|py| {
-                self.api
+                match self.api
                     .bind(py)
                     .call_method(
                         "get_state_estimator",
@@ -95,10 +95,16 @@ impl PythonAPI {
                                 .expect("Failed to serialize global_config"),
                         ),
                         None,
-                    )
-                    .expect("Error during execution of python method 'get_state_estimator'")
-                    .extract()
-                    .expect("Expecting function return of PythonStateEstimator but failed")
+                    ) {
+                        Err(e) => {
+                            e.display(py);
+                            panic!("Error during execution of python method 'get_state_estimator'.");
+                        }
+                        Ok(r) => {
+                            r.extract()
+                            .expect("Expecting function return of PythonStateEstimator but failed")
+                        }
+                    }
             })));
         let st = Box::new(self.state_estimators.last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {
@@ -117,7 +123,7 @@ impl PythonAPI {
         }
         self.controllers
             .push(PythonController::new(Python::with_gil(|py| {
-                self.api
+                match self.api
                     .bind(py)
                     .call_method(
                         "get_controller",
@@ -127,10 +133,16 @@ impl PythonAPI {
                                 .expect("Failed to serialize global_config"),
                         ),
                         None,
-                    )
-                    .expect("Error during execution of python method 'get_controller'")
-                    .extract()
-                    .expect("Expecting function return of PythonController but failed")
+                    ) {
+                        Err(e) => {
+                            e.display(py);
+                            panic!("Error during execution of python method 'get_controller'.");
+                        }
+                        Ok(r) => {
+                            r.extract()
+                            .expect("Expecting function return of PythonController but failed")
+                        }
+                    }
             })));
         let st = Box::new(self.controllers.last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {
@@ -149,7 +161,7 @@ impl PythonAPI {
         }
         self.navigators
             .push(PythonNavigator::new(Python::with_gil(|py| {
-                self.api
+                match self.api
                     .bind(py)
                     .call_method(
                         "get_navigator",
@@ -159,10 +171,16 @@ impl PythonAPI {
                                 .expect("Failed to serialize global_config"),
                         ),
                         None,
-                    )
-                    .expect("Error during execution of python method 'get_navigator'")
-                    .extract()
-                    .expect("Expecting function return of Python?avigator but failed")
+                    ) {
+                        Err(e) => {
+                            e.display(py);
+                            panic!("Error during execution of python method 'get_navigator'.");
+                        }
+                        Ok(r) => {
+                            r.extract()
+                            .expect("Expecting function return of Python?avigator but failed")
+                        }
+                    }
             })));
         let st = Box::new(self.navigators.last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {
@@ -180,7 +198,7 @@ impl PythonAPI {
             debug!("Calling Python API");
         }
         self.physics.push(PythonPhysics::new(Python::with_gil(|py| {
-            self.api
+            match self.api
                 .bind(py)
                 .call_method(
                     "get_physics",
@@ -190,10 +208,16 @@ impl PythonAPI {
                             .expect("Failed to serialize global_config"),
                     ),
                     None,
-                )
-                .expect("Error during execution of python method 'get_physics'")
-                .extract()
-                .expect("Expecting function return of PythonPhysics but failed")
+                ) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error during execution of python method 'get_physics'.");
+                    }
+                    Ok(r) => {
+                        r.extract()
+                        .expect("Expecting function return of PythonPhysics but failed")
+                    }
+                }
         })));
         let st = Box::new(self.physics.last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {

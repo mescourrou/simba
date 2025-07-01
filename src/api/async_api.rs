@@ -159,9 +159,8 @@ impl AsyncApiRunner {
                 while !*stopping.read().unwrap() {
                     compute_results.recv_closure_mut(|_| {
                         let simulator = simulator_arc.lock().unwrap();
-                        simulator.compute_results()?;
                         need_reset = true;
-                        Ok(())
+                        simulator.compute_results()
                     });
                 }
             });

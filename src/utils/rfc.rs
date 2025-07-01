@@ -1,7 +1,5 @@
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 
-use crate::errors::SimbaResult;
-
 #[derive(Clone)]
 pub struct RemoteFunctionCall<ParamType: Clone, ReturnType: Clone> {
     sender: mpsc::Sender<ParamType>,
@@ -9,10 +7,10 @@ pub struct RemoteFunctionCall<ParamType: Clone, ReturnType: Clone> {
 }
 
 impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCall<ParamType, ReturnType> {
-    pub fn call(&self, param: ParamType) -> SimbaResult<ReturnType> {
+    pub fn call(&self, param: ParamType) -> Option<ReturnType> {
         self.sender.send(param).unwrap();
         let result = self.receiver.lock().unwrap().recv().unwrap();
-        Ok(result)
+        Some(result)
     }
 
     pub fn async_call(&self, param: ParamType) {
@@ -20,15 +18,15 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCall<ParamType, ReturnTy
     }
 
     /// Blocking
-    pub fn wait_result(&self) -> SimbaResult<ReturnType> {
+    pub fn wait_result(&self) -> Option<ReturnType> {
         let result = self.receiver.lock().unwrap().recv().unwrap();
-        Ok(result)
+        Some(result)
     }
 
     /// Non Blocking
-    pub fn try_get_result(&self) -> Option<SimbaResult<ReturnType>> {
+    pub fn try_get_result(&self) -> Option<ReturnType> {
         if let Ok(result) = self.receiver.lock().unwrap().try_recv() {
-            Some(Ok(result))
+            Some(result)
         } else {
             None
         }

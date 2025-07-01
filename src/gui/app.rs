@@ -8,7 +8,7 @@ use egui::{Align2, Color32, Id, Painter, Pos2, Rect, Response, Sense, Shape, Vec
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner}, errors::SimbaError, gui::UIComponent, node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimulatorConfig}
+    api::async_api::{AsyncApi, AsyncApiRunner}, constants::TIME_ROUND_DECIMALS, errors::SimbaError, gui::UIComponent, node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimulatorConfig}
 };
 
 use super::{
@@ -310,8 +310,7 @@ impl eframe::App for SimbaApp {
                     self.p.api.load_config.async_call(self.config_path.clone());
                 }
                 if self.p.config.is_none() {
-                    if let Some(c) = self.p.api.load_config.try_get_result() {
-                        let res = c.unwrap();
+                    if let Some(res) = self.p.api.load_config.try_get_result() {
                         match res {
                             Err(e) => {
                                 let now = time::Instant::now();
@@ -362,12 +361,12 @@ impl eframe::App for SimbaApp {
                     {
                         log::info!("Run simulation");
                         self.p.api.run.async_call(Some(self.duration));
-                        if let Some(r) = self.p.api.run.try_get_result() {
-                            if let Err(e) = r.unwrap() {
-                                self.p.error_buffer.push((time::Instant::now(), e));
-                            }
-                        }
                         self.p.simulation_run = true;
+                    }
+                    if let Some(r) = self.p.api.run.try_get_result() {
+                        if let Err(e) = r {
+                            self.p.error_buffer.push((time::Instant::now(), e));
+                        }
                     }
                     let mut max_simulated_time = 0.;
                     for (_, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter() {
@@ -407,7 +406,7 @@ impl eframe::App for SimbaApp {
                     ui.add(egui::Slider::new(
                         &mut self.p.current_draw_time,
                         0.0..=self.duration,
-                    ));
+                    ).fixed_decimals(TIME_ROUND_DECIMALS));
                     ui.add(egui::Checkbox::new(&mut self.follow_sim_time, "Follow"));
                     if ui
                         .add_enabled(self.p.config.is_some(), egui::Button::new("Results"))
@@ -415,10 +414,10 @@ impl eframe::App for SimbaApp {
                     {
                         log::info!("Analysing results");
                         self.p.api.compute_results.async_call(());
-                        if let Some(r) = self.p.api.compute_results.try_get_result() {
-                            if let Err(e) = r.unwrap() {
-                                self.p.error_buffer.push((time::Instant::now(), e));
-                            }
+                    }
+                    if let Some(r) = self.p.api.compute_results.try_get_result() {
+                        if let Err(e) = r {
+                            self.p.error_buffer.push((time::Instant::now(), e));
                         }
                     }
                 });

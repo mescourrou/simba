@@ -228,14 +228,14 @@ impl Sensor for GNSSSensor {
     fn init(&mut self, _robot: &mut Node) {}
 
     fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
+        let mut observation_list = Vec::<SensorObservation>::new();
+        if (time - self.next_time_step()).abs() >= TIME_ROUND {
+            return observation_list;
+        }
         let arc_physic = robot
             .physics()
             .expect("Node with GNSS sensor should have Physics");
         let physic = arc_physic.read().unwrap();
-        let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
-            return observation_list;
-        }
         let state = physic.state(time);
 
         let velocity = Vector2::<f32>::from_vec(vec![

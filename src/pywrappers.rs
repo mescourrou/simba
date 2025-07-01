@@ -430,6 +430,38 @@ impl SensorObservationWrapper {
     pub fn new() -> Self {
         SensorObservationWrapper::GNSS(GNSSObservationWrapper::new())
     }
+
+    pub fn as_oriented_landmark(&self) -> Option<OrientedLandmarkObservationWrapper> {
+        if let Self::OrientedLandmark(o) = self {
+            Some(o.clone())
+        } else {
+            None
+        }
+    }
+    
+    pub fn as_odometry(&self) -> Option<OdometryObservationWrapper> {
+        if let Self::Odometry(o) = self {
+            Some(o.clone())
+        } else {
+            None
+        }
+    }
+    
+    pub fn as_gnss(&self) -> Option<GNSSObservationWrapper> {
+        if let Self::GNSS(o) = self {
+            Some(o.clone())
+        } else {
+            None
+        }
+    }
+    
+    pub fn as_oriented_robot(&self) -> Option<OrientedRobotObservationWrapper> {
+        if let Self::OrientedRobot(o) = self {
+            Some(o.clone())
+        } else {
+            None
+        }
+    }
 }
 
 impl SensorObservationWrapper {

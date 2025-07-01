@@ -187,14 +187,16 @@ impl PythonPhysics {
         }
         // let robot_record = robot.record();
         Python::with_gil(|py| {
-            self.model
+            if let Err(e) = self.model
                 .bind(py)
                 .call_method(
                     "apply_command",
                     (CommandWrapper::from_rust(command), time),
                     None,
-                )
-                .expect("PythonPhysics does not have a correct 'apply_command' method");
+                ) {
+                    e.display(py);
+                    panic!("Error while calling 'apply_command' method of PythonPhysics.");
+                }
         });
     }
 
@@ -204,10 +206,12 @@ impl PythonPhysics {
         }
         // let robot_record = robot.record();
         Python::with_gil(|py| {
-            self.model
+            if let Err(e) = self.model
                 .bind(py)
-                .call_method("update_state", (time,), None)
-                .expect("PythonPhysics does not have a correct 'update_state' method");
+                .call_method("update_state", (time,), None) {
+                    e.display(py);
+                    panic!("Error while calling 'update_state' method of PythonPhysics.");
+                }
         });
     }
 
@@ -217,14 +221,21 @@ impl PythonPhysics {
         }
         // let robot_record = robot.record();
         let state = Python::with_gil(|py| -> StateWrapper {
-            self.model
+            match self.model
                 .bind(py)
-                .call_method("state", (time,), None)
-                .expect("PythonPhysics does not have a correct 'state' method")
-                .extract()
-                .expect(
-                    "The 'state' method of PythonPhysics does not return a correct state vector",
-                )
+                .call_method("state", (time,), None) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error while calling 'state' method of PythonPhysics.");
+                    }
+                    Ok(s) => {
+                        s.extract()
+                        .expect(
+                            "The 'state' method of PythonPhysics does not return a correct state vector",
+                        )
+                    }
+                }
+                
         });
         state.to_rust()
     }
@@ -234,12 +245,18 @@ impl PythonPhysics {
             debug!("Calling python implementation of record");
         }
         let record_str: String = Python::with_gil(|py| {
-            self.model
+            match self.model
                 .bind(py)
-                .call_method("record", (), None)
-                .expect("Python implementation of PythonPhysics does not have a correct 'record' method")
-                .extract()
-                .expect("The 'record' method of PythonPhysics does not return a valid EstimatorRecord type")
+                .call_method("record", (), None) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error while calling 'record' method of PythonPhysics.");
+                    }
+                    Ok(r) => {
+                        r.extract()
+                        .expect("The 'record' method of PythonPhysics does not return a valid EstimatorRecord type")
+                    }
+                }
         });
         let record = ExternalPhysicsRecord {
             record: Value::from_str(record_str.as_str()).expect(
@@ -257,10 +274,12 @@ impl PythonPhysics {
                 debug!("Calling python implementation of from_record");
             }
             Python::with_gil(|py| {
-                self.model
+                if let Err(e) = self.model
                     .bind(py)
-                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None)
-                    .expect("Python implementation of PythonPhysics does not have a correct 'from_record' method");
+                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None) {
+                        e.display(py);
+                        panic!("Error while calling 'from_record' method of PythonPhysics.");
+                    }
             });
         }
     }

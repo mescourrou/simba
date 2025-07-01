@@ -114,6 +114,18 @@ class SensorObservation(Enum):
     GNSS: GNSSObservation
     OrientedRobot: OrientedRobotObservation
     
+    def as_oriented_landmark(self) -> OrientedLandmarkObservation | None:
+        raise NotImplementedError()
+    
+    def as_odometry(self) -> OdometryObservation | None:
+        raise NotImplementedError()
+    
+    def as_gnss(self) -> GNSSObservation | None:
+        raise NotImplementedError()
+    
+    def as_oriented_robot(self) -> OrientedRobotObservation | None:
+        raise NotImplementedError()
+    
 class Observation:
     def __init__(self):
         self.sensor_name: str
