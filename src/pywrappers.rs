@@ -7,6 +7,8 @@ use log::debug;
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::prelude::*;
 
+use std::path::Path;
+
 use crate::{
     api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
     controllers::{controller::ControllerError, pybinds::PythonController},
@@ -779,8 +781,8 @@ impl SimulatorWrapper {
 
 #[cfg(feature = "gui")]
 #[pyfunction]
-#[pyo3(signature = (plugin_api=None))]
-pub fn run_gui(py: Python, plugin_api: Option<Py<PyAny>>) {
+#[pyo3(signature = (default_config_path=None, plugin_api=None))]
+pub fn run_gui(py: Python, default_config_path: Option<String>, plugin_api: Option<Py<PyAny>>) {
     use std::{sync::RwLock, thread};
 
     use crate::gui;
@@ -845,7 +847,14 @@ pub fn run_gui(py: Python, plugin_api: Option<Py<PyAny>>) {
     // egui needs to be run in the main thread. However, Python get the GIL. So we need to free the GIL so that the thread spawn before can call Python functions.
     // allow_threads reacquire the GIL when it exits the function. At this point, we are sure that the other thread is finished.
     py.allow_threads(|| {
-        gui::run_gui(match &async_plugin_api {
+        gui::run_gui(match &default_config_path {
+            Some(path_str) => {
+                let p = Path::new(path_str);
+                Some(Box::<&'static Path>::new(unsafe {
+                std::mem::transmute::<&Path, &'static Path>(p)
+            }))},
+            None => None,
+        }, match &async_plugin_api {
             Some(api) => Some(Box::<&dyn PluginAPI>::new(unsafe {
                 std::mem::transmute::<&dyn PluginAPI, &'static dyn PluginAPI>(api)
             })),

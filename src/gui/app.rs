@@ -1,7 +1,5 @@
 use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
-    time::{self, Duration},
+    collections::BTreeMap, path::Path, sync::{Arc, Mutex}, time::{self, Duration}
 };
 
 use egui::{Align2, Color32, Id, Painter, Pos2, Rect, Response, Sense, Shape, Vec2};
@@ -175,6 +173,7 @@ impl SimbaApp {
     /// Called once before the first frame.
     pub fn new(
         cc: &eframe::CreationContext<'_>,
+        default_config_path: Option<Box<&'static Path>>,
         plugin_api: Option<Box<&'static dyn PluginAPI>>,
     ) -> Self {
         // This is also where you can customize the look and feel of egui using
@@ -184,35 +183,46 @@ impl SimbaApp {
         // // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
             if let Some(app) = eframe::get_value::<SimbaApp>(storage, eframe::APP_KEY) {
-                app.update_api(plugin_api)
+                app.update_api(default_config_path, plugin_api)
             } else {
-                Self::new_full(plugin_api)
+                Self::new_full(default_config_path, plugin_api)
             }
         } else {
-            Self::new_full(plugin_api)
+            Self::new_full(default_config_path, plugin_api)
         }
     }
 
-    fn new_full(plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
+    fn new_full(default_config_path: Option<Box<&'static Path>>, plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = server.lock().unwrap().get_api();
         server.lock().unwrap().run(plugin_api);
-        Self {
+        let mut n = Self {
             p: PrivateParams {
                 server,
                 api,
                 ..Default::default()
             },
             ..Default::default()
+        };
+        if let Some(config) = default_config_path {
+            n.config_path = config.to_str().unwrap().to_string();
+            n.p.config = None;
+            n.p.api.load_config.async_call(n.config_path.clone());
         }
+        n
     }
 
-    fn update_api(mut self, plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
+    fn update_api(mut self, default_config_path: Option<Box<&'static Path>>, plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = server.lock().unwrap().get_api();
         server.lock().unwrap().run(plugin_api);
         self.p.server = server;
         self.p.api = api;
+        if let Some(config) = default_config_path {
+            self.config_path = config.to_str().unwrap().to_string();
+            self.p.config = None;
+            self.p.api.load_config.async_call(self.config_path.clone());
+        }
         self
     }
 
