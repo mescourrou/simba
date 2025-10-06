@@ -24,7 +24,7 @@ pub struct ExponentialRandomVariableConfig {
 impl Default for ExponentialRandomVariableConfig {
     fn default() -> Self {
         Self {
-            unique_seed: 0.,
+            unique_seed:  random(),
             lambda: vec![1.],
         }
     }

@@ -28,7 +28,7 @@ pub struct UniformRandomVariableConfig {
 impl Default for UniformRandomVariableConfig {
     fn default() -> Self {
         Self {
-            unique_seed: 0.,
+            unique_seed:  random(),
             min: vec![-1.],
             max: vec![1.],
         }

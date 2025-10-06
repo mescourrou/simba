@@ -25,7 +25,7 @@ pub struct PoissonRandomVariableConfig {
 impl Default for PoissonRandomVariableConfig {
     fn default() -> Self {
         Self {
-            unique_seed: 0.,
+            unique_seed:  random(),
             lambda: vec![1.],
         }
     }

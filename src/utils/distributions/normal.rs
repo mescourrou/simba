@@ -26,7 +26,7 @@ pub struct NormalRandomVariableConfig {
 impl Default for NormalRandomVariableConfig {
     fn default() -> Self {
         Self {
-            unique_seed: 0.,
+            unique_seed: random(),
             mean: vec![0.],
             covariance: vec![1.],
         }

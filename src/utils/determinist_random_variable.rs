@@ -17,6 +17,7 @@ Other types can be added in the future.
  */
 
 use config_checker::macros::Check;
+use rand::random;
 use serde::{Deserialize, Serialize};
 use simba_macros::EnumToString;
 
@@ -76,7 +77,7 @@ impl DeterministRandomVariableFactory {
 
 impl Default for DeterministRandomVariableFactory {
     fn default() -> Self {
-        Self { global_seed: 0. }
+        Self { global_seed: random() }
     }
 }
 

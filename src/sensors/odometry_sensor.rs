@@ -18,6 +18,7 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
@@ -255,7 +256,7 @@ impl Sensor for OdometrySensor {
 
         observation_list.push(SensorObservation::Odometry(OdometryObservation {
             linear_velocity: state.velocity,
-            angular_velocity: (state.pose.z - self.last_state.pose.z) / dt,
+            angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
         }));
         for fault_model in self.faults.lock().unwrap().iter() {
             fault_model.add_faults(
