@@ -92,5 +92,8 @@ name = "basic"
 name = "plugin"
 
 [[example]]
+name = "python_external"
+
+[[example]]
 name = "gui"
 required-features = ["gui"]

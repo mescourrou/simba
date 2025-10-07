@@ -267,9 +267,9 @@ impl Physics for PerfectPhysics {
     }
 
     /// Return the current state. Do not compute the state again.
-    fn state(&self, time: f32) -> &State {
+    fn state(&self, time: f32) -> State {
         assert!(time == self.last_time_update);
-        &self.state
+        self.state.clone()
     }
 }
 

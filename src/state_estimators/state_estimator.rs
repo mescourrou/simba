@@ -347,6 +347,7 @@ use crate::gui::{
 };
 use crate::node::Node;
 use crate::simulator::SimulatorConfig;
+use crate::state_estimators::python_estimator;
 use crate::stateful::Stateful;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
@@ -371,6 +372,7 @@ use std::sync::{Arc, RwLock};
 pub enum StateEstimatorConfig {
     Perfect(perfect_estimator::PerfectEstimatorConfig),
     External(external_estimator::ExternalEstimatorConfig),
+    Python(python_estimator::PythonEstimatorConfig),
 }
 
 #[cfg(feature = "gui")]
@@ -409,6 +411,11 @@ impl UIComponent for StateEstimatorConfig {
                         external_estimator::ExternalEstimatorConfig::default(),
                     )
                 }
+                "Python" => {
+                    *self = StateEstimatorConfig::Python(
+                        python_estimator::PythonEstimatorConfig::default(),
+                    )
+                }
                 _ => panic!("Where did you find this value?"),
             };
         }
@@ -422,6 +429,14 @@ impl UIComponent for StateEstimatorConfig {
                 unique_id,
             ),
             StateEstimatorConfig::External(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+            StateEstimatorConfig::Python(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -452,6 +467,11 @@ impl UIComponent for StateEstimatorConfig {
                 ctx,
                 unique_id,
             ),
+            StateEstimatorConfig::Python(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
         }
     }
 }
@@ -461,6 +481,7 @@ impl UIComponent for StateEstimatorConfig {
 pub enum StateEstimatorRecord {
     Perfect(perfect_estimator::PerfectEstimatorRecord),
     External(external_estimator::ExternalEstimatorRecord),
+    Python(python_estimator::PythonEstimatorRecord),
 }
 
 #[cfg(feature = "gui")]
@@ -480,6 +501,11 @@ impl UIComponent for StateEstimatorRecord {
                 },
                 Self::External(r) => {
                     egui::CollapsingHeader::new("ExternalStateEstimator").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+                Self::Python(r) => {
+                    egui::CollapsingHeader::new("PythonExternalStateEstimator").show(ui, |ui| {
                         r.show(ui, ctx, unique_id);
                     });
                 },
@@ -514,6 +540,14 @@ pub fn make_state_estimator_from_config(
                 global_config,
                 va_factory,
             )) as Box<dyn StateEstimator>
+        }
+        StateEstimatorConfig::Python(c) => {
+            Box::new(python_estimator::PythonEstimator::from_config(
+                c,
+                plugin_api,
+                global_config,
+                va_factory,
+            ).unwrap()) as Box<dyn StateEstimator>
         }
     };
 }

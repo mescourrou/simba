@@ -41,8 +41,8 @@ impl Physics for PythonPhysicAsyncClient {
         self.apply_command_response.lock().unwrap().recv().unwrap()
     }
 
-    fn state(&self, _time: f32) -> &State {
-        &self.last_state
+    fn state(&self, _time: f32) -> State {
+        self.last_state.clone()
     }
 
     fn update_state(&mut self, time: f32) {

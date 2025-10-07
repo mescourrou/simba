@@ -8,7 +8,7 @@ use crate::{
     utils::enum_tools::ToVec,
 };
 use crate::{
-    stateful::Stateful, utils::determinist_random_variable::DeterministRandomVariableFactory,
+    controllers::python_controller, stateful::Stateful, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 use std::sync::{Arc, RwLock};
 
@@ -61,8 +61,9 @@ use super::{external_controller, pid};
 #[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
 #[serde(deny_unknown_fields)]
 pub enum ControllerConfig {
-    PID(Box<pid::PIDConfig>),
-    External(Box<external_controller::ExternalControllerConfig>),
+    PID(pid::PIDConfig),
+    External(external_controller::ExternalControllerConfig),
+    Python(python_controller::PythonControllerConfig),
 }
 
 #[cfg(feature = "gui")]
@@ -91,11 +92,12 @@ impl UIComponent for ControllerConfig {
         });
         if current_str != self.to_string() {
             match current_str.as_str() {
-                "PID" => *self = ControllerConfig::PID(Box::new(pid::PIDConfig::default())),
+                "PID" => *self = ControllerConfig::PID(pid::PIDConfig::default()),
                 "External" => {
-                    *self = ControllerConfig::External(Box::new(
-                        external_controller::ExternalControllerConfig::default(),
-                    ))
+                    *self = ControllerConfig::External(external_controller::ExternalControllerConfig::default())
+                },
+                "Python" => {
+                    *self = ControllerConfig::Python(python_controller::PythonControllerConfig::default())
                 }
                 _ => panic!("Where did you find this value?"),
             };
@@ -110,6 +112,14 @@ impl UIComponent for ControllerConfig {
                 unique_id,
             ),
             ControllerConfig::External(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+            ControllerConfig::Python(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -140,6 +150,11 @@ impl UIComponent for ControllerConfig {
                 ctx,
                 unique_id,
             ),
+            ControllerConfig::Python(c) => c.show(
+                ui,
+                ctx,
+                unique_id,
+            ),
         }
     }
 }
@@ -149,6 +164,7 @@ impl UIComponent for ControllerConfig {
 pub enum ControllerRecord {
     PID(pid::PIDRecord),
     External(external_controller::ExternalControllerRecord),
+    Python(python_controller::PythonControllerRecord),
 }
 
 #[cfg(feature = "gui")]
@@ -168,6 +184,11 @@ impl UIComponent for ControllerRecord {
                 },
                 Self::External(r) => {
                     egui::CollapsingHeader::new("ExternalController").show(ui, |ui| {
+                        r.show(ui, ctx, unique_id);
+                    });
+                },
+                Self::Python(r) => {
+                    egui::CollapsingHeader::new("ExternalPythonController").show(ui, |ui| {
                         r.show(ui, ctx, unique_id);
                     });
                 },
@@ -223,6 +244,14 @@ pub fn make_controller_from_config(
                 global_config,
                 va_factory,
             )) as Box<dyn Controller>
+        },
+        ControllerConfig::Python(c) => {
+            Box::new(python_controller::PythonController::from_config(
+                c,
+                plugin_api,
+                global_config,
+                va_factory,
+            ).unwrap()) as Box<dyn Controller>
         }
     }))
 }

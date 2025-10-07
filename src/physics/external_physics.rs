@@ -198,8 +198,8 @@ impl Physics for ExternalPhysics {
         self.physics.apply_command(command, time);
     }
 
-    fn state(&self, time: f32) -> &State {
-        self.physics.state(time)
+    fn state(&self, time: f32) -> State {
+        self.physics.state(time).clone()
     }
 
     fn update_state(&mut self, time: f32) {

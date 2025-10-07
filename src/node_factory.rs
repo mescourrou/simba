@@ -215,13 +215,9 @@ impl Default for RobotConfig {
     fn default() -> Self {
         RobotConfig {
             name: String::from("NoName"),
-            navigator: NavigatorConfig::TrajectoryFollower(Box::new(
-                trajectory_follower::TrajectoryFollowerConfig::default(),
-            )),
-            controller: ControllerConfig::PID(Box::new(pid::PIDConfig::default())),
-            physics: PhysicsConfig::Perfect(Box::new(
-                perfect_physics::PerfectsPhysicConfig::default(),
-            )),
+            navigator: NavigatorConfig::TrajectoryFollower(trajectory_follower::TrajectoryFollowerConfig::default()),
+            controller: ControllerConfig::PID(pid::PIDConfig::default()),
+            physics: PhysicsConfig::Perfect(perfect_physics::PerfectsPhysicConfig::default()),
             state_estimator: StateEstimatorConfig::Perfect(
                 perfect_estimator::PerfectEstimatorConfig::default(),
             ),
