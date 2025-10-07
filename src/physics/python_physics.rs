@@ -201,7 +201,7 @@ impl PythonPhysics {
             debug!("Config given: {:?}", config);
         }
 
-        prepare_freethreaded_python();
+        // prepare_freethreaded_python();
 
         let json_config =
             serde_json::to_string(&config).expect("Error during converting Python Physics config to json");

@@ -766,6 +766,8 @@ impl Simulator {
     pub fn init_environment() {
         // env_logger::init();
         time_analysis::set_node_name("simulator".to_string());
+
+        prepare_freethreaded_python();
     }
 
     fn init_log(log_config: &LoggerConfig) -> SimbaResult<()> {
@@ -1302,7 +1304,7 @@ impl Simulator {
         info!("Starting result analyse...");
         let show_figures = result_config.show_figures;
 
-        prepare_freethreaded_python();
+        // prepare_freethreaded_python();
 
         let json_results =
             serde_json::to_string(&results).expect("Error during converting results to json");
