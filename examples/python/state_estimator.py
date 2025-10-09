@@ -12,6 +12,8 @@ class StateEstimator(simba.StateEstimator):
         if "filter_name" in config:
             self.filter_name = config["filter_name"]
 
+        self._state = 0
+
     def state(self) -> simba.WorldState:
         world_state = simba.WorldState()
         world_state.ego.pose.x = 1
@@ -24,17 +26,21 @@ class StateEstimator(simba.StateEstimator):
         print("This is record from python!")
         return json.dumps({
             "last_time": self.last_time,
-            "period": self.period})
+            "period": self.period,
+            "state": self._state})
 
     def from_record(self, record: str):
         record = json.loads(record)
         print(f"Receiving record: {record}")
         self.last_time = record["last_time"]
         self.period = record["period"]
+        self._state = record["state"]
 
     def prediction_step(self, time):
         print(f"Doing prediction step in {self.filter_name}")
+        self._state += 1
         self.last_time = time
+        print(f"{self.filter_name}: Prediction {self._state}")
 
     def correction_step(self, observations, t):
         print(f"Doing correction step with observations for robot {self.filter_name}:")
@@ -49,6 +55,8 @@ class StateEstimator(simba.StateEstimator):
                     print(f"Odometry: {sensor_obs[0]}")
                 case _:
                     print("Other")
+        self._state += 100
+        print(f"{self.filter_name}: Prediction {self._state}")
 
 
     def next_time_step(self):

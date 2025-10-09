@@ -855,16 +855,16 @@ impl Simulator {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
     ) {
-        self.nodes.push(NodeFactory::make_robot(
+        let mut new_node = NodeFactory::make_robot(
             robot_config,
             plugin_api,
             &global_config,
             &self.determinist_va_factory,
             self.time_cv.clone(),
-        ));
-
+        );    
         self.network_manager
-            .register_node_network(self.nodes.last_mut().unwrap());
+            .register_node_network(&mut new_node);
+        self.nodes.push(new_node);
     }
 
     fn add_computation_unit(
@@ -873,16 +873,16 @@ impl Simulator {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
     ) {
-        self.nodes.push(NodeFactory::make_computation_unit(
+        let mut new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
             plugin_api,
             &global_config,
             &self.determinist_va_factory,
             self.time_cv.clone(),
-        ));
-
+        );
         self.network_manager
-            .register_node_network(self.nodes.last_mut().unwrap());
+            .register_node_network(&mut new_node);
+        self.nodes.push(new_node);
     }
 
     /// Simply print the Simulator state, using the info channel and the debug print.
