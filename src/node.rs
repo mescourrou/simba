@@ -196,6 +196,45 @@ impl Node {
                 .unwrap();
         }
 
+        let mut do_control_loop = false;
+
+        // If it is time for the state estimator to do the prediction
+        if let Some(state_estimator) = &self.state_estimator() {
+            if time >= state_estimator.read().unwrap().next_time_step() {
+                // Prediction step
+                let ta = time_analysis::time_analysis(
+                    time,
+                    "control_loop_state_estimator_prediction_step".to_string(),
+                );
+                state_estimator.write().unwrap().prediction_step(self, time);
+                time_analysis::finished_time_analysis(ta);
+                do_control_loop = true;
+            }
+        }
+
+        if let Some(state_estimator_bench) = &self.state_estimator_bench() {
+            for state_estimator in state_estimator_bench.read().unwrap().iter() {
+                if time
+                    >= state_estimator
+                        .state_estimator
+                        .read()
+                        .unwrap()
+                        .next_time_step()
+                {
+                    let ta = time_analysis::time_analysis(
+                        time,
+                        state_estimator.name.clone() + "_prediction_step",
+                    );
+                    state_estimator
+                        .state_estimator
+                        .write()
+                        .unwrap()
+                        .prediction_step(self, time);
+                    time_analysis::finished_time_analysis(ta);
+                }
+            }
+        }
+
         if let Some(sensor_manager) = &self.sensor_manager() {
             // Make observations (if it is the right time)
             let observations = sensor_manager.write().unwrap().get_observations(self, time);
@@ -233,78 +272,48 @@ impl Node {
             }
         }
 
-        // If it is time for the state estimator to do the prediction
-        if let Some(state_estimator) = &self.state_estimator() {
-            if time >= state_estimator.read().unwrap().next_time_step() {
-                // Prediction step
-                let ta = time_analysis::time_analysis(
-                    time,
-                    "control_loop_state_estimator_prediction_step".to_string(),
-                );
-                state_estimator.write().unwrap().prediction_step(self, time);
-                time_analysis::finished_time_analysis(ta);
-                let world_state = state_estimator.read().unwrap().world_state();
+        if do_control_loop {
+            let state_estimator = &self.state_estimator().unwrap();
+            let world_state = state_estimator.read().unwrap().world_state();
 
-                // Compute the error to the planned path
-                let ta = time_analysis::time_analysis(
-                    time,
-                    "control_loop_navigator_compute_error".to_string(),
-                );
-                let error = self
-                    .navigator()
-                    .as_ref()
-                    .unwrap()
-                    .write()
-                    .unwrap()
-                    .compute_error(self, world_state);
-                time_analysis::finished_time_analysis(ta);
+            // Compute the error to the planned path
+            let ta = time_analysis::time_analysis(
+                time,
+                "control_loop_navigator_compute_error".to_string(),
+            );
+            let error = self
+                .navigator()
+                .as_ref()
+                .unwrap()
+                .write()
+                .unwrap()
+                .compute_error(self, world_state);
+            time_analysis::finished_time_analysis(ta);
 
-                // Compute the command from the error
-                let ta = time_analysis::time_analysis(
-                    time,
-                    "control_loop_controller_make_command".to_string(),
-                );
-                let command = self
-                    .controller()
-                    .as_ref()
-                    .unwrap()
-                    .write()
-                    .unwrap()
-                    .make_command(self, &error, time);
-                time_analysis::finished_time_analysis(ta);
+            // Compute the command from the error
+            let ta = time_analysis::time_analysis(
+                time,
+                "control_loop_controller_make_command".to_string(),
+            );
+            let command = self
+                .controller()
+                .as_ref()
+                .unwrap()
+                .write()
+                .unwrap()
+                .make_command(self, &error, time);
+            time_analysis::finished_time_analysis(ta);
 
-                // Apply the command to the physics
-                self.physics
-                    .as_ref()
-                    .unwrap()
-                    .write()
-                    .unwrap()
-                    .apply_command(&command, time);
-            }
+            // Apply the command to the physics
+            self.physics
+                .as_ref()
+                .unwrap()
+                .write()
+                .unwrap()
+                .apply_command(&command, time);
         }
 
-        if let Some(state_estimator_bench) = &self.state_estimator_bench() {
-            for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                if time
-                    >= state_estimator
-                        .state_estimator
-                        .read()
-                        .unwrap()
-                        .next_time_step()
-                {
-                    let ta = time_analysis::time_analysis(
-                        time,
-                        state_estimator.name.clone() + "_prediction_step",
-                    );
-                    state_estimator
-                        .state_estimator
-                        .write()
-                        .unwrap()
-                        .prediction_step(self, time);
-                    time_analysis::finished_time_analysis(ta);
-                }
-            }
-        }
+        
 
         self.handle_messages(time);
 
