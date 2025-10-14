@@ -63,7 +63,7 @@ mod tests {
                 StateEstimatorRecord, WorldState,
             },
         },
-        stateful::Stateful,
+        recordable::Recordable,
         utils::maths::round_precision,
     };
 
@@ -138,17 +138,7 @@ mod tests {
         }
     }
 
-    impl Stateful<StateEstimatorRecord> for StateEstimatorTest {
-        fn from_record(&mut self, record: StateEstimatorRecord) {
-            if let StateEstimatorRecord::External(record) = record {
-                let record: StateEstimatorRecordTest =
-                    serde_json::from_value(record.record).unwrap();
-                self.last_time = record.last_time;
-            } else {
-                panic!("Should not happen");
-            }
-        }
-
+    impl Recordable<StateEstimatorRecord> for StateEstimatorTest {
         fn record(&self) -> StateEstimatorRecord {
             StateEstimatorRecord::External(ExternalEstimatorRecord {
                 record: serde_json::to_value(StateEstimatorRecordTest {

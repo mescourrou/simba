@@ -201,7 +201,7 @@ use crate::{
     utils::enum_tools::ToVec,
 };
 use crate::{
-    networking::service::HasService, physics::python_physics, plugin_api::PluginAPI, simulator::SimulatorConfig, state_estimators::state_estimator::State, stateful::Stateful, utils::determinist_random_variable::DeterministRandomVariableFactory
+    networking::service::HasService, physics::python_physics, plugin_api::PluginAPI, simulator::SimulatorConfig, state_estimators::state_estimator::State, recordable::Recordable, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 
 // Services
@@ -220,7 +220,7 @@ pub trait Physics:
     std::fmt::Debug
     + std::marker::Send
     + std::marker::Sync
-    + Stateful<PhysicsRecord>
+    + Recordable<PhysicsRecord>
     + HasService<GetRealStateReq, GetRealStateResp>
 {
     /// Apply the given `command` to the internal state from the last update time

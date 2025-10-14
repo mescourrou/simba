@@ -164,14 +164,14 @@ impl UIComponent for NavigatorRecord {
 }
 
 use crate::node::Node;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 
 /// Trait managing the path planning, and providing the error to the planned path.
 pub trait Navigator:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<NavigatorRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<NavigatorRecord>
 {
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
     fn compute_error(&mut self, robot: &mut Node, state: WorldState) -> ControllerError;

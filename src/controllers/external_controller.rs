@@ -23,7 +23,7 @@ use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::physics::physics::Command;
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -104,7 +104,7 @@ impl UIComponent for ExternalControllerConfig {
 /// to take every record.
 ///
 /// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
+/// in [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct ExternalControllerRecord {
@@ -200,12 +200,8 @@ impl Controller for ExternalController {
     }
 }
 
-impl Stateful<ControllerRecord> for ExternalController {
+impl Recordable<ControllerRecord> for ExternalController {
     fn record(&self) -> ControllerRecord {
         self.controller.record()
-    }
-
-    fn from_record(&mut self, record: ControllerRecord) {
-        self.controller.from_record(record);
     }
 }

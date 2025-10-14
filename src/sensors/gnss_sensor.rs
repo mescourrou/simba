@@ -14,7 +14,7 @@ use crate::constants::TIME_ROUND;
 use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
@@ -158,17 +158,12 @@ impl UIComponent for GNSSObservationRecord {
     }
 }
 
-impl Stateful<GNSSObservationRecord> for GNSSObservation {
+impl Recordable<GNSSObservationRecord> for GNSSObservation {
     fn record(&self) -> GNSSObservationRecord {
         GNSSObservationRecord {
             position: [self.position.x, self.position.y],
             velocity: [self.velocity.x, self.velocity.y],
         }
-    }
-
-    fn from_record(&mut self, record: GNSSObservationRecord) {
-        self.position = Vector2::from_vec(record.position.to_vec());
-        self.velocity = Vector2::from_vec(record.velocity.to_vec());
     }
 }
 
@@ -269,16 +264,10 @@ impl Sensor for GNSSSensor {
     }
 }
 
-impl Stateful<SensorRecord> for GNSSSensor {
+impl Recordable<SensorRecord> for GNSSSensor {
     fn record(&self) -> SensorRecord {
         SensorRecord::GNSSSensor(GNSSSensorRecord {
             last_time: self.last_time,
         })
-    }
-
-    fn from_record(&mut self, record: SensorRecord) {
-        if let SensorRecord::GNSSSensor(gnss_record) = record {
-            self.last_time = gnss_record.last_time;
-        }
     }
 }

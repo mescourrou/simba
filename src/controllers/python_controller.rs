@@ -21,7 +21,7 @@ use crate::logger::is_enabled;
 use crate::physics::physics::Command;
 use crate::pywrappers::{CommandWrapper, ControllerErrorWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -130,7 +130,7 @@ impl UIComponent for PythonControllerConfig {
 /// to take every record.
 ///
 /// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
+/// in [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct PythonControllerRecord {
@@ -314,7 +314,7 @@ impl Controller for PythonController {
     
 }
 
-impl Stateful<ControllerRecord> for PythonController {
+impl Recordable<ControllerRecord> for PythonController {
 
     fn record(&self) -> ControllerRecord {
         if is_enabled(crate::logger::InternalLog::API) {
@@ -342,21 +342,5 @@ impl Stateful<ControllerRecord> for PythonController {
         // record.clone()
         // StateEstimatorRecord::External(PythonController::record(&self))
         ControllerRecord::Python(record)
-    }
-
-    fn from_record(&mut self, record: ControllerRecord) {
-        if let ControllerRecord::Python(record) = record {
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Calling python implementation of from_record");
-            }
-            Python::with_gil(|py| {
-                if let Err(e) = self.controller
-                    .bind(py)
-                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None) {
-                        e.display(py);
-                        panic!("Error while calling 'from_record' method of PythonController.");
-                    }
-            });
-        }
     }
 }

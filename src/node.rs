@@ -28,7 +28,7 @@ use crate::state_estimators::state_estimator::{
 
 use crate::sensors::sensor_manager::SensorManager;
 
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::time_analysis;
 use crate::utils::maths::round_precision;
 use crate::utils::time_ordered_data::TimeOrderedData;
@@ -502,19 +502,6 @@ impl Node {
         self.state_history.insert(time, self.record(), true);
     }
 
-    /// Set the node in the state just before `time` (but different).
-    ///
-    /// It should be called for the minimal time before using private method `save_state`.
-    pub fn set_in_state(&mut self, time: f32) {
-        let state_at_time = self.state_history.get_data_before_time(time);
-        if state_at_time.is_none() {
-            warn!("No state to be set in at time {time}");
-            return;
-        }
-        let state_at_time = state_at_time.unwrap().1;
-        self.from_record(state_at_time.clone());
-    }
-
     /// Returs the current state history.
     pub fn record_history(&self) -> &TimeOrderedData<NodeRecord> {
         &self.state_history
@@ -657,7 +644,7 @@ impl Node {
     }
 }
 
-impl Stateful<NodeRecord> for Node {
+impl Recordable<NodeRecord> for Node {
     /// Generate the current state record.
     fn record(&self) -> NodeRecord {
         match &self.node_type {
@@ -666,58 +653,6 @@ impl Stateful<NodeRecord> for Node {
                 NodeRecord::ComputationUnit(self.computation_unit_record())
             }
             _ => unimplemented!(),
-        }
-    }
-
-    /// Change the node to be in the state of the given `record`.
-    fn from_record(&mut self, record: NodeRecord) {
-        let node_type = record.as_node_type();
-        assert!(node_type == self.node_type);
-
-        if node_type.has_navigator() {
-            self.navigator()
-                .unwrap()
-                .write()
-                .unwrap()
-                .from_record(record.navigator().unwrap().clone());
-        }
-        if node_type.has_controller() {
-            self.controller()
-                .unwrap()
-                .write()
-                .unwrap()
-                .from_record(record.controller().unwrap().clone());
-        }
-        if node_type.has_physics() {
-            self.physics()
-                .unwrap()
-                .write()
-                .unwrap()
-                .from_record(record.physics().unwrap().clone());
-        }
-        if node_type.has_state_estimator() {
-            self.state_estimator()
-                .unwrap()
-                .write()
-                .unwrap()
-                .from_record(record.state_estimator().unwrap().clone());
-        }
-        if node_type.has_state_estimator_bench() {
-            let other_state_estimators = self.state_estimator_bench.clone();
-            let state_estimator_bench_record = record.state_estimator_bench().unwrap();
-            for (i, additional_state_estimator) in other_state_estimators
-                .unwrap()
-                .write()
-                .unwrap()
-                .iter_mut()
-                .enumerate()
-            {
-                additional_state_estimator
-                    .state_estimator
-                    .write()
-                    .unwrap()
-                    .from_record(state_estimator_bench_record[i].record.clone());
-            }
         }
     }
 }

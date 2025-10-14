@@ -59,7 +59,7 @@ use crate::networking::network_manager::NetworkManager;
 use crate::node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig};
 use crate::plugin_api::PluginAPI;
 use crate::state_estimators::state_estimator::State;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::time_analysis::{self, TimeAnalysisConfig};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 

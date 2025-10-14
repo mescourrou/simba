@@ -24,7 +24,7 @@ use crate::constants::TIME_ROUND;
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -107,7 +107,7 @@ impl UIComponent for ExternalEstimatorConfig {
 /// to take every record.
 ///
 /// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
+/// in [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct ExternalEstimatorRecord {
@@ -220,12 +220,8 @@ impl StateEstimator for ExternalEstimator {
     }
 }
 
-impl Stateful<StateEstimatorRecord> for ExternalEstimator {
+impl Recordable<StateEstimatorRecord> for ExternalEstimator {
     fn record(&self) -> StateEstimatorRecord {
         self.state_estimator.record()
-    }
-
-    fn from_record(&mut self, record: StateEstimatorRecord) {
-        self.state_estimator.from_record(record);
     }
 }

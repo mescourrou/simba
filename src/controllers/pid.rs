@@ -13,7 +13,7 @@ Each component has a gain, which can be set in [`PIDConfig`].
 use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use log::error;
@@ -324,22 +324,8 @@ impl Controller for PID {
     }
 }
 
-impl Stateful<ControllerRecord> for PID {
+impl Recordable<ControllerRecord> for PID {
     fn record(&self) -> ControllerRecord {
         ControllerRecord::PID(self.current_record.clone())
-    }
-    #[allow(irrefutable_let_patterns)]
-    fn from_record(&mut self, record: ControllerRecord) {
-        if let ControllerRecord::PID(pid_record) = record {
-            self.current_record = pid_record.clone();
-            self.v_integral = pid_record.v_integral;
-            self.theta_integral = pid_record.theta_integral;
-            self.velocity = pid_record.velocity;
-            self.last_command_time = pid_record.last_command_time;
-            self.previous_theta_error = pid_record.previous_theta_error;
-            self.previous_velocity_error = pid_record.previous_velocity_error;
-        } else {
-            error!("Using a ControllerRecord type which does not match the used Controller (PID)");
-        }
     }
 }

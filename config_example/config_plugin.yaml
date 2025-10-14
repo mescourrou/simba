@@ -1,7 +1,6 @@
 log:
   log_level:
     Off
-time_mode: Centralized
 max_time: 60.
 robots:
   - name: "robot1"

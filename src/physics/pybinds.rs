@@ -13,7 +13,7 @@ use crate::{
     physics::external_physics::ExternalPhysicsRecord,
     pywrappers::{CommandWrapper, StateWrapper},
     state_estimators::state_estimator::State,
-    stateful::Stateful,
+    recordable::Recordable,
 };
 
 use super::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
@@ -28,8 +28,6 @@ pub struct PythonPhysicAsyncClient {
     update_state_response: Arc<Mutex<mpsc::Receiver<()>>>,
     record_request: mpsc::Sender<()>,
     record_response: Arc<Mutex<mpsc::Receiver<PhysicsRecord>>>,
-    from_record_request: mpsc::Sender<PhysicsRecord>,
-    from_record_response: Arc<Mutex<mpsc::Receiver<()>>>,
     last_state: State,
 }
 
@@ -53,12 +51,7 @@ impl Physics for PythonPhysicAsyncClient {
     }
 }
 
-impl Stateful<PhysicsRecord> for PythonPhysicAsyncClient {
-    fn from_record(&mut self, record: PhysicsRecord) {
-        self.from_record_request.send(record).unwrap();
-        self.from_record_response.lock().unwrap().recv().unwrap();
-    }
-
+impl Recordable<PhysicsRecord> for PythonPhysicAsyncClient {
     fn record(&self) -> PhysicsRecord {
         self.record_request.send(()).unwrap();
         self.record_response
@@ -95,8 +88,6 @@ pub struct PythonPhysics {
     update_state_response: mpsc::Sender<()>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
     record_response: mpsc::Sender<PhysicsRecord>,
-    from_record_request: Arc<Mutex<mpsc::Receiver<PhysicsRecord>>>,
-    from_record_response: mpsc::Sender<()>,
 }
 
 #[pymethods]
@@ -116,8 +107,6 @@ impl PythonPhysics {
         let (update_state_response_tx, update_state_response_rx) = mpsc::channel();
         let (record_request_tx, record_request_rx) = mpsc::channel();
         let (record_response_tx, record_response_rx) = mpsc::channel();
-        let (from_record_request_tx, from_record_request_rx) = mpsc::channel();
-        let (from_record_response_tx, from_record_response_rx) = mpsc::channel();
 
         PythonPhysics {
             model: py_model,
@@ -130,8 +119,6 @@ impl PythonPhysics {
                 update_state_response: Arc::new(Mutex::new(update_state_response_rx)),
                 record_request: record_request_tx,
                 record_response: Arc::new(Mutex::new(record_response_rx)),
-                from_record_request: from_record_request_tx,
-                from_record_response: Arc::new(Mutex::new(from_record_response_rx)),
                 last_state: State::new(),
             },
             apply_command_request: Arc::new(Mutex::new(apply_command_request_rx)),
@@ -142,8 +129,6 @@ impl PythonPhysics {
             update_state_response: update_state_response_tx,
             record_request: Arc::new(Mutex::new(record_request_rx)),
             record_response: record_response_tx,
-            from_record_request: Arc::new(Mutex::new(from_record_request_rx)),
-            from_record_response: from_record_response_tx,
         }
     }
 }
@@ -174,10 +159,6 @@ impl PythonPhysics {
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
             self.record_response.send(self.record()).unwrap();
-        }
-        if let Ok(record) = self.from_record_request.clone().lock().unwrap().try_recv() {
-            self.from_record(record);
-            self.from_record_response.send(()).unwrap();
         }
     }
 
@@ -266,21 +247,5 @@ impl PythonPhysics {
         // record.clone()
         // StateEstimatorRecord::External(PythonPhysics::record(&self))
         PhysicsRecord::External(record)
-    }
-
-    fn from_record(&mut self, record: PhysicsRecord) {
-        if let PhysicsRecord::External(record) = record {
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Calling python implementation of from_record");
-            }
-            Python::with_gil(|py| {
-                if let Err(e) = self.model
-                    .bind(py)
-                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None) {
-                        e.display(py);
-                        panic!("Error while calling 'from_record' method of PythonPhysics.");
-                    }
-            });
-        }
     }
 }

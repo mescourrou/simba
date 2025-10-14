@@ -8,7 +8,7 @@ use crate::{
     utils::enum_tools::ToVec,
 };
 use crate::{
-    controllers::python_controller, stateful::Stateful, utils::determinist_random_variable::DeterministRandomVariableFactory
+    controllers::python_controller, recordable::Recordable, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 use std::sync::{Arc, RwLock};
 
@@ -203,7 +203,7 @@ use crate::node::Node;
 /// Controller strategy, which compute the [`Command`] to be sent to the
 /// [`Physics`](crate::physics::physics::Physics) module, from the given `error`.
 pub trait Controller:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<ControllerRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<ControllerRecord>
 {
     /// Compute the command from the given error.
     ///

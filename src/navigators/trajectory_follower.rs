@@ -306,24 +306,15 @@ impl Navigator for TrajectoryFollower {
     }
 }
 
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 
-impl Stateful<NavigatorRecord> for TrajectoryFollower {
+impl Recordable<NavigatorRecord> for TrajectoryFollower {
     fn record(&self) -> NavigatorRecord {
         NavigatorRecord::TrajectoryFollower(TrajectoryFollowerRecord {
             error: self.error.clone(),
             trajectory: self.trajectory.record(),
             projected_point: self.projected_point,
         })
-    }
-    #[allow(irrefutable_let_patterns)]
-    fn from_record(&mut self, record: NavigatorRecord) {
-        if let NavigatorRecord::TrajectoryFollower(navigation_record) = record {
-            self.error = navigation_record.error.clone();
-            self.trajectory.from_record(navigation_record.trajectory);
-        } else {
-            error!("Using a NavigatorRecord type which does not match the used Navigator (TrajectoryFollower)");
-        }
     }
 }
 

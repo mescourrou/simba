@@ -29,13 +29,6 @@ class StateEstimator(simba.StateEstimator):
             "period": self.period,
             "state": self._state})
 
-    def from_record(self, record: str):
-        record = json.loads(record)
-        print(f"Receiving record: {record}")
-        self.last_time = record["last_time"]
-        self.period = record["period"]
-        self._state = record["state"]
-
     def prediction_step(self, time):
         print(f"Doing prediction step in {self.filter_name}")
         self._state += 1

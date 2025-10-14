@@ -24,7 +24,7 @@ use crate::logger::is_enabled;
 use crate::networking::service::HasService;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -104,7 +104,7 @@ impl UIComponent for ExternalPhysicsConfig {
 /// to take every record.
 ///
 /// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
+/// in [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct ExternalPhysicsRecord {
@@ -207,13 +207,9 @@ impl Physics for ExternalPhysics {
     }
 }
 
-impl Stateful<PhysicsRecord> for ExternalPhysics {
+impl Recordable<PhysicsRecord> for ExternalPhysics {
     fn record(&self) -> PhysicsRecord {
         self.physics.record()
-    }
-
-    fn from_record(&mut self, record: PhysicsRecord) {
-        self.physics.from_record(record);
     }
 }
 

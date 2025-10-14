@@ -20,7 +20,7 @@ use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::pywrappers::{ObservationWrapper, WorldStateWrapper};
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -129,7 +129,7 @@ impl UIComponent for PythonEstimatorConfig {
 /// to take every record.
 ///
 /// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
+/// in [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct PythonEstimatorRecord {
@@ -364,7 +364,7 @@ impl StateEstimator for PythonEstimator {
 
 }
 
-impl Stateful<StateEstimatorRecord> for PythonEstimator {
+impl Recordable<StateEstimatorRecord> for PythonEstimator {
     fn record(&self) -> StateEstimatorRecord {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
@@ -389,21 +389,5 @@ impl Stateful<StateEstimatorRecord> for PythonEstimator {
             ),
         };
         StateEstimatorRecord::Python(record)
-    }
-    
-    fn from_record(&mut self, record: StateEstimatorRecord) {
-        if let StateEstimatorRecord::Python(record) = record {
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Calling python implementation of from_record");
-            }
-            Python::with_gil(|py| {
-                if let Err(e) = self.state_estimator
-                    .bind(py)
-                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None) {
-                        e.display(py);
-                        panic!("Error while calling 'from_record' method of PythonEstimator.");
-                    }
-            });
-        }
     }
 }

@@ -17,7 +17,7 @@ use crate::gui::{
 use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
 use crate::sensors::sensor::Observation;
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -274,23 +274,11 @@ impl StateEstimator for PerfectEstimator {
     }
 }
 
-impl Stateful<StateEstimatorRecord> for PerfectEstimator {
+impl Recordable<StateEstimatorRecord> for PerfectEstimator {
     fn record(&self) -> StateEstimatorRecord {
         StateEstimatorRecord::Perfect(PerfectEstimatorRecord {
             world_state: self.world_state.record(),
             last_time_prediction: self.last_time_prediction,
         })
-    }
-
-    fn from_record(&mut self, record: StateEstimatorRecord) {
-        if let StateEstimatorRecord::Perfect(record_state_estimator) = record {
-            self.world_state
-                .from_record(record_state_estimator.world_state);
-            self.last_time_prediction = record_state_estimator.last_time_prediction;
-        } else {
-            error!(
-                "Using a StateEstimatorRecord type which does not match the used StateEstimator (PerfectEstimator)"
-            );
-        }
     }
 }

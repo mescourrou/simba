@@ -8,7 +8,7 @@ use crate::networking::service::HasService;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use config_checker::macros::Check;
 use log::error;
@@ -288,24 +288,12 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysics {
     }
 }
 
-impl Stateful<PhysicsRecord> for PerfectPhysics {
+impl Recordable<PhysicsRecord> for PerfectPhysics {
     fn record(&self) -> PhysicsRecord {
         PhysicsRecord::Perfect(PerfectPhysicsRecord {
             state: self.state.record(),
             last_time_update: self.last_time_update,
             current_command: self.current_command.clone(),
         })
-    }
-
-    fn from_record(&mut self, record: PhysicsRecord) {
-        if let PhysicsRecord::Perfect(perfect_record) = record {
-            self.state.from_record(perfect_record.state);
-            self.last_time_update = perfect_record.last_time_update;
-            self.current_command = perfect_record.current_command.clone();
-        } else {
-            error!(
-                "Using a PhysicRecord type which does not match the used Physic (PerfectPhysic)"
-            );
-        }
     }
 }

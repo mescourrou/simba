@@ -13,7 +13,7 @@ use crate::{
     node::Node,
     pywrappers::{ObservationWrapper, WorldStateWrapper},
     sensors::sensor::Observation,
-    stateful::Stateful,
+    recordable::Recordable,
     utils::maths::round_precision,
 };
 
@@ -34,8 +34,6 @@ pub struct PythonStateEstimatorAsyncClient {
     pub next_time_step_response: Arc<Mutex<mpsc::Receiver<f32>>>,
     pub record_request: mpsc::Sender<()>,
     pub record_response: Arc<Mutex<mpsc::Receiver<StateEstimatorRecord>>>,
-    pub from_record_request: mpsc::Sender<StateEstimatorRecord>,
-    pub from_record_response: Arc<Mutex<mpsc::Receiver<()>>>,
 }
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
@@ -102,12 +100,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
     }
 }
 
-impl Stateful<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
-    fn from_record(&mut self, record: StateEstimatorRecord) {
-        self.from_record_request.send(record).unwrap();
-        self.from_record_response.lock().unwrap().recv().unwrap();
-    }
-
+impl Recordable<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
     fn record(&self) -> StateEstimatorRecord {
         self.record_request.send(()).unwrap();
         self.record_response
@@ -134,8 +127,6 @@ pub struct PythonStateEstimator {
     next_time_step_response: mpsc::Sender<f32>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
     record_response: mpsc::Sender<StateEstimatorRecord>,
-    from_record_request: Arc<Mutex<mpsc::Receiver<StateEstimatorRecord>>>,
-    from_record_response: mpsc::Sender<()>,
 }
 
 #[pymethods]
@@ -157,8 +148,6 @@ impl PythonStateEstimator {
         let (next_time_step_response_tx, next_time_step_response_rx) = mpsc::channel();
         let (record_request_tx, record_request_rx) = mpsc::channel();
         let (record_response_tx, record_response_rx) = mpsc::channel();
-        let (from_record_request_tx, from_record_request_rx) = mpsc::channel();
-        let (from_record_response_tx, from_record_response_rx) = mpsc::channel();
 
         PythonStateEstimator {
             model: py_model,
@@ -173,8 +162,6 @@ impl PythonStateEstimator {
                 next_time_step_response: Arc::new(Mutex::new(next_time_step_response_rx)),
                 record_request: record_request_tx,
                 record_response: Arc::new(Mutex::new(record_response_rx)),
-                from_record_request: from_record_request_tx,
-                from_record_response: Arc::new(Mutex::new(from_record_response_rx)),
             },
             prediction_step_request: Arc::new(Mutex::new(prediction_request_rx)),
             prediction_step_response: prediction_response_tx,
@@ -186,8 +173,6 @@ impl PythonStateEstimator {
             next_time_step_response: next_time_step_response_tx,
             record_request: Arc::new(Mutex::new(record_request_rx)),
             record_response: record_response_tx,
-            from_record_request: Arc::new(Mutex::new(from_record_request_rx)),
-            from_record_response: from_record_response_tx,
         }
     }
 }
@@ -259,10 +244,6 @@ impl PythonStateEstimator {
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
             self.record_response.send(self.record()).unwrap();
-        }
-        if let Ok(record) = self.from_record_request.clone().lock().unwrap().try_recv() {
-            self.from_record(record);
-            self.from_record_response.send(()).unwrap();
         }
     }
 
@@ -368,21 +349,5 @@ impl PythonStateEstimator {
         // record.clone()
         // StateEstimatorRecord::External(PythonStateEstimator::record(&self))
         StateEstimatorRecord::External(record)
-    }
-
-    fn from_record(&mut self, record: StateEstimatorRecord) {
-        if let StateEstimatorRecord::External(record) = record {
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Calling python implementation of from_record");
-            }
-            Python::with_gil(|py| {
-                if let Err(e) = self.model
-                    .bind(py)
-                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None) {
-                        e.display(py);
-                        panic!("Error while calling 'from_record' method of PythonStateEstimator.");
-                    }
-            });
-        }
     }
 }

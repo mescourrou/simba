@@ -14,7 +14,7 @@ use crate::plugin_api::PluginAPI;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
@@ -319,17 +319,12 @@ pub struct OrientedRobotObservation {
     pub pose: Vector3<f32>,
 }
 
-impl Stateful<OrientedRobotObservationRecord> for OrientedRobotObservation {
+impl Recordable<OrientedRobotObservationRecord> for OrientedRobotObservation {
     fn record(&self) -> OrientedRobotObservationRecord {
         OrientedRobotObservationRecord {
             name: self.name.clone(),
             pose: self.pose.to_owned().into(),
         }
-    }
-
-    fn from_record(&mut self, record: OrientedRobotObservationRecord) {
-        self.name = record.name;
-        self.pose = Vector3::from(record.pose);
     }
 }
 
@@ -490,16 +485,10 @@ impl Sensor for RobotSensor {
     }
 }
 
-impl Stateful<SensorRecord> for RobotSensor {
+impl Recordable<SensorRecord> for RobotSensor {
     fn record(&self) -> SensorRecord {
         SensorRecord::RobotSensor(RobotSensorRecord {
             last_time: self.last_time,
         })
-    }
-
-    fn from_record(&mut self, record: SensorRecord) {
-        if let SensorRecord::RobotSensor(node_sensor_record) = record {
-            self.last_time = node_sensor_record.last_time;
-        }
     }
 }

@@ -20,7 +20,7 @@ use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::node::Node;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::{simulator::SimulatorConfig, stateful::Stateful};
+use crate::{simulator::SimulatorConfig, recordable::Recordable};
 
 use super::gnss_sensor::GNSSSensor;
 use super::odometry_sensor::{OdometrySensor, OdometrySensorConfig};
@@ -441,7 +441,7 @@ impl SensorManager {
     }
 }
 
-impl Stateful<SensorManagerRecord> for SensorManager {
+impl Recordable<SensorManagerRecord> for SensorManager {
     fn record(&self) -> SensorManagerRecord {
         let mut record = SensorManagerRecord {
             next_time: self.next_time,
@@ -460,27 +460,6 @@ impl Stateful<SensorManagerRecord> for SensorManager {
             });
         }
         record
-    }
-
-    fn from_record(&mut self, record: SensorManagerRecord) {
-        self.next_time = record.next_time;
-        self.received_observations = record
-            .received_observations
-            .into_iter()
-            .map(|o| {
-                let mut obs = Observation::new();
-                obs.from_record(o);
-                obs
-            })
-            .collect();
-        for (i, sensor) in self.sensors.iter_mut().enumerate() {
-            sensor.name = record.sensors[i].name.clone();
-            sensor
-                .sensor
-                .write()
-                .unwrap()
-                .from_record(record.sensors[i].record.clone())
-        }
     }
 }
 

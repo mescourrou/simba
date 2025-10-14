@@ -13,7 +13,7 @@ use crate::gui::{utils::path_finder, UIComponent};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
@@ -331,17 +331,12 @@ pub struct OrientedLandmarkObservation {
     pub pose: Vector3<f32>,
 }
 
-impl Stateful<OrientedLandmarkObservationRecord> for OrientedLandmarkObservation {
+impl Recordable<OrientedLandmarkObservationRecord> for OrientedLandmarkObservation {
     fn record(&self) -> OrientedLandmarkObservationRecord {
         OrientedLandmarkObservationRecord {
             id: self.id,
             pose: self.pose.into(),
         }
-    }
-
-    fn from_record(&mut self, record: OrientedLandmarkObservationRecord) {
-        self.id = record.id;
-        self.pose = Vector3::from_vec(record.pose.to_vec());
     }
 }
 
@@ -517,16 +512,10 @@ impl Sensor for OrientedLandmarkSensor {
     }
 }
 
-impl Stateful<SensorRecord> for OrientedLandmarkSensor {
+impl Recordable<SensorRecord> for OrientedLandmarkSensor {
     fn record(&self) -> SensorRecord {
         SensorRecord::OrientedLandmarkSensor(OrientedLandmarkSensorRecord {
             last_time: self.last_time,
         })
-    }
-
-    fn from_record(&mut self, record: SensorRecord) {
-        if let SensorRecord::OrientedLandmarkSensor(oriented_landmark_record) = record {
-            self.last_time = oriented_landmark_record.last_time;
-        }
     }
 }

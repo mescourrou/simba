@@ -25,13 +25,6 @@ class Physics(simba.Physics):
             "current_command": self.current_command.tolist()
             })
 
-    def from_record(self, record: str):
-        record = json.loads(record)
-        print(f"Receiving record: {record}")
-        self.last_time = record["last_time"]
-        self.curr_state = np.array(record["state"])
-        self.current_command = np.array(record["current_command"])
-
     def update_state(self, time): 
         dt = time - self.last_time
         assert(dt > 0.)

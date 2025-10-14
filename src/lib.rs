@@ -63,7 +63,7 @@ pub mod physics;
 pub mod sensors;
 pub mod simulator;
 pub mod state_estimators;
-pub mod stateful;
+pub mod recordable;
 pub mod utils;
 
 pub mod plugin_api;

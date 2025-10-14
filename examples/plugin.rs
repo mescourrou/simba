@@ -15,7 +15,7 @@ use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
 use simba::state_estimators::state_estimator::{
     State, StateEstimator, StateEstimatorRecord, WorldState,
 };
-use simba::stateful::Stateful;
+use simba::recordable::Recordable;
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 
@@ -52,16 +52,7 @@ impl Controller for MyWonderfulController {
     }
 }
 
-impl Stateful<ControllerRecord> for MyWonderfulController {
-    fn from_record(&mut self, record: ControllerRecord) {
-        let _my_record: MyWonderfulControllerRecord = match record {
-            ControllerRecord::External(r) => serde_json::from_value(r.record).unwrap(),
-            _ => {
-                panic!("Bad record");
-            }
-        };
-    }
-
+impl Recordable<ControllerRecord> for MyWonderfulController {
     fn record(&self) -> ControllerRecord {
         ControllerRecord::External(ExternalControllerRecord {
             record: serde_json::to_value(MyWonderfulControllerRecord {}).unwrap(),
@@ -102,16 +93,7 @@ impl Navigator for MyWonderfulNavigator {
     }
 }
 
-impl Stateful<NavigatorRecord> for MyWonderfulNavigator {
-    fn from_record(&mut self, record: NavigatorRecord) {
-        let _my_record: MyWonderfulNavigatorRecord = match record {
-            NavigatorRecord::External(r) => serde_json::from_value(r.record).unwrap(),
-            _ => {
-                panic!("Bad record");
-            }
-        };
-    }
-
+impl Recordable<NavigatorRecord> for MyWonderfulNavigator {
     fn record(&self) -> NavigatorRecord {
         NavigatorRecord::External(ExternalNavigatorRecord {
             record: serde_json::to_value(MyWonderfulNavigatorRecord {}).unwrap(),
@@ -165,16 +147,7 @@ impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
     }
 }
 
-impl Stateful<PhysicsRecord> for MyWonderfulPhysics {
-    fn from_record(&mut self, record: PhysicsRecord) {
-        let _my_record: MyWonderfulNavigatorRecord = match record {
-            PhysicsRecord::External(r) => serde_json::from_value(r.record).unwrap(),
-            _ => {
-                panic!("Bad record");
-            }
-        };
-    }
-
+impl Recordable<PhysicsRecord> for MyWonderfulPhysics {
     fn record(&self) -> PhysicsRecord {
         PhysicsRecord::External(ExternalPhysicsRecord {
             record: serde_json::to_value(MyWonderfulNavigatorRecord {}).unwrap(),
@@ -229,17 +202,7 @@ impl StateEstimator for MyWonderfulStateEstimator {
     }
 }
 
-impl Stateful<StateEstimatorRecord> for MyWonderfulStateEstimator {
-    fn from_record(&mut self, record: StateEstimatorRecord) {
-        let my_record: MyWonderfulStateEstimatorRecord = match record {
-            StateEstimatorRecord::External(r) => serde_json::from_value(r.record).unwrap(),
-            _ => {
-                panic!("Bad record");
-            }
-        };
-        self.last_prediction = my_record.last_prediction;
-    }
-
+impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
     fn record(&self) -> StateEstimatorRecord {
         StateEstimatorRecord::External(ExternalEstimatorRecord {
             record: serde_json::to_value(MyWonderfulStateEstimatorRecord {

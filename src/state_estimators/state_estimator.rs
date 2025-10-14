@@ -172,7 +172,7 @@ impl State {
     }
 }
 
-impl Stateful<StateRecord> for State {
+impl Recordable<StateRecord> for State {
     fn record(&self) -> StateRecord {
         StateRecord {
             pose: {
@@ -186,15 +186,6 @@ impl Stateful<StateRecord> for State {
                 ve
             },
             velocity: self.velocity,
-        }
-    }
-
-    fn from_record(&mut self, record: StateRecord) {
-        self.velocity = record.velocity;
-        let mut i: usize = 0;
-        for coord in &record.pose {
-            self.pose[i] = *coord;
-            i += 1;
         }
     }
 }
@@ -290,7 +281,7 @@ impl WorldState {
     }
 }
 
-impl Stateful<WorldStateRecord> for WorldState {
+impl Recordable<WorldStateRecord> for WorldState {
     fn record(&self) -> WorldStateRecord {
         WorldStateRecord {
             ego: match &self.ego {
@@ -309,32 +300,6 @@ impl Stateful<WorldStateRecord> for WorldState {
         }
     }
 
-    fn from_record(&mut self, record: WorldStateRecord) {
-        match record.ego {
-            Some(s) => {
-                if self.ego.is_none() {
-                    self.ego = Some(State::new());
-                }
-                self.ego.as_mut().unwrap().from_record(s);
-            }
-            None => {
-                self.ego = None;
-            }
-        }
-        self.landmarks = BTreeMap::from_iter(record.landmarks.iter().map(|(id, s)| {
-            let mut state = State::new();
-            state.from_record(s.clone());
-            (id.clone(), state)
-        }));
-
-        self.objects = BTreeMap::from_iter(record.objects.iter().map(|(id, s)| {
-            let mut state = State::new();
-            state.from_record(s.clone());
-            (id.clone(), state)
-        }));
-
-        self.occupancy_grid = record.occupancy_grid.clone();
-    }
 }
 
 use super::perfect_estimator::PerfectEstimatorConfig;
@@ -348,7 +313,7 @@ use crate::gui::{
 use crate::node::Node;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::python_estimator;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
@@ -555,7 +520,7 @@ pub fn make_state_estimator_from_config(
 use crate::sensors::sensor::Observation;
 
 pub trait StateEstimator:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<StateEstimatorRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<StateEstimatorRecord>
 {
     /// Prediction step of the state estimator.
     ///
@@ -641,11 +606,7 @@ impl CentralStateEstimator {
     }
 }
 
-impl Stateful<CentralStateEstimatorRecord> for CentralStateEstimator {
-    fn from_record(&mut self, record: CentralStateEstimatorRecord) {
-        self.estimator.from_record(record.estimator);
-    }
-
+impl Recordable<CentralStateEstimatorRecord> for CentralStateEstimator {
     fn record(&self) -> CentralStateEstimatorRecord {
         CentralStateEstimatorRecord {
             name: self.name.clone(),

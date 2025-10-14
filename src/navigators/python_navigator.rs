@@ -21,7 +21,7 @@ use crate::logger::is_enabled;
 use crate::pywrappers::{ControllerErrorWrapper, WorldStateWrapper};
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::WorldState;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -128,7 +128,7 @@ impl UIComponent for PythonNavigatorConfig {
 /// to take every record.
 ///
 /// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
+/// in [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct PythonNavigatorRecord {
@@ -314,7 +314,7 @@ impl Navigator for PythonNavigator {
     
 }
 
-impl Stateful<NavigatorRecord> for PythonNavigator {
+impl Recordable<NavigatorRecord> for PythonNavigator {
     
     fn record(&self) -> NavigatorRecord {
         if is_enabled(crate::logger::InternalLog::API) {
@@ -342,21 +342,5 @@ impl Stateful<NavigatorRecord> for PythonNavigator {
         // record.clone()
         // StateEstimatorRecord::External(PythonNavigator::record(&self))
         NavigatorRecord::Python(record)
-    }
-    
-    fn from_record(&mut self, record: NavigatorRecord) {
-        if let NavigatorRecord::Python(record) = record {
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Calling python implementation of from_record");
-            }
-            Python::with_gil(|py| {
-                if let Err(e) = self.navigator
-                    .bind(py)
-                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None) {
-                        e.display(py);
-                        panic!("Error while calling 'from_record' method of PythonNavigator.");
-                    }
-            });
-        }
     }
 }

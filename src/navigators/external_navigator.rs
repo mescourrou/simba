@@ -24,7 +24,7 @@ use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::WorldState;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -105,7 +105,7 @@ impl UIComponent for ExternalNavigatorConfig {
 /// to take every record.
 ///
 /// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
+/// in [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct ExternalNavigatorRecord {
@@ -200,12 +200,8 @@ impl Navigator for ExternalNavigator {
     }
 }
 
-impl Stateful<NavigatorRecord> for ExternalNavigator {
+impl Recordable<NavigatorRecord> for ExternalNavigator {
     fn record(&self) -> NavigatorRecord {
         self.navigator.record()
-    }
-
-    fn from_record(&mut self, record: NavigatorRecord) {
-        self.navigator.from_record(record);
     }
 }

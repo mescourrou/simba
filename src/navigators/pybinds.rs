@@ -14,7 +14,7 @@ use crate::{
     node::Node,
     pywrappers::{ControllerErrorWrapper, WorldStateWrapper},
     state_estimators::state_estimator::WorldState,
-    stateful::Stateful,
+    recordable::Recordable,
 };
 
 use super::navigator::{Navigator, NavigatorRecord};
@@ -25,8 +25,6 @@ pub struct PythonNavigatorAsyncClient {
     pub compute_error_response: Arc<Mutex<mpsc::Receiver<ControllerError>>>,
     pub record_request: mpsc::Sender<()>,
     pub record_response: Arc<Mutex<mpsc::Receiver<NavigatorRecord>>>,
-    pub from_record_request: mpsc::Sender<NavigatorRecord>,
-    pub from_record_response: Arc<Mutex<mpsc::Receiver<()>>>,
 }
 
 impl Navigator for PythonNavigatorAsyncClient {
@@ -38,12 +36,7 @@ impl Navigator for PythonNavigatorAsyncClient {
     }
 }
 
-impl Stateful<NavigatorRecord> for PythonNavigatorAsyncClient {
-    fn from_record(&mut self, record: NavigatorRecord) {
-        self.from_record_request.send(record).unwrap();
-        self.from_record_response.lock().unwrap().recv().unwrap();
-    }
-
+impl Recordable<NavigatorRecord> for PythonNavigatorAsyncClient {
     fn record(&self) -> NavigatorRecord {
         self.record_request.send(()).unwrap();
         self.record_response
@@ -64,8 +57,6 @@ pub struct PythonNavigator {
     compute_error_response: mpsc::Sender<ControllerError>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
     record_response: mpsc::Sender<NavigatorRecord>,
-    from_record_request: Arc<Mutex<mpsc::Receiver<NavigatorRecord>>>,
-    from_record_response: mpsc::Sender<()>,
 }
 
 #[pymethods]
@@ -81,8 +72,6 @@ impl PythonNavigator {
         let (compute_error_response_tx, compute_error_response_rx) = mpsc::channel();
         let (record_request_tx, record_request_rx) = mpsc::channel();
         let (record_response_tx, record_response_rx) = mpsc::channel();
-        let (from_record_request_tx, from_record_request_rx) = mpsc::channel();
-        let (from_record_response_tx, from_record_response_rx) = mpsc::channel();
 
         PythonNavigator {
             model: py_model,
@@ -91,15 +80,11 @@ impl PythonNavigator {
                 compute_error_response: Arc::new(Mutex::new(compute_error_response_rx)),
                 record_request: record_request_tx,
                 record_response: Arc::new(Mutex::new(record_response_rx)),
-                from_record_request: from_record_request_tx,
-                from_record_response: Arc::new(Mutex::new(from_record_response_rx)),
             },
             compute_error_request: Arc::new(Mutex::new(compute_error_request_rx)),
             compute_error_response: compute_error_response_tx,
             record_request: Arc::new(Mutex::new(record_request_rx)),
             record_response: record_response_tx,
-            from_record_request: Arc::new(Mutex::new(from_record_request_rx)),
-            from_record_response: from_record_response_tx,
         }
     }
 }
@@ -122,10 +107,6 @@ impl PythonNavigator {
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
             self.record_response.send(self.record()).unwrap();
-        }
-        if let Ok(record) = self.from_record_request.clone().lock().unwrap().try_recv() {
-            self.from_record(record);
-            self.from_record_response.send(()).unwrap();
         }
     }
 
@@ -181,21 +162,5 @@ impl PythonNavigator {
         // record.clone()
         // StateEstimatorRecord::External(PythonNavigator::record(&self))
         NavigatorRecord::External(record)
-    }
-
-    fn from_record(&mut self, record: NavigatorRecord) {
-        if let NavigatorRecord::External(record) = record {
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Calling python implementation of from_record");
-            }
-            Python::with_gil(|py| {
-                if let Err(e) = self.model
-                    .bind(py)
-                    .call_method("from_record", (serde_json::to_string(&record).unwrap(),), None) {
-                        e.display(py);
-                        panic!("Error while calling 'from_record' method of PythonNavigator.");
-                    }
-            });
-        }
     }
 }

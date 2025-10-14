@@ -16,7 +16,7 @@ use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
@@ -141,17 +141,12 @@ pub struct OdometryObservation {
     pub angular_velocity: f32,
 }
 
-impl Stateful<OdometryObservationRecord> for OdometryObservation {
+impl Recordable<OdometryObservationRecord> for OdometryObservation {
     fn record(&self) -> OdometryObservationRecord {
         OdometryObservationRecord {
             linear_velocity: self.linear_velocity,
             angular_velocity: self.angular_velocity,
         }
-    }
-
-    fn from_record(&mut self, record: OdometryObservationRecord) {
-        self.linear_velocity = record.linear_velocity;
-        self.angular_velocity = record.angular_velocity;
     }
 }
 
@@ -281,18 +276,11 @@ impl Sensor for OdometrySensor {
     }
 }
 
-impl Stateful<SensorRecord> for OdometrySensor {
+impl Recordable<SensorRecord> for OdometrySensor {
     fn record(&self) -> SensorRecord {
         SensorRecord::OdometrySensor(OdometrySensorRecord {
             last_time: self.last_time,
             last_state: self.last_state.record(),
         })
-    }
-
-    fn from_record(&mut self, record: SensorRecord) {
-        if let SensorRecord::OdometrySensor(odometry_record) = record {
-            self.last_time = odometry_record.last_time;
-            self.last_state.from_record(odometry_record.last_state);
-        }
     }
 }

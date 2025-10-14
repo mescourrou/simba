@@ -23,7 +23,7 @@ use crate::{
     simulator::SimulatorConfig,
     utils::enum_tools::ToVec,
 };
-use crate::{node::Node, stateful::Stateful};
+use crate::{node::Node, recordable::Recordable};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {
@@ -44,15 +44,7 @@ impl Observation {
     }
 }
 
-impl Stateful<ObservationRecord> for Observation {
-    fn from_record(&mut self, record: ObservationRecord) {
-        self.observer = record.observer;
-        self.sensor_name = record.sensor_name;
-        self.time = record.time;
-        self.sensor_observation
-            .from_record(record.sensor_observation);
-    }
-
+impl Recordable<ObservationRecord> for Observation {
     fn record(&self) -> ObservationRecord {
         ObservationRecord {
             sensor_name: self.sensor_name.clone(),
@@ -95,7 +87,7 @@ pub enum SensorObservation {
     OrientedRobot(OrientedRobotObservation),
 }
 
-impl Stateful<SensorObservationRecord> for SensorObservation {
+impl Recordable<SensorObservationRecord> for SensorObservation {
     fn record(&self) -> SensorObservationRecord {
         match self {
             SensorObservation::OrientedLandmark(o) => {
@@ -105,31 +97,6 @@ impl Stateful<SensorObservationRecord> for SensorObservation {
             SensorObservation::GNSS(o) => SensorObservationRecord::GNSS(o.record()),
             SensorObservation::OrientedRobot(o) => {
                 SensorObservationRecord::OrientedRobot(o.record())
-            }
-        }
-    }
-
-    fn from_record(&mut self, record: SensorObservationRecord) {
-        match record {
-            SensorObservationRecord::OrientedLandmark(o) => {
-                if let SensorObservation::OrientedLandmark(ref mut obs) = self {
-                    obs.from_record(o);
-                }
-            }
-            SensorObservationRecord::Odometry(o) => {
-                if let SensorObservation::Odometry(ref mut obs) = self {
-                    obs.from_record(o);
-                }
-            }
-            SensorObservationRecord::GNSS(o) => {
-                if let SensorObservation::GNSS(ref mut obs) = self {
-                    obs.from_record(o);
-                }
-            }
-            SensorObservationRecord::OrientedRobot(o) => {
-                if let SensorObservation::OrientedRobot(ref mut obs) = self {
-                    obs.from_record(o);
-                }
             }
         }
     }
@@ -336,7 +303,7 @@ impl UIComponent for SensorRecord {
 
 /// Sensor trait which need to be implemented by each sensors.
 pub trait Sensor:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<SensorRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<SensorRecord>
 {
     /// Initialize the [`Sensor`]. Should be called at the beginning of the run, after
     /// the initialization of the modules.
