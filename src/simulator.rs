@@ -502,24 +502,26 @@ pub struct Results {
 
 static THREAD_IDS: RwLock<Vec<ThreadId>> = RwLock::new(Vec::new());
 static THREAD_NAMES: RwLock<Vec<String>> = RwLock::new(Vec::new());
-static THREAD_TIMES: RwLock<Vec<f32>> = RwLock::new(Vec::new());
+static TIME: RwLock<f32> = RwLock::new(0.);
 static EXCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static INCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
 pub struct SimulatorAsyncApi {
-    pub current_time: Arc<Mutex<BTreeMap<String, f32>>>,
+    pub current_time: Arc<Mutex<f32>>,
     pub records: Arc<Mutex<mpsc::Receiver<Record>>>,
 }
 
 #[derive(Clone)]
 struct SimulatorAsyncApiServer {
-    pub current_time: Arc<Mutex<BTreeMap<String, f32>>>,
+    pub current_time: Arc<Mutex<f32>>,
     pub records: mpsc::Sender<Record>,
 }
 
 #[derive(Debug)]
 pub struct TimeCv {
     pub finished_nodes: Mutex<usize>,
+    pub intermediate_waiting: Mutex<usize>,
+    pub intermediate_parity: Mutex<u8>,
     pub circulating_messages: Mutex<usize>,
     pub force_finish: Mutex<bool>,
     pub condvar: Condvar,
@@ -529,6 +531,8 @@ impl TimeCv {
     pub fn new() -> Self {
         Self {
             finished_nodes: Mutex::new(0),
+            intermediate_waiting: Mutex::new(0),
+            intermediate_parity: Mutex::new(0),
             circulating_messages: Mutex::new(0),
             force_finish: Mutex::new(false),
             condvar: Condvar::new(),
@@ -589,7 +593,7 @@ pub struct Simulator {
     determinist_va_factory: DeterministRandomVariableFactory,
 
     time_cv: Arc<TimeCv>,
-    common_time: Option<Arc<Mutex<f32>>>,
+    common_time: Arc<Mutex<f32>>,
 
     async_api: Option<Arc<SimulatorAsyncApi>>,
     async_api_server: Option<SimulatorAsyncApiServer>,
@@ -610,7 +614,7 @@ impl Simulator {
             time_cv,
             async_api: None,
             async_api_server: None,
-            common_time: Some(Arc::new(Mutex::new(f32::INFINITY))),
+            common_time: Arc::new(Mutex::new(f32::INFINITY)),
             node_apis: BTreeMap::new(),
         }
     }
@@ -657,10 +661,7 @@ impl Simulator {
         self.time_cv = Arc::new(TimeCv::new());
         self.network_manager = NetworkManager::new(self.time_cv.clone());
         let config = self.config.clone();
-        self.common_time = match &config.time_mode {
-            TimeMode::Centralized => Some(Arc::new(Mutex::new(f32::INFINITY))),
-            TimeMode::Decentralized => None,
-        };
+        self.common_time = Arc::new(Mutex::new(f32::INFINITY));
         let mut service_managers = BTreeMap::new();
         // Create robots
         for robot_config in &config.robots {
@@ -774,7 +775,7 @@ impl Simulator {
         init_log(log_config);
         THREAD_IDS.write().unwrap().push(thread::current().id());
         THREAD_NAMES.write().unwrap().push("simulator".to_string());
-        THREAD_TIMES.write().unwrap().push(0.);
+        *TIME.write().unwrap() = 0.;
         EXCLUDE_NODES
             .write()
             .unwrap()
@@ -806,11 +807,8 @@ impl Simulator {
                     return Ok(());
                 }
                 drop(included_nodes);
-                let mut time = "".to_string();
-                if thread_idx != 0 {
-                    let time_f32 = THREAD_TIMES.read().unwrap()[thread_idx];
-                    time = format!("{:.4}", time_f32) + ", ";
-                };
+                let time = TIME.read().unwrap();
+                let time = format!("{:.4}", time) + ", ";
                 writeln!(
                     buf,
                     "[{:5}][{}{}] {}",
@@ -914,10 +912,7 @@ impl Simulator {
             let new_max_time = max_time.clone();
             let time_cv = self.time_cv.clone();
             let async_api_server = self.async_api_server.clone();
-            let common_time = match &self.common_time {
-                Some(ct) => Some(ct.clone()),
-                None => None,
-            };
+            let common_time_clone = self.common_time.clone();
             let finishing_cv_clone = finishing_cv.clone();
             let barrier_clone = barrier.clone();
             let handle = thread::spawn(move || -> SimbaResult<Node> {
@@ -928,7 +923,7 @@ impl Simulator {
                     i,
                     time_cv.clone(),
                     async_api_server,
-                    common_time,
+                    common_time_clone,
                     barrier_clone,
                 );
                 if ret.is_err() {
@@ -1096,7 +1091,7 @@ impl Simulator {
             } else {
                 *lk -= 1;
                 node.process_messages();
-                let next_time = node.next_time_step()?.0;
+                let next_time = node.next_time_step()?;
                 if next_time < max_time {
                     return Ok(false);
                 }
@@ -1116,15 +1111,13 @@ impl Simulator {
         _node_idx: usize,
         time_cv: Arc<TimeCv>,
         async_api_server: Option<SimulatorAsyncApiServer>,
-        common_time: Option<Arc<Mutex<f32>>>,
+        common_time: Arc<Mutex<f32>>,
         barrier: Arc<Barrier>,
     ) -> SimbaResult<Node> {
         info!("Start thread of node {}", node.name());
         let mut thread_ids = THREAD_IDS.write().unwrap();
         thread_ids.push(thread::current().id());
-        let thread_idx = thread_ids.len() - 1;
         THREAD_NAMES.write().unwrap().push(node.name());
-        THREAD_TIMES.write().unwrap().push(0.);
         drop(thread_ids);
         time_analysis::set_node_name(node.name());
 
@@ -1133,119 +1126,101 @@ impl Simulator {
             if *time_cv.force_finish.lock().unwrap() {
                 break;
             }
-            let mut next_time = node.next_time_step()?.0;
+            let mut next_time = node.next_time_step()?;
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Got next_time: {next_time}");
             }
-            if let Some(api) = &async_api_server {
-                api.current_time
-                    .lock()
-                    .unwrap()
-                    .insert(node.name(), next_time);
-            }
-            if let Some(common_time_arc) = &common_time {
-                {
+        
+            {
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("Get common time (next_time is {next_time})");
+                }
+                let mut unlocked_common_time = common_time.lock().unwrap();
+                if *unlocked_common_time > next_time {
+                    *unlocked_common_time = next_time;
                     if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                        debug!("Get common time (next_time is {next_time})");
-                    }
-                    let mut unlocked_common_time = common_time_arc.lock().unwrap();
-                    if *unlocked_common_time > next_time {
-                        *unlocked_common_time = next_time;
-                        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                            debug!("Set common time");
-                        }
+                        debug!("Set common time");
                     }
                 }
+            }
 
-                let mut lk = time_cv.finished_nodes.lock().unwrap();
-                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("Got CV lock");
-                }
-                *lk += 1;
-                time_cv.condvar.notify_all();
-                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("Waiting for others... (next_time is {next_time})");
-                }
-                loop {
-                    let buffered_msgs = node.process_messages();
-                    if buffered_msgs > 0 {
-                        *lk -= 1;
-                        node.handle_messages(previous_time);
-                        next_time = node.next_time_step()?.0;
-                        {
-                            let mut unlocked_common_time = common_time_arc.lock().unwrap();
-                            if *unlocked_common_time > next_time {
-                                *unlocked_common_time = next_time;
-                                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                                    debug!("Set common time at {next_time}");
-                                }
+            let mut lk = time_cv.finished_nodes.lock().unwrap();
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Got CV lock");
+            }
+            *lk += 1;
+            time_cv.condvar.notify_all();
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Waiting for others... (next_time is {next_time})");
+            }
+            loop {
+                let buffered_msgs = node.process_messages();
+                if buffered_msgs > 0 {
+                    *lk -= 1;
+                    node.handle_messages(previous_time);
+                    next_time = node.next_time_step()?;
+                    {
+                        let mut unlocked_common_time = common_time.lock().unwrap();
+                        if *unlocked_common_time > next_time {
+                            *unlocked_common_time = next_time;
+                            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                                debug!("Set common time at {next_time}");
                             }
                         }
-                        *lk += 1;
-                        time_cv.condvar.notify_all();
                     }
-                    let circulating_messages = time_cv.circulating_messages.lock().unwrap();
-                    if *lk == nb_nodes && *circulating_messages == 0 {
-                        break;
-                    } else if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                        debug!(
-                            "Finished nodes = {}/{nb_nodes} and circulating messages = {}",
-                            *lk, *circulating_messages
-                        );
-                    }
-                    std::mem::drop(circulating_messages);
-                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                        debug!("Wait CV");
-                    }
-                    lk = time_cv.condvar.wait(lk).unwrap();
-                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                        debug!("End of CV wait");
-                    }
+                    *lk += 1;
+                    time_cv.condvar.notify_all();
                 }
-                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("Wait finished -- Release CV lock");
-                }
-                std::mem::drop(lk);
-
-                next_time = *common_time_arc.lock().unwrap();
-                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("Barrier... final next_time is {next_time}");
-                }
-                barrier.wait();
-                *common_time_arc.lock().unwrap() = f32::INFINITY;
-                *time_cv.finished_nodes.lock().unwrap() = 0;
-                barrier.wait();
-                if next_time > max_time {
+                let circulating_messages = time_cv.circulating_messages.lock().unwrap();
+                if *lk == nb_nodes && *circulating_messages == 0 {
                     break;
+                } else if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!(
+                        "Finished nodes = {}/{nb_nodes} and circulating messages = {}",
+                        *lk, *circulating_messages
+                    );
                 }
-            } else if next_time > max_time {
-                if Self::wait_the_end(&node, max_time, &time_cv, nb_nodes)? {
-                    break;
+                std::mem::drop(circulating_messages);
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("Wait CV");
                 }
-                (next_time, _) = node.next_time_step()?;
-                info!("Return to time {next_time}");
+                lk = time_cv.condvar.wait(lk).unwrap();
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("End of CV wait");
+                }
             }
-
-            let (own_next_time, own_read_only) = node.next_time_step()?;
-            THREAD_TIMES.write().unwrap()[thread_idx] = next_time;
-            if (own_next_time - next_time).abs() < TIME_ROUND {
-                node.run_next_time_step(next_time, own_read_only)?;
-                if own_read_only {
-                    node.set_in_state(previous_time);
-                } else {
-                    if let Some(api) = &async_api_server {
-                        let record = Record {
-                            time: next_time,
-                            node: node.record(),
-                        };
-                        api.records.send(record).unwrap();
-                    }
-
-                    previous_time = next_time;
-                }
-            } else {
-                previous_time = next_time;
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Wait finished -- Release CV lock");
             }
+            std::mem::drop(lk);
+
+            next_time = *common_time.lock().unwrap();
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Barrier... final next_time is {next_time}");
+            }
+            barrier.wait();
+            *common_time.lock().unwrap() = f32::INFINITY;
+            *time_cv.finished_nodes.lock().unwrap() = 0;
+            barrier.wait();
+            if let Some(api) = &async_api_server {
+                *api.current_time
+                    .lock()
+                    .unwrap() = next_time;
+            }
+            *TIME.write().unwrap() = next_time;
+            if next_time > max_time {
+                break;
+            }
+            
+            node.run_next_time_step(next_time, &time_cv, nb_nodes)?;
+            if let Some(api) = &async_api_server {
+                let record = Record {
+                    time: next_time,
+                    node: node.record(),
+                };
+                api.records.send(record).unwrap();
+            }
+            previous_time = next_time;
         }
         Ok(node)
     }
@@ -1407,14 +1382,14 @@ def convert(records):
 
     pub fn get_async_api(&mut self) -> Arc<SimulatorAsyncApi> {
         if self.async_api_server.is_none() {
-            let map = Arc::new(Mutex::new(BTreeMap::new()));
+            let time = Arc::new(Mutex::new(0.));
             let (records_tx, records_rx) = mpsc::channel();
             self.async_api_server = Some(SimulatorAsyncApiServer {
-                current_time: Arc::clone(&map),
+                current_time: Arc::clone(&time),
                 records: records_tx,
             });
             self.async_api = Some(Arc::new(SimulatorAsyncApi {
-                current_time: Arc::clone(&map),
+                current_time: Arc::clone(&time),
                 records: Arc::new(Mutex::new(records_rx)),
             }));
         }

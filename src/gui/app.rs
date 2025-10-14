@@ -378,14 +378,7 @@ impl eframe::App for SimbaApp {
                             self.p.error_buffer.push((time::Instant::now(), e));
                         }
                     }
-                    let mut max_simulated_time = 0.;
-                    for (_, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter() {
-                        if max_simulated_time == 0. {
-                            max_simulated_time = *time;
-                        } else {
-                            max_simulated_time = max_simulated_time.min(*time);
-                        }
-                    }
+                    let max_simulated_time = *self.p.api.simulator_api.current_time.lock().unwrap();
                     let play_pause_btn = if self.p.playing.is_none() {
                         egui::Button::new("Play ")
                     } else {

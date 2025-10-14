@@ -203,12 +203,15 @@ impl PerfectPhysics {
     fn compute_state_until(&mut self, time: f32) {
         let dt = time - self.last_time_update;
         assert!(
-            dt > 0.,
-            "PID delta time should be positive: {} - {} = {} > 0",
+            dt >= 0.,
+            "Physics delta time should be positive: {} - {} = {} >= 0",
             time,
             self.last_time_update,
             dt
         );
+        if dt == 0. {
+            return;
+        }
 
         let theta = self.state.pose.z;
 

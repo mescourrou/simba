@@ -1,6 +1,6 @@
 log:
   log_level:
-    Info
+    Internal: ["All"]
 results: 
   result_path: "./result.json"
   show_figures: false # Disabled for automatic testing
@@ -10,7 +10,6 @@ time_analysis:
   exporter: TraceEventExporter
   output_path: "time_performance"
   keep_last: true
-time_mode: Centralized
 max_time: 60.
 robots:
   - name: "robot1"
@@ -66,7 +65,7 @@ robots:
 computation_units:
   - name: "Central Unit"
     network:
-      reception_delay: 0.001
+      reception_delay: 0
     state_estimators:
       - name: "central_perfect"
         config:

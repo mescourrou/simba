@@ -276,6 +276,7 @@ pub struct SensorManager {
     sensors: Vec<ManagedSensor>,
     next_time: Option<f32>,
     last_observations: Vec<ObservationRecord>,
+    local_observations: Vec<Observation>,
     received_observations: Vec<Observation>,
 }
 
@@ -287,6 +288,7 @@ impl SensorManager {
             next_time: None,
             last_observations: Vec::new(),
             received_observations: Vec::new(),
+            local_observations: Vec::new(),
         }
     }
 
@@ -363,8 +365,24 @@ impl SensorManager {
     }
 
     /// Get the observations at the given `time`.
-    pub fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<Observation> {
-        let mut observations = Vec::<Observation>::new();
+    pub fn get_observations(&mut self) -> Vec<Observation> {
+        let mut observations = Vec::new();
+        observations.extend(self.local_observations.drain(0..));
+        observations.extend(self.received_observations.drain(0..));
+        let mut min_next_time = None;
+        for sensor in &mut self.sensors {
+            min_next_time = Some(
+                min_next_time
+                    .unwrap_or(f32::INFINITY)
+                    .min(sensor.sensor.read().unwrap().next_time_step()),
+                );
+        }
+        self.next_time = min_next_time;
+        observations
+    }
+
+    pub fn make_observations(&mut self, node: &mut Node, time: f32) {
+        self.local_observations.clear();
         let mut min_next_time = None;
         let mut obs_to_send = BTreeMap::new();
         for sensor in &mut self.sensors {
@@ -392,7 +410,7 @@ impl SensorManager {
                         .extend(sensor_observations.clone());
                 }
             }
-            observations.extend(sensor_observations);
+            self.local_observations.extend(sensor_observations);
             min_next_time = Some(
                 min_next_time
                     .unwrap_or(f32::INFINITY)
@@ -414,10 +432,7 @@ impl SensorManager {
                 }
             }
         }
-        observations.extend(self.received_observations.drain(0..));
         self.next_time = min_next_time;
-        self.last_observations = observations.iter().map(|obs| obs.record()).collect();
-        observations
     }
 
     /// Get the time of the next observation.

@@ -4,7 +4,6 @@ time_analysis:
   exporter: TraceEventExporter
   output_path: "time_performance"
   keep_last: true
-time_mode: Centralized
 max_time: 60.
 random_seed: 85646513.6849618
 robots:
@@ -61,7 +60,7 @@ robots:
 computation_units:
   - name: "Central Unit"
     network:
-      reception_delay: 0.001
+      reception_delay: 0.
     state_estimators:
       - name: "central_perfect"
         config:
