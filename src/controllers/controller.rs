@@ -2,13 +2,14 @@
 Module defining the [Controller]
 */
 
+use crate::{
+    controllers::python_controller, recordable::Recordable,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 #[cfg(feature = "gui")]
 use crate::{
     gui::{utils::string_combobox, UIComponent},
     utils::enum_tools::ToVec,
-};
-use crate::{
-    stateful::Stateful, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use std::sync::{Arc, RwLock};
 
@@ -41,12 +42,7 @@ impl ControllerError {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ControllerError {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
             ui.label(format!("lateral: {}", self.lateral));
             ui.label(format!("theta: {}", self.theta));
@@ -61,8 +57,9 @@ use super::{external_controller, pid};
 #[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
 #[serde(deny_unknown_fields)]
 pub enum ControllerConfig {
-    PID(Box<pid::PIDConfig>),
-    External(Box<external_controller::ExternalControllerConfig>),
+    PID(pid::PIDConfig),
+    External(external_controller::ExternalControllerConfig),
+    Python(python_controller::PythonControllerConfig),
 }
 
 #[cfg(feature = "gui")]
@@ -91,11 +88,16 @@ impl UIComponent for ControllerConfig {
         });
         if current_str != self.to_string() {
             match current_str.as_str() {
-                "PID" => *self = ControllerConfig::PID(Box::new(pid::PIDConfig::default())),
+                "PID" => *self = ControllerConfig::PID(pid::PIDConfig::default()),
                 "External" => {
-                    *self = ControllerConfig::External(Box::new(
+                    *self = ControllerConfig::External(
                         external_controller::ExternalControllerConfig::default(),
-                    ))
+                    )
+                }
+                "Python" => {
+                    *self = ControllerConfig::Python(
+                        python_controller::PythonControllerConfig::default(),
+                    )
                 }
                 _ => panic!("Where did you find this value?"),
             };
@@ -117,29 +119,25 @@ impl UIComponent for ControllerConfig {
                 current_node_name,
                 unique_id,
             ),
+            ControllerConfig::Python(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
         }
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.horizontal(|ui| {
             ui.label(format!("Controller: {}", self.to_string()));
         });
         match self {
-            ControllerConfig::PID(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            ControllerConfig::External(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
+            ControllerConfig::PID(c) => c.show(ui, ctx, unique_id),
+            ControllerConfig::External(c) => c.show(ui, ctx, unique_id),
+            ControllerConfig::Python(c) => c.show(ui, ctx, unique_id),
         }
     }
 }
@@ -149,29 +147,27 @@ impl UIComponent for ControllerConfig {
 pub enum ControllerRecord {
     PID(pid::PIDRecord),
     External(external_controller::ExternalControllerRecord),
+    Python(python_controller::PythonControllerRecord),
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for ControllerRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
-        ui.vertical(|ui| {
-            match self {
-                Self::PID(r) => {
-                    egui::CollapsingHeader::new("PID").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::External(r) => {
-                    egui::CollapsingHeader::new("ExternalController").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+        ui.vertical(|ui| match self {
+            Self::PID(r) => {
+                egui::CollapsingHeader::new("PID").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::External(r) => {
+                egui::CollapsingHeader::new("ExternalController").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::Python(r) => {
+                egui::CollapsingHeader::new("ExternalPythonController").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
             }
         });
     }
@@ -182,7 +178,7 @@ use crate::node::Node;
 /// Controller strategy, which compute the [`Command`] to be sent to the
 /// [`Physics`](crate::physics::physics::Physics) module, from the given `error`.
 pub trait Controller:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<ControllerRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<ControllerRecord>
 {
     /// Compute the command from the given error.
     ///
@@ -224,5 +220,14 @@ pub fn make_controller_from_config(
                 va_factory,
             )) as Box<dyn Controller>
         }
+        ControllerConfig::Python(c) => Box::new(
+            python_controller::PythonController::from_config(
+                c,
+                plugin_api,
+                global_config,
+                va_factory,
+            )
+            .unwrap(),
+        ) as Box<dyn Controller>,
     }))
 }

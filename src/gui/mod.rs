@@ -2,7 +2,7 @@
 
 mod app;
 
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, path::Path};
 
 pub use app::SimbaApp;
 mod configurator;
@@ -14,7 +14,10 @@ use crate::{
     simulator::{Simulator, SimulatorConfig},
 };
 
-pub fn run_gui(plugin_api: Option<Box<&dyn PluginAPI>>) {
+pub fn run_gui(
+    default_config_path: Option<Box<&'static Path>>,
+    plugin_api: Option<Box<&dyn PluginAPI>>,
+) {
     // Initialize the environment, essentially the logging part
     Simulator::init_environment();
 
@@ -32,30 +35,23 @@ pub fn run_gui(plugin_api: Option<Box<&dyn PluginAPI>>) {
     eframe::run_native(
         "SiMBA",
         native_options,
-        Box::new(|cc| Box::new(SimbaApp::new(cc, static_plugin_api))),
+        Box::new(|cc| Ok(Box::new(SimbaApp::new(cc, default_config_path, static_plugin_api)))),
     )
     .expect("Error during GUI execution");
 }
 pub trait UIComponent {
     fn show_mut(
         &mut self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        buffer_stack: &mut BTreeMap<String, String>,
-        global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
-        unique_id: &String,
+        _ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        _unique_id: &String,
     ) {
         unimplemented!("Mutable UIComponent not implemented.");
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    );
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String);
     //  {
-    //     unimplemented!("Immutable UIComponent not implemented.");
-    // }
 }

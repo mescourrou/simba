@@ -1,0 +1,60 @@
+log:
+  log_level:
+    Info
+results:
+  result_path: "../result.json"
+  show_figures: false # Disabled for automatic testing
+  analyse_script: "../../../python_scripts/analyse_results.py"
+  figures_path: "../figures"
+time_analysis:
+  exporter: TraceEventExporter
+  output_path: "time_performance"
+  keep_last: true
+max_time: 60.
+robots:
+  - name: "robot1"
+    navigator: !TrajectoryFollower
+      trajectory_path: "paths/path1.yaml"
+      target_speed: 0.5
+      forward_distance: 0.2
+    controller: !PID
+      kp_v: 1.0
+      kp_theta: 6.0
+    state_estimator: !Perfect
+      prediction_period: 0.1
+    state_estimator_bench:
+      - name: "Filter"
+        config: !Python
+          file: "../../python/state_estimator.py"
+          class_name: "StateEstimator"
+          period: 0.2
+          filter_name: "robot1"
+    sensor_manager:
+      sensors:
+        - name: "LandmarkSensor"
+          config: !OrientedLandmarkSensor
+            map_path: "maps/landmarks_square.yaml"
+            detection_distance: 6.0
+  - name: "robot2"
+    navigator: !TrajectoryFollower
+      trajectory_path: "paths/path1.yaml"
+      target_speed: 0.5
+      forward_distance: 0.2
+    controller: !PID
+      kp_v: 1.0
+      kp_theta: 6.0
+    state_estimator: !Perfect
+      prediction_period: 0.1
+    state_estimator_bench:
+      - name: "Filter"
+        config: !Python
+          file: "../../python/state_estimator.py"
+          class_name: "StateEstimator"
+          period: 0.2
+          filter_name: "robot2"
+    sensor_manager:
+      sensors:
+        - name: "LandmarkSensor"
+          config: !OrientedLandmarkSensor
+            map_path: "maps/landmarks_square.yaml"
+            detection_distance: 6.0

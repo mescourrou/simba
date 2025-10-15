@@ -33,38 +33,37 @@ fn main() {
 
 // Configuration for Simulator
 extern crate confy;
-use crate::errors::SimbaErrorTypes;
 #[cfg(feature = "gui")]
-use crate::gui::{
-    utils::{enum_combobox, json_config, path_finder},
-    UIComponent,
+use crate::{
+    constants::TIME_ROUND,
+    gui::{
+        utils::{enum_combobox, json_config, path_finder},
+        UIComponent,
+    },
+    utils::determinist_random_variable::seed_generation_component,
 };
-#[cfg(feature = "gui")]
-use crate::utils::determinist_random_variable::seed_generation_component;
 use config_checker::macros::Check;
 use config_checker::ConfigCheckable;
 #[cfg(feature = "gui")]
 use egui::CollapsingHeader;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::EnumToString;
 #[cfg(feature = "gui")]
-use simba_macros::ToVec;
+use simba_macros::{EnumToString, ToVec};
 
-use crate::api::internal_api::NodeClient;
-use crate::constants::TIME_ROUND;
-use crate::errors::{SimbaError, SimbaResult};
-use crate::logger::{init_log, is_enabled, LoggerConfig};
-use crate::networking::network_manager::NetworkManager;
-use crate::node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig};
-use crate::plugin_api::PluginAPI;
-use crate::state_estimators::state_estimator::State;
-use crate::stateful::Stateful;
-use crate::time_analysis::{self, TimeAnalysisConfig};
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-
-use crate::node::Node;
-use crate::utils::time_ordered_data::TimeOrderedData;
+use crate::{
+    api::internal_api::NodeClient,
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    logger::{init_log, is_enabled, LoggerConfig},
+    networking::network_manager::NetworkManager,
+    node::Node,
+    node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig},
+    plugin_api::PluginAPI,
+    recordable::Recordable,
+    state_estimators::state_estimator::State,
+    time_analysis::{self, TimeAnalysisConfig},
+    utils::{self, determinist_random_variable::DeterministRandomVariableFactory, format_option_f32, time_ordered_data::TimeOrderedData},
+};
 use core::f32;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -79,7 +78,6 @@ use std::thread::{self, ThreadId};
 
 use log::{debug, info, warn};
 
-use crate::utils::format_option_f32;
 use pyo3::prepare_freethreaded_python;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -172,15 +170,10 @@ impl UIComponent for ResultConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         CollapsingHeader::new("Results").show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("Result Path: {}", self.result_path)); 
+                ui.label(format!("Result Path: {}", self.result_path));
             });
 
             ui.horizontal(|ui| {
@@ -190,13 +183,12 @@ impl UIComponent for ResultConfig {
                 } else {
                     ui.label("No");
                 }
-                
             });
 
             ui.horizontal(|ui| {
                 ui.label("Result Path: ");
                 if let Some(script) = &self.analyse_script {
-                    ui.label(script); 
+                    ui.label(script);
                 } else {
                     ui.label("None");
                 }
@@ -204,7 +196,7 @@ impl UIComponent for ResultConfig {
             ui.horizontal(|ui| {
                 ui.label("Figure Path: ");
                 if let Some(path) = &self.figures_path {
-                    ui.label(path); 
+                    ui.label(path);
                 } else {
                     ui.label("None");
                 }
@@ -409,28 +401,15 @@ impl crate::gui::UIComponent for SimulatorConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         CollapsingHeader::new("Simulator").show(ui, |ui| {
             ui.horizontal(|ui| {
-                self.log.show(
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                self.log.show(ui, ctx, unique_id);
             });
 
             ui.horizontal_top(|ui| {
                 if let Some(result_cfg) = &self.results {
-                    result_cfg.show(
-                        ui,
-                        ctx,
-                        unique_id,
-                    );
+                    result_cfg.show(ui, ctx, unique_id);
                 } else {
                     ui.label("Results disabled");
                 }
@@ -456,11 +435,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
             });
 
             ui.horizontal(|ui| {
-                self.time_analysis.show(
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                self.time_analysis.show(ui, ctx, unique_id);
             });
 
             ui.vertical(|ui| {
@@ -502,24 +477,25 @@ pub struct Results {
 
 static THREAD_IDS: RwLock<Vec<ThreadId>> = RwLock::new(Vec::new());
 static THREAD_NAMES: RwLock<Vec<String>> = RwLock::new(Vec::new());
-static THREAD_TIMES: RwLock<Vec<f32>> = RwLock::new(Vec::new());
+static TIME: RwLock<f32> = RwLock::new(0.);
 static EXCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static INCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
 pub struct SimulatorAsyncApi {
-    pub current_time: Arc<Mutex<BTreeMap<String, f32>>>,
+    pub current_time: Arc<Mutex<f32>>,
     pub records: Arc<Mutex<mpsc::Receiver<Record>>>,
 }
 
 #[derive(Clone)]
 struct SimulatorAsyncApiServer {
-    pub current_time: Arc<Mutex<BTreeMap<String, f32>>>,
+    pub current_time: Arc<Mutex<f32>>,
     pub records: mpsc::Sender<Record>,
 }
 
 #[derive(Debug)]
 pub struct TimeCv {
-    pub finished_nodes: Mutex<usize>,
+    pub waiting: Mutex<usize>,
+    pub intermediate_parity: Mutex<u8>,
     pub circulating_messages: Mutex<usize>,
     pub force_finish: Mutex<bool>,
     pub condvar: Condvar,
@@ -528,7 +504,8 @@ pub struct TimeCv {
 impl TimeCv {
     pub fn new() -> Self {
         Self {
-            finished_nodes: Mutex::new(0),
+            waiting: Mutex::new(0),
+            intermediate_parity: Mutex::new(0),
             circulating_messages: Mutex::new(0),
             force_finish: Mutex::new(false),
             condvar: Condvar::new(),
@@ -589,7 +566,7 @@ pub struct Simulator {
     determinist_va_factory: DeterministRandomVariableFactory,
 
     time_cv: Arc<TimeCv>,
-    common_time: Option<Arc<Mutex<f32>>>,
+    common_time: Arc<Mutex<f32>>,
 
     async_api: Option<Arc<SimulatorAsyncApi>>,
     async_api_server: Option<SimulatorAsyncApiServer>,
@@ -610,7 +587,7 @@ impl Simulator {
             time_cv,
             async_api: None,
             async_api_server: None,
-            common_time: Some(Arc::new(Mutex::new(f32::INFINITY))),
+            common_time: Arc::new(Mutex::new(f32::INFINITY)),
             node_apis: BTreeMap::new(),
         }
     }
@@ -657,10 +634,7 @@ impl Simulator {
         self.time_cv = Arc::new(TimeCv::new());
         self.network_manager = NetworkManager::new(self.time_cv.clone());
         let config = self.config.clone();
-        self.common_time = match &config.time_mode {
-            TimeMode::Centralized => Some(Arc::new(Mutex::new(f32::INFINITY))),
-            TimeMode::Decentralized => None,
-        };
+        self.common_time = Arc::new(Mutex::new(f32::INFINITY));
         let mut service_managers = BTreeMap::new();
         // Create robots
         for robot_config in &config.robots {
@@ -692,7 +666,7 @@ impl Simulator {
         let mut config: SimulatorConfig = match confy::load_path(config_path) {
             Ok(config) => config,
             Err(error) => {
-                let what = format!("Error from Confy while loading the config file : {}", error);
+                let what = format!("Error from Confy while loading the config file : {}", utils::confy::detailed_error(&error));
                 println!("ERROR: {what}");
                 return Err(SimbaError::new(SimbaErrorTypes::ConfigError, what));
             }
@@ -766,13 +740,15 @@ impl Simulator {
     pub fn init_environment() {
         // env_logger::init();
         time_analysis::set_node_name("simulator".to_string());
+
+        prepare_freethreaded_python();
     }
 
     fn init_log(log_config: &LoggerConfig) -> SimbaResult<()> {
         init_log(log_config);
         THREAD_IDS.write().unwrap().push(thread::current().id());
         THREAD_NAMES.write().unwrap().push("simulator".to_string());
-        THREAD_TIMES.write().unwrap().push(0.);
+        *TIME.write().unwrap() = 0.;
         EXCLUDE_NODES
             .write()
             .unwrap()
@@ -804,11 +780,8 @@ impl Simulator {
                     return Ok(());
                 }
                 drop(included_nodes);
-                let mut time = "".to_string();
-                if thread_idx != 0 {
-                    let time_f32 = THREAD_TIMES.read().unwrap()[thread_idx];
-                    time = format!("{:.4}", time_f32) + ", ";
-                };
+                let time = TIME.read().unwrap();
+                let time = format!("{:.4}", time) + ", ";
                 writeln!(
                     buf,
                     "[{:5}][{}{}] {}",
@@ -853,16 +826,15 @@ impl Simulator {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
     ) {
-        self.nodes.push(NodeFactory::make_robot(
+        let mut new_node = NodeFactory::make_robot(
             robot_config,
             plugin_api,
             &global_config,
             &self.determinist_va_factory,
             self.time_cv.clone(),
-        ));
-
-        self.network_manager
-            .register_node_network(self.nodes.last_mut().unwrap());
+        );
+        self.network_manager.register_node_network(&mut new_node);
+        self.nodes.push(new_node);
     }
 
     fn add_computation_unit(
@@ -871,16 +843,15 @@ impl Simulator {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
     ) {
-        self.nodes.push(NodeFactory::make_computation_unit(
+        let mut new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
             plugin_api,
             &global_config,
             &self.determinist_va_factory,
             self.time_cv.clone(),
-        ));
-
-        self.network_manager
-            .register_node_network(self.nodes.last_mut().unwrap());
+        );
+        self.network_manager.register_node_network(&mut new_node);
+        self.nodes.push(new_node);
     }
 
     /// Simply print the Simulator state, using the info channel and the debug print.
@@ -912,10 +883,7 @@ impl Simulator {
             let new_max_time = max_time.clone();
             let time_cv = self.time_cv.clone();
             let async_api_server = self.async_api_server.clone();
-            let common_time = match &self.common_time {
-                Some(ct) => Some(ct.clone()),
-                None => None,
-            };
+            let common_time_clone = self.common_time.clone();
             let finishing_cv_clone = finishing_cv.clone();
             let barrier_clone = barrier.clone();
             let handle = thread::spawn(move || -> SimbaResult<Node> {
@@ -926,7 +894,7 @@ impl Simulator {
                     i,
                     time_cv.clone(),
                     async_api_server,
-                    common_time,
+                    common_time_clone,
                     barrier_clone,
                 );
                 if ret.is_err() {
@@ -1057,51 +1025,6 @@ impl Simulator {
         self._compute_results(results.records, &results.config)
     }
 
-    /// Wait the end of the simulation. If other node send messages, the simulation
-    /// will go back to the time of the last message received.
-    fn wait_the_end(
-        node: &Node,
-        max_time: f32,
-        time_cv: &TimeCv,
-        nb_nodes: usize,
-    ) -> SimbaResult<bool> {
-        let mut lk = time_cv.finished_nodes.lock().unwrap();
-        *lk += 1;
-        if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-            debug!("Increase finished nodes: {}", *lk);
-        }
-        if *lk == nb_nodes {
-            time_cv.condvar.notify_all();
-            *lk = 0;
-            return Ok(true);
-        }
-        loop {
-            let buffered_msgs = node.process_messages();
-            if buffered_msgs > 0 {
-                *lk -= 1;
-                if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-                    debug!("[wait_the_end] Messages to process: continue");
-                }
-                return Ok(false);
-            }
-            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-                debug!("[wait_the_end] Wait for others");
-            }
-            lk = time_cv.condvar.wait(lk).unwrap();
-            let circulating_messages = time_cv.circulating_messages.lock().unwrap();
-            if *lk == nb_nodes && *circulating_messages == 0 {
-                return Ok(true);
-            } else {
-                *lk -= 1;
-                node.process_messages();
-                let next_time = node.next_time_step()?.0;
-                if next_time < max_time {
-                    return Ok(false);
-                }
-                *lk += 1;
-            }
-        }
-    }
     /// Run the loop for the given `node` until reaching `max_time`.
     ///
     /// ## Arguments
@@ -1114,135 +1037,62 @@ impl Simulator {
         _node_idx: usize,
         time_cv: Arc<TimeCv>,
         async_api_server: Option<SimulatorAsyncApiServer>,
-        common_time: Option<Arc<Mutex<f32>>>,
+        common_time: Arc<Mutex<f32>>,
         barrier: Arc<Barrier>,
     ) -> SimbaResult<Node> {
         info!("Start thread of node {}", node.name());
         let mut thread_ids = THREAD_IDS.write().unwrap();
         thread_ids.push(thread::current().id());
-        let thread_idx = thread_ids.len() - 1;
         THREAD_NAMES.write().unwrap().push(node.name());
-        THREAD_TIMES.write().unwrap().push(0.);
         drop(thread_ids);
         time_analysis::set_node_name(node.name());
 
-        let mut previous_time = 0.;
         loop {
             if *time_cv.force_finish.lock().unwrap() {
                 break;
             }
-            let mut next_time = node.next_time_step()?.0;
+            let mut next_time = node.next_time_step()?;
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Got next_time: {next_time}");
             }
+
+            {
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("Get common time (next_time is {next_time})");
+                }
+                let mut unlocked_common_time = common_time.lock().unwrap();
+                if *unlocked_common_time > next_time {
+                    *unlocked_common_time = next_time;
+                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                        debug!("Set common time");
+                    }
+                }
+            }
+            barrier.wait();
+
+            next_time = *common_time.lock().unwrap();
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Barrier... final next_time is {next_time}");
+            }
+            barrier.wait();
+            *common_time.lock().unwrap() = f32::INFINITY;
+            barrier.wait();
             if let Some(api) = &async_api_server {
-                api.current_time
-                    .lock()
-                    .unwrap()
-                    .insert(node.name(), next_time);
+                *api.current_time.lock().unwrap() = next_time;
             }
-            if let Some(common_time_arc) = &common_time {
-                {
-                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                        debug!("Get common time (next_time is {next_time})");
-                    }
-                    let mut unlocked_common_time = common_time_arc.lock().unwrap();
-                    if *unlocked_common_time > next_time {
-                        *unlocked_common_time = next_time;
-                        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                            debug!("Set common time");
-                        }
-                    }
-                }
-
-                let mut lk = time_cv.finished_nodes.lock().unwrap();
-                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("Got CV lock");
-                }
-                *lk += 1;
-                time_cv.condvar.notify_all();
-                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("Waiting for others... (next_time is {next_time})");
-                }
-                loop {
-                    let buffered_msgs = node.process_messages();
-                    if buffered_msgs > 0 {
-                        *lk -= 1;
-                        node.handle_messages(previous_time);
-                        next_time = node.next_time_step()?.0;
-                        {
-                            let mut unlocked_common_time = common_time_arc.lock().unwrap();
-                            if *unlocked_common_time > next_time {
-                                *unlocked_common_time = next_time;
-                                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                                    debug!("Set common time at {next_time}");
-                                }
-                            }
-                        }
-                        *lk += 1;
-                        time_cv.condvar.notify_all();
-                    }
-                    let circulating_messages = time_cv.circulating_messages.lock().unwrap();
-                    if *lk == nb_nodes && *circulating_messages == 0 {
-                        break;
-                    } else if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                        debug!(
-                            "Finished nodes = {}/{nb_nodes} and circulating messages = {}",
-                            *lk, *circulating_messages
-                        );
-                    }
-                    std::mem::drop(circulating_messages);
-                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                        debug!("Wait CV");
-                    }
-                    lk = time_cv.condvar.wait(lk).unwrap();
-                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                        debug!("End of CV wait");
-                    }
-                }
-                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("Wait finished -- Release CV lock");
-                }
-                std::mem::drop(lk);
-
-                next_time = *common_time_arc.lock().unwrap();
-                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("Barrier... final next_time is {next_time}");
-                }
-                barrier.wait();
-                *common_time_arc.lock().unwrap() = f32::INFINITY;
-                *time_cv.finished_nodes.lock().unwrap() = 0;
-                barrier.wait();
-                if next_time > max_time {
-                    break;
-                }
-            } else if next_time > max_time {
-                if Self::wait_the_end(&node, max_time, &time_cv, nb_nodes)? {
-                    break;
-                }
-                (next_time, _) = node.next_time_step()?;
-                info!("Return to time {next_time}");
+            *TIME.write().unwrap() = next_time;
+            if next_time > max_time {
+                break;
             }
 
-            let (own_next_time, own_read_only) = node.next_time_step()?;
-            THREAD_TIMES.write().unwrap()[thread_idx] = next_time;
-            if (own_next_time - next_time).abs() < TIME_ROUND {
-                node.run_next_time_step(next_time, own_read_only)?;
-                if own_read_only {
-                    node.set_in_state(previous_time);
-                } else {
-                    if let Some(api) = &async_api_server {
-                        let record = Record {
-                            time: next_time,
-                            node: node.record(),
-                        };
-                        api.records.send(record).unwrap();
-                    }
-
-                    previous_time = next_time;
-                }
-            } else {
-                previous_time = next_time;
+            node.run_next_time_step(next_time, &time_cv, nb_nodes)?;
+            node.sync_with_others(&time_cv, nb_nodes, next_time);
+            if let Some(api) = &async_api_server {
+                let record: Record = Record {
+                    time: next_time,
+                    node: node.record(),
+                };
+                api.records.send(record).unwrap();
             }
         }
         Ok(node)
@@ -1302,7 +1152,7 @@ impl Simulator {
         info!("Starting result analyse...");
         let show_figures = result_config.show_figures;
 
-        prepare_freethreaded_python();
+        // prepare_freethreaded_python();
 
         let json_results =
             serde_json::to_string(&results).expect("Error during converting results to json");
@@ -1405,14 +1255,14 @@ def convert(records):
 
     pub fn get_async_api(&mut self) -> Arc<SimulatorAsyncApi> {
         if self.async_api_server.is_none() {
-            let map = Arc::new(Mutex::new(BTreeMap::new()));
+            let time = Arc::new(Mutex::new(0.));
             let (records_tx, records_rx) = mpsc::channel();
             self.async_api_server = Some(SimulatorAsyncApiServer {
-                current_time: Arc::clone(&map),
+                current_time: Arc::clone(&time),
                 records: records_tx,
             });
             self.async_api = Some(Arc::new(SimulatorAsyncApi {
-                current_time: Arc::clone(&map),
+                current_time: Arc::clone(&time),
                 records: Arc::new(Mutex::new(records_rx)),
             }));
         }

@@ -5,5 +5,6 @@ Module providing the [`Controller`](controller::Controller) strategy, which comp
 pub mod controller;
 pub mod external_controller;
 pub mod pid;
+pub mod python_controller;
 
 pub mod pybinds;

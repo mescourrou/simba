@@ -14,6 +14,7 @@ use super::{external_navigator, trajectory_follower};
 use crate::controllers::controller::ControllerError;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
+use crate::navigators::python_navigator;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::WorldState;
@@ -22,8 +23,9 @@ use crate::state_estimators::state_estimator::WorldState;
 #[derive(Serialize, Deserialize, Debug, Clone, Check, EnumToString, ToVec)]
 #[serde(deny_unknown_fields)]
 pub enum NavigatorConfig {
-    TrajectoryFollower(Box<trajectory_follower::TrajectoryFollowerConfig>),
-    External(Box<external_navigator::ExternalNavigatorConfig>),
+    TrajectoryFollower(trajectory_follower::TrajectoryFollowerConfig),
+    External(external_navigator::ExternalNavigatorConfig),
+    Python(python_navigator::PythonNavigatorConfig),
 }
 
 #[cfg(feature = "gui")]
@@ -53,14 +55,18 @@ impl UIComponent for NavigatorConfig {
         if current_str != self.to_string() {
             match current_str.as_str() {
                 "TrajectoryFollower" => {
-                    *self = NavigatorConfig::TrajectoryFollower(Box::new(
+                    *self = NavigatorConfig::TrajectoryFollower(
                         trajectory_follower::TrajectoryFollowerConfig::default(),
-                    ))
+                    )
                 }
                 "External" => {
-                    *self = NavigatorConfig::External(Box::new(
+                    *self = NavigatorConfig::External(
                         external_navigator::ExternalNavigatorConfig::default(),
-                    ))
+                    )
+                }
+                "Python" => {
+                    *self =
+                        NavigatorConfig::Python(python_navigator::PythonNavigatorConfig::default())
                 }
                 _ => panic!("Where did you find this value?"),
             };
@@ -82,30 +88,26 @@ impl UIComponent for NavigatorConfig {
                 current_node_name,
                 unique_id,
             ),
+            NavigatorConfig::Python(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
         }
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.horizontal(|ui| {
             ui.label(format!("Navigator: {}", self.to_string()));
         });
-        
+
         match self {
-            NavigatorConfig::TrajectoryFollower(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            NavigatorConfig::External(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
+            NavigatorConfig::TrajectoryFollower(c) => c.show(ui, ctx, unique_id),
+            NavigatorConfig::External(c) => c.show(ui, ctx, unique_id),
+            NavigatorConfig::Python(c) => c.show(ui, ctx, unique_id),
         }
     }
 }
@@ -115,43 +117,41 @@ impl UIComponent for NavigatorConfig {
 pub enum NavigatorRecord {
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerRecord),
     External(external_navigator::ExternalNavigatorRecord),
+    Python(python_navigator::PythonNavigatorRecord),
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for NavigatorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
-        ui.vertical(|ui| {
-            match self {
-                Self::TrajectoryFollower(r) => {
-                    egui::CollapsingHeader::new("TrajectoryFollower").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::External(r) => {
-                    egui::CollapsingHeader::new("ExternalNavigator").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+        ui.vertical(|ui| match self {
+            Self::TrajectoryFollower(r) => {
+                egui::CollapsingHeader::new("TrajectoryFollower").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::External(r) => {
+                egui::CollapsingHeader::new("ExternalNavigator").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::Python(r) => {
+                egui::CollapsingHeader::new("ExternalPythonNavigator").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
             }
         });
     }
 }
 
 use crate::node::Node;
-use crate::stateful::Stateful;
+use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 
 /// Trait managing the path planning, and providing the error to the planned path.
 pub trait Navigator:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<NavigatorRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<NavigatorRecord>
 {
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
     fn compute_error(&mut self, robot: &mut Node, state: WorldState) -> ControllerError;
@@ -187,5 +187,14 @@ pub fn make_navigator_from_config(
                 va_factory,
             )) as Box<dyn Navigator>
         }
+        NavigatorConfig::Python(c) => Box::new(
+            python_navigator::PythonNavigator::from_config(
+                c,
+                plugin_api,
+                global_config,
+                va_factory,
+            )
+            .unwrap(),
+        ) as Box<dyn Navigator>,
     }))
 }

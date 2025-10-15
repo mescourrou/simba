@@ -2,11 +2,17 @@
 
 import simba
 import json
+import time
 
 class StateEstimator(simba.StateEstimator):
     def __init__(self, config):
         self.last_time = 0
         self.period = config["period"]
+        self.filter_name = "anonyme"
+        if "filter_name" in config:
+            self.filter_name = config["filter_name"]
+
+        self._state = 0
 
     def state(self) -> simba.WorldState:
         world_state = simba.WorldState()
@@ -20,20 +26,17 @@ class StateEstimator(simba.StateEstimator):
         print("This is record from python!")
         return json.dumps({
             "last_time": self.last_time,
-            "period": self.period})
-
-    def from_record(self, record: str):
-        record = json.loads(record)
-        print(f"Receiving record: {record}")
-        self.last_time = record["last_time"]
-        self.period = record["period"]
+            "period": self.period,
+            "state": self._state})
 
     def prediction_step(self, time):
-        print("Doing prediction step")
+        print(f"Doing prediction step in {self.filter_name}")
+        self._state += 1
         self.last_time = time
+        print(f"{self.filter_name}: Prediction {self._state}")
 
-    def correction_step(self, observations, time):
-        print(f"Doing correction step with observations for robot:")
+    def correction_step(self, observations, t):
+        print(f"Doing correction step with observations for robot {self.filter_name}:")
         for obs in observations:
             sensor_obs = obs.sensor_observation
             # Not the best interface, but it works!
@@ -45,6 +48,8 @@ class StateEstimator(simba.StateEstimator):
                     print(f"Odometry: {sensor_obs[0]}")
                 case _:
                     print("Other")
+        self._state += 100
+        print(f"{self.filter_name}: Prediction {self._state}")
 
 
     def next_time_step(self):

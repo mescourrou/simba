@@ -11,7 +11,7 @@ use nalgebra::Vector2;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::{logger::is_enabled, stateful::Stateful};
+use crate::{logger::is_enabled, recordable::Recordable};
 
 use crate::utils::geometry::*;
 
@@ -52,12 +52,7 @@ impl TrajectoryRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for TrajectoryRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(format!("Current segment: {}", self.current_segment));
     }
 }
@@ -243,15 +238,11 @@ impl Trajectory {
     }
 }
 
-impl Stateful<TrajectoryRecord> for Trajectory {
+impl Recordable<TrajectoryRecord> for Trajectory {
     fn record(&self) -> TrajectoryRecord {
         TrajectoryRecord {
             current_segment: self.current_segment,
         }
-    }
-
-    fn from_record(&mut self, record: TrajectoryRecord) {
-        self.current_segment = record.current_segment;
     }
 }
 

@@ -81,19 +81,17 @@ impl UIComponent for NetworkConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        _unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         egui::CollapsingHeader::new("Network").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("Range (0 for no limit): {}", self.range));
             });
 
             ui.horizontal(|ui| {
-                ui.label(format!("Reception delay (0 not stable): {}", self.reception_delay));
+                ui.label(format!(
+                    "Reception delay (0 not stable): {}",
+                    self.reception_delay
+                ));
             });
         });
     }
@@ -287,12 +285,8 @@ impl Network {
     }
 
     /// Get the minimal time among all waiting messages. Bool is true if the message is read only.
-    pub fn next_message_time(&self) -> Option<(f32, bool)> {
-        let tpl_option = self.messages_buffer.min_time();
-        match tpl_option {
-            Some(tpl) => Some((tpl.0, tpl.1 .2.contains(&MessageFlag::ReadOnly))),
-            None => None,
-        }
+    pub fn next_message_time(&self) -> Option<f32> {
+        self.messages_buffer.min_time().map(|tpl| tpl.0)
     }
 
     /// Handle the messages which are received at the given `time`.

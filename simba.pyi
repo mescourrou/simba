@@ -146,9 +146,6 @@ class StateEstimator:
     def record(self) -> str:
         raise NotImplementedError()
 
-    def from_record(self, record: str):
-        raise NotImplementedError()
-
     def prediction_step(self, time: float):
         raise NotImplementedError()
 
@@ -162,9 +159,6 @@ class Controller:
     def record(self) -> str:
         raise NotImplementedError()
 
-    def from_record(self, record: str):
-        raise NotImplementedError()
-
     def make_command(self, error: ControllerError, time: float) -> Command:
         raise NotImplementedError()
     
@@ -172,17 +166,11 @@ class Navigator:
     def record(self) -> str:
         raise NotImplementedError()
 
-    def from_record(self, record: str):
-        raise NotImplementedError()
-
     def compute_error(self, world_state: WorldState) -> ControllerError:
         raise NotImplementedError()
         
 class Physics:
     def record(self) -> str:
-        raise NotImplementedError()
-
-    def from_record(self, record: str):
         raise NotImplementedError()
 
     def update_state(self, time): 

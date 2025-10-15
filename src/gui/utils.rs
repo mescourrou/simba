@@ -1,7 +1,6 @@
 use std::{collections::BTreeMap, fmt::Debug, path::Path};
 
 use egui::Color32;
-use serde::Serialize;
 
 use crate::utils::enum_tools::ToVec;
 
@@ -9,7 +8,7 @@ pub fn enum_combobox<EnumType>(ui: &mut egui::Ui, value: &mut EnumType, id: impl
 where
     EnumType: ToVec<&'static str> + ToVec<EnumType> + Debug + PartialEq,
 {
-    egui::ComboBox::from_id_source(id)
+    egui::ComboBox::from_id_salt(id)
         .selected_text(format!("{:?}", value))
         .show_ui(ui, |ui| {
             for (e, s) in std::iter::zip(
@@ -27,7 +26,7 @@ pub fn string_combobox(
     value: &mut String,
     id: impl std::hash::Hash,
 ) {
-    egui::ComboBox::from_id_source(id)
+    egui::ComboBox::from_id_salt(id)
         .selected_text(format!("{:?}", value))
         .show_ui(ui, |ui| {
             for s in possible_values {

@@ -4,14 +4,16 @@ Provide the implementation of the [`Physics`] trait without any noise added to t
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::networking::service::HasService;
-use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
-use crate::stateful::Stateful;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+
+use crate::{
+    networking::service::HasService,
+    plugin_api::PluginAPI,
+    recordable::Recordable,
+    simulator::SimulatorConfig,
+    state_estimators::state_estimator::{State, StateConfig, StateRecord},
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 use config_checker::macros::Check;
-use log::error;
 use nalgebra::SMatrix;
 use serde_derive::{Deserialize, Serialize};
 
@@ -40,7 +42,7 @@ impl UIComponent for PerfectsPhysicConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Perfect Physics")
-            .id_source(format!("perfect-physics-{}", unique_id))
+            .id_salt(format!("perfect-physics-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Wheel distance:");
@@ -64,14 +66,9 @@ impl UIComponent for PerfectsPhysicConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Perfect Physics")
-            .id_source(format!("perfect-physics-{}", unique_id))
+            .id_salt(format!("perfect-physics-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Wheel distance: {}", self.wheel_distance));
@@ -79,11 +76,7 @@ impl UIComponent for PerfectsPhysicConfig {
 
                 ui.horizontal(|ui| {
                     ui.label("Initial state:");
-                    self.initial_state.show(
-                        ui,
-                        ctx,
-                        unique_id,
-                    );
+                    self.initial_state.show(ui, ctx, unique_id);
                 });
             });
     }
@@ -111,12 +104,7 @@ pub struct PerfectPhysicsRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PerfectPhysicsRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             egui::CollapsingHeader::new("State").show(ui, |ui| {
                 self.state.show(ui, ctx, unique_id);
@@ -203,12 +191,15 @@ impl PerfectPhysics {
     fn compute_state_until(&mut self, time: f32) {
         let dt = time - self.last_time_update;
         assert!(
-            dt > 0.,
-            "PID delta time should be positive: {} - {} = {} > 0",
+            dt >= 0.,
+            "Physics delta time should be positive: {} - {} = {} >= 0",
             time,
             self.last_time_update,
             dt
         );
+        if dt == 0. {
+            return;
+        }
 
         let theta = self.state.pose.z;
 
@@ -267,9 +258,9 @@ impl Physics for PerfectPhysics {
     }
 
     /// Return the current state. Do not compute the state again.
-    fn state(&self, time: f32) -> &State {
+    fn state(&self, time: f32) -> State {
         assert!(time == self.last_time_update);
-        &self.state
+        self.state.clone()
     }
 }
 
@@ -285,24 +276,12 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysics {
     }
 }
 
-impl Stateful<PhysicsRecord> for PerfectPhysics {
+impl Recordable<PhysicsRecord> for PerfectPhysics {
     fn record(&self) -> PhysicsRecord {
         PhysicsRecord::Perfect(PerfectPhysicsRecord {
             state: self.state.record(),
             last_time_update: self.last_time_update,
             current_command: self.current_command.clone(),
         })
-    }
-
-    fn from_record(&mut self, record: PhysicsRecord) {
-        if let PhysicsRecord::Perfect(perfect_record) = record {
-            self.state.from_record(perfect_record.state);
-            self.last_time_update = perfect_record.last_time_update;
-            self.current_command = perfect_record.current_command.clone();
-        } else {
-            error!(
-                "Using a PhysicRecord type which does not match the used Physic (PerfectPhysic)"
-            );
-        }
     }
 }

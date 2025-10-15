@@ -20,7 +20,7 @@ use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::node::Node;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::{simulator::SimulatorConfig, stateful::Stateful};
+use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
 use super::gnss_sensor::GNSSSensor;
 use super::odometry_sensor::{OdometrySensor, OdometrySensorConfig};
@@ -63,7 +63,7 @@ impl UIComponent for ManagedSensorConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new(&self.name)
-            .id_source(format!("managed-sensor-{}", unique_id).as_str())
+            .id_salt(format!("managed-sensor-{}", unique_id).as_str())
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Name: ");
@@ -105,14 +105,9 @@ impl UIComponent for ManagedSensorConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new(&self.name)
-            .id_source(format!("managed-sensor-{}", unique_id).as_str())
+            .id_salt(format!("managed-sensor-{}", unique_id).as_str())
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Name: {}", self.name));
@@ -125,11 +120,7 @@ impl UIComponent for ManagedSensorConfig {
                     }
                 });
 
-                self.config.show(
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                self.config.show(ui, ctx, unique_id);
             });
     }
 }
@@ -163,7 +154,7 @@ impl UIComponent for SensorManagerConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Sensor Manager")
-            .id_source(format!("sensor-manager-{}", unique_id))
+            .id_salt(format!("sensor-manager-{}", unique_id))
             .show(ui, |ui| {
                 let mut sensor_to_remove = None;
                 for (i, sensor) in self.sensors.iter_mut().enumerate() {
@@ -191,23 +182,14 @@ impl UIComponent for SensorManagerConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Sensor Manager")
-            .id_source(format!("sensor-manager-{}", unique_id))
+            .id_salt(format!("sensor-manager-{}", unique_id))
             .show(ui, |ui| {
                 for sensor in &self.sensors {
                     let sensor_unique_id = format!("{}-{}", unique_id, &sensor.name);
                     ui.horizontal_top(|ui| {
-                        sensor.show(
-                            ui,
-                            ctx,
-                            &sensor_unique_id,
-                        );
+                        sensor.show(ui, ctx, &sensor_unique_id);
                     });
                 }
             });
@@ -225,12 +207,7 @@ pub struct SensorManagerRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for SensorManagerRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Sensors").show(ui, |ui| {
             for s in &self.sensors {
                 egui::CollapsingHeader::new(&s.name).show(ui, |ui| {
@@ -276,6 +253,7 @@ pub struct SensorManager {
     sensors: Vec<ManagedSensor>,
     next_time: Option<f32>,
     last_observations: Vec<ObservationRecord>,
+    local_observations: Vec<Observation>,
     received_observations: Vec<Observation>,
 }
 
@@ -287,6 +265,7 @@ impl SensorManager {
             next_time: None,
             last_observations: Vec::new(),
             received_observations: Vec::new(),
+            local_observations: Vec::new(),
         }
     }
 
@@ -363,8 +342,24 @@ impl SensorManager {
     }
 
     /// Get the observations at the given `time`.
-    pub fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<Observation> {
-        let mut observations = Vec::<Observation>::new();
+    pub fn get_observations(&mut self) -> Vec<Observation> {
+        let mut observations = Vec::new();
+        observations.extend(self.local_observations.drain(0..));
+        observations.extend(self.received_observations.drain(0..));
+        let mut min_next_time = None;
+        for sensor in &mut self.sensors {
+            min_next_time = Some(
+                min_next_time
+                    .unwrap_or(f32::INFINITY)
+                    .min(sensor.sensor.read().unwrap().next_time_step()),
+            );
+        }
+        self.next_time = min_next_time;
+        observations
+    }
+
+    pub fn make_observations(&mut self, node: &mut Node, time: f32) {
+        self.local_observations.clear();
         let mut min_next_time = None;
         let mut obs_to_send = BTreeMap::new();
         for sensor in &mut self.sensors {
@@ -392,7 +387,7 @@ impl SensorManager {
                         .extend(sensor_observations.clone());
                 }
             }
-            observations.extend(sensor_observations);
+            self.local_observations.extend(sensor_observations);
             min_next_time = Some(
                 min_next_time
                     .unwrap_or(f32::INFINITY)
@@ -414,10 +409,7 @@ impl SensorManager {
                 }
             }
         }
-        observations.extend(self.received_observations.drain(0..));
         self.next_time = min_next_time;
-        self.last_observations = observations.iter().map(|obs| obs.record()).collect();
-        observations
     }
 
     /// Get the time of the next observation.
@@ -426,7 +418,7 @@ impl SensorManager {
     }
 }
 
-impl Stateful<SensorManagerRecord> for SensorManager {
+impl Recordable<SensorManagerRecord> for SensorManager {
     fn record(&self) -> SensorManagerRecord {
         let mut record = SensorManagerRecord {
             next_time: self.next_time,
@@ -445,27 +437,6 @@ impl Stateful<SensorManagerRecord> for SensorManager {
             });
         }
         record
-    }
-
-    fn from_record(&mut self, record: SensorManagerRecord) {
-        self.next_time = record.next_time;
-        self.received_observations = record
-            .received_observations
-            .into_iter()
-            .map(|o| {
-                let mut obs = Observation::new();
-                obs.from_record(o);
-                obs
-            })
-            .collect();
-        for (i, sensor) in self.sensors.iter_mut().enumerate() {
-            sensor.name = record.sensors[i].name.clone();
-            sensor
-                .sensor
-                .write()
-                .unwrap()
-                .from_record(record.sensors[i].record.clone())
-        }
     }
 }
 

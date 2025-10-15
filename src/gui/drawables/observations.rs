@@ -1,4 +1,4 @@
-use egui::{Color32, Painter, Rect, Response, Shape, Stroke, Vec2};
+use egui::{Color32, Rect, Shape, Stroke, Vec2};
 use nalgebra::{Rotation2, Vector2, Vector3};
 
 use crate::{

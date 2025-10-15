@@ -24,7 +24,7 @@ pub struct ExponentialRandomVariableConfig {
 impl Default for ExponentialRandomVariableConfig {
     fn default() -> Self {
         Self {
-            unique_seed: 0.,
+            unique_seed: random(),
             lambda: vec![1.],
         }
     }
@@ -66,12 +66,7 @@ impl UIComponent for ExponentialRandomVariableConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 for (i, p) in self.lambda.iter().enumerate() {

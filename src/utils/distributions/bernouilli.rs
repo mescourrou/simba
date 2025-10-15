@@ -49,7 +49,7 @@ impl UIComponent for BernouilliRandomVariableConfig {
                         ui.label(format!("p {}:", i + 1));
                         ui.add(
                             egui::DragValue::new(p)
-                                .clamp_range(0.0..=1.0)
+                                .range(0.0..=1.0)
                                 .max_decimals(10),
                         );
                         if ui.button("X").clicked() {
@@ -69,12 +69,7 @@ impl UIComponent for BernouilliRandomVariableConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 for (i, p) in self.probability.iter().enumerate() {

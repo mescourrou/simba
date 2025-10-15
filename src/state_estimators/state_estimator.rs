@@ -64,12 +64,7 @@ impl UIComponent for StateConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        _unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.horizontal(|ui| {
             ui.label(format!("x: {}", self.pose.get(0).unwrap()));
         });
@@ -105,14 +100,12 @@ impl Default for StateRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for StateRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
-            ui.label(format!("pose: ({}, {}, {})", self.pose[0], self.pose[1], self.pose[2]));
+            ui.label(format!(
+                "pose: ({}, {}, {})",
+                self.pose[0], self.pose[1], self.pose[2]
+            ));
             ui.label(format!("velocity: {}", self.velocity));
         });
     }
@@ -172,7 +165,7 @@ impl State {
     }
 }
 
-impl Stateful<StateRecord> for State {
+impl Recordable<StateRecord> for State {
     fn record(&self) -> StateRecord {
         StateRecord {
             pose: {
@@ -186,15 +179,6 @@ impl Stateful<StateRecord> for State {
                 ve
             },
             velocity: self.velocity,
-        }
-    }
-
-    fn from_record(&mut self, record: StateRecord) {
-        self.velocity = record.velocity;
-        let mut i: usize = 0;
-        for coord in &record.pose {
-            self.pose[i] = *coord;
-            i += 1;
         }
     }
 }
@@ -234,12 +218,7 @@ impl Default for WorldStateRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for WorldStateRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             if let Some(s) = &self.ego {
                 egui::CollapsingHeader::new("Ego").show(ui, |ui| {
@@ -290,7 +269,7 @@ impl WorldState {
     }
 }
 
-impl Stateful<WorldStateRecord> for WorldState {
+impl Recordable<WorldStateRecord> for WorldState {
     fn record(&self) -> WorldStateRecord {
         WorldStateRecord {
             ego: match &self.ego {
@@ -308,33 +287,6 @@ impl Stateful<WorldStateRecord> for WorldState {
             occupancy_grid: self.occupancy_grid.clone(),
         }
     }
-
-    fn from_record(&mut self, record: WorldStateRecord) {
-        match record.ego {
-            Some(s) => {
-                if self.ego.is_none() {
-                    self.ego = Some(State::new());
-                }
-                self.ego.as_mut().unwrap().from_record(s);
-            }
-            None => {
-                self.ego = None;
-            }
-        }
-        self.landmarks = BTreeMap::from_iter(record.landmarks.iter().map(|(id, s)| {
-            let mut state = State::new();
-            state.from_record(s.clone());
-            (id.clone(), state)
-        }));
-
-        self.objects = BTreeMap::from_iter(record.objects.iter().map(|(id, s)| {
-            let mut state = State::new();
-            state.from_record(s.clone());
-            (id.clone(), state)
-        }));
-
-        self.occupancy_grid = record.occupancy_grid.clone();
-    }
 }
 
 use super::perfect_estimator::PerfectEstimatorConfig;
@@ -346,8 +298,9 @@ use crate::gui::{
     UIComponent,
 };
 use crate::node::Node;
+use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
+use crate::state_estimators::python_estimator;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
@@ -371,6 +324,7 @@ use std::sync::{Arc, RwLock};
 pub enum StateEstimatorConfig {
     Perfect(perfect_estimator::PerfectEstimatorConfig),
     External(external_estimator::ExternalEstimatorConfig),
+    Python(python_estimator::PythonEstimatorConfig),
 }
 
 #[cfg(feature = "gui")]
@@ -409,6 +363,11 @@ impl UIComponent for StateEstimatorConfig {
                         external_estimator::ExternalEstimatorConfig::default(),
                     )
                 }
+                "Python" => {
+                    *self = StateEstimatorConfig::Python(
+                        python_estimator::PythonEstimatorConfig::default(),
+                    )
+                }
                 _ => panic!("Where did you find this value?"),
             };
         }
@@ -429,29 +388,25 @@ impl UIComponent for StateEstimatorConfig {
                 current_node_name,
                 unique_id,
             ),
+            StateEstimatorConfig::Python(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
         }
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.horizontal(|ui| {
             ui.label(format!("State Estimator: {}", self.to_string()));
         });
         match self {
-            StateEstimatorConfig::Perfect(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            StateEstimatorConfig::External(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
+            StateEstimatorConfig::Perfect(c) => c.show(ui, ctx, unique_id),
+            StateEstimatorConfig::External(c) => c.show(ui, ctx, unique_id),
+            StateEstimatorConfig::Python(c) => c.show(ui, ctx, unique_id),
         }
     }
 }
@@ -461,29 +416,27 @@ impl UIComponent for StateEstimatorConfig {
 pub enum StateEstimatorRecord {
     Perfect(perfect_estimator::PerfectEstimatorRecord),
     External(external_estimator::ExternalEstimatorRecord),
+    Python(python_estimator::PythonEstimatorRecord),
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for StateEstimatorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
-        ui.vertical(|ui| {
-            match self {
-                Self::Perfect(r) => {
-                    egui::CollapsingHeader::new("Perfect").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::External(r) => {
-                    egui::CollapsingHeader::new("ExternalStateEstimator").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+        ui.vertical(|ui| match self {
+            Self::Perfect(r) => {
+                egui::CollapsingHeader::new("Perfect").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::External(r) => {
+                egui::CollapsingHeader::new("ExternalStateEstimator").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::Python(r) => {
+                egui::CollapsingHeader::new("PythonExternalStateEstimator").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
             }
         });
     }
@@ -515,13 +468,22 @@ pub fn make_state_estimator_from_config(
                 va_factory,
             )) as Box<dyn StateEstimator>
         }
+        StateEstimatorConfig::Python(c) => Box::new(
+            python_estimator::PythonEstimator::from_config(
+                c,
+                plugin_api,
+                global_config,
+                va_factory,
+            )
+            .unwrap(),
+        ) as Box<dyn StateEstimator>,
     };
 }
 
 use crate::sensors::sensor::Observation;
 
 pub trait StateEstimator:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<StateEstimatorRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<StateEstimatorRecord>
 {
     /// Prediction step of the state estimator.
     ///
@@ -607,11 +569,7 @@ impl CentralStateEstimator {
     }
 }
 
-impl Stateful<CentralStateEstimatorRecord> for CentralStateEstimator {
-    fn from_record(&mut self, record: CentralStateEstimatorRecord) {
-        self.estimator.from_record(record.estimator);
-    }
-
+impl Recordable<CentralStateEstimatorRecord> for CentralStateEstimator {
     fn record(&self) -> CentralStateEstimatorRecord {
         CentralStateEstimatorRecord {
             name: self.name.clone(),
@@ -673,25 +631,15 @@ impl UIComponent for BenchStateEstimatorConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("Name: {}", self.name));
             });
 
-            self.config.show(
-                ui,
-                ctx,
-                unique_id,
-            );
+            self.config.show(ui, ctx, unique_id);
         });
     }
-
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

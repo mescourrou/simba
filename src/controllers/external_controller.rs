@@ -22,8 +22,8 @@ use serde_json::Value;
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::physics::physics::Command;
+use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -83,12 +83,7 @@ impl UIComponent for ExternalControllerConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         egui::CollapsingHeader::new("External Controller").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.label("Config (JSON):");
@@ -104,7 +99,7 @@ impl UIComponent for ExternalControllerConfig {
 /// to take every record.
 ///
 /// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
+/// in [`Stateful::record`] implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct ExternalControllerRecord {
@@ -123,16 +118,10 @@ impl Default for ExternalControllerRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ExternalControllerRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(self.record.to_string());
     }
 }
-
 
 #[pymethods]
 impl ExternalControllerRecord {
@@ -200,12 +189,8 @@ impl Controller for ExternalController {
     }
 }
 
-impl Stateful<ControllerRecord> for ExternalController {
+impl Recordable<ControllerRecord> for ExternalController {
     fn record(&self) -> ControllerRecord {
         self.controller.record()
-    }
-
-    fn from_record(&mut self, record: ControllerRecord) {
-        self.controller.from_record(record);
     }
 }

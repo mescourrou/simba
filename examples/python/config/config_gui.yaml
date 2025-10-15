@@ -14,22 +14,18 @@ max_time: 60.
 
 robots:
   - name: "robot1"
-    navigator:
-      TrajectoryFollower:
-        trajectory_path: "paths/path1.yaml"
-        target_speed: 0.5
-        forward_distance: 0.2
-    controller:
-      External:
-        config:
-          speed: 5
+    navigator: !TrajectoryFollower
+      trajectory_path: "paths/path1.yaml"
+      target_speed: 0.5
+      forward_distance: 0.2
+    controller: !External
+      config:
+        speed: 5
   - name: "robot2"
-    navigator:
-      TrajectoryFollower:
-        trajectory_path: "paths/path1.yaml"
-        target_speed: 0.5
-        forward_distance: 0.2
-    controller:
-      PID:
-        kp_v: 1.0
-        kp_theta: 6.0
+    navigator: !TrajectoryFollower
+      trajectory_path: "paths/path1.yaml"
+      target_speed: 0.5
+      forward_distance: 0.2
+    controller: !PID
+      kp_v: 1.0
+      kp_theta: 6.0

@@ -13,8 +13,8 @@ use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
+use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
@@ -57,7 +57,7 @@ impl UIComponent for GNSSSensorConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("GNSS sensor")
-            .id_source(format!("gnss-sensor-{}", unique_id))
+            .id_salt(format!("gnss-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
@@ -82,25 +82,15 @@ impl UIComponent for GNSSSensorConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("GNSS sensor")
-            .id_source(format!("gnss-sensor-{}", unique_id))
+            .id_salt(format!("gnss-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Period: {}", self.period));
                 });
 
-                FaultModelConfig::show_faults(
-                    &self.faults,
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
     }
 }
@@ -117,15 +107,9 @@ impl Default for GNSSSensorRecord {
     }
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for GNSSSensorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(format!("Last time: {}", self.last_time));
     }
 }
@@ -145,30 +129,26 @@ pub struct GNSSObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for GNSSObservationRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
-            ui.label(format!("Position: ({}, {})", self.position[0], self.position[1]));
-            ui.label(format!("Velocity: ({}, {})", self.velocity[0], self.velocity[1]));
+            ui.label(format!(
+                "Position: ({}, {})",
+                self.position[0], self.position[1]
+            ));
+            ui.label(format!(
+                "Velocity: ({}, {})",
+                self.velocity[0], self.velocity[1]
+            ));
         });
     }
 }
 
-impl Stateful<GNSSObservationRecord> for GNSSObservation {
+impl Recordable<GNSSObservationRecord> for GNSSObservation {
     fn record(&self) -> GNSSObservationRecord {
         GNSSObservationRecord {
             position: [self.position.x, self.position.y],
             velocity: [self.velocity.x, self.velocity.y],
         }
-    }
-
-    fn from_record(&mut self, record: GNSSObservationRecord) {
-        self.position = Vector2::from_vec(record.position.to_vec());
-        self.velocity = Vector2::from_vec(record.velocity.to_vec());
     }
 }
 
@@ -269,16 +249,10 @@ impl Sensor for GNSSSensor {
     }
 }
 
-impl Stateful<SensorRecord> for GNSSSensor {
+impl Recordable<SensorRecord> for GNSSSensor {
     fn record(&self) -> SensorRecord {
         SensorRecord::GNSSSensor(GNSSSensorRecord {
             last_time: self.last_time,
         })
-    }
-
-    fn from_record(&mut self, record: SensorRecord) {
-        if let SensorRecord::GNSSSensor(gnss_record) = record {
-            self.last_time = gnss_record.last_time;
-        }
     }
 }

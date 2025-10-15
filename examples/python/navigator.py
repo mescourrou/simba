@@ -20,10 +20,6 @@ class Navigator(simba.Navigator):
         print("This is record from python!")
         return json.dumps({})
 
-    def from_record(self, record: str):
-        record = json.loads(record)
-        print(f"Receiving record: {record}")
-
     def compute_error(self, world_state: simba.WorldState) -> simba.ControllerError:
         error = simba.ControllerError()
         v = world_state.ego.velocity

@@ -10,5 +10,6 @@ pub mod trajectory;
 pub mod trajectory_follower;
 
 pub mod external_navigator;
+pub mod python_navigator;
 
 pub mod pybinds;

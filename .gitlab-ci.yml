@@ -16,13 +16,13 @@ build_rust:
   image: gitlab.laas.fr:4567/mescourrou/simba:latest
   script:
     # - cargo build --verbose
-    - cargo build --all-features --verbose --release
+    # - cargo build --all-features --verbose --release
+    - cargo build --release --manifest-path cmdline/Cargo.toml
     # - cargo test --verbose
   artifacts:
     when: on_success
     paths:
-      - target/release/*.d
-      - target/release/*.rlib
+      - cmdline/target/release/simba_cmd
   
 build_python:
   rules:
@@ -76,6 +76,7 @@ upload:
   script:
       # - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file target/release/*.rlib ${PACKAGE_REGISTRY_URL}/simba-rust-${CI_COMMIT_TAG}.rlib'
       - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file target/wheels/*.whl ${PACKAGE_REGISTRY_URL}/'
+      - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file cmdline/target/release/simba_cmd ${PACKAGE_REGISTRY_URL}/'
 
 
 release_job:
@@ -90,7 +91,7 @@ release_job:
     description: '$CI_COMMIT_TAG'
     assets:
       links:
-        - name: Rust lib
-          url: "${PACKAGE_REGISTRY_URL}/simba-rust-${CI_COMMIT_TAG}.rlib"
         - name: Python package
-          url: "${PACKAGE_REGISTRY_URL}/simba-python-${CI_COMMIT_TAG}.whl"
+          url: "${PACKAGE_REGISTRY_URL}/simba-${CI_COMMIT_TAG}-cp310-abi3-manylinux_2_35_x86_64.whl"
+        - name: Binary
+          url: "${PACKAGE_REGISTRY_URL}/simba_cmd"

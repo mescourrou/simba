@@ -64,7 +64,9 @@ impl NetworkManager {
             let from_node = mpsc::channel();
             self.nodes_senders.insert(node_name.clone(), to_node.0);
             self.nodes_receivers.insert(node_name.clone(), from_node.1);
-
+            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                debug!("Add node `{node_name}` to senders and receivers");
+            }
             network
                 .write()
                 .unwrap()
@@ -116,6 +118,8 @@ impl NetworkManager {
     ) -> SimbaResult<()> {
         let mut message_sent = false;
 
+        let _lk = self.time_cv.waiting.lock().unwrap();
+
         // Keep the lock for all the processing, otherwise nodes can think that all messages are treated between the decrease and the increase of the counter
         let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
         for (node_name, receiver) in self.nodes_receivers.iter() {
@@ -135,15 +139,24 @@ impl NetworkManager {
                             if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                                 debug!("Receiving message from `{node_name}` for `{r}`... Sending");
                             }
-                            *circulating_messages += 1;
-                            self.nodes_senders
-                                .get(r)
-                                .ok_or(SimbaError::new(
-                                    SimbaErrorTypes::NetworkError,
-                                    format!("Unknown recipient node {r}"),
-                                ))?
-                                .send(msg)
-                                .unwrap();
+                            match self.nodes_senders.get(r) {
+                                Some(sender) => {
+                                    *circulating_messages += 1;
+                                    sender.send(msg).unwrap();
+                                }
+                                None => {
+                                    if message_sent {
+                                        self.time_cv.condvar.notify_all();
+                                        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                                            debug!("Notify CV");
+                                        }
+                                    }
+                                    return Err(SimbaError::new(
+                                        SimbaErrorTypes::NetworkError,
+                                        format!("Unknown recipient node `{r}`"),
+                                    ));
+                                }
+                            }
                             message_sent = true;
                         } else {
                             if is_enabled(crate::logger::InternalLog::NetworkMessages) {
@@ -176,20 +189,11 @@ impl NetworkManager {
                 }
             }
         }
-        std::mem::drop(circulating_messages);
         if message_sent {
-            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                debug!("Wait for CV lock");
-            }
-            let lk = self.time_cv.finished_nodes.lock().unwrap();
-            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                debug!("Got CV lock");
-            }
             self.time_cv.condvar.notify_all();
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                debug!("Release CV lock");
+                debug!("Notify CV");
             }
-            std::mem::drop(lk);
         }
         Ok(())
     }

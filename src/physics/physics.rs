@@ -25,12 +25,7 @@ pub struct Command {
 
 #[cfg(feature = "gui")]
 impl UIComponent for Command {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
             ui.label(format!("Left wheel speed: {}", self.left_wheel_speed));
             ui.label(format!("Right wheel speed: {}", self.right_wheel_speed));
@@ -44,8 +39,9 @@ use super::{external_physics, perfect_physics};
 #[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
 #[serde(deny_unknown_fields)]
 pub enum PhysicsConfig {
-    Perfect(Box<perfect_physics::PerfectsPhysicConfig>),
-    External(Box<external_physics::ExternalPhysicsConfig>),
+    Perfect(perfect_physics::PerfectsPhysicConfig),
+    External(external_physics::ExternalPhysicsConfig),
+    Python(python_physics::PythonPhysicsConfig),
 }
 
 #[cfg(feature = "gui")]
@@ -75,14 +71,14 @@ impl UIComponent for PhysicsConfig {
         if current_str != self.to_string() {
             match current_str.as_str() {
                 "Perfect" => {
-                    *self = PhysicsConfig::Perfect(Box::new(
-                        perfect_physics::PerfectsPhysicConfig::default(),
-                    ))
+                    *self = PhysicsConfig::Perfect(perfect_physics::PerfectsPhysicConfig::default())
                 }
                 "External" => {
-                    *self = PhysicsConfig::External(Box::new(
-                        external_physics::ExternalPhysicsConfig::default(),
-                    ))
+                    *self =
+                        PhysicsConfig::External(external_physics::ExternalPhysicsConfig::default())
+                }
+                "Python" => {
+                    *self = PhysicsConfig::Python(python_physics::PythonPhysicsConfig::default())
                 }
                 _ => panic!("Where did you find this value?"),
             };
@@ -104,30 +100,25 @@ impl UIComponent for PhysicsConfig {
                 current_node_name,
                 unique_id,
             ),
+            PhysicsConfig::Python(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
         }
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.horizontal(|ui| {
             ui.label(format!("Physics: {}", self.to_string()));
-
         });
         match self {
-            PhysicsConfig::Perfect(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            PhysicsConfig::External(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
+            PhysicsConfig::Perfect(c) => c.show(ui, ctx, unique_id),
+            PhysicsConfig::External(c) => c.show(ui, ctx, unique_id),
+            PhysicsConfig::Python(c) => c.show(ui, ctx, unique_id),
         }
     }
 }
@@ -137,12 +128,14 @@ impl UIComponent for PhysicsConfig {
 pub enum PhysicsRecord {
     Perfect(perfect_physics::PerfectPhysicsRecord),
     External(external_physics::ExternalPhysicsRecord),
+    Python(python_physics::PythonPhysicsRecord),
 }
 
 impl PhysicsRecord {
     pub fn pose(&self) -> [f32; 3] {
         match self {
             Self::External(_) => [0., 0., 0.], // TODO: Find a way to get info from external record
+            Self::Python(_) => [0., 0., 0.],   // TODO: Find a way to get info from external record
             Self::Perfect(p) => p.state.pose.into(),
         }
     }
@@ -150,30 +143,26 @@ impl PhysicsRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PhysicsRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
-        ui.vertical(|ui| {
-            match self {
-                Self::Perfect(r) => {
-                    egui::CollapsingHeader::new("Perfect").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::External(r) => {
-                    egui::CollapsingHeader::new("ExternalPhysics").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+        ui.vertical(|ui| match self {
+            Self::Perfect(r) => {
+                egui::CollapsingHeader::new("Perfect").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::External(r) => {
+                egui::CollapsingHeader::new("ExternalPhysics").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::Python(r) => {
+                egui::CollapsingHeader::new("ExternalPythonPhysics").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
             }
         });
     }
 }
-
 
 #[cfg(feature = "gui")]
 use crate::{
@@ -181,8 +170,8 @@ use crate::{
     utils::enum_tools::ToVec,
 };
 use crate::{
-    networking::service::HasService, plugin_api::PluginAPI, simulator::SimulatorConfig,
-    state_estimators::state_estimator::State, stateful::Stateful,
+    networking::service::HasService, physics::python_physics, plugin_api::PluginAPI,
+    recordable::Recordable, simulator::SimulatorConfig, state_estimators::state_estimator::State,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
@@ -202,7 +191,7 @@ pub trait Physics:
     std::fmt::Debug
     + std::marker::Send
     + std::marker::Sync
-    + Stateful<PhysicsRecord>
+    + Recordable<PhysicsRecord>
     + HasService<GetRealStateReq, GetRealStateResp>
 {
     /// Apply the given `command` to the internal state from the last update time
@@ -217,7 +206,7 @@ pub trait Physics:
     fn update_state(&mut self, time: f32);
 
     /// Get the current real state, the groundtruth.
-    fn state(&self, time: f32) -> &State;
+    fn state(&self, time: f32) -> State;
 }
 
 /// Helper function to create a physics from the given configuration.
@@ -247,5 +236,9 @@ pub fn make_physics_from_config(
             global_config,
             va_factory,
         )),
+        PhysicsConfig::Python(c) => Box::new(
+            python_physics::PythonPhysics::from_config(c, plugin_api, global_config, va_factory)
+                .unwrap(),
+        ),
     }))
 }

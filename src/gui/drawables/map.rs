@@ -1,6 +1,6 @@
 use std::{path::Path, sync::Mutex};
 
-use egui::{Color32, Painter, Rect, Response, Shape, Stroke, Vec2};
+use egui::{Color32, Rect, Shape, Stroke, Vec2};
 
 use crate::{
     gui::app::PainterInfo,

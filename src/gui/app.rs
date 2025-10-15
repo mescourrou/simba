@@ -1,14 +1,21 @@
 use std::{
     collections::BTreeMap,
+    path::Path,
     sync::{Arc, Mutex},
     time::{self, Duration},
 };
 
-use egui::{Align2, Color32, Id, Painter, Pos2, Rect, Response, Sense, Shape, Vec2};
+use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner}, constants::TIME_ROUND_DECIMALS, errors::SimbaError, gui::UIComponent, node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimulatorConfig}
+    api::async_api::{AsyncApi, AsyncApiRunner},
+    constants::TIME_ROUND_DECIMALS,
+    errors::SimbaError,
+    gui::UIComponent,
+    node_factory::NodeRecord,
+    plugin_api::PluginAPI,
+    simulator::{Record, SimulatorConfig},
 };
 
 use super::{
@@ -93,7 +100,12 @@ impl PainterInfo {
         }
     }
 
-    pub fn is_position_clicked(&self, response_click: Option<Pos2>, scale: f32, position: Vec2) -> bool {
+    pub fn is_position_clicked(
+        &self,
+        response_click: Option<Pos2>,
+        scale: f32,
+        position: Vec2,
+    ) -> bool {
         if let Some(click_pos) = response_click {
             let position = self.zero(scale) + position * scale;
             let dist = (click_pos - position).length();
@@ -102,7 +114,6 @@ impl PainterInfo {
             }
         }
         return false;
-
     }
 }
 
@@ -175,6 +186,7 @@ impl SimbaApp {
     /// Called once before the first frame.
     pub fn new(
         cc: &eframe::CreationContext<'_>,
+        default_config_path: Option<Box<&'static Path>>,
         plugin_api: Option<Box<&'static dyn PluginAPI>>,
     ) -> Self {
         // This is also where you can customize the look and feel of egui using
@@ -184,35 +196,53 @@ impl SimbaApp {
         // // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
             if let Some(app) = eframe::get_value::<SimbaApp>(storage, eframe::APP_KEY) {
-                app.update_api(plugin_api)
+                app.update_api(default_config_path, plugin_api)
             } else {
-                Self::new_full(plugin_api)
+                Self::new_full(default_config_path, plugin_api)
             }
         } else {
-            Self::new_full(plugin_api)
+            Self::new_full(default_config_path, plugin_api)
         }
     }
 
-    fn new_full(plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
+    fn new_full(
+        default_config_path: Option<Box<&'static Path>>,
+        plugin_api: Option<Box<&'static dyn PluginAPI>>,
+    ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = server.lock().unwrap().get_api();
         server.lock().unwrap().run(plugin_api);
-        Self {
+        let mut n = Self {
             p: PrivateParams {
                 server,
                 api,
                 ..Default::default()
             },
             ..Default::default()
+        };
+        if let Some(config) = default_config_path {
+            n.config_path = config.to_str().unwrap().to_string();
+            n.p.config = None;
+            n.p.api.load_config.async_call(n.config_path.clone());
         }
+        n
     }
 
-    fn update_api(mut self, plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
+    fn update_api(
+        mut self,
+        default_config_path: Option<Box<&'static Path>>,
+        plugin_api: Option<Box<&'static dyn PluginAPI>>,
+    ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = server.lock().unwrap().get_api();
         server.lock().unwrap().run(plugin_api);
         self.p.server = server;
         self.p.api = api;
+        if let Some(config) = default_config_path {
+            self.config_path = config.to_str().unwrap().to_string();
+            self.p.config = None;
+            self.p.api.load_config.async_call(self.config_path.clone());
+        }
         self
     }
 
@@ -247,7 +277,13 @@ impl SimbaApp {
         Ok(shapes)
     }
 
-    fn react(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, viewport: Rect, response: &Response) {
+    fn react(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        _viewport: Rect,
+        response: &Response,
+    ) {
         for (_, robot) in &mut self.p.robots {
             robot.react(
                 ui,
@@ -283,7 +319,7 @@ impl eframe::App for SimbaApp {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
 
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
                 // NOTE: no File->Quit on web pages!
                 let is_web = cfg!(target_arch = "wasm32");
                 if !is_web {
@@ -296,7 +332,7 @@ impl eframe::App for SimbaApp {
                     ui.add_space(16.0);
                 }
 
-                egui::widgets::global_dark_light_mode_buttons(ui);
+                egui::widgets::global_theme_preference_switch(ui);
             });
             ui.heading("SiMBA: Simulator for Multi-Robot Backend Algorithms");
 
@@ -368,14 +404,7 @@ impl eframe::App for SimbaApp {
                             self.p.error_buffer.push((time::Instant::now(), e));
                         }
                     }
-                    let mut max_simulated_time = 0.;
-                    for (_, time) in self.p.api.simulator_api.current_time.lock().unwrap().iter() {
-                        if max_simulated_time == 0. {
-                            max_simulated_time = *time;
-                        } else {
-                            max_simulated_time = max_simulated_time.min(*time);
-                        }
-                    }
+                    let max_simulated_time = *self.p.api.simulator_api.current_time.lock().unwrap();
                     let play_pause_btn = if self.p.playing.is_none() {
                         egui::Button::new("Play ")
                     } else {
@@ -403,10 +432,10 @@ impl eframe::App for SimbaApp {
                     if self.p.current_draw_time > max_simulated_time || self.follow_sim_time {
                         self.p.current_draw_time = max_simulated_time;
                     }
-                    ui.add(egui::Slider::new(
-                        &mut self.p.current_draw_time,
-                        0.0..=self.duration,
-                    ).fixed_decimals(TIME_ROUND_DECIMALS));
+                    ui.add(
+                        egui::Slider::new(&mut self.p.current_draw_time, 0.0..=self.duration)
+                            .fixed_decimals(TIME_ROUND_DECIMALS),
+                    );
                     ui.add(egui::Checkbox::new(&mut self.follow_sim_time, "Follow"));
                     if ui
                         .add_enabled(self.p.config.is_some(), egui::Button::new("Results"))
@@ -442,7 +471,7 @@ impl eframe::App for SimbaApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both()
                 .auto_shrink([false; 2])
-                .drag_to_scroll(true)
+                .scroll_source(egui::scroll_area::ScrollSource { scroll_bar: true, drag: true, mouse_wheel: true })
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
                 .show_viewport(ui, |ui, viewport| {
                     let mut shapes = Vec::new();
@@ -450,7 +479,7 @@ impl eframe::App for SimbaApp {
                         let rect = self.p.painter_info.rect_painter(self.drawing_scale);
 
                         // Draw grid
-                        shapes.push(Shape::rect_stroke(rect, 0.0, (1.0, Color32::LIGHT_GRAY)));
+                        shapes.push(Shape::rect_stroke(rect, 0.0, (1.0, Color32::LIGHT_GRAY), egui::StrokeKind::Middle));
                         let x_min = rect.left(); //.max(viewport.left());
                         let x_max = rect.right(); //.min(viewport.right());
                         let y_min = rect.top(); //.max(viewport.top());

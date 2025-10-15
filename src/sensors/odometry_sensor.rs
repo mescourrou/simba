@@ -14,10 +14,11 @@ use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
+use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
-use crate::stateful::Stateful;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
@@ -57,7 +58,7 @@ impl UIComponent for OdometrySensorConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Odometry sensor")
-            .id_source(format!("odometry-sensor-{}", unique_id))
+            .id_salt(format!("odometry-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
@@ -79,25 +80,15 @@ impl UIComponent for OdometrySensorConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Odometry sensor")
-            .id_source(format!("odometry-sensor-{}", unique_id))
+            .id_salt(format!("odometry-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Period: {}", self.period));
                 });
 
-                FaultModelConfig::show_faults(
-                    &self.faults,
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
     }
 }
@@ -118,15 +109,9 @@ impl Default for OdometrySensorRecord {
     }
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for OdometrySensorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.label(format!("Last time: {}", self.last_time));
         ui.label("Last state: ");
         self.last_state.show(ui, ctx, unique_id);
@@ -140,17 +125,12 @@ pub struct OdometryObservation {
     pub angular_velocity: f32,
 }
 
-impl Stateful<OdometryObservationRecord> for OdometryObservation {
+impl Recordable<OdometryObservationRecord> for OdometryObservation {
     fn record(&self) -> OdometryObservationRecord {
         OdometryObservationRecord {
             linear_velocity: self.linear_velocity,
             angular_velocity: self.angular_velocity,
         }
-    }
-
-    fn from_record(&mut self, record: OdometryObservationRecord) {
-        self.linear_velocity = record.linear_velocity;
-        self.angular_velocity = record.angular_velocity;
     }
 }
 
@@ -162,12 +142,7 @@ pub struct OdometryObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OdometryObservationRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
             ui.label(format!("Linear velocity: {}", self.linear_velocity));
             ui.label(format!("Angular velocity: {}", self.angular_velocity));
@@ -255,7 +230,7 @@ impl Sensor for OdometrySensor {
 
         observation_list.push(SensorObservation::Odometry(OdometryObservation {
             linear_velocity: state.velocity,
-            angular_velocity: (state.pose.z - self.last_state.pose.z) / dt,
+            angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
         }));
         for fault_model in self.faults.lock().unwrap().iter() {
             fault_model.add_faults(
@@ -280,18 +255,11 @@ impl Sensor for OdometrySensor {
     }
 }
 
-impl Stateful<SensorRecord> for OdometrySensor {
+impl Recordable<SensorRecord> for OdometrySensor {
     fn record(&self) -> SensorRecord {
         SensorRecord::OdometrySensor(OdometrySensorRecord {
             last_time: self.last_time,
             last_state: self.last_state.record(),
         })
-    }
-
-    fn from_record(&mut self, record: SensorRecord) {
-        if let SensorRecord::OdometrySensor(odometry_record) = record {
-            self.last_time = odometry_record.last_time;
-            self.last_state.from_record(odometry_record.last_state);
-        }
     }
 }

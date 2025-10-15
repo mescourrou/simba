@@ -68,20 +68,11 @@ impl UIComponent for MisdetectionFaultConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Apparition probability: ");
-                self.apparition.show(
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                self.apparition.show(ui, ctx, unique_id);
             });
         });
     }

@@ -1,7 +1,7 @@
 # Physics
 Physics apply the command computed by the Controller to the simulated robot.
 
-The minimal code is composed of a struct which implements the `Physics` trait, the `Stateful<PhysicsRecord>` trait and the `HasService<GetRealStateReq, GetRealStateResp>`.
+The minimal code is composed of a struct which implements the `Physics` trait, the `Recordable<PhysicsRecord>` trait and the `HasService<GetRealStateReq, GetRealStateResp>`.
 The `Physics` trait has multiple functions and internal attributes should exist (at least for the state, where a reference is given):
 ```Rust
 fn apply_command(&mut self, command: &Command, time: f32);
@@ -11,11 +11,9 @@ fn update_state(&mut self, time: f32);
 fn state(&self, time: f32) -> &State;
 ```
 
-The `Stateful<PhysicsRecord>` has to be implemented, but it can be as minimal as below if no record is needed:
+The `Recordable<PhysicsRecord>` has to be implemented, but it can be as minimal as below if no record is needed:
 ```Rust
-impl Stateful<PhysicsRecord> for MyWonderfulController {
-    fn from_record(&mut self, record: PhysicsRecord) { }
-
+impl Recordable<PhysicsRecord> for MyWonderfulController {
     fn record(&self) -> PhysicsRecord {}
 }
 ```
@@ -77,16 +75,7 @@ impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
     }
 }
 
-impl Stateful<PhysicsRecord> for MyWonderfulPhysics {
-    fn from_record(&mut self, record: PhysicsRecord) {
-        let _my_record: MyWonderfulNavigatorRecord = match record {
-            PhysicsRecord::External(r) => serde_json::from_value(r.record).unwrap(),
-            _ => {
-                panic!("Bad record");
-            }
-        };
-    }
-
+impl Recordable<PhysicsRecord> for MyWonderfulPhysics {
     fn record(&self) -> PhysicsRecord {
         PhysicsRecord::External(ExternalPhysicsRecord {
             record: serde_json::to_value(MyWonderfulNavigatorRecord {}).unwrap(),

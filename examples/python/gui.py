@@ -16,11 +16,6 @@ class Controller(simba.Controller):
         return json.dumps({
             "last_time": self.last_time})
 
-    def from_record(self, record: str):
-        record = json.loads(record)
-        print(f"Receiving record: {record}")
-        self.last_time = record["last_time"]
-
     def make_command(self, error, time) -> simba.Command:
         self.last_time = time
         command = simba.Command()

@@ -108,11 +108,11 @@ impl ServiceManager {
         s
     }
 
-    pub fn next_time(&self) -> (f32, bool) {
-        let mut min_time = (f32::INFINITY, false);
+    pub fn next_time(&self) -> f32 {
+        let mut min_time = f32::INFINITY;
         if let Some(get_real_state) = &self.get_real_state {
             let mt = get_real_state.read().unwrap().next_time();
-            if mt.0 < min_time.0 {
+            if mt < min_time {
                 min_time = mt;
             }
         }

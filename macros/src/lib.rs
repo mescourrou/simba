@@ -1,6 +1,5 @@
 extern crate proc_macro;
 
-
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
@@ -26,11 +25,11 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
                 } else {
                     field_str_list.extend(quote! {, });
                 }
-                field_str_list.extend(quote!{#id_str});
+                field_str_list.extend(quote! {#id_str});
             }
-        },
-        Data::Enum(syn::DataEnum { variants, ..}) => {
-            let mut at_least_one_not_complex= false;
+        }
+        Data::Enum(syn::DataEnum { variants, .. }) => {
+            let mut at_least_one_not_complex = false;
             for f in variants {
                 let id = f.ident.clone();
                 let id_str = id.to_token_stream().to_string();
@@ -40,10 +39,10 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
                     field_str_list.extend(quote! {, });
                     field_enum_list.extend(quote! {, });
                 }
-                field_str_list.extend(quote!{#id_str});
+                field_str_list.extend(quote! {#id_str});
                 if f.fields.is_empty() {
                     at_least_one_not_complex = true;
-                    field_enum_list.extend(quote!{#struct_identifier::#id});
+                    field_enum_list.extend(quote! {#struct_identifier::#id});
                 }
             }
             if at_least_one_not_complex {
@@ -56,8 +55,7 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
                     }
                 }
             }
-            
-        },
+        }
         _ => unimplemented!(),
     }
 
@@ -74,7 +72,6 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
     .into()
 }
 
-
 #[proc_macro_derive(EnumToString)]
 pub fn derive_enum_to_string(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
@@ -83,19 +80,19 @@ pub fn derive_enum_to_string(item: TokenStream) -> TokenStream {
 
     let mut match_impl = TokenStream2::new();
     match &input.data {
-        Data::Enum(syn::DataEnum { variants, ..}) => {
+        Data::Enum(syn::DataEnum { variants, .. }) => {
             for f in variants {
                 let id = f.ident.clone();
                 let id_str = id.to_token_stream().to_string();
                 if f.fields.is_empty() {
-                    match_impl.extend(quote!{#struct_identifier::#id => #id_str,
+                    match_impl.extend(quote! {#struct_identifier::#id => #id_str,
                     });
                 } else {
-                    match_impl.extend(quote!{#struct_identifier::#id(_) => #id_str,
+                    match_impl.extend(quote! {#struct_identifier::#id(_) => #id_str,
                     });
                 }
-            }           
-        },
+            }
+        }
         _ => unimplemented!(),
     }
 

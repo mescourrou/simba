@@ -23,7 +23,7 @@ use crate::{
     simulator::SimulatorConfig,
     utils::enum_tools::ToVec,
 };
-use crate::{node::Node, stateful::Stateful};
+use crate::{node::Node, recordable::Recordable};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {
@@ -44,15 +44,7 @@ impl Observation {
     }
 }
 
-impl Stateful<ObservationRecord> for Observation {
-    fn from_record(&mut self, record: ObservationRecord) {
-        self.observer = record.observer;
-        self.sensor_name = record.sensor_name;
-        self.time = record.time;
-        self.sensor_observation
-            .from_record(record.sensor_observation);
-    }
-
+impl Recordable<ObservationRecord> for Observation {
     fn record(&self) -> ObservationRecord {
         ObservationRecord {
             sensor_name: self.sensor_name.clone(),
@@ -71,15 +63,9 @@ pub struct ObservationRecord {
     pub sensor_observation: SensorObservationRecord,
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for ObservationRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.label(format!("Sensor name: {}", self.sensor_name));
         ui.label(format!("Observer: {}", self.observer));
         ui.label(format!("Time: {}", self.time));
@@ -95,7 +81,7 @@ pub enum SensorObservation {
     OrientedRobot(OrientedRobotObservation),
 }
 
-impl Stateful<SensorObservationRecord> for SensorObservation {
+impl Recordable<SensorObservationRecord> for SensorObservation {
     fn record(&self) -> SensorObservationRecord {
         match self {
             SensorObservation::OrientedLandmark(o) => {
@@ -105,31 +91,6 @@ impl Stateful<SensorObservationRecord> for SensorObservation {
             SensorObservation::GNSS(o) => SensorObservationRecord::GNSS(o.record()),
             SensorObservation::OrientedRobot(o) => {
                 SensorObservationRecord::OrientedRobot(o.record())
-            }
-        }
-    }
-
-    fn from_record(&mut self, record: SensorObservationRecord) {
-        match record {
-            SensorObservationRecord::OrientedLandmark(o) => {
-                if let SensorObservation::OrientedLandmark(ref mut obs) = self {
-                    obs.from_record(o);
-                }
-            }
-            SensorObservationRecord::Odometry(o) => {
-                if let SensorObservation::Odometry(ref mut obs) = self {
-                    obs.from_record(o);
-                }
-            }
-            SensorObservationRecord::GNSS(o) => {
-                if let SensorObservation::GNSS(ref mut obs) = self {
-                    obs.from_record(o);
-                }
-            }
-            SensorObservationRecord::OrientedRobot(o) => {
-                if let SensorObservation::OrientedRobot(ref mut obs) = self {
-                    obs.from_record(o);
-                }
             }
         }
     }
@@ -143,23 +104,14 @@ pub enum SensorObservationRecord {
     OrientedRobot(OrientedRobotObservationRecord),
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for SensorObservationRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
-        ui.vertical(|ui| {
-            match self {
-                Self::OrientedLandmark(r) => r.show(ui, ctx, unique_id),
-                Self::Odometry(r) => r.show(ui, ctx, unique_id),
-                Self::GNSS(r) => r.show(ui, ctx, unique_id),
-                Self::OrientedRobot(r) => r.show(ui, ctx, unique_id),
-
-            }
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+        ui.vertical(|ui| match self {
+            Self::OrientedLandmark(r) => r.show(ui, ctx, unique_id),
+            Self::Odometry(r) => r.show(ui, ctx, unique_id),
+            Self::GNSS(r) => r.show(ui, ctx, unique_id),
+            Self::OrientedRobot(r) => r.show(ui, ctx, unique_id),
         });
     }
 }
@@ -255,36 +207,15 @@ impl UIComponent for SensorConfig {
         }
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.horizontal(|ui| {
             ui.label(format!("Sensor: {}", self.to_string()));
         });
         match self {
-            SensorConfig::OrientedLandmarkSensor(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            SensorConfig::OdometrySensor(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            SensorConfig::GNSSSensor(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            SensorConfig::RobotSensor(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
+            SensorConfig::OrientedLandmarkSensor(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::OdometrySensor(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::GNSSSensor(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::RobotSensor(c) => c.show(ui, ctx, unique_id),
         }
     }
 }
@@ -300,35 +231,27 @@ pub enum SensorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for SensorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
-        ui.vertical(|ui| {
-            match self {
-                Self::OrientedLandmarkSensor(r) => {
-                    egui::CollapsingHeader::new("OrientedLandmark").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::OdometrySensor(r) => {
-                    egui::CollapsingHeader::new("OdometrySensor").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::GNSSSensor(r) => {
-                    egui::CollapsingHeader::new("GNSSSensor").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::RobotSensor(r) => {
-                    egui::CollapsingHeader::new("RobotSensor").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+        ui.vertical(|ui| match self {
+            Self::OrientedLandmarkSensor(r) => {
+                egui::CollapsingHeader::new("OrientedLandmark").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::OdometrySensor(r) => {
+                egui::CollapsingHeader::new("OdometrySensor").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::GNSSSensor(r) => {
+                egui::CollapsingHeader::new("GNSSSensor").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::RobotSensor(r) => {
+                egui::CollapsingHeader::new("RobotSensor").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
             }
         });
     }
@@ -336,7 +259,7 @@ impl UIComponent for SensorRecord {
 
 /// Sensor trait which need to be implemented by each sensors.
 pub trait Sensor:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Stateful<SensorRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<SensorRecord>
 {
     /// Initialize the [`Sensor`]. Should be called at the beginning of the run, after
     /// the initialization of the modules.

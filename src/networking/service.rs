@@ -27,7 +27,7 @@ use super::network::MessageFlag;
 pub trait ServiceInterface: Debug + Send + Sync {
     fn process_requests(&self) -> usize;
     fn handle_requests(&self, time: f32);
-    fn next_time(&self) -> (f32, bool);
+    fn next_time(&self) -> f32;
 }
 
 /// Client to make requests to a service.
@@ -66,6 +66,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         time: f32,
         message_flags: Vec<MessageFlag>,
     ) -> Result<(), String> {
+        let _lk = self.time_cv.waiting.lock().unwrap();
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
             debug!("Sending a request");
         }
@@ -85,17 +86,11 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
             debug!("Sending a request: OK");
         }
-        let lk = self.time_cv.finished_nodes.lock().unwrap();
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-            debug!("Lock acquired in service");
-            debug!("Wake waiting nodes");
+            debug!("Notify CV");
         }
         // Needed to unlock the other node if it has finished and is waiting for messages.
         self.time_cv.condvar.notify_all();
-        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-            debug!("Release CV lock");
-        }
-        std::mem::drop(lk);
         Ok(())
     }
 
@@ -248,11 +243,13 @@ impl<
     }
 
     /// Get the minimal time among all waiting requests.
-    fn next_time(&self) -> (f32, bool) {
-        match self.request_buffer.read().unwrap().min_time() {
-            Some((time, tpl)) => (time, tpl.2.contains(&MessageFlag::ReadOnly)),
-            None => (f32::INFINITY, false),
-        }
+    fn next_time(&self) -> f32 {
+        self.request_buffer
+            .read()
+            .unwrap()
+            .min_time()
+            .map(|tpl| tpl.0)
+            .unwrap_or(f32::INFINITY)
     }
 }
 
