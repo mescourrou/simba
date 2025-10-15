@@ -142,28 +142,15 @@ impl UIComponent for MisassociationFaultConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Apparition probability: ");
-                self.apparition.show(
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                self.apparition.show(ui, ctx, unique_id);
             });
             ui.horizontal(|ui| {
                 ui.label("Distribution:");
-                self.distribution.show(
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                self.distribution.show(ui, ctx, unique_id);
             });
 
             ui.horizontal(|ui| {
@@ -172,7 +159,7 @@ impl UIComponent for MisassociationFaultConfig {
 
             ui.horizontal(|ui| {
                 ui.label(format!("Source: {}", self.source.to_string()));
-                
+
                 if let Source::Map(path) = &self.source {
                     ui.label(format!("({})", path));
                 }

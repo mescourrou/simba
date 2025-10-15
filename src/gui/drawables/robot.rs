@@ -1,4 +1,4 @@
-use egui::{Color32, Painter, Rect, Response, Shape, Stroke, Vec2};
+use egui::{Color32, Rect, Response, Shape, Stroke, Vec2};
 use nalgebra::Vector3;
 
 use crate::{
@@ -120,14 +120,15 @@ impl Robot {
         Ok(shapes)
     }
 
-    pub fn react(&mut self, 
-        ui: &mut egui::Ui,
+    pub fn react(
+        &mut self,
+        _ui: &mut egui::Ui,
         ctx: &egui::Context,
         response: &Response,
         painter_info: &PainterInfo,
         scale: f32,
-        time: f32,) {
-
+        time: f32,
+    ) {
         if let Some((_, record)) = self.records.get_data_beq_time(time) {
             let pose = record.physics.pose();
             let position = Vec2::new(pose[0], pose[1]);

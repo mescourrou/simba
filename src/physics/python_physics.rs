@@ -7,33 +7,33 @@ use std::str::FromStr;
 
 use config_checker::macros::Check;
 use log::{debug, info};
-use pyo3::types::PyModule;
-use pyo3::{prepare_freethreaded_python, pyclass, pymethods, PyResult, Python};
 use pyo3::prelude::*;
+use pyo3::types::PyModule;
+use pyo3::{pyclass, pymethods, PyResult, Python};
 use serde_json::Value;
 
-use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
-use crate::logger::is_enabled;
-use crate::networking::service::HasService;
-use crate::physics::physics::{Command, GetRealStateReq, GetRealStateResp, Physics};
-use crate::pywrappers::{CommandWrapper, StateWrapper};
-use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::State;
-use crate::recordable::Recordable;
 use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    logger::is_enabled,
+    networking::service::HasService,
+    physics::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord},
+    plugin_api::PluginAPI,
+    pywrappers::{CommandWrapper, StateWrapper},
+    recordable::Recordable,
+    simulator::SimulatorConfig,
+    state_estimators::state_estimator::State,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use super::physics::PhysicsRecord;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external physics (generic).
 ///
 /// The config for [`PythonPhysics`] uses a [`serde_json::Value`] to
 /// integrate your own configuration inside the full simulator config.
-/// 
+///
 /// You need to provide the path of the script containing the physics.
 ///
 /// In the yaml file, the config could be:
@@ -86,7 +86,7 @@ impl UIComponent for PythonPhysicsConfig {
                     ui.label("Class name: ");
                     ui.text_edit_singleline(&mut self.class_name);
                 });
-                
+
                 ui.label("Config (JSON):");
                 json_config(
                     ui,
@@ -99,12 +99,7 @@ impl UIComponent for PythonPhysicsConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         egui::CollapsingHeader::new("External Python Physics").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
@@ -145,15 +140,9 @@ impl Default for PythonPhysicsRecord {
     }
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for PythonPhysicsRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(self.record.to_string());
     }
 }
@@ -165,7 +154,6 @@ impl PythonPhysicsRecord {
         self.record.to_string()
     }
 }
-
 
 /// External physics strategy, which does the bridge with your own strategy.
 pub struct PythonPhysics {
@@ -203,8 +191,8 @@ impl PythonPhysics {
 
         // prepare_freethreaded_python();
 
-        let json_config =
-            serde_json::to_string(&config).expect("Error during converting Python Physics config to json");
+        let json_config = serde_json::to_string(&config)
+            .expect("Error during converting Python Physics config to json");
 
         let convert_to_dict = r#"
 import json
@@ -224,10 +212,7 @@ def convert(records):
     return json.loads(records, object_hook=converter)
 "#;
 
-        let script_path = global_config
-            .base_path
-            .as_ref()
-            .join(&config.file);
+        let script_path = global_config.base_path.as_ref().join(&config.file);
         let python_script = match fs::read_to_string(script_path.clone()) {
             Err(e) => {
                 return Err(SimbaError::new(
@@ -249,30 +234,29 @@ def convert(records):
             let script = PyModule::from_code_bound(py, &python_script, "", "")?;
             let physics_class: Py<PyAny> = script.getattr(config.class_name.as_str())?.into();
             info!("Load Physics class {} ...", config.class_name);
-            
-            let res = physics_class.call_bound(
-                py,
-                (config_dict,),
-                None,
-            );
+
+            let res = physics_class.call_bound(py, (config_dict,), None);
             let physics_instance = match res {
                 Err(err) => {
                     err.display(py);
                     return Err(err);
-                },
+                }
                 Ok(instance) => instance,
             };
             Ok(physics_instance)
         });
         let physics_instance = match res {
-            Err(err) => 
+            Err(err) => {
                 return Err(SimbaError::new(
                     SimbaErrorTypes::PythonError,
                     err.to_string(),
-                )),
+                ))
+            }
             Ok(instance) => instance,
         };
-        Ok(Self { physics: physics_instance })
+        Ok(Self {
+            physics: physics_instance,
+        })
     }
 }
 
@@ -283,23 +267,20 @@ impl std::fmt::Debug for PythonPhysics {
 }
 
 impl Physics for PythonPhysics {
-    
     fn apply_command(&mut self, command: &Command, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of apply_command");
         }
         // let robot_record = robot.record();
         Python::with_gil(|py| {
-            if let Err(e) = self.physics
-                .bind(py)
-                .call_method(
-                    "apply_command",
-                    (CommandWrapper::from_rust(command), time),
-                    None,
-                ) {
-                    e.display(py);
-                    panic!("Error while calling 'apply_command' method of PythonPhysics.");
-                }
+            if let Err(e) = self.physics.bind(py).call_method(
+                "apply_command",
+                (CommandWrapper::from_rust(command), time),
+                None,
+            ) {
+                e.display(py);
+                panic!("Error while calling 'apply_command' method of PythonPhysics.");
+            }
         });
     }
 
@@ -309,12 +290,14 @@ impl Physics for PythonPhysics {
         }
         // let robot_record = robot.record();
         Python::with_gil(|py| {
-            if let Err(e) = self.physics
+            if let Err(e) = self
+                .physics
                 .bind(py)
-                .call_method("update_state", (time,), None) {
-                    e.display(py);
-                    panic!("Error while calling 'update_state' method of PythonPhysics.");
-                }
+                .call_method("update_state", (time,), None)
+            {
+                e.display(py);
+                panic!("Error while calling 'update_state' method of PythonPhysics.");
+            }
         });
     }
 
@@ -324,30 +307,21 @@ impl Physics for PythonPhysics {
         }
         // let robot_record = robot.record();
         let state = Python::with_gil(|py| -> StateWrapper {
-            match self.physics
-                .bind(py)
-                .call_method("state", (time,), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'state' method of PythonPhysics.");
-                    }
-                    Ok(s) => {
-                        s.extract()
-                        .expect(
-                            "The 'state' method of PythonPhysics does not return a correct state vector",
-                        )
-                    }
+            match self.physics.bind(py).call_method("state", (time,), None) {
+                Err(e) => {
+                    e.display(py);
+                    panic!("Error while calling 'state' method of PythonPhysics.");
                 }
-                
+                Ok(s) => s.extract().expect(
+                    "The 'state' method of PythonPhysics does not return a correct state vector",
+                ),
+            }
         });
         state.to_rust()
     }
-
-    
 }
 
 impl Recordable<PhysicsRecord> for PythonPhysics {
-    
     fn record(&self) -> PhysicsRecord {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");

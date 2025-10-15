@@ -11,12 +11,11 @@ Each component has a gain, which can be set in [`PIDConfig`].
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorConfig;
-use crate::recordable::Recordable;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::{
+    plugin_api::PluginAPI, recordable::Recordable, simulator::SimulatorConfig,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 use config_checker::macros::Check;
-use log::error;
 use serde_derive::{Deserialize, Serialize};
 
 /// Configuration of the [`PID`], it contains the 3 gains for the velocity
@@ -114,12 +113,7 @@ impl UIComponent for PIDConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("PID")
             .id_source(format!("pid-{}", unique_id))
             .show(ui, |ui| {
@@ -185,12 +179,7 @@ impl Default for PIDRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PIDRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             egui::CollapsingHeader::new("Command").show(ui, |ui| {
                 self.command.show(ui, ctx, unique_id);

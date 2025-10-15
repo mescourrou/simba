@@ -14,7 +14,10 @@ use crate::{
     simulator::{Simulator, SimulatorConfig},
 };
 
-pub fn run_gui(default_config_path: Option<Box<&'static Path>>, plugin_api: Option<Box<&dyn PluginAPI>>) {
+pub fn run_gui(
+    default_config_path: Option<Box<&'static Path>>,
+    plugin_api: Option<Box<&dyn PluginAPI>>,
+) {
     // Initialize the environment, essentially the logging part
     Simulator::init_environment();
 
@@ -39,23 +42,16 @@ pub fn run_gui(default_config_path: Option<Box<&'static Path>>, plugin_api: Opti
 pub trait UIComponent {
     fn show_mut(
         &mut self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        buffer_stack: &mut BTreeMap<String, String>,
-        global_config: &SimulatorConfig,
-        current_node_name: Option<&String>,
-        unique_id: &String,
+        _ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        _buffer_stack: &mut BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        _unique_id: &String,
     ) {
         unimplemented!("Mutable UIComponent not implemented.");
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    );
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String);
     //  {
-    //     unimplemented!("Immutable UIComponent not implemented.");
-    // }
 }

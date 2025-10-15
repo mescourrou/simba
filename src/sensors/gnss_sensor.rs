@@ -13,8 +13,8 @@ use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorConfig;
 use crate::recordable::Recordable;
+use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
@@ -82,12 +82,7 @@ impl UIComponent for GNSSSensorConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("GNSS sensor")
             .id_source(format!("gnss-sensor-{}", unique_id))
             .show(ui, |ui| {
@@ -95,12 +90,7 @@ impl UIComponent for GNSSSensorConfig {
                     ui.label(format!("Period: {}", self.period));
                 });
 
-                FaultModelConfig::show_faults(
-                    &self.faults,
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
     }
 }
@@ -117,15 +107,9 @@ impl Default for GNSSSensorRecord {
     }
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for GNSSSensorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(format!("Last time: {}", self.last_time));
     }
 }
@@ -145,15 +129,16 @@ pub struct GNSSObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for GNSSObservationRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
-            ui.label(format!("Position: ({}, {})", self.position[0], self.position[1]));
-            ui.label(format!("Velocity: ({}, {})", self.velocity[0], self.velocity[1]));
+            ui.label(format!(
+                "Position: ({}, {})",
+                self.position[0], self.position[1]
+            ));
+            ui.label(format!(
+                "Velocity: ({}, {})",
+                self.velocity[0], self.velocity[1]
+            ));
         });
     }
 }

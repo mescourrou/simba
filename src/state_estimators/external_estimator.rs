@@ -23,8 +23,8 @@ use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
-use crate::simulator::SimulatorConfig;
 use crate::recordable::Recordable;
+use crate::simulator::SimulatorConfig;
 use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -86,12 +86,7 @@ impl UIComponent for ExternalEstimatorConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         egui::CollapsingHeader::new("External State Estimator").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.label("Config (JSON):");
@@ -124,15 +119,9 @@ impl Default for ExternalEstimatorRecord {
     }
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for ExternalEstimatorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(self.record.to_string());
     }
 }

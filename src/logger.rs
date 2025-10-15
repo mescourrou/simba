@@ -2,17 +2,17 @@ use std::{fmt::Display, sync::RwLock};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::EnumToString;
 #[cfg(feature = "gui")]
-use simba_macros::ToVec;
+use simba_macros::{EnumToString, ToVec};
 
 #[cfg(feature = "gui")]
-use crate::gui::{
-    utils::{enum_checkbox, enum_radio, string_checkbox},
-    UIComponent,
+use crate::{
+    gui::{
+        utils::{enum_checkbox, enum_radio, string_checkbox},
+        UIComponent,
+    },
+    simulator::SimulatorConfig,
 };
-#[cfg(feature = "gui")]
-use crate::simulator::SimulatorConfig;
 
 static INTERNAL_LOG_LEVEL: RwLock<Vec<InternalLog>> = RwLock::new(Vec::new());
 
@@ -149,12 +149,7 @@ impl UIComponent for LoggerConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        _unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         egui::CollapsingHeader::new("Logger").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
@@ -162,7 +157,7 @@ impl UIComponent for LoggerConfig {
                     if let LogLevel::Internal(v) = &self.log_level {
                         ui.label("(");
                         for iv in v {
-                            ui.label(format!("{}, ", iv.to_string()));    
+                            ui.label(format!("{}, ", iv.to_string()));
                         }
                         ui.label(")");
                     }

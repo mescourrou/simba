@@ -1,15 +1,17 @@
-use std::{env, path::Path};
+use std::path::Path;
 use clap::Parser;
 
 use simba::{
-    gui, simulator::{Simulator, SimulatorConfig},
-    state_estimators::state_estimator::StateEstimator,
+    gui, simulator::Simulator,
 };
 
 #[derive(Parser)]
+#[command(version, about)]
 struct Cli {
+    /// Disable GUI: will load the config, run the simulation and compute the results
     #[arg(long, default_value_t = false)]
     no_gui: bool,
+    /// Default config path. Required if no-gui is used
     config_path: Option<String>,
 }
 

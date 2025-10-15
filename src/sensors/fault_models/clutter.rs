@@ -128,35 +128,21 @@ impl UIComponent for ClutterFaultConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Apparition probability: ");
-                self.apparition.show(
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                self.apparition.show(ui, ctx, unique_id);
             });
-            RandomVariableTypeConfig::show_vector(
-                &self.distributions,
-                ui,
-                ctx,
-                unique_id,
-            );
-            
+            RandomVariableTypeConfig::show_vector(&self.distributions, ui, ctx, unique_id);
+
             ui.horizontal(|ui| {
                 ui.label("Variable order: ");
                 for var in self.variable_order.iter() {
                     ui.label(format!("{}, ", var));
                 }
             });
-            
+
             ui.label(format!("Observation id: {}", self.observation_id));
         });
     }

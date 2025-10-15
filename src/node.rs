@@ -6,32 +6,29 @@ use core::f32;
 use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 
-use log::{debug, info, warn};
+use log::{debug, info};
 
-use super::navigators::navigator::Navigator;
-
-use crate::api::internal_api::{self, NodeClient, NodeServer};
-use crate::constants::TIME_ROUND;
-use crate::controllers::controller::Controller;
-
-use crate::errors::SimbaResult;
-use crate::logger::is_enabled;
-use crate::networking::network::Network;
-use crate::networking::service_manager::ServiceManager;
-use crate::node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord};
-use crate::physics::physics::Physics;
-
-use crate::simulator::TimeCv;
-use crate::state_estimators::state_estimator::{
-    BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator,
+use crate::{
+    api::internal_api::{self, NodeClient, NodeServer},
+    constants::TIME_ROUND,
+    controllers::controller::Controller,
+    errors::SimbaResult,
+    logger::is_enabled,
+    navigators::navigator::Navigator,
+    networking::network::Network,
+    networking::service_manager::ServiceManager,
+    node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord},
+    physics::physics::Physics,
+    recordable::Recordable,
+    sensors::sensor_manager::SensorManager,
+    simulator::TimeCv,
+    state_estimators::state_estimator::{
+        BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator,
+    },
+    time_analysis,
+    utils::maths::round_precision,
+    utils::time_ordered_data::TimeOrderedData,
 };
-
-use crate::sensors::sensor_manager::SensorManager;
-
-use crate::recordable::Recordable;
-use crate::time_analysis;
-use crate::utils::maths::round_precision;
-use crate::utils::time_ordered_data::TimeOrderedData;
 
 // Node itself
 
@@ -143,7 +140,12 @@ impl Node {
     ///
     /// ## Return
     /// Next time step.
-    pub fn run_next_time_step(&mut self, time: f32, time_cv: &TimeCv, nb_nodes: usize) -> SimbaResult<()> {
+    pub fn run_next_time_step(
+        &mut self,
+        time: f32,
+        time_cv: &TimeCv,
+        nb_nodes: usize,
+    ) -> SimbaResult<()> {
         self.process_messages();
         self.run_time_step(time, time_cv, nb_nodes)
     }
@@ -181,7 +183,12 @@ impl Node {
     /// 5. The network messages are handled
     ///
     /// Then, the node state is saved.
-    pub fn run_time_step(&mut self, time: f32, time_cv: &TimeCv, nb_nodes: usize) -> SimbaResult<()> {
+    pub fn run_time_step(
+        &mut self,
+        time: f32,
+        time_cv: &TimeCv,
+        nb_nodes: usize,
+    ) -> SimbaResult<()> {
         info!("Run time {}", time);
 
         // Update the true state
@@ -242,7 +249,10 @@ impl Node {
         self.sync_with_others(time_cv, nb_nodes, time);
 
         if let Some(sensor_manager) = &self.sensor_manager() {
-            sensor_manager.write().unwrap().make_observations(self, time);
+            sensor_manager
+                .write()
+                .unwrap()
+                .make_observations(self, time);
         }
 
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
@@ -333,8 +343,6 @@ impl Node {
                 .apply_command(&command, time);
         }
 
-        
-
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Pre-save wait");
         }
@@ -346,12 +354,7 @@ impl Node {
         Ok(())
     }
 
-    pub fn sync_with_others(
-        &mut self,
-        time_cv: &TimeCv,
-        nb_nodes: usize,
-        time: f32,
-    ) {
+    pub fn sync_with_others(&mut self, time_cv: &TimeCv, nb_nodes: usize, time: f32) {
         let mut lk = time_cv.intermediate_waiting.lock().unwrap();
         let waiting_parity = *time_cv.intermediate_parity.lock().unwrap();
         *lk += 1;
@@ -398,7 +401,10 @@ impl Node {
                 debug!("[intermediate wait] End wait");
                 return;
             }
-            debug!("[intermediate wait] New loop: waiting = {} and circulating messages = {}", *lk, *circulating_messages);
+            debug!(
+                "[intermediate wait] New loop: waiting = {} and circulating messages = {}",
+                *lk, *circulating_messages
+            );
         }
     }
 
@@ -477,22 +483,20 @@ impl Node {
                 debug!("Next time after state estimator bench: {next_time_step}");
             }
         }
-        next_time_step = next_time_step.min(self
-            .service_manager
-            .as_ref()
-            .unwrap()
-            .read()
-            .unwrap()
-            .next_time());
+        next_time_step = next_time_step.min(
+            self.service_manager
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .next_time(),
+        );
         if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
             debug!("Next time after service manager: {next_time_step}");
         }
         next_time_step = round_precision(next_time_step, TIME_ROUND).unwrap();
         if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-            debug!(
-                "next_time_step: {}",
-                next_time_step
-            );
+            debug!("next_time_step: {}", next_time_step);
         }
         Ok(next_time_step)
     }

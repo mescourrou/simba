@@ -14,9 +14,9 @@ use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::plugin_api::PluginAPI;
+use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
-use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
@@ -80,12 +80,7 @@ impl UIComponent for OdometrySensorConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Odometry sensor")
             .id_source(format!("odometry-sensor-{}", unique_id))
             .show(ui, |ui| {
@@ -93,12 +88,7 @@ impl UIComponent for OdometrySensorConfig {
                     ui.label(format!("Period: {}", self.period));
                 });
 
-                FaultModelConfig::show_faults(
-                    &self.faults,
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
     }
 }
@@ -119,15 +109,9 @@ impl Default for OdometrySensorRecord {
     }
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for OdometrySensorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.label(format!("Last time: {}", self.last_time));
         ui.label("Last state: ");
         self.last_state.show(ui, ctx, unique_id);
@@ -158,12 +142,7 @@ pub struct OdometryObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OdometryObservationRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
             ui.label(format!("Linear velocity: {}", self.linear_velocity));
             ui.label(format!("Angular velocity: {}", self.angular_velocity));

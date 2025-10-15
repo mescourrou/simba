@@ -55,13 +55,18 @@ impl UIComponent for NavigatorConfig {
         if current_str != self.to_string() {
             match current_str.as_str() {
                 "TrajectoryFollower" => {
-                    *self = NavigatorConfig::TrajectoryFollower(trajectory_follower::TrajectoryFollowerConfig::default())
+                    *self = NavigatorConfig::TrajectoryFollower(
+                        trajectory_follower::TrajectoryFollowerConfig::default(),
+                    )
                 }
                 "External" => {
-                    *self = NavigatorConfig::External(external_navigator::ExternalNavigatorConfig::default())
+                    *self = NavigatorConfig::External(
+                        external_navigator::ExternalNavigatorConfig::default(),
+                    )
                 }
                 "Python" => {
-                    *self = NavigatorConfig::Python(python_navigator::PythonNavigatorConfig::default())
+                    *self =
+                        NavigatorConfig::Python(python_navigator::PythonNavigatorConfig::default())
                 }
                 _ => panic!("Where did you find this value?"),
             };
@@ -94,32 +99,15 @@ impl UIComponent for NavigatorConfig {
         }
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.horizontal(|ui| {
             ui.label(format!("Navigator: {}", self.to_string()));
         });
-        
+
         match self {
-            NavigatorConfig::TrajectoryFollower(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            NavigatorConfig::External(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            NavigatorConfig::Python(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
+            NavigatorConfig::TrajectoryFollower(c) => c.show(ui, ctx, unique_id),
+            NavigatorConfig::External(c) => c.show(ui, ctx, unique_id),
+            NavigatorConfig::Python(c) => c.show(ui, ctx, unique_id),
         }
     }
 }
@@ -134,30 +122,22 @@ pub enum NavigatorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for NavigatorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
-        ui.vertical(|ui| {
-            match self {
-                Self::TrajectoryFollower(r) => {
-                    egui::CollapsingHeader::new("TrajectoryFollower").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::External(r) => {
-                    egui::CollapsingHeader::new("ExternalNavigator").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::Python(r) => {
-                    egui::CollapsingHeader::new("ExternalPythonNavigator").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+        ui.vertical(|ui| match self {
+            Self::TrajectoryFollower(r) => {
+                egui::CollapsingHeader::new("TrajectoryFollower").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::External(r) => {
+                egui::CollapsingHeader::new("ExternalNavigator").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::Python(r) => {
+                egui::CollapsingHeader::new("ExternalPythonNavigator").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
             }
         });
     }
@@ -207,13 +187,14 @@ pub fn make_navigator_from_config(
                 va_factory,
             )) as Box<dyn Navigator>
         }
-        NavigatorConfig::Python(c) => {
-            Box::new(python_navigator::PythonNavigator::from_config(
+        NavigatorConfig::Python(c) => Box::new(
+            python_navigator::PythonNavigator::from_config(
                 c,
                 plugin_api,
                 global_config,
                 va_factory,
-            ).unwrap()) as Box<dyn Navigator>
-        }
+            )
+            .unwrap(),
+        ) as Box<dyn Navigator>,
     }))
 }

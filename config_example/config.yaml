@@ -1,6 +1,6 @@
 log:
   log_level:
-    Internal: ["All"]
+    Info
 results: 
   result_path: "./result.json"
   show_figures: false # Disabled for automatic testing

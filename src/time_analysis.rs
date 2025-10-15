@@ -4,9 +4,8 @@ use lazy_static::lazy_static;
 #[cfg(feature = "time-analysis")]
 use libm::ceilf;
 use serde::{Deserialize, Serialize};
-use simba_macros::EnumToString;
 #[cfg(feature = "gui")]
-use simba_macros::ToVec;
+use simba_macros::{EnumToString, ToVec};
 
 #[cfg(feature = "time-analysis")]
 use std::{collections::HashMap, path::Path, sync::Mutex, thread::ThreadId, time::Duration};
@@ -100,12 +99,7 @@ impl UIComponent for TimeAnalysisConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        _unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         egui::CollapsingHeader::new("Time Analysis").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("Exporter: {}", self.exporter.to_string()));

@@ -33,38 +33,38 @@ fn main() {
 
 // Configuration for Simulator
 extern crate confy;
-use crate::errors::SimbaErrorTypes;
 #[cfg(feature = "gui")]
-use crate::gui::{
-    utils::{enum_combobox, json_config, path_finder},
-    UIComponent,
+use crate::{
+    constants::TIME_ROUND,
+    gui::{
+        utils::{enum_combobox, json_config, path_finder},
+        UIComponent,
+    },
+    utils::determinist_random_variable::seed_generation_component,
 };
-#[cfg(feature = "gui")]
-use crate::utils::determinist_random_variable::seed_generation_component;
 use config_checker::macros::Check;
 use config_checker::ConfigCheckable;
 #[cfg(feature = "gui")]
 use egui::CollapsingHeader;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::EnumToString;
 #[cfg(feature = "gui")]
-use simba_macros::ToVec;
+use simba_macros::{EnumToString, ToVec};
 
-use crate::api::internal_api::NodeClient;
-use crate::constants::TIME_ROUND;
-use crate::errors::{SimbaError, SimbaResult};
-use crate::logger::{init_log, is_enabled, LoggerConfig};
-use crate::networking::network_manager::NetworkManager;
-use crate::node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig};
-use crate::plugin_api::PluginAPI;
-use crate::state_estimators::state_estimator::State;
-use crate::recordable::Recordable;
-use crate::time_analysis::{self, TimeAnalysisConfig};
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-
-use crate::node::Node;
-use crate::utils::time_ordered_data::TimeOrderedData;
+use crate::{
+    api::internal_api::NodeClient,
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    logger::{init_log, is_enabled, LoggerConfig},
+    networking::network_manager::NetworkManager,
+    node::Node,
+    node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig},
+    plugin_api::PluginAPI,
+    recordable::Recordable,
+    state_estimators::state_estimator::State,
+    time_analysis::{self, TimeAnalysisConfig},
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    utils::{format_option_f32, time_ordered_data::TimeOrderedData},
+};
 use core::f32;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
@@ -79,7 +79,6 @@ use std::thread::{self, ThreadId};
 
 use log::{debug, info, warn};
 
-use crate::utils::format_option_f32;
 use pyo3::prepare_freethreaded_python;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -172,15 +171,10 @@ impl UIComponent for ResultConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         CollapsingHeader::new("Results").show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("Result Path: {}", self.result_path)); 
+                ui.label(format!("Result Path: {}", self.result_path));
             });
 
             ui.horizontal(|ui| {
@@ -190,13 +184,12 @@ impl UIComponent for ResultConfig {
                 } else {
                     ui.label("No");
                 }
-                
             });
 
             ui.horizontal(|ui| {
                 ui.label("Result Path: ");
                 if let Some(script) = &self.analyse_script {
-                    ui.label(script); 
+                    ui.label(script);
                 } else {
                     ui.label("None");
                 }
@@ -204,7 +197,7 @@ impl UIComponent for ResultConfig {
             ui.horizontal(|ui| {
                 ui.label("Figure Path: ");
                 if let Some(path) = &self.figures_path {
-                    ui.label(path); 
+                    ui.label(path);
                 } else {
                     ui.label("None");
                 }
@@ -409,28 +402,15 @@ impl crate::gui::UIComponent for SimulatorConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         CollapsingHeader::new("Simulator").show(ui, |ui| {
             ui.horizontal(|ui| {
-                self.log.show(
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                self.log.show(ui, ctx, unique_id);
             });
 
             ui.horizontal_top(|ui| {
                 if let Some(result_cfg) = &self.results {
-                    result_cfg.show(
-                        ui,
-                        ctx,
-                        unique_id,
-                    );
+                    result_cfg.show(ui, ctx, unique_id);
                 } else {
                     ui.label("Results disabled");
                 }
@@ -456,11 +436,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
             });
 
             ui.horizontal(|ui| {
-                self.time_analysis.show(
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                self.time_analysis.show(ui, ctx, unique_id);
             });
 
             ui.vertical(|ui| {
@@ -859,9 +835,8 @@ impl Simulator {
             &global_config,
             &self.determinist_va_factory,
             self.time_cv.clone(),
-        );    
-        self.network_manager
-            .register_node_network(&mut new_node);
+        );
+        self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
     }
 
@@ -878,8 +853,7 @@ impl Simulator {
             &self.determinist_va_factory,
             self.time_cv.clone(),
         );
-        self.network_manager
-            .register_node_network(&mut new_node);
+        self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
     }
 
@@ -1054,51 +1028,6 @@ impl Simulator {
         self._compute_results(results.records, &results.config)
     }
 
-    /// Wait the end of the simulation. If other node send messages, the simulation
-    /// will go back to the time of the last message received.
-    fn wait_the_end(
-        node: &Node,
-        max_time: f32,
-        time_cv: &TimeCv,
-        nb_nodes: usize,
-    ) -> SimbaResult<bool> {
-        let mut lk = time_cv.finished_nodes.lock().unwrap();
-        *lk += 1;
-        if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-            debug!("Increase finished nodes: {}", *lk);
-        }
-        if *lk == nb_nodes {
-            time_cv.condvar.notify_all();
-            *lk = 0;
-            return Ok(true);
-        }
-        loop {
-            let buffered_msgs = node.process_messages();
-            if buffered_msgs > 0 {
-                *lk -= 1;
-                if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-                    debug!("[wait_the_end] Messages to process: continue");
-                }
-                return Ok(false);
-            }
-            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-                debug!("[wait_the_end] Wait for others");
-            }
-            lk = time_cv.condvar.wait(lk).unwrap();
-            let circulating_messages = time_cv.circulating_messages.lock().unwrap();
-            if *lk == nb_nodes && *circulating_messages == 0 {
-                return Ok(true);
-            } else {
-                *lk -= 1;
-                node.process_messages();
-                let next_time = node.next_time_step()?;
-                if next_time < max_time {
-                    return Ok(false);
-                }
-                *lk += 1;
-            }
-        }
-    }
     /// Run the loop for the given `node` until reaching `max_time`.
     ///
     /// ## Arguments
@@ -1130,7 +1059,7 @@ impl Simulator {
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Got next_time: {next_time}");
             }
-        
+
             {
                 if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                     debug!("Get common time (next_time is {next_time})");
@@ -1203,15 +1132,13 @@ impl Simulator {
             *time_cv.finished_nodes.lock().unwrap() = 0;
             barrier.wait();
             if let Some(api) = &async_api_server {
-                *api.current_time
-                    .lock()
-                    .unwrap() = next_time;
+                *api.current_time.lock().unwrap() = next_time;
             }
             *TIME.write().unwrap() = next_time;
             if next_time > max_time {
                 break;
             }
-            
+
             node.run_next_time_step(next_time, &time_cv, nb_nodes)?;
             if let Some(api) = &async_api_server {
                 let record = Record {

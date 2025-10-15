@@ -3,7 +3,7 @@ log:
     Info
 results:
   result_path: "../result.json"
-  show_figures: true # Disabled for automatic testing
+  show_figures: false # Disabled for automatic testing
   analyse_script: "../../../python_scripts/analyse_results.py"
   figures_path: "../figures"
 time_analysis:

@@ -35,7 +35,6 @@ pub mod service_manager;
 #[cfg(test)]
 mod tests {
     use std::{
-        panic,
         sync::{Arc, RwLock},
     };
 
@@ -49,6 +48,7 @@ mod tests {
         node::Node,
         node_factory::RobotConfig,
         plugin_api::PluginAPI,
+        recordable::Recordable,
         sensors::{
             robot_sensor::RobotSensorConfig,
             sensor::{Observation, SensorConfig},
@@ -63,7 +63,6 @@ mod tests {
                 StateEstimatorRecord, WorldState,
             },
         },
-        recordable::Recordable,
         utils::maths::round_precision,
     };
 

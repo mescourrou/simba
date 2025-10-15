@@ -12,8 +12,8 @@ use crate::{
     logger::is_enabled,
     node::Node,
     pywrappers::{ObservationWrapper, WorldStateWrapper},
-    sensors::sensor::Observation,
     recordable::Recordable,
+    sensors::sensor::Observation,
     utils::maths::round_precision,
 };
 
@@ -253,12 +253,14 @@ impl PythonStateEstimator {
         }
         // let node_record = node.record();
         Python::with_gil(|py| {
-            if let Err(e) = self.model
+            if let Err(e) = self
+                .model
                 .bind(py)
-                .call_method("prediction_step", (time,), None) {
-                    e.display(py);
-                    panic!("Error while calling 'prediction_step' method of PythonStateEstimator.");
-                }
+                .call_method("prediction_step", (time,), None)
+            {
+                e.display(py);
+                panic!("Error while calling 'prediction_step' method of PythonStateEstimator.");
+            }
         });
     }
 
@@ -271,12 +273,14 @@ impl PythonStateEstimator {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
         Python::with_gil(|py| {
-            if let Err(e) = self.model
-                .bind(py)
-                .call_method("correction_step", (observation_py, time), None) {
-                    e.display(py);
-                    panic!("Error while calling 'correction_step' method of PythonStateEstimator.");
-                }
+            if let Err(e) =
+                self.model
+                    .bind(py)
+                    .call_method("correction_step", (observation_py, time), None)
+            {
+                e.display(py);
+                panic!("Error while calling 'correction_step' method of PythonStateEstimator.");
+            }
         });
     }
 

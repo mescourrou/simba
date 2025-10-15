@@ -7,33 +7,32 @@ use std::str::FromStr;
 
 use config_checker::macros::Check;
 use log::{debug, info};
-use pyo3::types::PyModule;
-use pyo3::{prepare_freethreaded_python, pyclass, pymethods, PyResult, Python};
 use pyo3::prelude::*;
+use pyo3::types::PyModule;
+use pyo3::{pyclass, pymethods, PyResult, Python};
 use serde_json::Value;
 
-use crate::controllers::controller::ControllerError;
-use crate::navigators::navigator::Navigator;
-use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
-use crate::logger::is_enabled;
-use crate::pywrappers::{ControllerErrorWrapper, WorldStateWrapper};
-use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::WorldState;
-use crate::recordable::Recordable;
 use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
+    controllers::controller::ControllerError,
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    logger::is_enabled,
+    navigators::navigator::{Navigator, NavigatorRecord},
+    plugin_api::PluginAPI,
+    pywrappers::{ControllerErrorWrapper, WorldStateWrapper},
+    recordable::Recordable,
+    simulator::SimulatorConfig,
+    state_estimators::state_estimator::WorldState,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
-
-use super::navigator::NavigatorRecord;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external navigator (generic).
 ///
 /// The config for [`PythonNavigator`] uses a [`serde_json::Value`] to
 /// integrate your own configuration inside the full simulator config.
-/// 
+///
 /// You need to provide the path of the script containing the navigator.
 ///
 /// In the yaml file, the config could be:
@@ -86,7 +85,7 @@ impl UIComponent for PythonNavigatorConfig {
                     ui.label("Class name: ");
                     ui.text_edit_singleline(&mut self.class_name);
                 });
-                
+
                 ui.label("Config (JSON):");
                 json_config(
                     ui,
@@ -99,12 +98,7 @@ impl UIComponent for PythonNavigatorConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         egui::CollapsingHeader::new("External Python Navigator").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
@@ -145,15 +139,9 @@ impl Default for PythonNavigatorRecord {
     }
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for PythonNavigatorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(self.record.to_string());
     }
 }
@@ -204,8 +192,8 @@ impl PythonNavigator {
 
         // prepare_freethreaded_python();
 
-        let json_config =
-            serde_json::to_string(&config).expect("Error during converting Python Navigator config to json");
+        let json_config = serde_json::to_string(&config)
+            .expect("Error during converting Python Navigator config to json");
 
         let convert_to_dict = r#"
 import json
@@ -225,10 +213,7 @@ def convert(records):
     return json.loads(records, object_hook=converter)
 "#;
 
-        let script_path = global_config
-            .base_path
-            .as_ref()
-            .join(&config.file);
+        let script_path = global_config.base_path.as_ref().join(&config.file);
         let python_script = match fs::read_to_string(script_path.clone()) {
             Err(e) => {
                 return Err(SimbaError::new(
@@ -250,30 +235,29 @@ def convert(records):
             let script = PyModule::from_code_bound(py, &python_script, "", "")?;
             let navigator_class: Py<PyAny> = script.getattr(config.class_name.as_str())?.into();
             info!("Load Navigator class {} ...", config.class_name);
-            
-            let res = navigator_class.call_bound(
-                py,
-                (config_dict,),
-                None,
-            );
+
+            let res = navigator_class.call_bound(py, (config_dict,), None);
             let navigator_instance = match res {
                 Err(err) => {
                     err.display(py);
                     return Err(err);
-                },
+                }
                 Ok(instance) => instance,
             };
             Ok(navigator_instance)
         });
         let navigator_instance = match res {
-            Err(err) => 
+            Err(err) => {
                 return Err(SimbaError::new(
                     SimbaErrorTypes::PythonError,
                     err.to_string(),
-                )),
+                ))
+            }
             Ok(instance) => instance,
         };
-        Ok(Self { navigator: navigator_instance })
+        Ok(Self {
+            navigator: navigator_instance,
+        })
     }
 }
 
@@ -284,38 +268,31 @@ impl std::fmt::Debug for PythonNavigator {
 }
 
 impl Navigator for PythonNavigator {
-
     fn compute_error(&mut self, _node: &mut Node, state: WorldState) -> ControllerError {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of compute_error");
         }
         // let node_record = node.record();
         let result = Python::with_gil(|py| -> ControllerErrorWrapper {
-            match self.navigator
-                .bind(py)
-                .call_method(
-                    "compute_error",
-                    (WorldStateWrapper::from_rust(&state),),
-                    None,
-                ) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'compute_error' method of PythonNavigator.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("Error during the call of Python implementation of 'compute_error'")
-                    }
+            match self.navigator.bind(py).call_method(
+                "compute_error",
+                (WorldStateWrapper::from_rust(&state),),
+                None,
+            ) {
+                Err(e) => {
+                    e.display(py);
+                    panic!("Error while calling 'compute_error' method of PythonNavigator.");
                 }
+                Ok(r) => r
+                    .extract()
+                    .expect("Error during the call of Python implementation of 'compute_error'"),
+            }
         });
         result.to_rust()
     }
-
-    
 }
 
 impl Recordable<NavigatorRecord> for PythonNavigator {
-    
     fn record(&self) -> NavigatorRecord {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");

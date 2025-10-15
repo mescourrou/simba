@@ -7,35 +7,33 @@ use std::str::FromStr;
 
 use config_checker::macros::Check;
 use log::{debug, info};
-use pyo3::types::PyModule;
-use pyo3::{prepare_freethreaded_python, pyclass, pymethods, PyResult, Python};
 use pyo3::prelude::*;
+use pyo3::types::PyModule;
+use pyo3::{pyclass, pymethods, PyResult, Python};
 use serde_json::Value;
 
-use crate::constants::TIME_ROUND;
-use crate::controllers::controller::{Controller, ControllerError};
-use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
-use crate::logger::is_enabled;
-use crate::physics::physics::Command;
-use crate::pywrappers::{CommandWrapper, ControllerErrorWrapper, ObservationWrapper, WorldStateWrapper};
-use crate::simulator::SimulatorConfig;
-use crate::recordable::Recordable;
-use crate::utils::maths::round_precision;
+
 use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
+    controllers::controller::{Controller, ControllerError, ControllerRecord},
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    logger::is_enabled,
+    physics::physics::Command,
+    plugin_api::PluginAPI,
+    pywrappers::{CommandWrapper, ControllerErrorWrapper},
+    recordable::Recordable,
+    simulator::SimulatorConfig,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use super::controller::ControllerRecord;
-use crate::sensors::sensor::Observation;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external controller (generic).
 ///
 /// The config for [`PythonController`] uses a [`serde_json::Value`] to
 /// integrate your own configuration inside the full simulator config.
-/// 
+///
 /// You need to provide the path of the script containing the controller.
 ///
 /// In the yaml file, the config could be:
@@ -88,7 +86,7 @@ impl UIComponent for PythonControllerConfig {
                     ui.label("Class name: ");
                     ui.text_edit_singleline(&mut self.class_name);
                 });
-                
+
                 ui.label("Config (JSON):");
                 json_config(
                     ui,
@@ -101,12 +99,7 @@ impl UIComponent for PythonControllerConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         egui::CollapsingHeader::new("External Python Controller").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
@@ -147,15 +140,9 @@ impl Default for PythonControllerRecord {
     }
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for PythonControllerRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(self.record.to_string());
     }
 }
@@ -206,8 +193,8 @@ impl PythonController {
 
         // prepare_freethreaded_python();
 
-        let json_config =
-            serde_json::to_string(&config).expect("Error during converting Python Controller config to json");
+        let json_config = serde_json::to_string(&config)
+            .expect("Error during converting Python Controller config to json");
 
         let convert_to_dict = r#"
 import json
@@ -227,10 +214,7 @@ def convert(records):
     return json.loads(records, object_hook=converter)
 "#;
 
-        let script_path = global_config
-            .base_path
-            .as_ref()
-            .join(&config.file);
+        let script_path = global_config.base_path.as_ref().join(&config.file);
         let python_script = match fs::read_to_string(script_path.clone()) {
             Err(e) => {
                 return Err(SimbaError::new(
@@ -252,30 +236,29 @@ def convert(records):
             let script = PyModule::from_code_bound(py, &python_script, "", "")?;
             let controller_class: Py<PyAny> = script.getattr(config.class_name.as_str())?.into();
             info!("Load Controller class {} ...", config.class_name);
-            
-            let res = controller_class.call_bound(
-                py,
-                (config_dict,),
-                None,
-            );
+
+            let res = controller_class.call_bound(py, (config_dict,), None);
             let controller_instance = match res {
                 Err(err) => {
                     err.display(py);
                     return Err(err);
-                },
+                }
                 Ok(instance) => instance,
             };
             Ok(controller_instance)
         });
         let controller_instance = match res {
-            Err(err) => 
+            Err(err) => {
                 return Err(SimbaError::new(
                     SimbaErrorTypes::PythonError,
                     err.to_string(),
-                )),
+                ))
+            }
             Ok(instance) => instance,
         };
-        Ok(Self { controller: controller_instance })
+        Ok(Self {
+            controller: controller_instance,
+        })
     }
 }
 
@@ -292,30 +275,25 @@ impl Controller for PythonController {
         }
         // let node_record = node.record();
         let result = Python::with_gil(|py| -> CommandWrapper {
-            match self.controller
-                .bind(py)
-                .call_method(
-                    "make_command",
-                    (ControllerErrorWrapper::from_rust(error), time),
-                    None,
-                ) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'make_command' method of PythonController.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("Error during the call of Python implementation of 'make_command'")
-                    }
+            match self.controller.bind(py).call_method(
+                "make_command",
+                (ControllerErrorWrapper::from_rust(error), time),
+                None,
+            ) {
+                Err(e) => {
+                    e.display(py);
+                    panic!("Error while calling 'make_command' method of PythonController.");
                 }
+                Ok(r) => r
+                    .extract()
+                    .expect("Error during the call of Python implementation of 'make_command'"),
+            }
         });
         result.to_rust()
     }
-    
 }
 
 impl Recordable<ControllerRecord> for PythonController {
-
     fn record(&self) -> ControllerRecord {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");

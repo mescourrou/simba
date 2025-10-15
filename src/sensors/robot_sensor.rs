@@ -11,10 +11,10 @@ use crate::constants::TIME_ROUND;
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
+use crate::recordable::Recordable;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
-use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
@@ -97,12 +97,7 @@ impl UIComponent for RobotSensorConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Robot sensor")
             .id_source(format!("robot-sensor-{}", unique_id))
             .show(ui, |ui| {
@@ -114,12 +109,7 @@ impl UIComponent for RobotSensorConfig {
                     ui.label(format!("Period: {}", self.period));
                 });
 
-                FaultModelConfig::show_faults(
-                    &self.faults,
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
     }
 }
@@ -136,15 +126,9 @@ impl Default for RobotSensorRecord {
     }
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for RobotSensorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(format!("Last time: {}", self.last_time));
     }
 }
@@ -338,15 +322,13 @@ pub struct OrientedRobotObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OrientedRobotObservationRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
             ui.label(format!("Name: {}", self.name));
-            ui.label(format!("Pose: ({}, {}, {})", self.pose[0], self.pose[1], self.pose[2]));
+            ui.label(format!(
+                "Pose: ({}, {}, {})",
+                self.pose[0], self.pose[1], self.pose[2]
+            ));
         });
     }
 }

@@ -77,7 +77,9 @@ impl DeterministRandomVariableFactory {
 
 impl Default for DeterministRandomVariableFactory {
     fn default() -> Self {
-        Self { global_seed: random() }
+        Self {
+            global_seed: random(),
+        }
     }
 }
 
@@ -210,45 +212,20 @@ impl UIComponent for RandomVariableTypeConfig {
         };
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.horizontal(|ui| {
             ui.label(format!("Type: {}", self.to_string()));
         });
-        
+
         match self {
             RandomVariableTypeConfig::None => {
                 ui.label("None");
             }
-            RandomVariableTypeConfig::Fixed(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            RandomVariableTypeConfig::Uniform(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            RandomVariableTypeConfig::Normal(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            RandomVariableTypeConfig::Poisson(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            RandomVariableTypeConfig::Exponential(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
+            RandomVariableTypeConfig::Fixed(c) => c.show(ui, ctx, unique_id),
+            RandomVariableTypeConfig::Uniform(c) => c.show(ui, ctx, unique_id),
+            RandomVariableTypeConfig::Normal(c) => c.show(ui, ctx, unique_id),
+            RandomVariableTypeConfig::Poisson(c) => c.show(ui, ctx, unique_id),
+            RandomVariableTypeConfig::Exponential(c) => c.show(ui, ctx, unique_id),
         };
     }
 }
@@ -303,11 +280,7 @@ impl RandomVariableTypeConfig {
             for (i, dist) in vec.iter().enumerate() {
                 ui.horizontal_top(|ui| {
                     let dist_unique_id = format!("distribution-{i}-{unique_id}");
-                    dist.show(
-                        ui,
-                        ctx,
-                        &dist_unique_id,
-                    );
+                    dist.show(ui, ctx, &dist_unique_id);
                 });
             }
         });

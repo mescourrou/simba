@@ -4,14 +4,16 @@ Provide the implementation of the [`Physics`] trait without any noise added to t
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::networking::service::HasService;
-use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::{State, StateConfig, StateRecord};
-use crate::recordable::Recordable;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+
+use crate::{
+    networking::service::HasService,
+    plugin_api::PluginAPI,
+    recordable::Recordable,
+    simulator::SimulatorConfig,
+    state_estimators::state_estimator::{State, StateConfig, StateRecord},
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 use config_checker::macros::Check;
-use log::error;
 use nalgebra::SMatrix;
 use serde_derive::{Deserialize, Serialize};
 
@@ -64,12 +66,7 @@ impl UIComponent for PerfectsPhysicConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Perfect Physics")
             .id_source(format!("perfect-physics-{}", unique_id))
             .show(ui, |ui| {
@@ -79,11 +76,7 @@ impl UIComponent for PerfectsPhysicConfig {
 
                 ui.horizontal(|ui| {
                     ui.label("Initial state:");
-                    self.initial_state.show(
-                        ui,
-                        ctx,
-                        unique_id,
-                    );
+                    self.initial_state.show(ui, ctx, unique_id);
                 });
             });
     }
@@ -111,12 +104,7 @@ pub struct PerfectPhysicsRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PerfectPhysicsRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             egui::CollapsingHeader::new("State").show(ui, |ui| {
                 self.state.show(ui, ctx, unique_id);

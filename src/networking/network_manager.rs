@@ -64,7 +64,9 @@ impl NetworkManager {
             let from_node = mpsc::channel();
             self.nodes_senders.insert(node_name.clone(), to_node.0);
             self.nodes_receivers.insert(node_name.clone(), from_node.1);
-
+            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                debug!("Add node `{node_name}` to senders and receivers");
+            }
             network
                 .write()
                 .unwrap()
@@ -135,15 +137,18 @@ impl NetworkManager {
                             if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                                 debug!("Receiving message from `{node_name}` for `{r}`... Sending");
                             }
-                            *circulating_messages += 1;
-                            self.nodes_senders
-                                .get(r)
-                                .ok_or(SimbaError::new(
-                                    SimbaErrorTypes::NetworkError,
-                                    format!("Unknown recipient node {r}"),
-                                ))?
-                                .send(msg)
-                                .unwrap();
+                            match self.nodes_senders.get(r) {
+                                Some(sender) => {
+                                    *circulating_messages += 1;
+                                    sender.send(msg).unwrap();
+                                }
+                                None => {
+                                    return Err(SimbaError::new(
+                                        SimbaErrorTypes::NetworkError,
+                                        format!("Unknown recipient node `{r}`"),
+                                    ));
+                                }
+                            }
                             message_sent = true;
                         } else {
                             if is_enabled(crate::logger::InternalLog::NetworkMessages) {

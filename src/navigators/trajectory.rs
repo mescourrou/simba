@@ -52,12 +52,7 @@ impl TrajectoryRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for TrajectoryRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(format!("Current segment: {}", self.current_segment));
     }
 }

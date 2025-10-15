@@ -20,7 +20,7 @@ use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::node::Node;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::{simulator::SimulatorConfig, recordable::Recordable};
+use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
 use super::gnss_sensor::GNSSSensor;
 use super::odometry_sensor::{OdometrySensor, OdometrySensorConfig};
@@ -105,12 +105,7 @@ impl UIComponent for ManagedSensorConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new(&self.name)
             .id_source(format!("managed-sensor-{}", unique_id).as_str())
             .show(ui, |ui| {
@@ -125,11 +120,7 @@ impl UIComponent for ManagedSensorConfig {
                     }
                 });
 
-                self.config.show(
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                self.config.show(ui, ctx, unique_id);
             });
     }
 }
@@ -191,23 +182,14 @@ impl UIComponent for SensorManagerConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Sensor Manager")
             .id_source(format!("sensor-manager-{}", unique_id))
             .show(ui, |ui| {
                 for sensor in &self.sensors {
                     let sensor_unique_id = format!("{}-{}", unique_id, &sensor.name);
                     ui.horizontal_top(|ui| {
-                        sensor.show(
-                            ui,
-                            ctx,
-                            &sensor_unique_id,
-                        );
+                        sensor.show(ui, ctx, &sensor_unique_id);
                     });
                 }
             });
@@ -225,12 +207,7 @@ pub struct SensorManagerRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for SensorManagerRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Sensors").show(ui, |ui| {
             for s in &self.sensors {
                 egui::CollapsingHeader::new(&s.name).show(ui, |ui| {
@@ -375,7 +352,7 @@ impl SensorManager {
                 min_next_time
                     .unwrap_or(f32::INFINITY)
                     .min(sensor.sensor.read().unwrap().next_time_step()),
-                );
+            );
         }
         self.next_time = min_next_time;
         observations

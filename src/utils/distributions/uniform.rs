@@ -28,7 +28,7 @@ pub struct UniformRandomVariableConfig {
 impl Default for UniformRandomVariableConfig {
     fn default() -> Self {
         Self {
-            unique_seed:  random(),
+            unique_seed: random(),
             min: vec![-1.],
             max: vec![1.],
         }
@@ -78,17 +78,10 @@ impl UIComponent for UniformRandomVariableConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.horizontal_top(|ui| {
-
             ui.vertical(|ui| {
-                for (i, (min, max)) in
-                    std::iter::zip(self.min.iter(), self.max.iter()).enumerate()
+                for (i, (min, max)) in std::iter::zip(self.min.iter(), self.max.iter()).enumerate()
                 {
                     ui.horizontal(|ui| {
                         ui.label(format!("{}: {min} - {max}", i + 1));

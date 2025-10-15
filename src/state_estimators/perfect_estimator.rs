@@ -14,10 +14,10 @@ use crate::gui::{
     utils::{path_finder, string_checkbox},
     UIComponent,
 };
+use crate::recordable::Recordable;
 use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
 use crate::sensors::sensor::Observation;
 use crate::simulator::SimulatorConfig;
-use crate::recordable::Recordable;
 use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -105,12 +105,7 @@ impl UIComponent for PerfectEstimatorConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Perfect Estimator")
             .id_source(format!("perfect-estimator-{}", unique_id))
             .show(ui, |ui| {
@@ -148,17 +143,15 @@ pub struct PerfectEstimatorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PerfectEstimatorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             egui::CollapsingHeader::new("World state").show(ui, |ui| {
                 self.world_state.show(ui, ctx, unique_id);
             });
-            ui.label(format!("Last prediction time: {}", self.last_time_prediction));
+            ui.label(format!(
+                "Last prediction time: {}",
+                self.last_time_prediction
+            ));
         });
     }
 }
@@ -270,7 +263,11 @@ impl StateEstimator for PerfectEstimator {
     }
 
     fn next_time_step(&self) -> f32 {
-        round_precision(self.last_time_prediction + self.prediction_period, TIME_ROUND).unwrap()
+        round_precision(
+            self.last_time_prediction + self.prediction_period,
+            TIME_ROUND,
+        )
+        .unwrap()
     }
 }
 

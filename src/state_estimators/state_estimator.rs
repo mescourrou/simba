@@ -64,12 +64,7 @@ impl UIComponent for StateConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        _unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.horizontal(|ui| {
             ui.label(format!("x: {}", self.pose.get(0).unwrap()));
         });
@@ -105,14 +100,12 @@ impl Default for StateRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for StateRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
-            ui.label(format!("pose: ({}, {}, {})", self.pose[0], self.pose[1], self.pose[2]));
+            ui.label(format!(
+                "pose: ({}, {}, {})",
+                self.pose[0], self.pose[1], self.pose[2]
+            ));
             ui.label(format!("velocity: {}", self.velocity));
         });
     }
@@ -225,12 +218,7 @@ impl Default for WorldStateRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for WorldStateRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             if let Some(s) = &self.ego {
                 egui::CollapsingHeader::new("Ego").show(ui, |ui| {
@@ -299,7 +287,6 @@ impl Recordable<WorldStateRecord> for WorldState {
             occupancy_grid: self.occupancy_grid.clone(),
         }
     }
-
 }
 
 use super::perfect_estimator::PerfectEstimatorConfig;
@@ -311,9 +298,9 @@ use crate::gui::{
     UIComponent,
 };
 use crate::node::Node;
+use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::python_estimator;
-use crate::recordable::Recordable;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
@@ -412,31 +399,14 @@ impl UIComponent for StateEstimatorConfig {
         }
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.horizontal(|ui| {
             ui.label(format!("State Estimator: {}", self.to_string()));
         });
         match self {
-            StateEstimatorConfig::Perfect(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            StateEstimatorConfig::External(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
-            StateEstimatorConfig::Python(c) => c.show(
-                ui,
-                ctx,
-                unique_id,
-            ),
+            StateEstimatorConfig::Perfect(c) => c.show(ui, ctx, unique_id),
+            StateEstimatorConfig::External(c) => c.show(ui, ctx, unique_id),
+            StateEstimatorConfig::Python(c) => c.show(ui, ctx, unique_id),
         }
     }
 }
@@ -451,30 +421,22 @@ pub enum StateEstimatorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for StateEstimatorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
-        ui.vertical(|ui| {
-            match self {
-                Self::Perfect(r) => {
-                    egui::CollapsingHeader::new("Perfect").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::External(r) => {
-                    egui::CollapsingHeader::new("ExternalStateEstimator").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-                Self::Python(r) => {
-                    egui::CollapsingHeader::new("PythonExternalStateEstimator").show(ui, |ui| {
-                        r.show(ui, ctx, unique_id);
-                    });
-                },
-
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+        ui.vertical(|ui| match self {
+            Self::Perfect(r) => {
+                egui::CollapsingHeader::new("Perfect").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::External(r) => {
+                egui::CollapsingHeader::new("ExternalStateEstimator").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::Python(r) => {
+                egui::CollapsingHeader::new("PythonExternalStateEstimator").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
             }
         });
     }
@@ -506,14 +468,15 @@ pub fn make_state_estimator_from_config(
                 va_factory,
             )) as Box<dyn StateEstimator>
         }
-        StateEstimatorConfig::Python(c) => {
-            Box::new(python_estimator::PythonEstimator::from_config(
+        StateEstimatorConfig::Python(c) => Box::new(
+            python_estimator::PythonEstimator::from_config(
                 c,
                 plugin_api,
                 global_config,
                 va_factory,
-            ).unwrap()) as Box<dyn StateEstimator>
-        }
+            )
+            .unwrap(),
+        ) as Box<dyn StateEstimator>,
     };
 }
 
@@ -668,25 +631,15 @@ impl UIComponent for BenchStateEstimatorConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("Name: {}", self.name));
             });
 
-            self.config.show(
-                ui,
-                ctx,
-                unique_id,
-            );
+            self.config.show(ui, ctx, unique_id);
         });
     }
-
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

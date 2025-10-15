@@ -109,22 +109,19 @@ impl PythonController {
         }
         // let node_record = node.record();
         let result = Python::with_gil(|py| -> CommandWrapper {
-            match self.model
-                .bind(py)
-                .call_method(
-                    "make_command",
-                    (ControllerErrorWrapper::from_rust(error), time),
-                    None,
-                ) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'make_command' method of PythonController.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("Error during the call of Python implementation of 'make_command'")
-                    }
+            match self.model.bind(py).call_method(
+                "make_command",
+                (ControllerErrorWrapper::from_rust(error), time),
+                None,
+            ) {
+                Err(e) => {
+                    e.display(py);
+                    panic!("Error while calling 'make_command' method of PythonController.");
                 }
+                Ok(r) => r
+                    .extract()
+                    .expect("Error during the call of Python implementation of 'make_command'"),
+            }
         });
         result.to_rust()
     }

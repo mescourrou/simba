@@ -25,7 +25,7 @@ pub struct PoissonRandomVariableConfig {
 impl Default for PoissonRandomVariableConfig {
     fn default() -> Self {
         Self {
-            unique_seed:  random(),
+            unique_seed: random(),
             lambda: vec![1.],
         }
     }
@@ -68,14 +68,8 @@ impl UIComponent for PoissonRandomVariableConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.horizontal_top(|ui| {
-
             ui.vertical(|ui| {
                 for (i, p) in self.lambda.iter().enumerate() {
                     ui.horizontal(|ui| {

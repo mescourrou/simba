@@ -11,9 +11,9 @@ use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::path_finder, UIComponent};
 use crate::plugin_api::PluginAPI;
+use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
-use crate::recordable::Recordable;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
@@ -106,12 +106,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Oriented Landmark sensor")
             .id_source(format!("oriented-landmark-sensor-{}", unique_id))
             .show(ui, |ui| {
@@ -127,12 +122,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     ui.label(format!("Map path: {}", self.map_path));
                 });
 
-                FaultModelConfig::show_faults(
-                    &self.faults,
-                    ui,
-                    ctx,
-                    unique_id,
-                );
+                FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
     }
 }
@@ -151,12 +141,7 @@ impl Default for OrientedLandmarkSensorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OrientedLandmarkSensorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.label(format!("Last time: {}", self.last_time));
     }
 }
@@ -350,15 +335,13 @@ pub struct OrientedLandmarkObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OrientedLandmarkObservationRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
             ui.label(format!("Id: {}", self.id));
-            ui.label(format!("Pose: ({}, {}, {})", self.pose[0], self.pose[1], self.pose[2]));
+            ui.label(format!(
+                "Pose: ({}, {}, {})",
+                self.pose[0], self.pose[1], self.pose[2]
+            ));
         });
     }
 }

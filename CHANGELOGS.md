@@ -1,5 +1,12 @@
 # Changelogs
 
+## v1.1.0
+- [breaking] Synchronous parallel execution, remove need for from_record implementation
+- New command line tool
+- External Python possible directly from Rust (unstable with Python package)
+- Random seed if not specified
+- Default config loading when running GUI
+
 ## v1.0.2
 - Facilitate python development
 - Upload wheel file with the right name for pip install

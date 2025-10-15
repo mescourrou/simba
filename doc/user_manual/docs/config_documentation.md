@@ -54,6 +54,10 @@ List of parameters:
 			- `target_speed`: Float
 		- `External`: [ExternalNavigatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/navigators/external_navigator/struct.ExternalNavigatorConfig.html)
 			- `config`: User-specific struct
+		- `Python`: [PythonNavigatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/navigators/python_navigator/struct.PythonNavigatorConfig.html)
+			- `file`: String
+			- `class_name`: String
+			- `config`: User-specific struct
 	- `controller`: [ControllerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/controllers/controller/enum.ControllerConfig.html), Enum
 		- `PID`: [PIDConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/controllers/pid/struct.PIDConfig.html)
 			- `kp_v`: Float
@@ -65,6 +69,10 @@ List of parameters:
 			- `wheel_distance`: Float
 		- `External`: [ExternalControllerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/controllers/external_controller/struct.ExternalControllerConfig.html)
 			- `config`: User-specific struct
+		- `Python`: [PythonControllerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/controllers/python_controller/struct.PythonControllerConfig.html)
+			- `file`: String
+			- `class_name`: String
+			- `config`: User-specific struct
 	- `physics`: [PhysicsConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/physics/enum.PhysicsConfig.html), Enum
 		- `Perfect`: [PerfectsPhysicConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/perfect_physics/struct.PerfectsPhysicConfig.html)
 			- `wheel_distance`: Float
@@ -73,12 +81,20 @@ List of parameters:
 				- `velocity`: Float
 		- `External`: [ExternalPhysicsConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/external_physics/struct.ExternalPhysicsConfig.html)
 			- `config`: User-specific struct
+		- `Python`: [PythonPhysicsConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/python_physics/struct.PythonPhysicsConfig.html)
+			- `file`: String
+			- `class_name`: String
+			- `config`: User-specific struct
 	- `state_estimator`: [StateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/state_estimator/enum.StateEstimatorConfig.html), Enum
 		- `Perfect`: [PerfectEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/perfect_estimator/struct.PerfectEstimatorConfig.html)
 			- `prediction_period`: Float
 			- `targets`: String, List
 			- `map_path`: String, Optional
 		- `External`: [ExternalEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/external_estimator/struct.ExternalEstimatorConfig.html)
+			- `config`: User-specific struct
+		- `Python`: [PythonEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/python_estimator/struct.PythonEstimatorConfig.html)
+			- `file`: String
+			- `class_name`: String
 			- `config`: User-specific struct
 	- `sensor_manager`: [SensorManagerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_manager/struct.SensorManagerConfig.html)
 		- `sensors`: [ManagedSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_manager/struct.ManagedSensorConfig.html), List

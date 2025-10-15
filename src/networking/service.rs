@@ -249,7 +249,12 @@ impl<
 
     /// Get the minimal time among all waiting requests.
     fn next_time(&self) -> f32 {
-        self.request_buffer.read().unwrap().min_time().map(|tpl| tpl.0).unwrap_or(f32::INFINITY)
+        self.request_buffer
+            .read()
+            .unwrap()
+            .min_time()
+            .map(|tpl| tpl.0)
+            .unwrap_or(f32::INFINITY)
     }
 }
 

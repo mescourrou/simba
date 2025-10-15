@@ -1,12 +1,21 @@
 use std::{
-    collections::BTreeMap, path::Path, sync::{Arc, Mutex}, time::{self, Duration}
+    collections::BTreeMap,
+    path::Path,
+    sync::{Arc, Mutex},
+    time::{self, Duration},
 };
 
-use egui::{Align2, Color32, Id, Painter, Pos2, Rect, Response, Sense, Shape, Vec2};
+use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner}, constants::TIME_ROUND_DECIMALS, errors::SimbaError, gui::UIComponent, node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimulatorConfig}
+    api::async_api::{AsyncApi, AsyncApiRunner},
+    constants::TIME_ROUND_DECIMALS,
+    errors::SimbaError,
+    gui::UIComponent,
+    node_factory::NodeRecord,
+    plugin_api::PluginAPI,
+    simulator::{Record, SimulatorConfig},
 };
 
 use super::{
@@ -91,7 +100,12 @@ impl PainterInfo {
         }
     }
 
-    pub fn is_position_clicked(&self, response_click: Option<Pos2>, scale: f32, position: Vec2) -> bool {
+    pub fn is_position_clicked(
+        &self,
+        response_click: Option<Pos2>,
+        scale: f32,
+        position: Vec2,
+    ) -> bool {
         if let Some(click_pos) = response_click {
             let position = self.zero(scale) + position * scale;
             let dist = (click_pos - position).length();
@@ -100,7 +114,6 @@ impl PainterInfo {
             }
         }
         return false;
-
     }
 }
 
@@ -192,7 +205,10 @@ impl SimbaApp {
         }
     }
 
-    fn new_full(default_config_path: Option<Box<&'static Path>>, plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
+    fn new_full(
+        default_config_path: Option<Box<&'static Path>>,
+        plugin_api: Option<Box<&'static dyn PluginAPI>>,
+    ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = server.lock().unwrap().get_api();
         server.lock().unwrap().run(plugin_api);
@@ -212,7 +228,11 @@ impl SimbaApp {
         n
     }
 
-    fn update_api(mut self, default_config_path: Option<Box<&'static Path>>, plugin_api: Option<Box<&'static dyn PluginAPI>>) -> Self {
+    fn update_api(
+        mut self,
+        default_config_path: Option<Box<&'static Path>>,
+        plugin_api: Option<Box<&'static dyn PluginAPI>>,
+    ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = server.lock().unwrap().get_api();
         server.lock().unwrap().run(plugin_api);
@@ -257,7 +277,13 @@ impl SimbaApp {
         Ok(shapes)
     }
 
-    fn react(&mut self, ui: &mut egui::Ui, ctx: &egui::Context, viewport: Rect, response: &Response) {
+    fn react(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        _viewport: Rect,
+        response: &Response,
+    ) {
         for (_, robot) in &mut self.p.robots {
             robot.react(
                 ui,
@@ -406,10 +432,10 @@ impl eframe::App for SimbaApp {
                     if self.p.current_draw_time > max_simulated_time || self.follow_sim_time {
                         self.p.current_draw_time = max_simulated_time;
                     }
-                    ui.add(egui::Slider::new(
-                        &mut self.p.current_draw_time,
-                        0.0..=self.duration,
-                    ).fixed_decimals(TIME_ROUND_DECIMALS));
+                    ui.add(
+                        egui::Slider::new(&mut self.p.current_draw_time, 0.0..=self.duration)
+                            .fixed_decimals(TIME_ROUND_DECIMALS),
+                    );
                     ui.add(egui::Checkbox::new(&mut self.follow_sim_time, "Follow"));
                     if ui
                         .add_enabled(self.p.config.is_some(), egui::Button::new("Results"))

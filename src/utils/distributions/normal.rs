@@ -112,12 +112,7 @@ impl UIComponent for NormalRandomVariableConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 for (i, p) in self.mean.iter().enumerate() {
@@ -135,7 +130,10 @@ impl UIComponent for NormalRandomVariableConfig {
                         ui.vertical(|ui| {
                             let mut col = 0;
                             while col < size {
-                                ui.label(format!("{}", self.covariance.get(row * size + col).unwrap()));
+                                ui.label(format!(
+                                    "{}",
+                                    self.covariance.get(row * size + col).unwrap()
+                                ));
                                 col += 1;
                             }
                         });

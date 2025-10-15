@@ -13,8 +13,8 @@ use crate::{
     navigators::external_navigator::ExternalNavigatorRecord,
     node::Node,
     pywrappers::{ControllerErrorWrapper, WorldStateWrapper},
-    state_estimators::state_estimator::WorldState,
     recordable::Recordable,
+    state_estimators::state_estimator::WorldState,
 };
 
 use super::navigator::{Navigator, NavigatorRecord};
@@ -116,22 +116,19 @@ impl PythonNavigator {
         }
         // let node_record = node.record();
         let result = Python::with_gil(|py| -> ControllerErrorWrapper {
-            match self.model
-                .bind(py)
-                .call_method(
-                    "compute_error",
-                    (WorldStateWrapper::from_rust(state),),
-                    None,
-                ) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'compute_error' method of PythonNavigator.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("Error during the call of Python implementation of 'compute_error'")
-                    }
+            match self.model.bind(py).call_method(
+                "compute_error",
+                (WorldStateWrapper::from_rust(state),),
+                None,
+            ) {
+                Err(e) => {
+                    e.display(py);
+                    panic!("Error while calling 'compute_error' method of PythonNavigator.");
                 }
+                Ok(r) => r
+                    .extract()
+                    .expect("Error during the call of Python implementation of 'compute_error'"),
+            }
         });
         result.to_rust()
     }

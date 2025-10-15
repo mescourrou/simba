@@ -105,47 +105,18 @@ impl UIComponent for FaultModelConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         let self_str = self.to_string();
         egui::CollapsingHeader::new(self_str)
             .id_source(format!("fault-model-{}", unique_id))
             .show(ui, |ui| {
                 match self {
-                    Self::AdditiveRobotCentered(cfg) => cfg.show(
-                        ui,
-                        ctx,
-                        unique_id,
-                    ),
-                    Self::AdditiveRobotCenteredPolar(cfg) => cfg.show(
-                        ui,
-                        ctx,
-                        unique_id,
-                    ),
-                    Self::AdditiveObservationCenteredPolar(cfg) => cfg.show(
-                        ui,
-                        ctx,
-                        unique_id,
-                    ),
-                    Self::Clutter(cfg) => cfg.show(
-                        ui,
-                        ctx,
-                        unique_id,
-                    ),
-                    Self::Misdetection(cfg) => cfg.show(
-                        ui,
-                        ctx,
-                        unique_id,
-                    ),
-                    Self::Misassociation(cfg) => cfg.show(
-                        ui,
-                        ctx,
-                        unique_id,
-                    ),
+                    Self::AdditiveRobotCentered(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::AdditiveRobotCenteredPolar(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::AdditiveObservationCenteredPolar(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::Clutter(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::Misdetection(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::Misassociation(cfg) => cfg.show(ui, ctx, unique_id),
                 };
             });
     }
@@ -240,16 +211,11 @@ impl FaultModelConfig {
         ctx: &egui::Context,
         unique_id: &String,
     ) {
-
         ui.label("Faults:");
         for (i, fault) in faults.iter().enumerate() {
             ui.horizontal_top(|ui| {
                 let unique_fault_id = format!("fault-{i}-{unique_id}");
-                fault.show(
-                    ui,
-                    ctx,
-                    &unique_fault_id,
-                );
+                fault.show(ui, ctx, &unique_fault_id);
             });
         }
     }

@@ -12,8 +12,8 @@ use crate::{
     networking::service::HasService,
     physics::external_physics::ExternalPhysicsRecord,
     pywrappers::{CommandWrapper, StateWrapper},
-    state_estimators::state_estimator::State,
     recordable::Recordable,
+    state_estimators::state_estimator::State,
 };
 
 use super::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
@@ -168,16 +168,14 @@ impl PythonPhysics {
         }
         // let robot_record = robot.record();
         Python::with_gil(|py| {
-            if let Err(e) = self.model
-                .bind(py)
-                .call_method(
-                    "apply_command",
-                    (CommandWrapper::from_rust(command), time),
-                    None,
-                ) {
-                    e.display(py);
-                    panic!("Error while calling 'apply_command' method of PythonPhysics.");
-                }
+            if let Err(e) = self.model.bind(py).call_method(
+                "apply_command",
+                (CommandWrapper::from_rust(command), time),
+                None,
+            ) {
+                e.display(py);
+                panic!("Error while calling 'apply_command' method of PythonPhysics.");
+            }
         });
     }
 
@@ -187,12 +185,14 @@ impl PythonPhysics {
         }
         // let robot_record = robot.record();
         Python::with_gil(|py| {
-            if let Err(e) = self.model
+            if let Err(e) = self
+                .model
                 .bind(py)
-                .call_method("update_state", (time,), None) {
-                    e.display(py);
-                    panic!("Error while calling 'update_state' method of PythonPhysics.");
-                }
+                .call_method("update_state", (time,), None)
+            {
+                e.display(py);
+                panic!("Error while calling 'update_state' method of PythonPhysics.");
+            }
         });
     }
 
@@ -202,21 +202,15 @@ impl PythonPhysics {
         }
         // let robot_record = robot.record();
         let state = Python::with_gil(|py| -> StateWrapper {
-            match self.model
-                .bind(py)
-                .call_method("state", (time,), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'state' method of PythonPhysics.");
-                    }
-                    Ok(s) => {
-                        s.extract()
-                        .expect(
-                            "The 'state' method of PythonPhysics does not return a correct state vector",
-                        )
-                    }
+            match self.model.bind(py).call_method("state", (time,), None) {
+                Err(e) => {
+                    e.display(py);
+                    panic!("Error while calling 'state' method of PythonPhysics.");
                 }
-                
+                Ok(s) => s.extract().expect(
+                    "The 'state' method of PythonPhysics does not return a correct state vector",
+                ),
+            }
         });
         state.to_rust()
     }

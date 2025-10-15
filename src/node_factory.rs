@@ -215,7 +215,9 @@ impl Default for RobotConfig {
     fn default() -> Self {
         RobotConfig {
             name: String::from("NoName"),
-            navigator: NavigatorConfig::TrajectoryFollower(trajectory_follower::TrajectoryFollowerConfig::default()),
+            navigator: NavigatorConfig::TrajectoryFollower(
+                trajectory_follower::TrajectoryFollowerConfig::default(),
+            ),
             controller: ControllerConfig::PID(pid::PIDConfig::default()),
             physics: PhysicsConfig::Perfect(perfect_physics::PerfectsPhysicConfig::default()),
             state_estimator: StateEstimatorConfig::Perfect(
@@ -329,60 +331,27 @@ impl UIComponent for RobotConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("Name: {}", self.name));
             });
 
-            self.network.show(
-                ui,
-                ctx,
-                unique_id,
-            );
-            self.navigator.show(
-                ui,
-                ctx,
-                unique_id,
-            );
-            self.physics.show(
-                ui,
-                ctx,
-                unique_id,
-            );
-            self.controller.show(
-                ui,
-                ctx,
-                unique_id,
-            );
-            self.state_estimator.show(
-                ui,
-                ctx,
-                unique_id,
-            );
+            self.network.show(ui, ctx, unique_id);
+            self.navigator.show(ui, ctx, unique_id);
+            self.physics.show(ui, ctx, unique_id);
+            self.controller.show(ui, ctx, unique_id);
+            self.state_estimator.show(ui, ctx, unique_id);
 
             ui.label("State estimator bench:");
             for seb in &self.state_estimator_bench {
                 let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
                 ui.horizontal_top(|ui| {
-                    seb.show(
-                        ui,
-                        ctx,
-                        &seb_unique_id,
-                    );
+                    seb.show(ui, ctx, &seb_unique_id);
                 });
             }
-            
-            self.sensor_manager.show(
-                ui,
-                ctx,
-                unique_id,
-            );
+
+            self.sensor_manager.show(ui, ctx, unique_id);
         });
     }
 }
@@ -410,14 +379,8 @@ pub struct RobotRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for RobotRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
-
             ui.label(format!("Name: {}", self.name));
 
             egui::CollapsingHeader::new("Navigator").show(ui, |ui| {
@@ -543,32 +506,19 @@ impl UIComponent for ComputationUnitConfig {
         });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("Name: {}", self.name));
             });
 
-            self.network.show(
-                ui,
-                ctx,
-                unique_id,
-            );
+            self.network.show(ui, ctx, unique_id);
 
             ui.label("State estimators:");
             for seb in &self.state_estimators {
                 let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
                 ui.horizontal_top(|ui| {
-                    seb.show(
-                        ui,
-                        ctx,
-                        &seb_unique_id,
-                    );
+                    seb.show(ui, ctx, &seb_unique_id);
                 });
             }
         });
@@ -588,14 +538,8 @@ pub struct ComputationUnitRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ComputationUnitRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
-
             ui.label(format!("Name: {}", self.name));
 
             ui.label("State Estimators:");

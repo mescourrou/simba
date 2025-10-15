@@ -3,20 +3,23 @@ Implementation of a [`Navigator`] strategy, which follows a polyline shaped
 trajectory.
 */
 
-use super::navigator::{Navigator, NavigatorRecord};
-use super::trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord};
-
 #[cfg(feature = "gui")]
 use crate::gui::{utils::path_finder, UIComponent};
-use crate::plugin_api::PluginAPI;
-use crate::simulator::SimulatorConfig;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::utils::geometry::{mod2pi, smallest_theta_diff};
+
+use crate::{
+    navigators::{
+        navigator::{Navigator, NavigatorRecord},
+        trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
+    },
+    plugin_api::PluginAPI,
+    simulator::SimulatorConfig,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    utils::geometry::{mod2pi, smallest_theta_diff},
+};
 
 extern crate nalgebra as na;
 use config_checker::macros::Check;
 use libm::atan2;
-use log::error;
 use na::Vector3;
 
 use serde_derive::{Deserialize, Serialize};
@@ -85,12 +88,7 @@ impl UIComponent for TrajectoryFollowerConfig {
             });
     }
 
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &String,
-    ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Trajectory Follower")
             .id_source(format!("trajectory-follower-{}", unique_id))
             .show(ui, |ui| {
@@ -131,12 +129,7 @@ impl Default for TrajectoryFollowerRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for TrajectoryFollowerRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &String,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             egui::CollapsingHeader::new("Error").show(ui, |ui| {
                 self.error.show(ui, ctx, unique_id);
@@ -146,7 +139,10 @@ impl UIComponent for TrajectoryFollowerRecord {
                 self.trajectory.show(ui, ctx, unique_id);
             });
 
-            ui.label(format!("Projected point: ({}, {})", self.projected_point[0], self.projected_point[1]));
+            ui.label(format!(
+                "Projected point: ({}, {})",
+                self.projected_point[0], self.projected_point[1]
+            ));
         });
     }
 }
