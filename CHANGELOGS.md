@@ -2,6 +2,7 @@
 
 ## v1.1.0
 - [breaking] Synchronous parallel execution, remove need for from_record implementation
+- [breaking] Change of enumeration representation YAML configuration file: now using tags (ie `!RobotSensor`)
 - New command line tool
 - External Python possible directly from Rust (unstable with Python package)
 - Random seed if not specified

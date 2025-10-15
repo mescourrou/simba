@@ -71,7 +71,7 @@ impl UIComponent for PIDConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("PID")
-            .id_source(format!("pid-{}", unique_id))
+            .id_salt(format!("pid-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Velocity - P:");
@@ -115,7 +115,7 @@ impl UIComponent for PIDConfig {
 
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("PID")
-            .id_source(format!("pid-{}", unique_id))
+            .id_salt(format!("pid-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Velocity - P: {}", self.kp_v));

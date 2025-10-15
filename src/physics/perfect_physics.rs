@@ -42,7 +42,7 @@ impl UIComponent for PerfectsPhysicConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Perfect Physics")
-            .id_source(format!("perfect-physics-{}", unique_id))
+            .id_salt(format!("perfect-physics-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Wheel distance:");
@@ -68,7 +68,7 @@ impl UIComponent for PerfectsPhysicConfig {
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Perfect Physics")
-            .id_source(format!("perfect-physics-{}", unique_id))
+            .id_salt(format!("perfect-physics-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Wheel distance: {}", self.wheel_distance));

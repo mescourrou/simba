@@ -150,7 +150,7 @@ impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
 impl Recordable<PhysicsRecord> for MyWonderfulPhysics {
     fn record(&self) -> PhysicsRecord {
         PhysicsRecord::External(ExternalPhysicsRecord {
-            record: serde_json::to_value(MyWonderfulNavigatorRecord {}).unwrap(),
+            record: serde_json::to_value(MyWonderfulPhysicsRecord {}).unwrap(),
         })
     }
 }

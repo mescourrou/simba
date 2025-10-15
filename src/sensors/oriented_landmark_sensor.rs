@@ -68,7 +68,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Oriented Landmark sensor")
-            .id_source(format!("oriented-landmark-sensor-{}", unique_id))
+            .id_salt(format!("oriented-landmark-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Detection distance:");
@@ -108,7 +108,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Oriented Landmark sensor")
-            .id_source(format!("oriented-landmark-sensor-{}", unique_id))
+            .id_salt(format!("oriented-landmark-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Detection distance: {}", self.detection_distance));

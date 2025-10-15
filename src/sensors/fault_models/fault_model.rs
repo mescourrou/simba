@@ -50,7 +50,7 @@ impl UIComponent for FaultModelConfig {
     ) {
         let self_str = self.to_string();
         egui::CollapsingHeader::new(self_str)
-            .id_source(format!("fault-model-{}", unique_id))
+            .id_salt(format!("fault-model-{}", unique_id))
             .show(ui, |ui| {
                 match self {
                     Self::AdditiveRobotCentered(cfg) => cfg.show_mut(
@@ -108,7 +108,7 @@ impl UIComponent for FaultModelConfig {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         let self_str = self.to_string();
         egui::CollapsingHeader::new(self_str)
-            .id_source(format!("fault-model-{}", unique_id))
+            .id_salt(format!("fault-model-{}", unique_id))
             .show(ui, |ui| {
                 match self {
                     Self::AdditiveRobotCentered(cfg) => cfg.show(ui, ctx, unique_id),

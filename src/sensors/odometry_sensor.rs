@@ -58,7 +58,7 @@ impl UIComponent for OdometrySensorConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Odometry sensor")
-            .id_source(format!("odometry-sensor-{}", unique_id))
+            .id_salt(format!("odometry-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
@@ -82,7 +82,7 @@ impl UIComponent for OdometrySensorConfig {
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Odometry sensor")
-            .id_source(format!("odometry-sensor-{}", unique_id))
+            .id_salt(format!("odometry-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Period: {}", self.period));

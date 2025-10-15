@@ -64,7 +64,7 @@ impl UIComponent for RobotSensorConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Robot sensor")
-            .id_source(format!("robot-sensor-{}", unique_id))
+            .id_salt(format!("robot-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Detection distance:");
@@ -99,7 +99,7 @@ impl UIComponent for RobotSensorConfig {
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Robot sensor")
-            .id_source(format!("robot-sensor-{}", unique_id))
+            .id_salt(format!("robot-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Detection distance: {}", self.detection_distance));

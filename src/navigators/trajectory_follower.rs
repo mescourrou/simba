@@ -63,7 +63,7 @@ impl UIComponent for TrajectoryFollowerConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Trajectory Follower")
-            .id_source(format!("trajectory-follower-{}", unique_id))
+            .id_salt(format!("trajectory-follower-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Trajectory path:");
@@ -90,7 +90,7 @@ impl UIComponent for TrajectoryFollowerConfig {
 
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Trajectory Follower")
-            .id_source(format!("trajectory-follower-{}", unique_id))
+            .id_salt(format!("trajectory-follower-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Trajectory path: {}", self.trajectory_path));

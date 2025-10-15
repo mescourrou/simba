@@ -319,7 +319,7 @@ impl eframe::App for SimbaApp {
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
 
-            egui::menu::bar(ui, |ui| {
+            egui::MenuBar::new().ui(ui, |ui| {
                 // NOTE: no File->Quit on web pages!
                 let is_web = cfg!(target_arch = "wasm32");
                 if !is_web {
@@ -332,7 +332,7 @@ impl eframe::App for SimbaApp {
                     ui.add_space(16.0);
                 }
 
-                egui::widgets::global_dark_light_mode_buttons(ui);
+                egui::widgets::global_theme_preference_switch(ui);
             });
             ui.heading("SiMBA: Simulator for Multi-Robot Backend Algorithms");
 
@@ -471,7 +471,7 @@ impl eframe::App for SimbaApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both()
                 .auto_shrink([false; 2])
-                .drag_to_scroll(true)
+                .scroll_source(egui::scroll_area::ScrollSource { scroll_bar: true, drag: true, mouse_wheel: true })
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
                 .show_viewport(ui, |ui, viewport| {
                     let mut shapes = Vec::new();
@@ -479,7 +479,7 @@ impl eframe::App for SimbaApp {
                         let rect = self.p.painter_info.rect_painter(self.drawing_scale);
 
                         // Draw grid
-                        shapes.push(Shape::rect_stroke(rect, 0.0, (1.0, Color32::LIGHT_GRAY)));
+                        shapes.push(Shape::rect_stroke(rect, 0.0, (1.0, Color32::LIGHT_GRAY), egui::StrokeKind::Middle));
                         let x_min = rect.left(); //.max(viewport.left());
                         let x_max = rect.right(); //.min(viewport.right());
                         let y_min = rect.top(); //.max(viewport.top());

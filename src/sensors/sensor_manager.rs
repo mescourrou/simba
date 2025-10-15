@@ -63,7 +63,7 @@ impl UIComponent for ManagedSensorConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new(&self.name)
-            .id_source(format!("managed-sensor-{}", unique_id).as_str())
+            .id_salt(format!("managed-sensor-{}", unique_id).as_str())
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Name: ");
@@ -107,7 +107,7 @@ impl UIComponent for ManagedSensorConfig {
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new(&self.name)
-            .id_source(format!("managed-sensor-{}", unique_id).as_str())
+            .id_salt(format!("managed-sensor-{}", unique_id).as_str())
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Name: {}", self.name));
@@ -154,7 +154,7 @@ impl UIComponent for SensorManagerConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Sensor Manager")
-            .id_source(format!("sensor-manager-{}", unique_id))
+            .id_salt(format!("sensor-manager-{}", unique_id))
             .show(ui, |ui| {
                 let mut sensor_to_remove = None;
                 for (i, sensor) in self.sensors.iter_mut().enumerate() {
@@ -184,7 +184,7 @@ impl UIComponent for SensorManagerConfig {
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Sensor Manager")
-            .id_source(format!("sensor-manager-{}", unique_id))
+            .id_salt(format!("sensor-manager-{}", unique_id))
             .show(ui, |ui| {
                 for sensor in &self.sensors {
                     let sensor_unique_id = format!("{}-{}", unique_id, &sensor.name);

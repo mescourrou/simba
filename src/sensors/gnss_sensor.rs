@@ -57,7 +57,7 @@ impl UIComponent for GNSSSensorConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("GNSS sensor")
-            .id_source(format!("gnss-sensor-{}", unique_id))
+            .id_salt(format!("gnss-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
@@ -84,7 +84,7 @@ impl UIComponent for GNSSSensorConfig {
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("GNSS sensor")
-            .id_source(format!("gnss-sensor-{}", unique_id))
+            .id_salt(format!("gnss-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Period: {}", self.period));

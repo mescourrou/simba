@@ -60,7 +60,7 @@ impl UIComponent for PerfectEstimatorConfig {
         unique_id: &String,
     ) {
         egui::CollapsingHeader::new("Perfect Estimator")
-            .id_source(format!("perfect-estimator-{}", unique_id))
+            .id_salt(format!("perfect-estimator-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Prediction period:");
@@ -107,7 +107,7 @@ impl UIComponent for PerfectEstimatorConfig {
 
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Perfect Estimator")
-            .id_source(format!("perfect-estimator-{}", unique_id))
+            .id_salt(format!("perfect-estimator-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label(format!("Prediction period: {}", self.prediction_period));

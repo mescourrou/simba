@@ -15,6 +15,6 @@ pub fn detailed_error(error: &ConfyError) -> String {
         ConfyError::WriteConfigurationFileError(e) => e.to_string(),
         ConfyError::ReadConfigurationFileError(e) => e.to_string(),
         ConfyError::OpenConfigurationFileError(e) => e.to_string(),
-        // ConfyError::SetPermissionsFileError(e) => e.to_string(),
+        ConfyError::SetPermissionsFileError(e) => e.to_string(),
     })
 }

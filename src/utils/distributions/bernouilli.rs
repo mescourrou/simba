@@ -49,7 +49,7 @@ impl UIComponent for BernouilliRandomVariableConfig {
                         ui.label(format!("p {}:", i + 1));
                         ui.add(
                             egui::DragValue::new(p)
-                                .clamp_range(0.0..=1.0)
+                                .range(0.0..=1.0)
                                 .max_decimals(10),
                         );
                         if ui.button("X").clicked() {
