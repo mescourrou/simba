@@ -66,6 +66,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         time: f32,
         message_flags: Vec<MessageFlag>,
     ) -> Result<(), String> {
+        let _lk = self.time_cv.waiting.lock().unwrap();
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
             debug!("Sending a request");
         }
@@ -85,17 +86,11 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
             debug!("Sending a request: OK");
         }
-        let lk = self.time_cv.finished_nodes.lock().unwrap();
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-            debug!("Lock acquired in service");
-            debug!("Wake waiting nodes");
+            debug!("Notify CV");
         }
         // Needed to unlock the other node if it has finished and is waiting for messages.
         self.time_cv.condvar.notify_all();
-        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-            debug!("Release CV lock");
-        }
-        std::mem::drop(lk);
         Ok(())
     }
 

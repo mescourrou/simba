@@ -355,7 +355,7 @@ impl Node {
     }
 
     pub fn sync_with_others(&mut self, time_cv: &TimeCv, nb_nodes: usize, time: f32) {
-        let mut lk = time_cv.intermediate_waiting.lock().unwrap();
+        let mut lk = time_cv.waiting.lock().unwrap();
         let waiting_parity = *time_cv.intermediate_parity.lock().unwrap();
         *lk += 1;
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
@@ -396,14 +396,12 @@ impl Node {
             if self.process_messages() == 0 {
                 lk = time_cv.condvar.wait(lk).unwrap();
             }
-            let circulating_messages = time_cv.circulating_messages.lock().unwrap();
             if waiting_parity != *time_cv.intermediate_parity.lock().unwrap() {
                 debug!("[intermediate wait] End wait");
                 return;
             }
             debug!(
-                "[intermediate wait] New loop: waiting = {} and circulating messages = {}",
-                *lk, *circulating_messages
+                "[intermediate wait] New loop: waiting = {}", *lk
             );
         }
     }
