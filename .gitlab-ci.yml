@@ -92,6 +92,6 @@ release_job:
     assets:
       links:
         - name: Python package
-          url: "${PACKAGE_REGISTRY_URL}/simba-${CI_COMMIT_TAG}-cp310-abi3-manylinux_2_35_x86_64.whl"
+          url: "${PACKAGE_REGISTRY_URL}/simba-${CI_COMMIT_TAG}-cp310-abi3-manylinux_2_39_x86_64.whl"
         - name: Binary
           url: "${PACKAGE_REGISTRY_URL}/simba_cmd"

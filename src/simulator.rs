@@ -62,7 +62,7 @@ use crate::{
     recordable::Recordable,
     state_estimators::state_estimator::State,
     time_analysis::{self, TimeAnalysisConfig},
-    utils::{self, determinist_random_variable::DeterministRandomVariableFactory, format_option_f32, time_ordered_data::TimeOrderedData},
+    utils::{self, determinist_random_variable::DeterministRandomVariableFactory, format_option_f32, time_ordered_data::TimeOrderedData}, VERSION,
 };
 use core::f32;
 use std::collections::BTreeMap;
@@ -237,12 +237,12 @@ pub enum TimeMode {
 #[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct SimulatorConfig {
+    pub version: String,
     #[check]
     pub log: LoggerConfig,
     #[check]
     pub results: Option<ResultConfig>,
 
-    #[serde(skip_deserializing)]
     pub base_path: Box<Path>,
 
     pub max_time: f32,
@@ -263,6 +263,7 @@ impl Default for SimulatorConfig {
     /// Default scenario configuration: no nodes.
     fn default() -> Self {
         Self {
+            version: VERSION.to_string(),
             log: LoggerConfig::default(),
             base_path: Box::from(Path::new(".")),
             results: None,
@@ -716,7 +717,18 @@ impl Simulator {
                 "Error in config".to_string(),
             ));
         }
+        let config_version: Vec<usize> = config.version.split(".").map(|s| s.parse().expect("Config version pattern not recognized")).collect();
+        if config_version.len() < 2 {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ConfigError,
+                "Version is expected to be XX.YY at least".to_string(),
+            ));
+        }
         Self::init_log(&config.log)?;
+        if config_version[0] != env!("CARGO_PKG_VERSION_MAJOR").parse::<usize>().unwrap()
+            || config_version[1] != env!("CARGO_PKG_VERSION_MINOR").parse::<usize>().unwrap() {
+            warn!("Config major version ({}) differs from software version ({})", config.version, VERSION);
+        }
         self.config = config.clone();
         if let Some(seed) = config.random_seed {
             self.determinist_va_factory.global_seed = seed;

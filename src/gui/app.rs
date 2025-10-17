@@ -9,13 +9,7 @@ use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner},
-    constants::TIME_ROUND_DECIMALS,
-    errors::SimbaError,
-    gui::UIComponent,
-    node_factory::NodeRecord,
-    plugin_api::PluginAPI,
-    simulator::{Record, SimulatorConfig},
+    api::async_api::{AsyncApi, AsyncApiRunner}, constants::TIME_ROUND_DECIMALS, errors::SimbaError, gui::{drawables::popup::Popup, UIComponent}, node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimulatorConfig}, AUTHORS, VERSION
 };
 
 use super::{
@@ -128,6 +122,7 @@ struct PrivateParams {
     configurator: Option<Configurator>,
     error_buffer: Vec<(time::Instant, SimbaError)>,
     painter_info: PainterInfo,
+    popups: Vec<Popup>,
 }
 
 impl Default for PrivateParams {
@@ -146,6 +141,7 @@ impl Default for PrivateParams {
             configurator: None,
             error_buffer: Vec::new(),
             painter_info: PainterInfo::default(),
+            popups: Vec::new(),
         }
     }
 }
@@ -316,6 +312,17 @@ impl eframe::App for SimbaApp {
             }
         }
 
+        let mut to_close = Vec::new();
+        for (i, pup) in self.p.popups.iter_mut().enumerate() {
+            pup.draw(ctx);
+            if pup.is_clicked() {
+                to_close.push(i);
+            }
+        }
+        for i in to_close.iter().rev() {
+            self.p.popups.remove(*i);
+        }
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
 
@@ -327,6 +334,14 @@ impl eframe::App for SimbaApp {
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                             self.quit();
+                        }
+                    });
+                    ui.add_space(16.0);
+                    ui.menu_button("Help", |ui| {
+                        if ui.button("Version").clicked() {
+                            self.p.popups.push(Popup::new_ok("Version".to_string(), 
+                        format!("SiMBA\nVersion {}\nGPLv3\n{}", VERSION, AUTHORS),
+                    |_| {}));
                         }
                     });
                     ui.add_space(16.0);
