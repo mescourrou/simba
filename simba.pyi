@@ -114,6 +114,9 @@ class SensorObservation(Enum):
     GNSS: GNSSObservation
     OrientedRobot: OrientedRobotObservation
     
+    def __init__(self):
+        self.kind: str
+
     def as_oriented_landmark(self) -> OrientedLandmarkObservation | None:
         raise NotImplementedError()
     
@@ -138,6 +141,9 @@ class Command:
         self.left_wheel_speed: float
         self.right_wheel_speed: float
         
+class Node:
+    def name(self):
+        raise NotImplementedError()
 
 class StateEstimator:
     def state(self) -> WorldState:
@@ -146,10 +152,10 @@ class StateEstimator:
     def record(self) -> str:
         raise NotImplementedError()
 
-    def prediction_step(self, time: float):
+    def prediction_step(self, node: Node, time: float):
         raise NotImplementedError()
 
-    def correction_step(self, observations: List[Observation], time: float):
+    def correction_step(self, node: Node, observations: List[Observation], time: float):
         raise NotImplementedError()
 
     def next_time_step(self) -> float:
@@ -159,14 +165,14 @@ class Controller:
     def record(self) -> str:
         raise NotImplementedError()
 
-    def make_command(self, error: ControllerError, time: float) -> Command:
+    def make_command(self, node: Node, error: ControllerError, time: float) -> Command:
         raise NotImplementedError()
     
 class Navigator:
     def record(self) -> str:
         raise NotImplementedError()
 
-    def compute_error(self, world_state: WorldState) -> ControllerError:
+    def compute_error(self, node: Node, world_state: WorldState) -> ControllerError:
         raise NotImplementedError()
         
 class Physics:

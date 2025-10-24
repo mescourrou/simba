@@ -18,7 +18,7 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
-use crate::pywrappers::{ObservationWrapper, WorldStateWrapper};
+use crate::pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::utils::maths::round_precision;
@@ -272,16 +272,17 @@ impl std::fmt::Debug for PythonEstimator {
 }
 
 impl StateEstimator for PythonEstimator {
-    fn prediction_step(&mut self, _node: &mut Node, time: f32) {
+    fn prediction_step(&mut self, node: &mut Node, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
         // let node_record = node.record();
+        let node_py = NodeWrapper::from_rust(&node);
         Python::with_gil(|py| {
             if let Err(e) =
                 self.state_estimator
                     .bind(py)
-                    .call_method("prediction_step", (time,), None)
+                    .call_method("prediction_step", (node_py, time,), None)
             {
                 e.display(py);
                 panic!("Error while calling 'prediction_step' method of PythonEstimator.");
@@ -289,7 +290,7 @@ impl StateEstimator for PythonEstimator {
         });
     }
 
-    fn correction_step(&mut self, _node: &mut Node, observations: &Vec<Observation>, time: f32) {
+    fn correction_step(&mut self, node: &mut Node, observations: &Vec<Observation>, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of correction_step");
         }
@@ -297,10 +298,11 @@ impl StateEstimator for PythonEstimator {
         for obs in observations {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
+        let node_py = NodeWrapper::from_rust(&node);
         Python::with_gil(|py| {
             if let Err(e) = self.state_estimator.bind(py).call_method(
                 "correction_step",
-                (observation_py, time),
+                (node_py, observation_py, time),
                 None,
             ) {
                 e.display(py);

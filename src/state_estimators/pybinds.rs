@@ -11,7 +11,7 @@ use crate::{
     constants::TIME_ROUND,
     logger::is_enabled,
     node::Node,
-    pywrappers::{ObservationWrapper, WorldStateWrapper},
+    pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
     recordable::Recordable,
     sensors::sensor::Observation,
     utils::maths::round_precision,
@@ -24,9 +24,9 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct PythonStateEstimatorAsyncClient {
-    pub prediction_step_request: mpsc::Sender<f32>,
+    pub prediction_step_request: mpsc::Sender<(NodeWrapper, f32)>,
     pub prediction_step_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    pub correction_step_request: mpsc::Sender<(Vec<Observation>, f32)>,
+    pub correction_step_request: mpsc::Sender<(NodeWrapper, Vec<Observation>, f32)>,
     pub correction_step_response: Arc<Mutex<mpsc::Receiver<()>>>,
     pub state_request: mpsc::Sender<()>,
     pub state_response: Arc<Mutex<mpsc::Receiver<WorldState>>>,
@@ -37,11 +37,12 @@ pub struct PythonStateEstimatorAsyncClient {
 }
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
-    fn prediction_step(&mut self, _node: &mut Node, time: f32) {
+    fn prediction_step(&mut self, node: &mut Node, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start prediction step from async client");
         }
-        self.prediction_step_request.send(time).unwrap();
+        let node_py = NodeWrapper::from_rust(&node);
+        self.prediction_step_request.send((node_py, time)).unwrap();
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start prediction step from async client: Request sent");
         }
@@ -52,12 +53,13 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
             .unwrap();
     }
 
-    fn correction_step(&mut self, _node: &mut Node, observations: &Vec<Observation>, time: f32) {
+    fn correction_step(&mut self, node: &mut Node, observations: &Vec<Observation>, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start correction step from async client");
         }
+        let node_py = NodeWrapper::from_rust(&node);
         self.correction_step_request
-            .send((observations.clone(), time))
+            .send((node_py, observations.clone(), time))
             .unwrap();
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start correction step from async client: Request sent");
@@ -117,9 +119,9 @@ impl Recordable<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
 pub struct PythonStateEstimator {
     model: Py<PyAny>,
     client: PythonStateEstimatorAsyncClient,
-    prediction_step_request: Arc<Mutex<mpsc::Receiver<f32>>>,
+    prediction_step_request: Arc<Mutex<mpsc::Receiver<(NodeWrapper, f32)>>>,
     prediction_step_response: mpsc::Sender<()>,
-    correction_step_request: Arc<Mutex<mpsc::Receiver<(Vec<Observation>, f32)>>>,
+    correction_step_request: Arc<Mutex<mpsc::Receiver<(NodeWrapper, Vec<Observation>, f32)>>>,
     correction_step_response: mpsc::Sender<()>,
     state_request: Arc<Mutex<mpsc::Receiver<()>>>,
     state_response: mpsc::Sender<WorldState>,
@@ -183,7 +185,7 @@ impl PythonStateEstimator {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok(time) = self
+        if let Ok((node, time)) = self
             .prediction_step_request
             .clone()
             .lock()
@@ -193,13 +195,13 @@ impl PythonStateEstimator {
             if is_enabled(crate::logger::InternalLog::API) {
                 debug!("Request for prediction step received");
             }
-            self.prediction_step(time);
+            self.prediction_step(node, time);
             self.prediction_step_response.send(()).unwrap();
             if is_enabled(crate::logger::InternalLog::API) {
                 debug!("Response for prediction step sent");
             }
         }
-        if let Ok((obs, time)) = self
+        if let Ok((node, obs, time)) = self
             .correction_step_request
             .clone()
             .lock()
@@ -209,7 +211,7 @@ impl PythonStateEstimator {
             if is_enabled(crate::logger::InternalLog::API) {
                 debug!("Request for correction step received");
             }
-            self.correction_step(&obs, time);
+            self.correction_step(node, &obs, time);
             self.correction_step_response.send(()).unwrap();
             if is_enabled(crate::logger::InternalLog::API) {
                 debug!("Response for correction step sent");
@@ -247,7 +249,7 @@ impl PythonStateEstimator {
         }
     }
 
-    fn prediction_step(&mut self, time: f32) {
+    fn prediction_step(&mut self, node: NodeWrapper, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
@@ -256,7 +258,7 @@ impl PythonStateEstimator {
             if let Err(e) = self
                 .model
                 .bind(py)
-                .call_method("prediction_step", (time,), None)
+                .call_method("prediction_step", (node, time), None)
             {
                 e.display(py);
                 panic!("Error while calling 'prediction_step' method of PythonStateEstimator.");
@@ -264,7 +266,7 @@ impl PythonStateEstimator {
         });
     }
 
-    fn correction_step(&mut self, observations: &Vec<Observation>, time: f32) {
+    fn correction_step(&mut self, node: NodeWrapper, observations: &Vec<Observation>, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of correction_step");
         }
@@ -276,7 +278,7 @@ impl PythonStateEstimator {
             if let Err(e) =
                 self.model
                     .bind(py)
-                    .call_method("correction_step", (observation_py, time), None)
+                    .call_method("correction_step", (node, observation_py, time), None)
             {
                 e.display(py);
                 panic!("Error while calling 'correction_step' method of PythonStateEstimator.");

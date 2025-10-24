@@ -14,6 +14,7 @@ use serde_json::Value;
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
+use crate::pywrappers::NodeWrapper;
 use crate::{
     controllers::controller::ControllerError,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
@@ -268,15 +269,16 @@ impl std::fmt::Debug for PythonNavigator {
 }
 
 impl Navigator for PythonNavigator {
-    fn compute_error(&mut self, _node: &mut Node, state: WorldState) -> ControllerError {
+    fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of compute_error");
         }
         // let node_record = node.record();
+        let node_py = NodeWrapper::from_rust(&node);
         let result = Python::with_gil(|py| -> ControllerErrorWrapper {
             match self.navigator.bind(py).call_method(
                 "compute_error",
-                (WorldStateWrapper::from_rust(&state),),
+                (node_py, WorldStateWrapper::from_rust(&state),),
                 None,
             ) {
                 Err(e) => {

@@ -12,7 +12,7 @@ use crate::{
     logger::is_enabled,
     node::Node,
     physics::physics::Command,
-    pywrappers::{CommandWrapper, ControllerErrorWrapper},
+    pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
     recordable::Recordable,
 };
 
@@ -20,16 +20,17 @@ use super::controller::{Controller, ControllerError, ControllerRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonControllerAsyncClient {
-    pub make_command_request: mpsc::Sender<(ControllerError, f32)>,
+    pub make_command_request: mpsc::Sender<(NodeWrapper, ControllerError, f32)>,
     pub make_command_response: Arc<Mutex<mpsc::Receiver<Command>>>,
     pub record_request: mpsc::Sender<()>,
     pub record_response: Arc<Mutex<mpsc::Receiver<ControllerRecord>>>,
 }
 
 impl Controller for PythonControllerAsyncClient {
-    fn make_command(&mut self, _node: &mut Node, error: &ControllerError, time: f32) -> Command {
+    fn make_command(&mut self, node: &mut Node, error: &ControllerError, time: f32) -> Command {
+        let node_py = NodeWrapper::from_rust(&node);
         self.make_command_request
-            .send((error.clone(), time))
+            .send((node_py, error.clone(), time))
             .unwrap();
         self.make_command_response.lock().unwrap().recv().unwrap()
     }
@@ -52,7 +53,7 @@ impl Recordable<ControllerRecord> for PythonControllerAsyncClient {
 pub struct PythonController {
     model: Py<PyAny>,
     client: PythonControllerAsyncClient,
-    make_command_request: Arc<Mutex<mpsc::Receiver<(ControllerError, f32)>>>,
+    make_command_request: Arc<Mutex<mpsc::Receiver<(NodeWrapper, ControllerError, f32)>>>,
     make_command_response: mpsc::Sender<Command>,
     record_request: Arc<Mutex<mpsc::Receiver<()>>>,
     record_response: mpsc::Sender<ControllerRecord>,
@@ -94,8 +95,8 @@ impl PythonController {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((error, time)) = self.make_command_request.clone().lock().unwrap().try_recv() {
-            let command = self.make_command(&error, time);
+        if let Ok((node, error, time)) = self.make_command_request.clone().lock().unwrap().try_recv() {
+            let command = self.make_command(node, &error, time);
             self.make_command_response.send(command).unwrap();
         }
         if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
@@ -103,7 +104,7 @@ impl PythonController {
         }
     }
 
-    fn make_command(&mut self, error: &ControllerError, time: f32) -> Command {
+    fn make_command(&mut self, node: NodeWrapper, error: &ControllerError, time: f32) -> Command {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of make_command");
         }
@@ -111,7 +112,7 @@ impl PythonController {
         let result = Python::with_gil(|py| -> CommandWrapper {
             match self.model.bind(py).call_method(
                 "make_command",
-                (ControllerErrorWrapper::from_rust(error), time),
+                (node, ControllerErrorWrapper::from_rust(error), time),
                 None,
             ) {
                 Err(e) => {

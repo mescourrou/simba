@@ -154,7 +154,7 @@ pub trait Navigator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<NavigatorRecord>
 {
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
-    fn compute_error(&mut self, robot: &mut Node, state: WorldState) -> ControllerError;
+    fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError;
 }
 
 /// Helper function to create a navigator from the given configuration.

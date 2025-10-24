@@ -6,7 +6,7 @@ import numpy as np
 import math
 
 class Physics(simba.Physics):
-    def __init__(self, config):
+    def __init__(self, config: dict):
         self.last_time = 0.
         self.wheel_distance = 0.25,
         self.curr_state = np.array([0.,0.,0.,0.,0.])
@@ -25,7 +25,7 @@ class Physics(simba.Physics):
             "current_command": self.current_command.tolist()
             })
 
-    def update_state(self, time): 
+    def update_state(self, time: float): 
         dt = time - self.last_time
         assert(dt > 0.)
 
@@ -50,11 +50,11 @@ class Physics(simba.Physics):
             self.curr_state[2] += 2*np.pi
         
         
-    def apply_command(self, command, time):
+    def apply_command(self, command: simba.Command, time: float):
         self.current_command[0] = command.left_wheel_speed
         self.current_command[1] = command.right_wheel_speed
         
-    def state(self, time): 
+    def state(self, time: float): 
         state = simba.State()
         state.pose.x = self.curr_state[0]
         state.pose.y = self.curr_state[1]
@@ -64,7 +64,7 @@ class Physics(simba.Physics):
 
 
 class SimulatorAPI(simba.PluginAPI):
-    def get_physics(self, config, global_config):
+    def get_physics(self, config: dict, global_config: dict):
         config = json.loads(config)
         return Physics(config)
 

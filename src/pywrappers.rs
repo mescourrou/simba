@@ -6,31 +6,22 @@ use std::{
 use log::debug;
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::prelude::*;
+use simba_macros::EnumToString;
 
 #[cfg(feature = "gui")]
 use std::path::Path;
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
-    controllers::{controller::ControllerError, pybinds::PythonController},
-    logger::is_enabled,
-    navigators::pybinds::PythonNavigator,
-    physics::{physics::Command, pybinds::PythonPhysics},
-    plugin_api::PluginAPI,
-    pybinds::PythonAPI,
-    sensors::{
+    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{controller::ControllerError, pybinds::PythonController}, logger::is_enabled, navigators::pybinds::PythonNavigator, node::Node, physics::{physics::Command, pybinds::PythonPhysics}, plugin_api::PluginAPI, pybinds::PythonAPI, sensors::{
         gnss_sensor::GNSSObservation,
         odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
         robot_sensor::OrientedRobotObservation,
         sensor::{Observation, SensorObservation},
-    },
-    simulator::Simulator,
-    state_estimators::{
+    }, simulator::Simulator, state_estimators::{
         pybinds::PythonStateEstimator,
         state_estimator::{State, WorldState},
-    },
-    utils::occupancy_grid::OccupancyGrid,
+    }, utils::occupancy_grid::OccupancyGrid
 };
 
 #[derive(Clone)]
@@ -417,7 +408,7 @@ impl OrientedRobotObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, EnumToString)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "SensorObservation")]
 pub enum SensorObservationWrapper {
@@ -434,36 +425,41 @@ impl SensorObservationWrapper {
         SensorObservationWrapper::GNSS(GNSSObservationWrapper::new())
     }
 
-    pub fn as_oriented_landmark(&self) -> Option<OrientedLandmarkObservationWrapper> {
+    pub fn as_oriented_landmark(&self) -> PyResult<OrientedLandmarkObservationWrapper> {
         if let Self::OrientedLandmark(o) = self {
-            Some(o.clone())
+            Ok(o.clone())
         } else {
-            None
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>("Impossible to convert this observation to an OrientedLandmarkObservation"))
         }
     }
 
-    pub fn as_odometry(&self) -> Option<OdometryObservationWrapper> {
+    pub fn as_odometry(&self) -> PyResult<OdometryObservationWrapper> {
         if let Self::Odometry(o) = self {
-            Some(o.clone())
+            Ok(o.clone())
         } else {
-            None
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>("Impossible to convert this observation to an OdometryObservation"))
         }
     }
 
-    pub fn as_gnss(&self) -> Option<GNSSObservationWrapper> {
+    pub fn as_gnss(&self) -> PyResult<GNSSObservationWrapper> {
         if let Self::GNSS(o) = self {
-            Some(o.clone())
+            Ok(o.clone())
         } else {
-            None
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>("Impossible to convert this observation to an GNSSObservation"))
         }
     }
 
-    pub fn as_oriented_robot(&self) -> Option<OrientedRobotObservationWrapper> {
+    pub fn as_oriented_robot(&self) -> PyResult<OrientedRobotObservationWrapper> {
         if let Self::OrientedRobot(o) = self {
-            Some(o.clone())
+            Ok(o.clone())
         } else {
-            None
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>("Impossible to convert this observation to an OrientedRobotObservation"))
         }
+    }
+
+    #[getter]
+    pub fn kind(&self) -> String {
+        self.to_string()
     }
 }
 
@@ -572,6 +568,32 @@ impl CommandWrapper {
         Command {
             left_wheel_speed: self.left_wheel_speed,
             right_wheel_speed: self.right_wheel_speed,
+        }
+    }
+}
+
+
+#[derive(Clone)]
+#[pyclass]
+#[pyo3(name = "Node")]
+pub struct NodeWrapper {
+    node: Arc<Node>,
+}
+
+#[pymethods]
+impl NodeWrapper {
+    pub fn name(&self) -> String {
+        self.node.name.clone()
+    }
+}
+
+impl NodeWrapper {
+    pub fn from_rust(n: &Node) -> Self {
+        Self {
+            // I did not find another solution.
+            // Relatively safe as Nodes lives very long, almost all the time
+            // For API usage
+            node: unsafe { Arc::from_raw(&*n) },
         }
     }
 }

@@ -8,10 +8,7 @@ use crate::{
     navigators::{navigator::Navigator, pybinds::PythonNavigator},
     physics::{physics::Physics, pybinds::PythonPhysics},
     pywrappers::{
-        run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper,
-        ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
-        OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
-        SimulatorWrapper, StateWrapper, WorldStateWrapper,
+        run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper, SimulatorWrapper, StateWrapper, WorldStateWrapper
     },
     simulator::SimulatorConfig,
     state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},
@@ -34,6 +31,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PythonController>()?;
     m.add_class::<CommandWrapper>()?;
     m.add_class::<PythonNavigator>()?;
+    m.add_class::<NodeWrapper>()?;
     m.add_function(wrap_pyfunction!(run_gui, m)?)?;
     Ok(())
 }

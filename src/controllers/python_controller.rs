@@ -15,6 +15,7 @@ use serde_json::Value;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 
+use crate::pywrappers::NodeWrapper;
 use crate::{
     controllers::controller::{Controller, ControllerError, ControllerRecord},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
@@ -269,15 +270,16 @@ impl std::fmt::Debug for PythonController {
 }
 
 impl Controller for PythonController {
-    fn make_command(&mut self, _node: &mut Node, error: &ControllerError, time: f32) -> Command {
+    fn make_command(&mut self, node: &mut Node, error: &ControllerError, time: f32) -> Command {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of make_command");
         }
         // let node_record = node.record();
+        let node_py = NodeWrapper::from_rust(&node);
         let result = Python::with_gil(|py| -> CommandWrapper {
             match self.controller.bind(py).call_method(
                 "make_command",
-                (ControllerErrorWrapper::from_rust(error), time),
+                (node_py, ControllerErrorWrapper::from_rust(error), time),
                 None,
             ) {
                 Err(e) => {

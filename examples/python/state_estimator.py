@@ -3,9 +3,10 @@
 import simba
 import json
 import time
+from typing import List, Dict
 
 class StateEstimator(simba.StateEstimator):
-    def __init__(self, config):
+    def __init__(self, config: dict):
         self.last_time = 0
         self.period = config["period"]
         self.filter_name = "anonyme"
@@ -29,25 +30,27 @@ class StateEstimator(simba.StateEstimator):
             "period": self.period,
             "state": self._state})
 
-    def prediction_step(self, time):
+    def prediction_step(self, node: simba.Node, time: float):
         print(f"Doing prediction step in {self.filter_name}")
         self._state += 1
         self.last_time = time
         print(f"{self.filter_name}: Prediction {self._state}")
 
-    def correction_step(self, observations, t):
+    def correction_step(self, node: simba.Node, observations: List[simba.Observation], t: float):
         print(f"Doing correction step with observations for robot {self.filter_name}:")
         for obs in observations:
             sensor_obs = obs.sensor_observation
             # Not the best interface, but it works!
             # You can also use the sensor name given in the config!
-            match sensor_obs:
-                case simba.SensorObservation.OrientedLandmark():
-                    print(f"Observation of landmark {sensor_obs[0].id}: {sensor_obs.as_oriented_landmark().pose}")
-                case simba.SensorObservation.Odometry():
-                    print(f"Odometry: {sensor_obs[0]}")
+            match sensor_obs.kind:
+                case "OrientedLandmark":
+                    landmark=sensor_obs.as_oriented_landmark()
+                    print(f"Observation of landmark {landmark.id}: {landmark.pose}")
+                case "Odometry":
+                    odom=sensor_obs.as_odometry()
+                    print(f"Odometry: {odom}")
                 case _:
-                    print("Other")
+                    print(f"Other: {sensor_obs.kind}")
         self._state += 100
         print(f"{self.filter_name}: Prediction {self._state}")
 

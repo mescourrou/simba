@@ -6,7 +6,7 @@ import numpy as np
 import math
 
 class Navigator(simba.Navigator):
-    def __init__(self, config):
+    def __init__(self, config: dict):
         if "radius" in config:
             self.radius = config["radius"]
         else:
@@ -20,7 +20,7 @@ class Navigator(simba.Navigator):
         print("This is record from python!")
         return json.dumps({})
 
-    def compute_error(self, world_state: simba.WorldState) -> simba.ControllerError:
+    def compute_error(self, node: simba.Node, world_state: simba.WorldState) -> simba.ControllerError:
         error = simba.ControllerError()
         v = world_state.ego.velocity
         x = world_state.ego.pose.x
@@ -38,7 +38,7 @@ class Navigator(simba.Navigator):
 
 
 class SimulatorAPI(simba.PluginAPI):
-    def get_navigator(self, config, global_config):
+    def get_navigator(self, config: dict, global_config: dict):
         config = json.loads(config)
         print(f"Config received by python: {type(config)} {config}")
         return Navigator(config)
