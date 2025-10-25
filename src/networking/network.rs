@@ -258,6 +258,7 @@ impl Network {
                     .to_string(),
             ));
         }
+        let mut new_msgs = 0;
         for msg in self
             .from_network_manager
             .as_ref()
@@ -280,8 +281,9 @@ impl Network {
             }
             self.messages_buffer
                 .insert(time, (msg.from, msg.value, msg.message_flags), false);
+            new_msgs += 1;
         }
-        Ok(self.messages_buffer.len())
+        Ok(new_msgs)
     }
 
     /// Get the minimal time among all waiting messages. Bool is true if the message is read only.
@@ -318,7 +320,6 @@ impl Network {
                     if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                         debug!("Found handler");
                     }
-                    break;
                 }
             }
         }

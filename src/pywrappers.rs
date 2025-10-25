@@ -5,7 +5,7 @@ use std::{
 
 use log::debug;
 use nalgebra::{SVector, Vector2, Vector3};
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyTypeError, prelude::*, types::PyDict};
 use simba_macros::EnumToString;
 
 #[cfg(feature = "gui")]
@@ -584,6 +584,20 @@ pub struct NodeWrapper {
 impl NodeWrapper {
     pub fn name(&self) -> String {
         self.node.name.clone()
+    }
+
+    pub fn send_message(&self, to: String, message: String, time: f32) -> PyResult<()> {
+        debug!("Wait for network");
+        if let Some(network) = &self.node.network {
+            debug!("Got network");
+            let msg = serde_json::to_value(message).unwrap();
+            if let Err(e) = network.write().unwrap().send_to(to, msg, time, Vec::new()) {
+                log::error!("{}", e.detailed_error());
+            }
+            Ok(())
+        } else {
+            Err(PyErr::new::<PyTypeError, _>("No network on this node"))
+        }
     }
 }
 

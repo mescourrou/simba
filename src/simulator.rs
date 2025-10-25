@@ -1058,12 +1058,12 @@ impl Simulator {
         THREAD_NAMES.write().unwrap().push(node.name());
         drop(thread_ids);
         time_analysis::set_node_name(node.name());
-
+        let mut next_time = -1.;
         loop {
             if *time_cv.force_finish.lock().unwrap() {
                 break;
             }
-            let mut next_time = node.next_time_step()?;
+            next_time = node.next_time_step(next_time)?;
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Got next_time: {next_time}");
             }

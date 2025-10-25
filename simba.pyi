@@ -144,6 +144,9 @@ class Command:
 class Node:
     def name(self):
         raise NotImplementedError()
+    
+    def send_message(self, to: str, message: str, time: float):
+        raise NotImplementedError()
 
 class StateEstimator:
     def state(self) -> WorldState:

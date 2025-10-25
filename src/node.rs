@@ -420,26 +420,30 @@ impl Node {
     }
 
     /// Computes the next time step, using state estimator, sensors and received messages.
-    pub fn next_time_step(&self) -> SimbaResult<f32> {
+    pub fn next_time_step(&self, min_time_excluded: f32) -> SimbaResult<f32> {
         let mut next_time_step = f32::INFINITY;
         if let Some(state_estimator) = &self.state_estimator {
-            next_time_step = state_estimator
+            let next_time = state_estimator
                 .read()
                 .unwrap()
-                .next_time_step()
-                .min(next_time_step);
+                .next_time_step();
+            if next_time > min_time_excluded {
+                next_time_step = next_time_step.min(next_time);
+            }
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                 debug!("Next time after state estimator: {next_time_step}");
             }
         }
 
         if let Some(sensor_manager) = &self.sensor_manager {
-            next_time_step = sensor_manager
+            let next_time = sensor_manager
                 .read()
                 .unwrap()
                 .next_time_step()
-                .unwrap_or(f32::INFINITY)
-                .min(next_time_step);
+                .unwrap_or(f32::INFINITY);
+            if next_time > min_time_excluded {
+                next_time_step = next_time_step.min(next_time);
+            }
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                 debug!("Next time after sensor manager: {next_time_step}");
             }
@@ -456,11 +460,11 @@ impl Node {
                 );
             }
             if let Some(msg_next_time) = message_next_time {
-                if next_time_step > msg_next_time {
+                if next_time_step > msg_next_time && msg_next_time > min_time_excluded {
                     next_time_step = msg_next_time;
-                }
-                if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-                    debug!("Time step changed with message: {}", next_time_step);
+                    if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                        debug!("Time step changed with message: {}", next_time_step);
+                    }
                 }
             }
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
@@ -469,26 +473,28 @@ impl Node {
         }
         if let Some(state_estimator_bench) = &self.state_estimator_bench {
             for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                next_time_step = next_time_step.min(
-                    state_estimator
-                        .state_estimator
-                        .read()
-                        .unwrap()
-                        .next_time_step(),
-                );
+                let next_time = state_estimator
+                    .state_estimator
+                    .read()
+                    .unwrap()
+                    .next_time_step();
+                if next_time > min_time_excluded {
+                    next_time_step = next_time_step.min(next_time);
+                }
             }
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                 debug!("Next time after state estimator bench: {next_time_step}");
             }
         }
-        next_time_step = next_time_step.min(
-            self.service_manager
-                .as_ref()
-                .unwrap()
-                .read()
-                .unwrap()
-                .next_time(),
-        );
+        let next_time = self.service_manager
+            .as_ref()
+            .unwrap()
+            .read()
+            .unwrap()
+            .next_time();
+        if next_time > min_time_excluded {
+            next_time_step = next_time_step.min(next_time);
+        }
         if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
             debug!("Next time after service manager: {next_time_step}");
         }
