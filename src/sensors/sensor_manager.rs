@@ -5,11 +5,13 @@ available observations.
 
 extern crate confy;
 use config_checker::macros::Check;
+use serde_json::Value;
 use core::f32;
+use std::sync::mpsc::{self, Receiver, Sender};
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::BTreeMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 #[cfg(feature = "gui")]
 use crate::gui::{
@@ -202,7 +204,6 @@ pub struct SensorManagerRecord {
     pub sensors: Vec<ManagedSensorRecord>,
     pub next_time: Option<f32>,
     pub last_observations: Vec<ObservationRecord>,
-    pub received_observations: Vec<ObservationRecord>,
 }
 
 #[cfg(feature = "gui")]
@@ -218,14 +219,6 @@ impl UIComponent for SensorManagerRecord {
 
         egui::CollapsingHeader::new("Last observations").show(ui, |ui| {
             for (i, o) in self.last_observations.iter().enumerate() {
-                egui::CollapsingHeader::new(format!("#{}", i)).show(ui, |ui| {
-                    o.show(ui, ctx, unique_id);
-                });
-            }
-        });
-
-        egui::CollapsingHeader::new("Received observations").show(ui, |ui| {
-            for (i, o) in self.received_observations.iter().enumerate() {
                 egui::CollapsingHeader::new(format!("#{}", i)).show(ui, |ui| {
                     o.show(ui, ctx, unique_id);
                 });
@@ -254,18 +247,21 @@ pub struct SensorManager {
     next_time: Option<f32>,
     last_observations: Vec<ObservationRecord>,
     local_observations: Vec<Observation>,
-    received_observations: Vec<Observation>,
+    letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+    letter_box_sender: Sender<(String, Value, f32)>,
 }
 
 impl SensorManager {
     /// Makes a new [`SensorManager`] without any [`Sensor`].
     pub fn new() -> Self {
+        let (tx, rx) = mpsc::channel();
         Self {
             sensors: Vec::new(),
             next_time: None,
             last_observations: Vec::new(),
-            received_observations: Vec::new(),
             local_observations: Vec::new(),
+            letter_box_receiver: Arc::new(Mutex::new(rx)),
+            letter_box_sender: tx,
         }
     }
 
@@ -344,8 +340,21 @@ impl SensorManager {
     /// Get the observations at the given `time`.
     pub fn get_observations(&mut self) -> Vec<Observation> {
         let mut observations = Vec::new();
+        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
+            if let Ok(obs_list) = serde_json::from_value::<Vec<Observation>>(msg.clone()) {
+                observations.extend(obs_list);
+                // Assure that the observations are always in the same order, for determinism:
+                observations
+                    .sort_by(|a, b| a.observer.cmp(&b.observer));
+                // if self.received_observations.len() > 0 {
+                //     self.next_time = Some(time);
+                // }
+                if is_enabled(crate::logger::InternalLog::SensorManager) {
+                    debug!("Receive observations from {from} at time {time}");
+                }
+            }
+        }
         observations.extend(self.local_observations.drain(0..));
-        observations.extend(self.received_observations.drain(0..));
         let mut min_next_time = None;
         for sensor in &mut self.sensors {
             min_next_time = Some(
@@ -423,11 +432,6 @@ impl Recordable<SensorManagerRecord> for SensorManager {
         let mut record = SensorManagerRecord {
             next_time: self.next_time,
             sensors: Vec::new(),
-            received_observations: self
-                .received_observations
-                .iter()
-                .map(|o| o.record())
-                .collect(),
             last_observations: self.last_observations.clone(),
         };
         for sensor in &self.sensors {
@@ -441,27 +445,7 @@ impl Recordable<SensorManagerRecord> for SensorManager {
 }
 
 impl MessageHandler for SensorManager {
-    fn handle_message(
-        &mut self,
-        _robot: &mut Node,
-        from: &String,
-        message: &serde_json::Value,
-        time: f32,
-    ) -> Result<(), ()> {
-        if let Ok(obs_list) = serde_json::from_value::<Vec<Observation>>(message.clone()) {
-            self.received_observations.extend(obs_list);
-            // Assure that the observations are always in the same order, for determinism:
-            self.received_observations
-                .sort_by(|a, b| a.observer.cmp(&b.observer));
-            if self.received_observations.len() > 0 {
-                self.next_time = Some(time);
-            }
-            if is_enabled(crate::logger::InternalLog::SensorManager) {
-                debug!("Receive observations from {from} at time {time}");
-            }
-            Ok(())
-        } else {
-            Err(())
-        }
+    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+        Some(self.letter_box_sender.clone())
     }
 }

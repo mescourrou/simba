@@ -23,6 +23,9 @@ class Controller(simba.Controller):
         command.right_wheel_speed = self.speed
         return command
 
+    def pre_loop_hook(self, node: simba.Node, time: float):
+        pass
+
 
 class SimulatorAPI(simba.PluginAPI):
     def get_controller(self, config: dict, global_config: dict):

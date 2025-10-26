@@ -22,6 +22,7 @@ use crate::controllers::controller::ControllerError;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
+use crate::networking::message_handler::MessageHandler;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::WorldState;
@@ -188,10 +189,20 @@ impl Navigator for ExternalNavigator {
     fn compute_error(&mut self, robot: &mut Node, world_state: WorldState) -> ControllerError {
         self.navigator.compute_error(robot, world_state)
     }
+
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
+        self.navigator.pre_loop_hook(node, time);
+    }
 }
 
 impl Recordable<NavigatorRecord> for ExternalNavigator {
     fn record(&self) -> NavigatorRecord {
         self.navigator.record()
+    }
+}
+
+impl MessageHandler for ExternalNavigator {
+    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, Value, f32)>> {
+        self.navigator.get_letter_box()
     }
 }

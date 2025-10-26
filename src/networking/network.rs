@@ -6,24 +6,24 @@ the configuration struct [`NetworkConfig`].
 extern crate confy;
 use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
-use crate::gui::UIComponent;
+use crate::{
+    gui::UIComponent,
+    constants::TIME_ROUND,
+};
 use crate::logger::is_enabled;
-use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
-use super::message_handler::MessageHandler;
 use super::network_manager::{MessageSendMethod, NetworkMessage};
 
 /// Configuration for the [`Network`].
@@ -43,7 +43,7 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             range: 0.,
-            reception_delay: TIME_ROUND,
+            reception_delay: 0.,
         }
     }
 }
@@ -69,7 +69,7 @@ impl UIComponent for NetworkConfig {
             });
 
             ui.horizontal(|ui| {
-                ui.label("Reception delay (0 not stable): ");
+                ui.label("Reception delay: ");
                 if self.reception_delay < 0. {
                     self.reception_delay = 0.;
                 }
@@ -89,7 +89,7 @@ impl UIComponent for NetworkConfig {
 
             ui.horizontal(|ui| {
                 ui.label(format!(
-                    "Reception delay (0 not stable): {}",
+                    "Reception delay: {}",
                     self.reception_delay
                 ));
             });
@@ -118,8 +118,8 @@ pub struct Network {
     range: f32,
     /// Added delay to the messages.
     reception_delay: f32,
-    /// List of handler. First handler returning Ok has priority.
-    message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>,
+    /// List of subscribed letter boxes.
+    letter_boxes: Vec<Sender<(String, Value, f32)>>,
     to_network_manager: Option<Sender<NetworkMessage>>,
     from_network_manager: Option<Arc<Mutex<Receiver<NetworkMessage>>>>,
     /// Message list
@@ -162,7 +162,7 @@ impl Network {
             from,
             range: config.range,
             reception_delay: config.reception_delay,
-            message_handlers: Vec::new(),
+            letter_boxes: Vec::new(),
             messages_buffer: TimeOrderedData::new(),
             time_cv,
             to_network_manager: None,
@@ -296,7 +296,7 @@ impl Network {
     /// ## Arguments
     /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
-    pub fn handle_message_at_time(&mut self, robot: &mut Node, time: f32) {
+    pub fn handle_message_at_time(&mut self, time: f32) {
         if is_enabled(crate::logger::InternalLog::NetworkMessages) {
             debug!("Handling messages at time {time}");
         }
@@ -305,22 +305,10 @@ impl Network {
         {
             if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                 debug!("Receive message from {from}: {:?}", message);
-                debug!("Handler list size: {}", self.message_handlers.len());
+                debug!("Letter box list size: {}", self.letter_boxes.len());
             }
-            for handler in &self.message_handlers {
-                if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                    debug!("Handler available: {:?}", handler.try_write().is_ok());
-                }
-                if handler
-                    .write()
-                    .unwrap()
-                    .handle_message(robot, &from, &message, msg_time)
-                    .is_ok()
-                {
-                    if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                        debug!("Found handler");
-                    }
-                }
+            for letter_box in &self.letter_boxes {
+                letter_box.send((from.clone(), message.clone(), msg_time)).unwrap();
             }
         }
 
@@ -338,7 +326,9 @@ impl Network {
     }
 
     /// Add a new handler to the [`Network`].
-    pub fn subscribe(&mut self, handler: Arc<RwLock<dyn MessageHandler>>) {
-        self.message_handlers.push(handler);
+    pub fn subscribe(&mut self, letter_box: Option<Sender<(String, Value, f32)>>) {
+        if let Some(letter_box) = letter_box {
+            self.letter_boxes.push(letter_box);
+        }
     }
 }

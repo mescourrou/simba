@@ -297,6 +297,7 @@ use crate::gui::{
     utils::{string_combobox, text_singleline_with_apply},
     UIComponent,
 };
+use crate::networking::message_handler::MessageHandler;
 use crate::node::Node;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
@@ -483,7 +484,7 @@ pub fn make_state_estimator_from_config(
 use crate::sensors::sensor::Observation;
 
 pub trait StateEstimator:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<StateEstimatorRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<StateEstimatorRecord> + MessageHandler
 {
     /// Prediction step of the state estimator.
     ///
@@ -505,7 +506,7 @@ pub trait StateEstimator:
     /// other modules.
     /// * `observations` -- Observation vector.
     /// * `time` -- Current time.
-    fn correction_step(&mut self, robot: &mut Node, observations: &Vec<Observation>, time: f32);
+    fn correction_step(&mut self, node: &mut Node, observations: &Vec<Observation>, time: f32);
 
     /// Return the current estimated state.
     fn world_state(&self) -> WorldState;
@@ -513,6 +514,8 @@ pub trait StateEstimator:
     /// Return the next prediction step time. The correction step
     /// is called for each observation.
     fn next_time_step(&self) -> f32;
+
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

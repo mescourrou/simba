@@ -1,11 +1,10 @@
 use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
+    collections::BTreeMap, sync::{Arc, Mutex}
 };
 
 use log::debug;
 use nalgebra::{SVector, Vector2, Vector3};
-use pyo3::{exceptions::PyTypeError, prelude::*, types::PyDict};
+use pyo3::{exceptions::PyTypeError, prelude::*};
 use simba_macros::EnumToString;
 
 #[cfg(feature = "gui")]
@@ -578,6 +577,7 @@ impl CommandWrapper {
 #[pyo3(name = "Node")]
 pub struct NodeWrapper {
     node: Arc<Node>,
+    messages: Vec<(String, String, f32)>,
 }
 
 #[pymethods]
@@ -599,15 +599,20 @@ impl NodeWrapper {
             Err(PyErr::new::<PyTypeError, _>("No network on this node"))
         }
     }
+
+    pub fn get_messages(&self) -> Vec<(String, String, f32)> {
+        self.messages.clone()
+    }
 }
 
 impl NodeWrapper {
-    pub fn from_rust(n: &Node) -> Self {
+    pub fn from_rust(n: &Node, messages: Vec<(String, String, f32)>) -> Self {
         Self {
             // I did not find another solution.
             // Relatively safe as Nodes lives very long, almost all the time
             // For API usage
             node: unsafe { Arc::from_raw(&*n) },
+            messages,
         }
     }
 }

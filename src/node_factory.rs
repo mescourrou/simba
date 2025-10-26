@@ -646,15 +646,6 @@ impl NodeFactory {
         let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
             &node, time_cv,
         ))));
-        if plugin_api.is_some() {
-            if let Some(message_handlers) = plugin_api.as_ref().unwrap().get_message_handlers(&node)
-            {
-                let mut network = node.network.as_ref().unwrap().write().unwrap();
-                for message_handler in message_handlers {
-                    network.subscribe(message_handler.clone());
-                }
-            }
-        }
         // Services
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Setup services");
@@ -724,15 +715,6 @@ impl NodeFactory {
         let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
             &node, time_cv,
         ))));
-        if plugin_api.is_some() {
-            if let Some(message_handlers) = plugin_api.as_ref().unwrap().get_message_handlers(&node)
-            {
-                let mut network = node.network.as_ref().unwrap().write().unwrap();
-                for message_handler in message_handlers {
-                    network.subscribe(message_handler.clone());
-                }
-            }
-        }
         // Services
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Setup services");

@@ -36,6 +36,9 @@ class Navigator(simba.Navigator):
         error.velocity = self.velocity - v
         return error
 
+    def pre_loop_hook(self, node: simba.Node, time: float):
+        pass
+    
 
 class SimulatorAPI(simba.PluginAPI):
     def get_navigator(self, config: dict, global_config: dict):

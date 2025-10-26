@@ -8,6 +8,7 @@ use std::sync::{Arc, RwLock};
 
 use log::{debug, info};
 
+use crate::networking::message_handler::MessageHandler;
 use crate::{
     api::internal_api::{self, NodeClient, NodeServer},
     constants::TIME_ROUND,
@@ -119,7 +120,15 @@ impl Node {
 
         if let Some(network) = &self.network {
             if let Some(sensor_manager) = &self.sensor_manager {
-                network.write().unwrap().subscribe(sensor_manager.clone());
+                network.write().unwrap().subscribe(sensor_manager.read().unwrap().get_letter_box());
+            }
+            if let Some(state_estimator) = &self.state_estimator {
+                network.write().unwrap().subscribe(state_estimator.read().unwrap().get_letter_box());
+            }
+            if let Some(state_estimator_bench) = &self.state_estimator_bench {
+                for state_estimator in  state_estimator_bench.read().unwrap().iter() {
+                    network.write().unwrap().subscribe(state_estimator.state_estimator.read().unwrap().get_letter_box());
+                }
             }
         }
         let (node_server, node_client) = internal_api::make_node_api(&self.node_type);
@@ -203,6 +212,27 @@ impl Node {
                 .send((time, physics.read().unwrap().state(time).clone()))
                 .unwrap();
         }
+
+        self.handle_messages(time);
+        // Pre loop calls to manage messages
+        if let Some(state_estimator) = self.state_estimator() {
+            state_estimator.write().unwrap().pre_loop_hook(self, time);
+        }
+        if let Some(state_estimator_bench) = self.state_estimator_bench.clone() {
+            for state_estimator in  state_estimator_bench.read().unwrap().iter() {
+                state_estimator.state_estimator.write().unwrap().pre_loop_hook(self, time);
+            }
+        }
+        if let Some(controller) = self.controller() {
+            controller.write().unwrap().pre_loop_hook(self, time);
+        }
+        if let Some(navigator) = self.navigator() {
+            navigator.write().unwrap().pre_loop_hook(self, time);
+        }
+        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+            debug!("Pre prediction step wait");
+        }
+        self.sync_with_others(time_cv, nb_nodes, time);
 
         let mut do_control_loop = false;
 
@@ -409,7 +439,7 @@ impl Node {
     pub fn handle_messages(&mut self, time: f32) {
         // Treat messages synchronously
         if let Some(network) = self.network() {
-            network.write().unwrap().handle_message_at_time(self, time);
+            network.write().unwrap().handle_message_at_time(time);
         }
         self.service_manager
             .as_ref()

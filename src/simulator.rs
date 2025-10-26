@@ -691,25 +691,6 @@ impl Simulator {
     ) -> SimbaResult<()> {
         println!("Checking configuration:");
         if config.check() {
-            // Check network delay == 0
-            let mut network_0 = false;
-            for robot in &config.robots {
-                if robot.network.reception_delay == 0. {
-                    network_0 = true;
-                    break;
-                }
-            }
-            if !network_0 {
-                for cu in &config.computation_units {
-                    if cu.network.reception_delay == 0. {
-                        network_0 = true;
-                        break;
-                    }
-                }
-            }
-            if network_0 {
-                println!("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\nWARNING: Network with 0 reception delay is not stable yet: messages can be treated later or deadlock can occur.\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
-            }
             println!("Config valid");
         } else {
             return Err(SimbaError::new(

@@ -147,6 +147,9 @@ class Node:
     
     def send_message(self, to: str, message: str, time: float):
         raise NotImplementedError()
+    
+    def get_messages(self) -> List[(str, str, float)]:
+        raise NotImplementedError()
 
 class StateEstimator:
     def state(self) -> WorldState:
@@ -164,6 +167,9 @@ class StateEstimator:
     def next_time_step(self) -> float:
         raise NotImplementedError()
     
+    def pre_loop_hook(self, node: Node, time: float):
+        raise NotImplementedError()
+    
 class Controller:
     def record(self) -> str:
         raise NotImplementedError()
@@ -171,11 +177,17 @@ class Controller:
     def make_command(self, node: Node, error: ControllerError, time: float) -> Command:
         raise NotImplementedError()
     
+    def pre_loop_hook(self, node: Node, time: float):
+        raise NotImplementedError()
+    
 class Navigator:
     def record(self) -> str:
         raise NotImplementedError()
 
     def compute_error(self, node: Node, world_state: WorldState) -> ControllerError:
+        raise NotImplementedError()
+    
+    def pre_loop_hook(self, node: Node, time: float):
         raise NotImplementedError()
         
 class Physics:

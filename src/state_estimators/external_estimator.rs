@@ -23,6 +23,7 @@ use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
+use crate::networking::message_handler::MessageHandler;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::utils::maths::round_precision;
@@ -207,10 +208,20 @@ impl StateEstimator for ExternalEstimator {
     fn next_time_step(&self) -> f32 {
         round_precision(self.state_estimator.next_time_step(), TIME_ROUND).unwrap()
     }
+
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
+        self.state_estimator.pre_loop_hook(node, time);
+    }
 }
 
 impl Recordable<StateEstimatorRecord> for ExternalEstimator {
     fn record(&self) -> StateEstimatorRecord {
         self.state_estimator.record()
+    }
+}
+
+impl MessageHandler for ExternalEstimator {
+    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, Value, f32)>> {
+        self.state_estimator.get_letter_box()
     }
 }

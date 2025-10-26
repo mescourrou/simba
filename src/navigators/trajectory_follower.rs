@@ -10,11 +10,7 @@ use crate::{
     navigators::{
         navigator::{Navigator, NavigatorRecord},
         trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
-    },
-    plugin_api::PluginAPI,
-    simulator::SimulatorConfig,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
-    utils::geometry::{mod2pi, smallest_theta_diff},
+    }, networking::message_handler::MessageHandler, plugin_api::PluginAPI, simulator::SimulatorConfig, utils::{determinist_random_variable::DeterministRandomVariableFactory, geometry::{mod2pi, smallest_theta_diff}}
 };
 
 extern crate nalgebra as na;
@@ -300,6 +296,8 @@ impl Navigator for TrajectoryFollower {
 
         self.error.clone()
     }
+
+    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {}
 }
 
 use crate::recordable::Recordable;
@@ -311,6 +309,12 @@ impl Recordable<NavigatorRecord> for TrajectoryFollower {
             trajectory: self.trajectory.record(),
             projected_point: self.projected_point,
         })
+    }
+}
+
+impl MessageHandler for TrajectoryFollower {
+    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, serde_json::Value, f32)>> {
+        None
     }
 }
 

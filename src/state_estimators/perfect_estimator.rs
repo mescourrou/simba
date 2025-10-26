@@ -7,7 +7,7 @@ by the controller should be perfect.
 use std::path::Path;
 
 use super::state_estimator::{State, WorldState, WorldStateRecord};
-use crate::constants::TIME_ROUND;
+use crate::{constants::TIME_ROUND, networking::message_handler::MessageHandler};
 
 #[cfg(feature = "gui")]
 use crate::gui::{
@@ -269,6 +269,9 @@ impl StateEstimator for PerfectEstimator {
         )
         .unwrap()
     }
+
+    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {}
+
 }
 
 impl Recordable<StateEstimatorRecord> for PerfectEstimator {
@@ -277,5 +280,11 @@ impl Recordable<StateEstimatorRecord> for PerfectEstimator {
             world_state: self.world_state.record(),
             last_time_prediction: self.last_time_prediction,
         })
+    }
+}
+
+impl MessageHandler for PerfectEstimator {
+    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, serde_json::Value, f32)>> {
+        None
     }
 }

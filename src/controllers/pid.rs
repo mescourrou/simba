@@ -11,6 +11,7 @@ Each component has a gain, which can be set in [`PIDConfig`].
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
+use crate::networking::message_handler::MessageHandler;
 use crate::{
     plugin_api::PluginAPI, recordable::Recordable, simulator::SimulatorConfig,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -311,10 +312,18 @@ impl Controller for PID {
         };
         command
     }
+
+    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {}
 }
 
 impl Recordable<ControllerRecord> for PID {
     fn record(&self) -> ControllerRecord {
         ControllerRecord::PID(self.current_record.clone())
+    }
+}
+
+impl MessageHandler for PID {
+    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, serde_json::Value, f32)>> {
+        None
     }
 }

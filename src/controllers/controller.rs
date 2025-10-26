@@ -3,8 +3,7 @@ Module defining the [Controller]
 */
 
 use crate::{
-    controllers::python_controller, recordable::Recordable,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    controllers::python_controller, networking::message_handler::MessageHandler, recordable::Recordable, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -178,7 +177,7 @@ use crate::node::Node;
 /// Controller strategy, which compute the [`Command`] to be sent to the
 /// [`Physics`](crate::physics::physics::Physics) module, from the given `error`.
 pub trait Controller:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<ControllerRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<ControllerRecord> + MessageHandler
 {
     /// Compute the command from the given error.
     ///
@@ -190,6 +189,8 @@ pub trait Controller:
     /// ## Return
     /// Command to apply to the [`Physics`](crate::physics::physics::Physics).
     fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command;
+
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
 }
 
 /// Helper function to make the right [`Controller`] from the given configuration.

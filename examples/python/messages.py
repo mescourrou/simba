@@ -49,6 +49,10 @@ class StateEstimator(simba.StateEstimator):
     def next_time_step(self):
         print("Returning next time step from python")
         return self.last_time + self.period
+    
+    def pre_loop_hook(self, node: simba.Node, time: float):
+        messages = node.get_messages()
+        print(f"Received messages: {messages}")
 
 
 class SimulatorAPI(simba.PluginAPI):

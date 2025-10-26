@@ -21,6 +21,7 @@ use serde_json::Value;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
+use crate::networking::message_handler::MessageHandler;
 use crate::physics::physics::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
@@ -187,10 +188,20 @@ impl Controller for ExternalController {
     fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command {
         self.controller.make_command(robot, error, time)
     }
+
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
+        self.controller.pre_loop_hook(node, time);
+    }
 }
 
 impl Recordable<ControllerRecord> for ExternalController {
     fn record(&self) -> ControllerRecord {
         self.controller.record()
+    }
+}
+
+impl MessageHandler for ExternalController {
+    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, Value, f32)>> {
+        self.controller.get_letter_box()
     }
 }
