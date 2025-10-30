@@ -484,7 +484,11 @@ pub fn make_state_estimator_from_config(
 use crate::sensors::sensor::Observation;
 
 pub trait StateEstimator:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<StateEstimatorRecord> + MessageHandler
+    std::fmt::Debug
+    + std::marker::Send
+    + std::marker::Sync
+    + Recordable<StateEstimatorRecord>
+    + MessageHandler
 {
     /// Prediction step of the state estimator.
     ///

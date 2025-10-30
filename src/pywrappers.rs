@@ -1,5 +1,6 @@
 use std::{
-    collections::BTreeMap, sync::{Arc, Mutex}
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
 };
 
 use log::debug;
@@ -11,16 +12,27 @@ use simba_macros::EnumToString;
 use std::path::Path;
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{controller::ControllerError, pybinds::PythonController}, logger::is_enabled, navigators::pybinds::PythonNavigator, node::Node, physics::{physics::Command, pybinds::PythonPhysics}, plugin_api::PluginAPI, pybinds::PythonAPI, sensors::{
+    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
+    controllers::{controller::ControllerError, pybinds::PythonController},
+    logger::is_enabled,
+    navigators::pybinds::PythonNavigator,
+    node::Node,
+    physics::{physics::Command, pybinds::PythonPhysics},
+    plugin_api::PluginAPI,
+    pybinds::PythonAPI,
+    sensors::{
         gnss_sensor::GNSSObservation,
         odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
         robot_sensor::OrientedRobotObservation,
         sensor::{Observation, SensorObservation},
-    }, simulator::Simulator, state_estimators::{
+    },
+    simulator::Simulator,
+    state_estimators::{
         pybinds::PythonStateEstimator,
         state_estimator::{State, WorldState},
-    }, utils::occupancy_grid::OccupancyGrid
+    },
+    utils::occupancy_grid::OccupancyGrid,
 };
 
 #[derive(Clone)]
@@ -428,7 +440,9 @@ impl SensorObservationWrapper {
         if let Self::OrientedLandmark(o) = self {
             Ok(o.clone())
         } else {
-            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>("Impossible to convert this observation to an OrientedLandmarkObservation"))
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this observation to an OrientedLandmarkObservation",
+            ))
         }
     }
 
@@ -436,7 +450,9 @@ impl SensorObservationWrapper {
         if let Self::Odometry(o) = self {
             Ok(o.clone())
         } else {
-            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>("Impossible to convert this observation to an OdometryObservation"))
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this observation to an OdometryObservation",
+            ))
         }
     }
 
@@ -444,7 +460,9 @@ impl SensorObservationWrapper {
         if let Self::GNSS(o) = self {
             Ok(o.clone())
         } else {
-            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>("Impossible to convert this observation to an GNSSObservation"))
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this observation to an GNSSObservation",
+            ))
         }
     }
 
@@ -452,7 +470,9 @@ impl SensorObservationWrapper {
         if let Self::OrientedRobot(o) = self {
             Ok(o.clone())
         } else {
-            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>("Impossible to convert this observation to an OrientedRobotObservation"))
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this observation to an OrientedRobotObservation",
+            ))
         }
     }
 
@@ -570,7 +590,6 @@ impl CommandWrapper {
         }
     }
 }
-
 
 #[derive(Clone)]
 #[pyclass]

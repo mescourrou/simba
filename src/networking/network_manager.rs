@@ -147,7 +147,8 @@ impl NetworkManager {
                                 None => {
                                     if message_sent {
                                         self.time_cv.condvar.notify_all();
-                                        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                                        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed)
+                                        {
                                             debug!("Notify CV");
                                         }
                                     }

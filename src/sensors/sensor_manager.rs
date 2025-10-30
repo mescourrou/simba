@@ -5,12 +5,12 @@ available observations.
 
 extern crate confy;
 use config_checker::macros::Check;
-use serde_json::Value;
 use core::f32;
-use std::sync::mpsc::{self, Receiver, Sender};
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::BTreeMap;
+use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 
 #[cfg(feature = "gui")]
@@ -344,8 +344,7 @@ impl SensorManager {
             if let Ok(obs_list) = serde_json::from_value::<Vec<Observation>>(msg.clone()) {
                 observations.extend(obs_list);
                 // Assure that the observations are always in the same order, for determinism:
-                observations
-                    .sort_by(|a, b| a.observer.cmp(&b.observer));
+                observations.sort_by(|a, b| a.observer.cmp(&b.observer));
                 // if self.received_observations.len() > 0 {
                 //     self.next_time = Some(time);
                 // }

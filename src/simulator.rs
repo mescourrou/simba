@@ -62,10 +62,14 @@ use crate::{
     recordable::Recordable,
     state_estimators::state_estimator::State,
     time_analysis::{self, TimeAnalysisConfig},
-    utils::{self, determinist_random_variable::DeterministRandomVariableFactory, format_option_f32, time_ordered_data::TimeOrderedData}, VERSION,
+    utils::{
+        self, determinist_random_variable::DeterministRandomVariableFactory, enum_tools::ToVec,
+        format_option_f32, maths::round_precision, time_ordered_data::TimeOrderedData,
+    },
+    VERSION,
 };
 use core::f32;
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, mem};
 use std::path::{Path, PathBuf};
 
 use colored::Colorize;
@@ -79,6 +83,28 @@ use std::thread::{self, ThreadId};
 use log::{debug, info, warn};
 
 use pyo3::prepare_freethreaded_python;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[cfg_attr(feature = "gui", derive(EnumToString))]
+#[serde(deny_unknown_fields)]
+pub enum ResultSaveMode {
+    AtTheEnd,
+    Continuous,
+    Batch(usize),
+    Periodic(f32),
+}
+
+impl ToVec<&'static str> for ResultSaveMode {
+    fn to_vec() -> Vec<&'static str> {
+        vec!["AtTheEnd", "Continuous", "Batch", "Periodic"]
+    }
+}
+
+impl Default for ResultSaveMode {
+    fn default() -> Self {
+        ResultSaveMode::AtTheEnd
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
@@ -96,6 +122,7 @@ pub struct ResultConfig {
     pub analyse_script: Option<String>,
     pub figures_path: Option<String>,
     pub python_params: Value,
+    pub save_mode: ResultSaveMode,
 }
 
 impl Default for ResultConfig {
@@ -107,6 +134,7 @@ impl Default for ResultConfig {
             analyse_script: None,
             figures_path: None,
             python_params: Value::Null,
+            save_mode: ResultSaveMode::default(),
         }
     }
 }
@@ -129,6 +157,46 @@ impl UIComponent for ResultConfig {
                 ui.label("Result Path:");
                 path_finder(ui, &mut self.result_path, &global_config.base_path);
             });
+
+            let mut current_str = self.save_mode.to_string();
+            ui.horizontal(|ui| {
+                use crate::gui::utils::string_combobox;
+
+                ui.label("Save mode:");
+                string_combobox(
+                    ui,
+                    &ResultSaveMode::to_vec()
+                        .iter()
+                        .map(|x| String::from(*x))
+                        .collect(),
+                    &mut current_str,
+                    format!("result-save-mode-choice-{}", unique_id),
+                );
+                if let ResultSaveMode::Batch(size) = &mut self.save_mode {
+                    use egui::DragValue;
+
+                    ui.add(DragValue::new(size).max_decimals(0));
+                    if *size < 1 {
+                        *size = 1;
+                    }
+                } else if let ResultSaveMode::Periodic(period) = &mut self.save_mode {
+                    use egui::DragValue;
+
+                    ui.add(DragValue::new(period));
+                    if *period <= TIME_ROUND {
+                        *period = TIME_ROUND;
+                    }
+                }
+            });
+            if current_str != self.save_mode.to_string() {
+                match current_str.as_str() {
+                    "AtTheEnd" => self.save_mode = ResultSaveMode::AtTheEnd,
+                    "Continuous" => self.save_mode = ResultSaveMode::Continuous,
+                    "Batch" => self.save_mode = ResultSaveMode::Batch(10),
+                    "Periodic" => self.save_mode = ResultSaveMode::Periodic(5.),
+                    _ => panic!("Where did you find this value?"),
+                };
+            }
 
             ui.horizontal(|ui| {
                 ui.label("Show figures:");
@@ -177,6 +245,16 @@ impl UIComponent for ResultConfig {
             });
 
             ui.horizontal(|ui| {
+                let mut as_str = self.save_mode.to_string();
+                if let ResultSaveMode::Batch(s) = &self.save_mode {
+                    as_str = format!("{} ({})", as_str, s);
+                } else if let ResultSaveMode::Periodic(p) = &self.save_mode {
+                    as_str = format!("{} ({} s)", as_str, p);
+                }
+                ui.label(format!("Save mode: {}", as_str));
+            });
+
+            ui.horizontal(|ui| {
                 ui.label("Show figures: ");
                 if self.show_figures {
                     ui.label("Yes");
@@ -209,13 +287,6 @@ impl UIComponent for ResultConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[cfg_attr(feature = "gui", derive(ToVec, EnumToString))]
-pub enum TimeMode {
-    Centralized,
-    Decentralized,
-}
-
 /// Scenario configuration for the simulator.
 /// The Simulator configuration is the root of the scenario configuration.
 ///
@@ -246,7 +317,6 @@ pub struct SimulatorConfig {
     pub base_path: Box<Path>,
 
     pub max_time: f32,
-    pub time_mode: TimeMode,
 
     #[check]
     pub time_analysis: TimeAnalysisConfig,
@@ -272,7 +342,6 @@ impl Default for SimulatorConfig {
             robots: Vec::new(),
             computation_units: Vec::new(),
             max_time: 60.,
-            time_mode: TimeMode::Centralized,
         }
     }
 }
@@ -341,11 +410,6 @@ impl crate::gui::UIComponent for SimulatorConfig {
                     egui::DragValue::new(&mut self.max_time)
                         .max_decimals((1. / TIME_ROUND) as usize),
                 );
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Time Mode: ");
-                enum_combobox(ui, &mut self.time_mode, "time-mode");
             });
 
             ui.horizontal(|ui| {
@@ -431,11 +495,6 @@ impl crate::gui::UIComponent for SimulatorConfig {
             });
 
             ui.horizontal(|ui| {
-                ui.label("Time Mode: ");
-                ui.label(format!("{}", self.time_mode.to_string()));
-            });
-
-            ui.horizontal(|ui| {
                 self.time_analysis.show(ui, ctx, unique_id);
             });
 
@@ -462,7 +521,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
 /// associated time.
 ///
 /// This is a line for one node ([`NodeRecord`]) at a given time.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Record {
     /// Time of the record.
     pub time: f32,
@@ -483,14 +542,40 @@ static EXCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static INCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
 pub struct SimulatorAsyncApi {
-    pub current_time: Arc<Mutex<f32>>,
+    pub current_time: Arc<RwLock<f32>>,
     pub records: Arc<Mutex<mpsc::Receiver<Record>>>,
 }
 
 #[derive(Clone)]
 struct SimulatorAsyncApiServer {
-    pub current_time: Arc<Mutex<f32>>,
-    pub records: mpsc::Sender<Record>,
+    current_time: Arc<RwLock<f32>>,
+    records: Vec<mpsc::Sender<Record>>,
+}
+
+impl SimulatorAsyncApiServer {
+    pub fn new(time: f32) -> Self {
+        Self { current_time: Arc::new(RwLock::new(time)), records: Vec::new() }
+    }
+
+    pub fn new_client(&mut self) -> SimulatorAsyncApi {
+        let (tx, rx) = mpsc::channel();
+        self.records.push(tx);
+        SimulatorAsyncApi {
+            current_time: self.current_time.clone(),
+            records: Arc::new(Mutex::new(rx)),
+        }
+    }
+
+    pub fn update_time(&self, new_time:f32) {
+        *self.current_time.write().unwrap() = new_time;
+    }
+
+    pub fn send_record(&self, record: &Record) {
+        for tx in &self.records {
+            tx.send(record.clone());
+        }
+    }
+
 }
 
 #[derive(Debug)]
@@ -510,6 +595,21 @@ impl TimeCv {
             circulating_messages: Mutex::new(0),
             force_finish: Mutex::new(false),
             condvar: Condvar::new(),
+        }
+    }
+}
+
+#[derive(Clone)]
+struct ResultSavingData {
+    save_mode: ResultSaveMode,
+    first_row: bool,
+}
+
+impl Default for ResultSavingData {
+    fn default() -> Self {
+        Self {
+            save_mode: ResultSaveMode::default(),
+            first_row: true,
         }
     }
 }
@@ -567,12 +667,15 @@ pub struct Simulator {
     determinist_va_factory: DeterministRandomVariableFactory,
 
     time_cv: Arc<TimeCv>,
-    common_time: Arc<Mutex<f32>>,
+    common_time: Arc<RwLock<f32>>,
 
-    async_api: Option<Arc<SimulatorAsyncApi>>,
-    async_api_server: Option<SimulatorAsyncApiServer>,
+    async_api: Arc<SimulatorAsyncApi>,
+    async_api_server: SimulatorAsyncApiServer,
 
     node_apis: BTreeMap<String, NodeClient>,
+
+    result_saving_data: Option<ResultSavingData>,
+    records: Vec<Record>,
 }
 
 impl Simulator {
@@ -580,16 +683,20 @@ impl Simulator {
     pub fn new() -> Simulator {
         let rng = rand::random();
         let time_cv = Arc::new(TimeCv::new());
+        let mut simulator_api = SimulatorAsyncApiServer::new(0.);
+        let simulator_api_client = simulator_api.new_client();
         Simulator {
             nodes: Vec::new(),
             config: SimulatorConfig::default(),
             network_manager: NetworkManager::new(time_cv.clone()),
             determinist_va_factory: DeterministRandomVariableFactory::new(rng),
             time_cv,
-            async_api: None,
-            async_api_server: None,
-            common_time: Arc::new(Mutex::new(f32::INFINITY)),
+            async_api: Arc::new(simulator_api_client),
+            async_api_server: simulator_api,
+            common_time: Arc::new(RwLock::new(f32::INFINITY)),
             node_apis: BTreeMap::new(),
+            result_saving_data: Some(ResultSavingData::default()),
+            records: Vec::new(),
         }
     }
 
@@ -635,7 +742,16 @@ impl Simulator {
         self.time_cv = Arc::new(TimeCv::new());
         self.network_manager = NetworkManager::new(self.time_cv.clone());
         let config = self.config.clone();
-        self.common_time = Arc::new(Mutex::new(f32::INFINITY));
+        self.common_time = Arc::new(RwLock::new(f32::INFINITY));
+
+        self.result_saving_data = match &self.config.results {
+            Some(cfg) => Some(ResultSavingData {
+                save_mode: cfg.save_mode.clone(),
+                ..Default::default()
+            }),
+            None => None,
+        };
+
         let mut service_managers = BTreeMap::new();
         // Create robots
         for robot_config in &config.robots {
@@ -664,10 +780,32 @@ impl Simulator {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
     ) -> SimbaResult<()> {
         println!("Load configuration from {:?}", config_path);
-        let mut config: SimulatorConfig = match confy::load_path(config_path) {
+        let mut config: serde_yaml::Value = match confy::load_path(config_path) {
             Ok(config) => config,
             Err(error) => {
-                let what = format!("Error from Confy while loading the config file : {}", utils::confy::detailed_error(&error));
+                let what = format!(
+                    "Error from Confy while loading the config file : {}",
+                    utils::confy::detailed_error(&error)
+                );
+                println!("ERROR: {what}");
+                return Err(SimbaError::new(SimbaErrorTypes::ConfigError, what));
+            }
+        };
+        config.apply_merge().map_err(|e| {
+            let what = format!(
+                "Error from SerdeYAML while merging YAML tags: {}",
+                e.to_string()
+            );
+            println!("ERROR: {what}");
+            SimbaError::new(SimbaErrorTypes::ConfigError, what)
+        })?;
+        let mut config: SimulatorConfig = match serde_yaml::from_value(config) {
+            Ok(c) => c,
+            Err(e) => {
+                let what = format!(
+                    "Error from SerdeYAML while loading SimulatorConfig : {}",
+                    e.to_string()
+                );
                 println!("ERROR: {what}");
                 return Err(SimbaError::new(SimbaErrorTypes::ConfigError, what));
             }
@@ -698,7 +836,11 @@ impl Simulator {
                 "Error in config".to_string(),
             ));
         }
-        let config_version: Vec<usize> = config.version.split(".").map(|s| s.parse().expect("Config version pattern not recognized")).collect();
+        let config_version: Vec<usize> = config
+            .version
+            .split(".")
+            .map(|s| s.parse().expect("Config version pattern not recognized"))
+            .collect();
         if config_version.len() < 2 {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ConfigError,
@@ -707,8 +849,12 @@ impl Simulator {
         }
         Self::init_log(&config.log)?;
         if config_version[0] != env!("CARGO_PKG_VERSION_MAJOR").parse::<usize>().unwrap()
-            || config_version[1] != env!("CARGO_PKG_VERSION_MINOR").parse::<usize>().unwrap() {
-            warn!("Config major version ({}) differs from software version ({})", config.version, VERSION);
+            || config_version[1] != env!("CARGO_PKG_VERSION_MINOR").parse::<usize>().unwrap()
+        {
+            warn!(
+                "Config major version ({}) differs from software version ({})",
+                config.version, VERSION
+            );
         }
         self.config = config.clone();
         if let Some(seed) = config.random_seed {
@@ -871,6 +1017,16 @@ impl Simulator {
         let nb_nodes = self.nodes.len();
         let barrier = Arc::new(Barrier::new(nb_nodes));
         let finishing_cv = Arc::new((Mutex::new(0usize), Condvar::new()));
+
+        match &self.result_saving_data {
+            Some(data) => {
+                match data.save_mode {
+                    ResultSaveMode::AtTheEnd => {}
+                    _ => self.prepare_save_results()?
+                }
+            },
+            None => {}
+        };
         while let Some(node) = self.nodes.pop() {
             let i = self.nodes.len();
             let new_max_time = max_time.clone();
@@ -913,31 +1069,22 @@ impl Simulator {
         }
 
         if let Some(e) = error {
+            self.process_records(None).map_err(|e2| {
+                SimbaError::new(e2.error_type(), 
+                format!("Error while processing previous error.\nPrevious error: {}\nLast error: {}", e.detailed_error(), e2.detailed_error()))
+            })?;
             return Err(e);
         }
 
-        self.save_results()
+        self.process_records(None)
     }
 
     /// Returns the list of all [`Record`]s produced by [`Simulator::run`].
     pub fn get_records(&self) -> Vec<Record> {
-        let mut records = Vec::new();
-        for node in self.nodes.iter() {
-            let node_history = node.record_history();
-            for (time, record) in node_history.iter() {
-                records.push(Record {
-                    time: time.clone(),
-                    node: record.clone(),
-                });
-            }
-        }
-        records
+        self.records.clone()
     }
 
-    /// Save the results to the file given during the configuration.
-    ///
-    /// If the configuration of the [`Simulator`] do not contain a result path, no results are saved.
-    fn save_results(&mut self) -> SimbaResult<()> {
+    fn prepare_save_results(&self) -> SimbaResult<()> {
         if self.config.results.is_none() {
             return Ok(());
         }
@@ -945,7 +1092,6 @@ impl Simulator {
         let filename = result_config.result_path;
         let filename = self.config.base_path.as_ref().join(filename);
 
-        time_analysis::save_results();
         info!(
             "Saving results to {}",
             filename.to_str().unwrap_or_default()
@@ -972,20 +1118,111 @@ impl Simulator {
             ));
         }
         recording_file.write(b",\n\"records\": [\n").unwrap();
+        Ok(())
+    }
 
-        let results = self.get_records();
+    /// Save the results to the file given during the configuration.
+    ///
+    /// If the configuration of the [`Simulator`] do not contain a result path, no results are saved.
+    fn process_records(&mut self, time: Option<f32>) -> SimbaResult<()> {
+        if self.config.results.is_none() && time.is_none() {
+            while let Ok(record) = self.async_api.records.lock().unwrap().try_recv() {
+                self.records.push(record)
+            }
+            return Ok(());
+        }
+        let result_saving_data = self.result_saving_data.as_ref().unwrap().clone();
+        match result_saving_data.save_mode {
+            ResultSaveMode::AtTheEnd => {
+                if time.is_some() {
+                    return Ok(())
+                }
+                self.prepare_save_results()?;
+            }
+            _ => {},
+        }
+        let result_saving_data = self.result_saving_data.as_mut().unwrap();
+        match &mut result_saving_data.save_mode {
+            ResultSaveMode::Batch(remaining_size) => {
+                if time.is_some() {
+                    if *remaining_size <= 1 {
+                        *remaining_size = match self.config.results.as_ref().unwrap().save_mode {
+                            ResultSaveMode::Batch(s) => s,
+                            _ => {
+                                return Err(SimbaError::new(
+                        SimbaErrorTypes::ImplementationError,
+                                    "Incoherence between configuration and loaded configuration for Result save_mode".to_string(),
+                                ));
+                            }
+                        }
+                    } else {
+                        *remaining_size -= 1;
+                        return Ok(());
+                    }
+                }
+                // If no time is given, force save (for end)
+            }
+            ResultSaveMode::Periodic(next_save) => {
+                if time.is_some() {
+                    if *next_save <= time.unwrap() {
+                        *next_save = match self.config.results.as_ref().unwrap().save_mode {
+                            ResultSaveMode::Periodic(t) => {
+                                round_precision(*next_save + t, TIME_ROUND).unwrap()
+                            }
+                            _ => {
+                                return Err(SimbaError::new(
+                        SimbaErrorTypes::ImplementationError,
+                                    "Incoherence between configuration and loaded configuration for Result save_mode".to_string(),
+                                ));
+                            }
+                        }
+                    } else {
+                        return Ok(());
+                    }
+                }
+                // If no time is given, force save (for end)
+            }
+            ResultSaveMode::Continuous => (),
+            ResultSaveMode::AtTheEnd => (),
+        }
 
-        let mut first_row = true;
-        for row in &results {
-            if first_row {
-                first_row = false;
+        if time.is_none() {
+            // Only at the end
+            time_analysis::save_results();
+        }
+
+        let mut new_records = Vec::new();
+        while let Ok(record) = self.async_api.records.lock().unwrap().try_recv() {
+            new_records.push(record)
+        }
+        let result_config = self.config.results.clone().unwrap();
+        let filename = result_config.result_path;
+        let filename = self.config.base_path.as_ref().join(filename);
+
+        info!(
+            "Saving results to {}",
+            filename.to_str().unwrap_or_default()
+        );
+        let mut recording_file = match File::options().append(true).open(filename.clone()) {
+            Err(e) => {
+                return Err(SimbaError::new(
+                    SimbaErrorTypes::ConfigError,
+                    format!(
+                        "Impossible to open result file '{}': {}",
+                        filename.to_str().unwrap(),
+                        e
+                    ),
+                ));
+            }
+            Ok(f) => f,
+        };
+
+        for record in &new_records {
+            if result_saving_data.first_row {
+                result_saving_data.first_row = false;
             } else {
                 recording_file.write(b",\n").unwrap();
             }
-            let record = Record {
-                time: row.time.clone(),
-                node: row.node.clone(),
-            };
             if let Err(e) = serde_json::to_writer(&recording_file, &record) {
                 return Err(SimbaError::new(
                     SimbaErrorTypes::ImplementationError,
@@ -996,7 +1233,11 @@ impl Simulator {
                 ));
             }
         }
-        recording_file.write(b"\n]}").unwrap();
+        if time.is_none() {
+            // Only at the end. If crashes in between, the user need to close the json array+object manually
+            recording_file.write(b"\n]}").unwrap();
+        }
+        self.records.extend(new_records);
         Ok(())
     }
 
@@ -1029,8 +1270,8 @@ impl Simulator {
         nb_nodes: usize,
         _node_idx: usize,
         time_cv: Arc<TimeCv>,
-        async_api_server: Option<SimulatorAsyncApiServer>,
-        common_time: Arc<Mutex<f32>>,
+        async_api_server: SimulatorAsyncApiServer,
+        common_time: Arc<RwLock<f32>>,
         barrier: Arc<Barrier>,
     ) -> SimbaResult<Node> {
         info!("Start thread of node {}", node.name());
@@ -1053,7 +1294,7 @@ impl Simulator {
                 if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                     debug!("Get common time (next_time is {next_time})");
                 }
-                let mut unlocked_common_time = common_time.lock().unwrap();
+                let mut unlocked_common_time = common_time.write().unwrap();
                 if *unlocked_common_time > next_time {
                     *unlocked_common_time = next_time;
                     if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
@@ -1063,16 +1304,14 @@ impl Simulator {
             }
             barrier.wait();
 
-            next_time = *common_time.lock().unwrap();
+            next_time = *common_time.read().unwrap();
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Barrier... final next_time is {next_time}");
             }
             barrier.wait();
-            *common_time.lock().unwrap() = f32::INFINITY;
+            *common_time.write().unwrap() = f32::INFINITY;
             barrier.wait();
-            if let Some(api) = &async_api_server {
-                *api.current_time.lock().unwrap() = next_time;
-            }
+            async_api_server.update_time(next_time);
             *TIME.write().unwrap() = next_time;
             if next_time > max_time {
                 break;
@@ -1080,13 +1319,12 @@ impl Simulator {
 
             node.run_next_time_step(next_time, &time_cv, nb_nodes)?;
             node.sync_with_others(&time_cv, nb_nodes, next_time);
-            if let Some(api) = &async_api_server {
-                let record: Record = Record {
+            async_api_server.send_record(
+                &Record {
                     time: next_time,
                     node: node.record(),
-                };
-                api.records.send(record).unwrap();
-            }
+                }
+            );
         }
         Ok(node)
     }
@@ -1101,6 +1339,7 @@ impl Simulator {
         for (k, _) in self.node_apis.iter() {
             node_states.insert(k.clone(), TimeOrderedData::<State>::new());
         }
+        let mut previous_time = *self.common_time.read().unwrap();
         loop {
             for (node_name, node_api) in self.node_apis.iter() {
                 if let Some(state_update) = &node_api.state_update {
@@ -1111,6 +1350,11 @@ impl Simulator {
                             .insert(time, state, true);
                     }
                 }
+            }
+            let current_time = *self.async_api.current_time.read().unwrap();
+            if (current_time - previous_time).abs() >= TIME_ROUND {
+                previous_time = current_time;
+                self.process_records(Some(current_time))?;
             }
             self.network_manager.process_messages(&node_states)?;
             if *finishing_cv.0.lock().unwrap() == nb_nodes {
@@ -1247,19 +1491,7 @@ def convert(records):
     }
 
     pub fn get_async_api(&mut self) -> Arc<SimulatorAsyncApi> {
-        if self.async_api_server.is_none() {
-            let time = Arc::new(Mutex::new(0.));
-            let (records_tx, records_rx) = mpsc::channel();
-            self.async_api_server = Some(SimulatorAsyncApiServer {
-                current_time: Arc::clone(&time),
-                records: records_tx,
-            });
-            self.async_api = Some(Arc::new(SimulatorAsyncApi {
-                current_time: Arc::clone(&time),
-                records: Arc::new(Mutex::new(records_rx)),
-            }));
-        }
-        self.async_api.as_ref().unwrap().clone()
+        Arc::new(self.async_api_server.new_client())
     }
 }
 

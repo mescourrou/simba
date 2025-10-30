@@ -273,7 +273,7 @@ def convert(records):
     }
 
     fn update_messages(&mut self) {
-        while let  Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
+        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
             let msg = serde_json::to_string(&msg).unwrap();
             self.received_msgs.push((from, msg, time));
         }
@@ -321,11 +321,11 @@ impl Controller for PythonController {
         self.update_messages();
         let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
         Python::with_gil(|py| {
-            if let Err(e) = self.controller.bind(py).call_method(
-                "pre_loop_hook",
-                (node_py, time),
-                None,
-            ) {
+            if let Err(e) =
+                self.controller
+                    .bind(py)
+                    .call_method("pre_loop_hook", (node_py, time), None)
+            {
                 e.display(py);
                 panic!("Error while calling 'pre_loop_hook' method of PythonController.");
             }

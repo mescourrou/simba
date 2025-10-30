@@ -2,6 +2,7 @@
 Module providing different function tools and data structures.
 */
 
+pub mod confy;
 pub mod determinist_random_variable;
 pub mod distributions;
 pub mod enum_tools;
@@ -10,7 +11,6 @@ pub mod maths;
 pub mod occupancy_grid;
 pub mod rfc;
 pub mod time_ordered_data;
-pub mod confy;
 
 use serde::Serializer;
 pub fn format_f32<S>(val: &f32, serializer: S) -> Result<S::Ok, S::Error>

@@ -1,6 +1,9 @@
 use std::{
     str::FromStr,
-    sync::{mpsc::{self, Receiver, Sender}, Arc, Mutex},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex,
+    },
 };
 
 use log::debug;
@@ -8,7 +11,14 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    controllers::controller::ControllerError, logger::is_enabled, navigators::external_navigator::ExternalNavigatorRecord, networking::message_handler::MessageHandler, node::Node, pywrappers::{ControllerErrorWrapper, NodeWrapper, WorldStateWrapper}, recordable::Recordable, state_estimators::state_estimator::WorldState
+    controllers::controller::ControllerError,
+    logger::is_enabled,
+    navigators::external_navigator::ExternalNavigatorRecord,
+    networking::message_handler::MessageHandler,
+    node::Node,
+    pywrappers::{ControllerErrorWrapper, NodeWrapper, WorldStateWrapper},
+    recordable::Recordable,
+    state_estimators::state_estimator::WorldState,
 };
 
 use super::navigator::{Navigator, NavigatorRecord};
@@ -28,7 +38,7 @@ pub struct PythonNavigatorAsyncClient {
 
 impl PythonNavigatorAsyncClient {
     fn update_messages(&mut self) {
-        while let  Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
+        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
             let msg = serde_json::to_string(&msg).unwrap();
             self.received_msgs.push((from, msg, time));
         }
@@ -49,9 +59,7 @@ impl Navigator for PythonNavigatorAsyncClient {
         self.received_msgs.clear();
         self.update_messages();
         let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
-        self.pre_loop_hook_request
-            .send((node_py, time))
-            .unwrap();
+        self.pre_loop_hook_request.send((node_py, time)).unwrap();
         self.pre_loop_hook_response.lock().unwrap().recv().unwrap()
     }
 }
@@ -166,7 +174,7 @@ impl PythonNavigator {
         let result = Python::with_gil(|py| -> ControllerErrorWrapper {
             match self.model.bind(py).call_method(
                 "compute_error",
-                (node, WorldStateWrapper::from_rust(state),),
+                (node, WorldStateWrapper::from_rust(state)),
                 None,
             ) {
                 Err(e) => {
@@ -214,15 +222,17 @@ impl PythonNavigator {
             debug!("Calling python implementation of pre_loop_hook");
         }
         Python::with_gil(|py: Python<'_>| {
-            match self.model
+            match self
+                .model
                 .bind(py)
-                .call_method("pre_loop_hook", (node, time), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'next_time_step' method of PythonNavigator.");
-                    }
-                    Ok(_) => {}
+                .call_method("pre_loop_hook", (node, time), None)
+            {
+                Err(e) => {
+                    e.display(py);
+                    panic!("Error while calling 'next_time_step' method of PythonNavigator.");
                 }
+                Ok(_) => {}
+            }
         });
     }
 }

@@ -120,14 +120,26 @@ impl Node {
 
         if let Some(network) = &self.network {
             if let Some(sensor_manager) = &self.sensor_manager {
-                network.write().unwrap().subscribe(sensor_manager.read().unwrap().get_letter_box());
+                network
+                    .write()
+                    .unwrap()
+                    .subscribe(sensor_manager.read().unwrap().get_letter_box());
             }
             if let Some(state_estimator) = &self.state_estimator {
-                network.write().unwrap().subscribe(state_estimator.read().unwrap().get_letter_box());
+                network
+                    .write()
+                    .unwrap()
+                    .subscribe(state_estimator.read().unwrap().get_letter_box());
             }
             if let Some(state_estimator_bench) = &self.state_estimator_bench {
-                for state_estimator in  state_estimator_bench.read().unwrap().iter() {
-                    network.write().unwrap().subscribe(state_estimator.state_estimator.read().unwrap().get_letter_box());
+                for state_estimator in state_estimator_bench.read().unwrap().iter() {
+                    network.write().unwrap().subscribe(
+                        state_estimator
+                            .state_estimator
+                            .read()
+                            .unwrap()
+                            .get_letter_box(),
+                    );
                 }
             }
         }
@@ -219,8 +231,12 @@ impl Node {
             state_estimator.write().unwrap().pre_loop_hook(self, time);
         }
         if let Some(state_estimator_bench) = self.state_estimator_bench.clone() {
-            for state_estimator in  state_estimator_bench.read().unwrap().iter() {
-                state_estimator.state_estimator.write().unwrap().pre_loop_hook(self, time);
+            for state_estimator in state_estimator_bench.read().unwrap().iter() {
+                state_estimator
+                    .state_estimator
+                    .write()
+                    .unwrap()
+                    .pre_loop_hook(self, time);
             }
         }
         if let Some(controller) = self.controller() {
@@ -430,9 +446,7 @@ impl Node {
                 debug!("[intermediate wait] End wait");
                 return;
             }
-            debug!(
-                "[intermediate wait] New loop: waiting = {}", *lk
-            );
+            debug!("[intermediate wait] New loop: waiting = {}", *lk);
         }
     }
 
@@ -453,10 +467,7 @@ impl Node {
     pub fn next_time_step(&self, min_time_excluded: f32) -> SimbaResult<f32> {
         let mut next_time_step = f32::INFINITY;
         if let Some(state_estimator) = &self.state_estimator {
-            let next_time = state_estimator
-                .read()
-                .unwrap()
-                .next_time_step();
+            let next_time = state_estimator.read().unwrap().next_time_step();
             if next_time > min_time_excluded {
                 next_time_step = next_time_step.min(next_time);
             }
@@ -516,7 +527,8 @@ impl Node {
                 debug!("Next time after state estimator bench: {next_time_step}");
             }
         }
-        let next_time = self.service_manager
+        let next_time = self
+            .service_manager
             .as_ref()
             .unwrap()
             .read()

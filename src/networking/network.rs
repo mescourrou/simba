@@ -14,15 +14,12 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
-#[cfg(feature = "gui")]
-use crate::{
-    gui::UIComponent,
-    constants::TIME_ROUND,
-};
 use crate::logger::is_enabled;
 use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
+#[cfg(feature = "gui")]
+use crate::{constants::TIME_ROUND, gui::UIComponent};
 
 use super::network_manager::{MessageSendMethod, NetworkMessage};
 
@@ -88,10 +85,7 @@ impl UIComponent for NetworkConfig {
             });
 
             ui.horizontal(|ui| {
-                ui.label(format!(
-                    "Reception delay: {}",
-                    self.reception_delay
-                ));
+                ui.label(format!("Reception delay: {}", self.reception_delay));
             });
         });
     }
@@ -308,7 +302,9 @@ impl Network {
                 debug!("Letter box list size: {}", self.letter_boxes.len());
             }
             for letter_box in &self.letter_boxes {
-                letter_box.send((from.clone(), message.clone(), msg_time)).unwrap();
+                letter_box
+                    .send((from.clone(), message.clone(), msg_time))
+                    .unwrap();
             }
         }
 

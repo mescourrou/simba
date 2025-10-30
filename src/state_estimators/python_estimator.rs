@@ -275,7 +275,7 @@ def convert(records):
     }
 
     fn update_messages(&mut self) {
-        while let  Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
+        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
             let msg = serde_json::to_string(&msg).unwrap();
             self.received_msgs.push((from, msg, time));
         }
@@ -299,7 +299,7 @@ impl StateEstimator for PythonEstimator {
             if let Err(e) =
                 self.state_estimator
                     .bind(py)
-                    .call_method("prediction_step", (node_py, time,), None)
+                    .call_method("prediction_step", (node_py, time), None)
             {
                 e.display(py);
                 panic!("Error while calling 'prediction_step' method of PythonEstimator.");
@@ -377,15 +377,17 @@ impl StateEstimator for PythonEstimator {
         self.update_messages();
         let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
         Python::with_gil(|py| {
-            match self.state_estimator
+            match self
+                .state_estimator
                 .bind(py)
-                .call_method("pre_loop_hook", (node_py, time), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'next_time_step' method of PythonEstimator.");
-                    }
-                    Ok(_) => {}
+                .call_method("pre_loop_hook", (node_py, time), None)
+            {
+                Err(e) => {
+                    e.display(py);
+                    panic!("Error while calling 'next_time_step' method of PythonEstimator.");
                 }
+                Ok(_) => {}
+            }
         });
     }
 }

@@ -10,7 +10,14 @@ use crate::{
     navigators::{
         navigator::{Navigator, NavigatorRecord},
         trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
-    }, networking::message_handler::MessageHandler, plugin_api::PluginAPI, simulator::SimulatorConfig, utils::{determinist_random_variable::DeterministRandomVariableFactory, geometry::{mod2pi, smallest_theta_diff}}
+    },
+    networking::message_handler::MessageHandler,
+    plugin_api::PluginAPI,
+    simulator::SimulatorConfig,
+    utils::{
+        determinist_random_variable::DeterministRandomVariableFactory,
+        geometry::{mod2pi, smallest_theta_diff},
+    },
 };
 
 extern crate nalgebra as na;

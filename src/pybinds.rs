@@ -8,7 +8,10 @@ use crate::{
     navigators::{navigator::Navigator, pybinds::PythonNavigator},
     physics::{physics::Physics, pybinds::PythonPhysics},
     pywrappers::{
-        run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper, SimulatorWrapper, StateWrapper, WorldStateWrapper
+        run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper,
+        ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
+        OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
+        SimulatorWrapper, StateWrapper, WorldStateWrapper,
     },
     simulator::SimulatorConfig,
     state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},

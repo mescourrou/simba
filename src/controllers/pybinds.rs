@@ -1,6 +1,9 @@
 use std::{
     str::FromStr,
-    sync::{mpsc::{self, Receiver, Sender}, Arc, Mutex},
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex,
+    },
 };
 
 use log::debug;
@@ -8,7 +11,13 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    controllers::external_controller::ExternalControllerRecord, logger::is_enabled, networking::message_handler::MessageHandler, node::Node, physics::physics::Command, pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper}, recordable::Recordable
+    controllers::external_controller::ExternalControllerRecord,
+    logger::is_enabled,
+    networking::message_handler::MessageHandler,
+    node::Node,
+    physics::physics::Command,
+    pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
+    recordable::Recordable,
 };
 
 use super::controller::{Controller, ControllerError, ControllerRecord};
@@ -28,7 +37,7 @@ pub struct PythonControllerAsyncClient {
 
 impl PythonControllerAsyncClient {
     fn update_messages(&mut self) {
-        while let  Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
+        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
             let msg = serde_json::to_string(&msg).unwrap();
             self.received_msgs.push((from, msg, time));
         }
@@ -49,9 +58,7 @@ impl Controller for PythonControllerAsyncClient {
         self.received_msgs.clear();
         self.update_messages();
         let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
-        self.pre_loop_hook_request
-            .send((node_py, time))
-            .unwrap();
+        self.pre_loop_hook_request.send((node_py, time)).unwrap();
         self.pre_loop_hook_response.lock().unwrap().recv().unwrap()
     }
 }
@@ -133,7 +140,9 @@ impl PythonController {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((node, error, time)) = self.make_command_request.clone().lock().unwrap().try_recv() {
+        if let Ok((node, error, time)) =
+            self.make_command_request.clone().lock().unwrap().try_recv()
+        {
             let command = self.make_command(node, &error, time);
             self.make_command_response.send(command).unwrap();
         }
@@ -208,15 +217,17 @@ impl PythonController {
             debug!("Calling python implementation of pre_loop_hook");
         }
         Python::with_gil(|py: Python<'_>| {
-            match self.model
+            match self
+                .model
                 .bind(py)
-                .call_method("pre_loop_hook", (node, time), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'next_time_step' method of PythonController.");
-                    }
-                    Ok(_) => {}
+                .call_method("pre_loop_hook", (node, time), None)
+            {
+                Err(e) => {
+                    e.display(py);
+                    panic!("Error while calling 'next_time_step' method of PythonController.");
                 }
+                Ok(_) => {}
+            }
         });
     }
 }

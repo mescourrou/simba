@@ -35,6 +35,10 @@ impl SimbaError {
             self.what
         )
     }
+
+    pub fn error_type(&self) -> SimbaErrorTypes {
+        self.error_type
+    }
 }
 
 impl Display for SimbaError {

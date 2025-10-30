@@ -271,7 +271,6 @@ impl StateEstimator for PerfectEstimator {
     }
 
     fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {}
-
 }
 
 impl Recordable<StateEstimatorRecord> for PerfectEstimator {

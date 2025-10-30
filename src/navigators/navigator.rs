@@ -152,15 +152,17 @@ use crate::utils::enum_tools::ToVec;
 
 /// Trait managing the path planning, and providing the error to the planned path.
 pub trait Navigator:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<NavigatorRecord> + MessageHandler
+    std::fmt::Debug
+    + std::marker::Send
+    + std::marker::Sync
+    + Recordable<NavigatorRecord>
+    + MessageHandler
 {
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
     fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError;
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
 }
-
-
 
 /// Helper function to create a navigator from the given configuration.
 ///

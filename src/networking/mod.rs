@@ -34,7 +34,10 @@ pub mod service_manager;
 // Network message exchange test
 #[cfg(test)]
 mod tests {
-    use std::sync::{mpsc::{self, Receiver, Sender}, Arc, Mutex, RwLock};
+    use std::sync::{
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex, RwLock,
+    };
 
     use log::debug;
     use serde::{Deserialize, Serialize};
@@ -111,7 +114,9 @@ mod tests {
         fn prediction_step(&mut self, node: &mut crate::node::Node, time: f32) {
             self.last_time = time;
             if node.name() == "node2" {
-                while let Ok((from, message, _time)) = self.letter_box.as_ref().unwrap().lock().unwrap().try_recv() {
+                while let Ok((from, message, _time)) =
+                    self.letter_box.as_ref().unwrap().lock().unwrap().try_recv()
+                {
                     let message = serde_json::from_value(message.clone()).unwrap();
                     println!("Receiving message: {} from {from}", &message);
                     *self.last_message.lock().unwrap() = Some(message);
@@ -169,8 +174,7 @@ mod tests {
                 last_from: self.last_from.clone(),
                 last_message: self.last_message.clone(),
                 letter_box: rx,
-                letter_box_sender: tx
-
+                letter_box_sender: tx,
             }) as Box<dyn StateEstimator>
         }
 
@@ -234,16 +238,12 @@ mod tests {
             "Message not received"
         );
         assert!(
-            *plugin_api.last_message
-                .lock()
-                .unwrap()
-                .as_ref()
-                .unwrap()
-                == message_to_send,
+            *plugin_api.last_message.lock().unwrap().as_ref().unwrap() == message_to_send,
             "Wrong message received"
         );
         assert!(
-            plugin_api.last_from
+            plugin_api
+                .last_from
                 .lock()
                 .unwrap()
                 .as_ref()
@@ -258,7 +258,7 @@ mod tests {
     fn deadlock_service_test() {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
-        config.log.log_level = LogLevel::Off; 
+        config.log.log_level = LogLevel::Off;
         // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
         config.max_time = RobotSensorConfig::default().period * 1.1;
         config.robots.push(RobotConfig {
