@@ -8,6 +8,7 @@ use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::navigator::{Navigator, NavigatorRecord};
 use simba::networking::message_handler::MessageHandler;
 use simba::networking::service::HasService;
+use simba::networking::NetworkError;
 use simba::physics::external_physics::ExternalPhysicsRecord;
 use simba::physics::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 use simba::plugin_api::PluginAPI;
@@ -183,7 +184,7 @@ impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
         _req: GetRealStateReq,
         _time: f32,
     ) -> Result<GetRealStateResp, String> {
-        Err(String::new())
+        Err("Unimplemented".to_string())
     }
 }
 

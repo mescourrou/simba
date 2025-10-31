@@ -6,7 +6,7 @@ Provide the implementation of the [`Physics`] trait without any noise added to t
 use crate::gui::UIComponent;
 
 use crate::{
-    networking::service::HasService,
+    networking::{service::HasService, NetworkError},
     plugin_api::PluginAPI,
     recordable::Recordable,
     simulator::SimulatorConfig,

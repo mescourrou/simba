@@ -85,6 +85,7 @@ pub struct Node {
     pub(crate) node_server: Option<NodeServer>,
 
     pub other_node_names: Vec<String>,
+    pub zombie: bool,
 }
 
 impl Node {
@@ -453,7 +454,7 @@ impl Node {
     pub fn handle_messages(&mut self, time: f32) {
         // Treat messages synchronously
         if let Some(network) = self.network() {
-            network.write().unwrap().handle_message_at_time(time);
+            network.write().unwrap().handle_message_at_time(self, time);
         }
         self.service_manager
             .as_ref()
@@ -623,6 +624,23 @@ impl Node {
         self.service_manager.as_ref().unwrap().clone()
     }
 
+    pub fn pre_kill(&mut self) {
+        self.zombie = true;
+    }
+
+    pub fn kill(&mut self) {
+        self.zombie = true;
+        if let Some(network) = &self.network {
+            network.write().unwrap().unsubscribe_node().unwrap();
+        }
+        if let Some(service_manager) = &self.service_manager {
+            service_manager.write().unwrap().unsubscribe_node();
+        }
+    }
+}
+
+// Record part
+impl Node {
     fn robot_record(&self) -> RobotRecord {
         let mut record = RobotRecord {
             name: self.name.clone(),

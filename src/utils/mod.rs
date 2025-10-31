@@ -2,6 +2,7 @@
 Module providing different function tools and data structures.
 */
 
+pub mod barrier;
 pub mod confy;
 pub mod determinist_random_variable;
 pub mod distributions;

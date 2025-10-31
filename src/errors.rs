@@ -5,7 +5,9 @@ use std::{
 
 use simba_macros::EnumToString;
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, EnumToString)]
+use crate::networking::{service_manager::ServiceError, NetworkError};
+
+#[derive(Debug, Clone, PartialEq, PartialOrd, EnumToString)]
 pub enum SimbaErrorTypes {
     UnknwonError,
     MathError,
@@ -13,7 +15,8 @@ pub enum SimbaErrorTypes {
     ConfigError,
     InitializationError,
     PythonError,
-    NetworkError,
+    NetworkError(NetworkError),
+    ServiceError(ServiceError),
 }
 
 #[derive(Clone)]
@@ -24,7 +27,7 @@ pub struct SimbaError {
 
 impl SimbaError {
     pub fn new(error_type: SimbaErrorTypes, what: String) -> Self {
-        log::error!("{}: {what}", error_type.to_string());
+        // log::error!("{}: {what}", error_type.to_string());
         Self { error_type, what }
     }
 
@@ -37,7 +40,14 @@ impl SimbaError {
     }
 
     pub fn error_type(&self) -> SimbaErrorTypes {
-        self.error_type
+        self.error_type.clone()
+    }
+
+    pub fn chain(self, what: String) -> Self {
+        Self {
+            error_type: self.error_type,
+            what: format!("{}\n↪ {}", self.what, what),
+        }
     }
 }
 

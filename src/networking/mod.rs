@@ -31,6 +31,15 @@ pub mod network_manager;
 pub mod service;
 pub mod service_manager;
 
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum NetworkError {
+    ClosedChannel,
+    NodeUnknown,
+    Unknown(String),
+    ClientSide,
+    Other,
+}
+
 // Network message exchange test
 #[cfg(test)]
 mod tests {

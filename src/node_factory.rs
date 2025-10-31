@@ -166,6 +166,13 @@ impl NodeRecord {
             Self::ComputationUnit(r) => Some(&r.sensor_manager),
         }
     }
+
+    pub fn name(&self) -> &String {
+        match &self {
+            Self::Robot(robot_record) => &robot_record.name,
+            Self::ComputationUnit(r) => &r.name,
+        }
+    }
 }
 
 ////////////////////////
@@ -622,6 +629,7 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
+            zombie: false,
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -691,6 +699,7 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
+            zombie: false,
         };
 
         for state_estimator_config in &config.state_estimators {

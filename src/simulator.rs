@@ -35,7 +35,6 @@ fn main() {
 extern crate confy;
 #[cfg(feature = "gui")]
 use crate::{
-    constants::TIME_ROUND,
     gui::{
         utils::{enum_combobox, json_config, path_finder},
         UIComponent,
@@ -53,31 +52,36 @@ use simba_macros::{EnumToString, ToVec};
 
 use crate::{
     api::internal_api::NodeClient,
+    constants::TIME_ROUND,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::{init_log, is_enabled, LoggerConfig},
     networking::network_manager::NetworkManager,
     node::Node,
-    node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig},
+    node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, NodeType, RobotConfig},
     plugin_api::PluginAPI,
     recordable::Recordable,
     state_estimators::state_estimator::State,
     time_analysis::{self, TimeAnalysisConfig},
     utils::{
-        self, determinist_random_variable::DeterministRandomVariableFactory, enum_tools::ToVec,
-        format_option_f32, maths::round_precision, time_ordered_data::TimeOrderedData,
+        self, barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory,
+        enum_tools::ToVec, format_option_f32, maths::round_precision,
+        time_ordered_data::TimeOrderedData,
     },
     VERSION,
 };
 use core::f32;
+use std::{
+    cmp::Ordering,
+    path::{Path, PathBuf},
+};
 use std::{collections::BTreeMap, mem};
-use std::path::{Path, PathBuf};
 
 use colored::Colorize;
 use serde_json::{self, Value};
 use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
-use std::sync::{mpsc, Arc, Barrier, Condvar, Mutex, RwLock};
+use std::sync::{mpsc, Arc, Condvar, Mutex, RwLock};
 use std::thread::{self, ThreadId};
 
 use log::{debug, info, warn};
@@ -529,6 +533,38 @@ pub struct Record {
     pub node: NodeRecord,
 }
 
+impl Ord for Record {
+    fn cmp(&self, other: &Self) -> Ordering {
+        if (self.time - other.time).abs() < TIME_ROUND {
+            self.node.name().cmp(other.node.name())
+        } else {
+            self.time.total_cmp(&other.time)
+        }
+    }
+}
+
+impl PartialOrd for Record {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if (self.time - other.time).abs() < TIME_ROUND {
+            Some(self.node.name().cmp(other.node.name()))
+        } else {
+            self.time.partial_cmp(&other.time)
+        }
+    }
+}
+
+impl PartialEq for Record {
+    fn eq(&self, other: &Self) -> bool {
+        if (self.time - other.time).abs() < TIME_ROUND {
+            self.node.name().eq(other.node.name())
+        } else {
+            false
+        }
+    }
+}
+
+impl Eq for Record {}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Results {
     pub config: SimulatorConfig,
@@ -554,7 +590,10 @@ struct SimulatorAsyncApiServer {
 
 impl SimulatorAsyncApiServer {
     pub fn new(time: f32) -> Self {
-        Self { current_time: Arc::new(RwLock::new(time)), records: Vec::new() }
+        Self {
+            current_time: Arc::new(RwLock::new(time)),
+            records: Vec::new(),
+        }
     }
 
     pub fn new_client(&mut self) -> SimulatorAsyncApi {
@@ -566,7 +605,7 @@ impl SimulatorAsyncApiServer {
         }
     }
 
-    pub fn update_time(&self, new_time:f32) {
+    pub fn update_time(&self, new_time: f32) {
         *self.current_time.write().unwrap() = new_time;
     }
 
@@ -575,7 +614,6 @@ impl SimulatorAsyncApiServer {
             tx.send(record.clone());
         }
     }
-
 }
 
 #[derive(Debug)]
@@ -1014,16 +1052,14 @@ impl Simulator {
     pub fn run(&mut self) -> SimbaResult<()> {
         let mut handles = vec![];
         let max_time = self.config.max_time;
-        let nb_nodes = self.nodes.len();
-        let barrier = Arc::new(Barrier::new(nb_nodes));
+        let nb_nodes = Arc::new(RwLock::new(self.nodes.len()));
+        let barrier = Arc::new(Barrier::new(self.nodes.len()));
         let finishing_cv = Arc::new((Mutex::new(0usize), Condvar::new()));
 
         match &self.result_saving_data {
-            Some(data) => {
-                match data.save_mode {
-                    ResultSaveMode::AtTheEnd => {}
-                    _ => self.prepare_save_results()?
-                }
+            Some(data) => match data.save_mode {
+                ResultSaveMode::AtTheEnd => {}
+                _ => self.prepare_save_results()?,
             },
             None => {}
         };
@@ -1035,7 +1071,8 @@ impl Simulator {
             let common_time_clone = self.common_time.clone();
             let finishing_cv_clone = finishing_cv.clone();
             let barrier_clone = barrier.clone();
-            let handle = thread::spawn(move || -> SimbaResult<Node> {
+            let nb_nodes = nb_nodes.clone();
+            let handle = thread::spawn(move || -> SimbaResult<()> {
                 let ret = Self::run_one_node(
                     node,
                     new_max_time,
@@ -1064,14 +1101,13 @@ impl Simulator {
         for handle in handles {
             match handle.join().unwrap() {
                 Err(e) => error = Some(e),
-                Ok(n) => self.nodes.push(n),
+                Ok(_) => (),
             };
         }
 
         if let Some(e) = error {
             self.process_records(None).map_err(|e2| {
-                SimbaError::new(e2.error_type(), 
-                format!("Error while processing previous error.\nPrevious error: {}\nLast error: {}", e.detailed_error(), e2.detailed_error()))
+                SimbaError::new(e2.error_type(), format!("Error while processing previous error.\nPrevious error: {}\nLast error: {}", e.detailed_error(), e2.detailed_error()))
             })?;
             return Err(e);
         }
@@ -1080,8 +1116,12 @@ impl Simulator {
     }
 
     /// Returns the list of all [`Record`]s produced by [`Simulator::run`].
-    pub fn get_records(&self) -> Vec<Record> {
-        self.records.clone()
+    pub fn get_records(&self, sorted: bool) -> Vec<Record> {
+        let mut records = self.records.clone();
+        if sorted {
+            records.sort();
+        }
+        records
     }
 
     fn prepare_save_results(&self) -> SimbaResult<()> {
@@ -1125,9 +1165,11 @@ impl Simulator {
     ///
     /// If the configuration of the [`Simulator`] do not contain a result path, no results are saved.
     fn process_records(&mut self, time: Option<f32>) -> SimbaResult<()> {
-        if self.config.results.is_none() && time.is_none() {
-            while let Ok(record) = self.async_api.records.lock().unwrap().try_recv() {
-                self.records.push(record)
+        if self.config.results.is_none() {
+            if time.is_none() {
+                while let Ok(record) = self.async_api.records.lock().unwrap().try_recv() {
+                    self.records.push(record)
+                }
             }
             return Ok(());
         }
@@ -1135,11 +1177,11 @@ impl Simulator {
         match result_saving_data.save_mode {
             ResultSaveMode::AtTheEnd => {
                 if time.is_some() {
-                    return Ok(())
+                    return Ok(());
                 }
                 self.prepare_save_results()?;
             }
-            _ => {},
+            _ => {}
         }
         let result_saving_data = self.result_saving_data.as_mut().unwrap();
         match &mut result_saving_data.save_mode {
@@ -1267,13 +1309,13 @@ impl Simulator {
     fn run_one_node(
         mut node: Node,
         max_time: f32,
-        nb_nodes: usize,
+        nb_nodes: Arc<RwLock<usize>>,
         _node_idx: usize,
         time_cv: Arc<TimeCv>,
         async_api_server: SimulatorAsyncApiServer,
         common_time: Arc<RwLock<f32>>,
         barrier: Arc<Barrier>,
-    ) -> SimbaResult<Node> {
+    ) -> SimbaResult<()> {
         info!("Start thread of node {}", node.name());
         let mut thread_ids = THREAD_IDS.write().unwrap();
         thread_ids.push(thread::current().id());
@@ -1317,22 +1359,37 @@ impl Simulator {
                 break;
             }
 
-            node.run_next_time_step(next_time, &time_cv, nb_nodes)?;
-            node.sync_with_others(&time_cv, nb_nodes, next_time);
-            async_api_server.send_record(
-                &Record {
-                    time: next_time,
-                    node: node.record(),
+            let nb_nodes_unlocked = *nb_nodes.read().unwrap();
+            node.run_next_time_step(next_time, &time_cv, nb_nodes_unlocked)?;
+            node.sync_with_others(&time_cv, nb_nodes_unlocked, next_time);
+            async_api_server.send_record(&Record {
+                time: next_time,
+                node: node.record(),
+            });
+            if node.zombie {
+                // Only place where nb_node should change.
+                if is_enabled(crate::logger::InternalLog::NodeRunning) {
+                    debug!("Killing node {}", node.name);
                 }
-            );
+                if node.process_messages() > 0 {
+                    node.handle_messages(next_time);
+                }
+                *nb_nodes.write().unwrap() -= 1;
+                time_cv.condvar.notify_all();
+                node.kill();
+                barrier.remove_one();
+                break;
+            }
+
+            barrier.wait();
         }
-        Ok(node)
+        Ok(())
     }
 
     fn simulator_spin(
         &mut self,
         finishing_cv: Arc<(Mutex<usize>, Condvar)>,
-        nb_nodes: usize,
+        nb_nodes: Arc<RwLock<usize>>,
     ) -> SimbaResult<()> {
         // self.nodes is empty
         let mut node_states: BTreeMap<String, TimeOrderedData<State>> = BTreeMap::new();
@@ -1357,14 +1414,14 @@ impl Simulator {
                 self.process_records(Some(current_time))?;
             }
             self.network_manager.process_messages(&node_states)?;
-            if *finishing_cv.0.lock().unwrap() == nb_nodes {
+            if *finishing_cv.0.lock().unwrap() == *nb_nodes.read().unwrap() {
                 return Ok(());
             }
         }
     }
 
     pub fn compute_results(&self) -> SimbaResult<()> {
-        let results = self.get_records();
+        let results = self.get_records(false);
         self._compute_results(results, &self.config)
     }
 
@@ -1497,7 +1554,23 @@ def convert(records):
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use core::f32;
+    use std::{path::Path, sync::mpsc::Sender};
+
+    use crate::{
+        constants::TIME_ROUND,
+        logger::LogLevel,
+        networking::{message_handler::MessageHandler, network::MessageFlag},
+        sensors::{robot_sensor::RobotSensorConfig, sensor::Observation},
+        state_estimators::{
+            external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
+            perfect_estimator::PerfectEstimatorConfig,
+            state_estimator::{
+                BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig,
+                StateEstimatorRecord, WorldState,
+            },
+        },
+    };
 
     use super::*;
 
@@ -1514,7 +1587,7 @@ mod tests {
 
             simulator.run().unwrap();
 
-            results.push(simulator.get_records());
+            results.push(simulator.get_records(true));
             println!("OK");
         }
 
@@ -1530,5 +1603,140 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[derive(Debug)]
+    struct StateEstimatorTest {
+        pub last_time: f32,
+        pub kill_time: f32,
+    }
+
+    impl StateEstimator for StateEstimatorTest {
+        fn correction_step(
+            &mut self,
+            _node: &mut crate::node::Node,
+            _observations: &Vec<Observation>,
+            _time: f32,
+        ) {
+        }
+
+        fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
+            if time >= self.kill_time {
+                node.network
+                    .as_ref()
+                    .unwrap()
+                    .write()
+                    .unwrap()
+                    .send_to(
+                        "node2".to_string(),
+                        Value::Null,
+                        time,
+                        vec![MessageFlag::Kill],
+                    )
+                    .unwrap();
+                self.kill_time = f32::INFINITY;
+            }
+        }
+
+        fn prediction_step(&mut self, node: &mut crate::node::Node, time: f32) {
+            self.last_time = time;
+        }
+
+        fn next_time_step(&self) -> f32 {
+            round_precision(self.last_time + 0.1, TIME_ROUND).unwrap()
+        }
+        fn world_state(&self) -> WorldState {
+            WorldState::new()
+        }
+    }
+
+    impl Recordable<StateEstimatorRecord> for StateEstimatorTest {
+        fn record(&self) -> StateEstimatorRecord {
+            StateEstimatorRecord::External(ExternalEstimatorRecord {
+                record: Value::Null,
+            })
+        }
+    }
+
+    impl MessageHandler for StateEstimatorTest {
+        fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+            None
+        }
+    }
+
+    struct PluginAPITest {}
+
+    impl PluginAPI for PluginAPITest {
+        fn get_state_estimator(
+            &self,
+            config: &serde_json::Value,
+            _global_config: &SimulatorConfig,
+        ) -> Box<dyn StateEstimator> {
+            Box::new(StateEstimatorTest {
+                last_time: 0.,
+                kill_time: config.as_number().unwrap().as_f64().unwrap() as f32,
+            }) as Box<dyn StateEstimator>
+        }
+    }
+
+    #[test]
+    fn kill_node() {
+        let kill_time = 5.;
+        let mut config = SimulatorConfig::default();
+        // config.log.log_level = LogLevel::Off;
+        config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
+        config.max_time = 10.;
+        config.robots.push(RobotConfig {
+            name: "node1".to_string(),
+            state_estimator: StateEstimatorConfig::Perfect(PerfectEstimatorConfig {
+                targets: vec!["self".to_string(), "node2".to_string(), "node3".to_string()],
+                ..Default::default()
+            }),
+            state_estimator_bench: vec![BenchStateEstimatorConfig {
+                name: "own".to_string(),
+                config: StateEstimatorConfig::External(ExternalEstimatorConfig {
+                    config: serde_json::to_value(kill_time).unwrap(),
+                }),
+            }],
+            ..Default::default()
+        });
+        config.robots.push(RobotConfig {
+            name: "node2".to_string(),
+            state_estimator: StateEstimatorConfig::Perfect(PerfectEstimatorConfig {
+                targets: vec!["self".to_string(), "node1".to_string(), "node3".to_string()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        config.robots.push(RobotConfig {
+            name: "node3".to_string(),
+            state_estimator: StateEstimatorConfig::Perfect(PerfectEstimatorConfig {
+                targets: vec!["self".to_string(), "node1".to_string(), "node2".to_string()],
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+
+        let plugin_api = PluginAPITest {};
+
+        let mut simulator = Simulator::from_config(&config, &Some(Box::new(&plugin_api))).unwrap();
+
+        simulator.run().unwrap();
+
+        let records = simulator.get_records(false);
+        let mut last_node2_time: f32 = 0.;
+        for record in records {
+            let t = record.time;
+            if let NodeRecord::Robot(r) = record.node {
+                if r.name.as_str() == "node2" {
+                    last_node2_time = last_node2_time.max(t);
+                }
+            }
+        }
+        assert!(
+            kill_time == last_node2_time,
+            "Node not killed at right time (last time is {})",
+            last_node2_time
+        );
     }
 }

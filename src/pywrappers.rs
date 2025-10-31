@@ -12,27 +12,16 @@ use simba_macros::EnumToString;
 use std::path::Path;
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
-    controllers::{controller::ControllerError, pybinds::PythonController},
-    logger::is_enabled,
-    navigators::pybinds::PythonNavigator,
-    node::Node,
-    physics::{physics::Command, pybinds::PythonPhysics},
-    plugin_api::PluginAPI,
-    pybinds::PythonAPI,
-    sensors::{
+    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{controller::ControllerError, pybinds::PythonController}, logger::is_enabled, navigators::pybinds::PythonNavigator, networking::network::MessageFlag, node::Node, physics::{physics::Command, pybinds::PythonPhysics}, plugin_api::PluginAPI, pybinds::PythonAPI, sensors::{
         gnss_sensor::GNSSObservation,
         odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
         robot_sensor::OrientedRobotObservation,
         sensor::{Observation, SensorObservation},
-    },
-    simulator::Simulator,
-    state_estimators::{
+    }, simulator::Simulator, state_estimators::{
         pybinds::PythonStateEstimator,
         state_estimator::{State, WorldState},
-    },
-    utils::occupancy_grid::OccupancyGrid,
+    }, utils::occupancy_grid::OccupancyGrid
 };
 
 #[derive(Clone)]
@@ -605,12 +594,13 @@ impl NodeWrapper {
         self.node.name.clone()
     }
 
-    pub fn send_message(&self, to: String, message: String, time: f32) -> PyResult<()> {
+    #[pyo3(signature = (to, message, time, flags=Vec::new()))]
+    pub fn send_message(&self, to: String, message: String, time: f32, flags: Vec<MessageFlag>) -> PyResult<()> {
         debug!("Wait for network");
         if let Some(network) = &self.node.network {
             debug!("Got network");
             let msg = serde_json::to_value(message).unwrap();
-            if let Err(e) = network.write().unwrap().send_to(to, msg, time, Vec::new()) {
+            if let Err(e) = network.write().unwrap().send_to(to, msg, time, flags) {
                 log::error!("{}", e.detailed_error());
             }
             Ok(())

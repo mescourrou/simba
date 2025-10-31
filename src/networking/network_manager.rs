@@ -8,12 +8,14 @@ use serde_json::Value;
 
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
+use crate::networking::NetworkError;
 use crate::node::Node;
 use crate::simulator::TimeCv;
 use crate::state_estimators::state_estimator::State;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
 use super::network::MessageFlag;
+use core::time;
 use std::collections::BTreeMap;
 
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -23,6 +25,8 @@ use std::sync::Arc;
 pub enum MessageSendMethod {
     Broadcast,
     Recipient(String),
+    /// Special messages to the simulator network manager
+    Manager,
 }
 
 #[derive(Debug, Clone)]
@@ -84,12 +88,12 @@ impl NetworkManager {
         let node1_pos = position_history
             .get(node1)
             .ok_or(SimbaError::new(
-                SimbaErrorTypes::NetworkError,
+                SimbaErrorTypes::NetworkError(NetworkError::NodeUnknown),
                 format!("Unknown node {node1} to compute distance"),
             ))?
             .get_data_at_time(time)
             .ok_or(SimbaError::new(
-                SimbaErrorTypes::NetworkError,
+                SimbaErrorTypes::NetworkError(NetworkError::Other),
                 format!("No state data for node {node1} at time {time}"),
             ))?
             .1
@@ -97,12 +101,12 @@ impl NetworkManager {
         let node2_pos = position_history
             .get(node2)
             .ok_or(SimbaError::new(
-                SimbaErrorTypes::NetworkError,
+                SimbaErrorTypes::NetworkError(NetworkError::NodeUnknown),
                 format!("Unknown node {node2} to compute distance"),
             ))?
             .get_data_at_time(time)
             .ok_or(SimbaError::new(
-                SimbaErrorTypes::NetworkError,
+                SimbaErrorTypes::NetworkError(NetworkError::Other),
                 format!("No state data for node {node2} at time {time}"),
             ))?
             .1
@@ -113,15 +117,17 @@ impl NetworkManager {
     }
 
     pub fn process_messages(
-        &self,
+        &mut self,
         position_history: &BTreeMap<String, TimeOrderedData<State>>,
     ) -> SimbaResult<()> {
         let mut message_sent = false;
 
-        let _lk = self.time_cv.waiting.lock().unwrap();
+        let time_cv = self.time_cv.clone();
+        let _lk = time_cv.waiting.lock().unwrap();
 
         // Keep the lock for all the processing, otherwise nodes can think that all messages are treated between the decrease and the increase of the counter
-        let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+        let mut circulating_messages = time_cv.circulating_messages.lock().unwrap();
+        let mut nodes_to_remove = Vec::new();
         for (node_name, receiver) in self.nodes_receivers.iter() {
             if let Ok(msg) = receiver.try_recv() {
                 *circulating_messages -= 1;
@@ -153,7 +159,7 @@ impl NetworkManager {
                                         }
                                     }
                                     return Err(SimbaError::new(
-                                        SimbaErrorTypes::NetworkError,
+                                        SimbaErrorTypes::NetworkError(NetworkError::NodeUnknown),
                                         format!("Unknown recipient node `{r}`"),
                                     ));
                                 }
@@ -187,6 +193,19 @@ impl NetworkManager {
                             }
                         }
                     }
+                    MessageSendMethod::Manager => {
+                        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                            debug!("Receiving message from `{node_name}` for Manager");
+                        }
+                        for flag in msg.message_flags {
+                            match flag {
+                                MessageFlag::Unsubscribe => {
+                                    nodes_to_remove.push(node_name.clone());
+                                }
+                                _ => (),
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -196,6 +215,17 @@ impl NetworkManager {
                 debug!("Notify CV");
             }
         }
+        for node_name in nodes_to_remove {
+            self.unsubscribe_node(&node_name);
+        }
         Ok(())
+    }
+
+    fn unsubscribe_node(&mut self, node_name: &String) {
+        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+            debug!("Unsubscribe node `{node_name}` from manager");
+        }
+        self.nodes_receivers.remove(node_name).unwrap();
+        self.nodes_senders.remove(node_name).unwrap();
     }
 }

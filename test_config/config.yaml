@@ -1,6 +1,6 @@
 log:
-  log_level: !Internal
-    - "All"
+  # log_level: !Internal ["All"]
+  log_level: !Off
 time_analysis:
   exporter: TraceEventExporter
   output_path: "time_performance"

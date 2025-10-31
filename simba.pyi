@@ -141,11 +141,20 @@ class Command:
         self.left_wheel_speed: float
         self.right_wheel_speed: float
         
+class MessageFlag(Enum):
+    # God mode, messages are instaneous.
+    God = 1
+    # Ask to unsubscribe
+    Unsubscribe = 2
+    # Ask to kill the receiving node
+    Kill = 2
+
+
 class Node:
     def name(self):
         raise NotImplementedError()
     
-    def send_message(self, to: str, message: str, time: float):
+    def send_message(self, to: str, message: str, time: float, flags: List[MessageFlag]=[]):
         raise NotImplementedError()
     
     def get_messages(self) -> List[(str, str, float)]:

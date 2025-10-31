@@ -4,17 +4,20 @@ the configuration struct [`NetworkConfig`].
 */
 
 extern crate confy;
+use core::f32;
 use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use log::debug;
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
+use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
@@ -93,11 +96,14 @@ impl UIComponent for NetworkConfig {
 
 /// Transmission mode for messages.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[pyclass(get_all, set_all, eq, eq_int)]
 pub enum MessageFlag {
     /// God mode, messages are instaneous.
     God,
-    /// Read only: the recipient will do a quick jump in time, and will go back to its time
-    ReadOnly,
+    /// Ask to unsubscribe
+    Unsubscribe,
+    /// Ask to kill the receiving node
+    Kill,
 }
 
 /// Network interface for [`Node`].
@@ -290,16 +296,32 @@ impl Network {
     /// ## Arguments
     /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
-    pub fn handle_message_at_time(&mut self, time: f32) {
+    pub fn handle_message_at_time(&mut self, node: &mut Node, time: f32) {
         if is_enabled(crate::logger::InternalLog::NetworkMessages) {
             debug!("Handling messages at time {time}");
         }
-        while let Some((msg_time, (from, message, _message_flags))) =
+        while let Some((msg_time, (from, message, message_flags))) =
             self.messages_buffer.remove(time)
         {
             if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                 debug!("Receive message from {from}: {:?}", message);
                 debug!("Letter box list size: {}", self.letter_boxes.len());
+            }
+            let mut throw_message = false;
+            for flag in &message_flags {
+                match flag {
+                    MessageFlag::Kill => {
+                        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                            debug!("Receive message from {from} to be killed");
+                        }
+                        node.pre_kill();
+                        throw_message = true;
+                    }
+                    _ => (),
+                }
+            }
+            if throw_message {
+                continue;
             }
             for letter_box in &self.letter_boxes {
                 letter_box
@@ -326,5 +348,32 @@ impl Network {
         if let Some(letter_box) = letter_box {
             self.letter_boxes.push(letter_box);
         }
+    }
+
+    pub fn unsubscribe_node(&self) -> SimbaResult<()> {
+        if self.to_network_manager.is_none() {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ImplementationError,
+                "Network is not properly setup: `set_network_manager_link` should be called."
+                    .to_string(),
+            ));
+        }
+        {
+            let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+            *circulating_messages += 1;
+        }
+        self.to_network_manager
+            .as_ref()
+            .unwrap()
+            .send(NetworkMessage {
+                from: self.from.clone(),
+                range: f32::INFINITY,
+                time: 0.,
+                to: MessageSendMethod::Manager,
+                value: Value::Null,
+                message_flags: vec![MessageFlag::Unsubscribe],
+            })
+            .unwrap();
+        Ok(())
     }
 }

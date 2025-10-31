@@ -9,7 +9,7 @@ use serde_json::Value;
 
 use crate::{
     logger::is_enabled,
-    networking::service::HasService,
+    networking::{service::HasService, NetworkError},
     physics::external_physics::ExternalPhysicsRecord,
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,

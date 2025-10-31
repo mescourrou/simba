@@ -9,6 +9,7 @@ class StateEstimator(simba.StateEstimator):
     def __init__(self, config: dict):
         self.last_time = 0
         self.period = config["period"]
+        print(f"Period = {self.period}")
         self.filter_name = "anonyme"
         if "filter_name" in config:
             self.filter_name = config["filter_name"]
@@ -31,11 +32,14 @@ class StateEstimator(simba.StateEstimator):
             "state": self._state})
 
     def prediction_step(self, node: simba.Node, time: float):
-        print(f"Doing prediction step in {node.name()}")
+        print(f"Doing prediction step in {node.name()} at time {time}")
         self._state += 1
         self.last_time = time
         if node.name() == "robot1":
-            node.send_message("robot2", "Hello fron robot1", time)
+            if abs(time - 30) < 0.001:
+                node.send_message("robot2", "Bye Bye", time, [simba.MessageFlag.Kill])
+            elif time < 30:
+                node.send_message("robot2", "Hello fron robot1", time)
         else:
             node.send_message("robot1", "Hello fron robot2", time)
         print(f"{node.name()}: Prediction {self._state}")
@@ -43,12 +47,13 @@ class StateEstimator(simba.StateEstimator):
     def correction_step(self, node: simba.Node, observations: List[simba.Observation], t: float):
         print(f"Doing correction step with observations for robot {node.name()}:")
         self._state += 100
-        print(f"{node.name()}: Prediction {self._state}")
+        print(f"{node.name()}: Correction {self._state}")
 
 
     def next_time_step(self):
-        print("Returning next time step from python")
-        return self.last_time + self.period
+        next_time = self.last_time + self.period
+        print(f"Returning next time step from python: {next_time}")
+        return next_time
     
     def pre_loop_hook(self, node: simba.Node, time: float):
         messages = node.get_messages()

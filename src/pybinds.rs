@@ -3,18 +3,9 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    controllers::{controller::Controller, pybinds::PythonController},
-    logger::is_enabled,
-    navigators::{navigator::Navigator, pybinds::PythonNavigator},
-    physics::{physics::Physics, pybinds::PythonPhysics},
-    pywrappers::{
-        run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper,
-        ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
-        OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
-        SimulatorWrapper, StateWrapper, WorldStateWrapper,
-    },
-    simulator::SimulatorConfig,
-    state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},
+    controllers::{controller::Controller, pybinds::PythonController}, logger::is_enabled, navigators::{navigator::Navigator, pybinds::PythonNavigator}, networking::network::MessageFlag, physics::{physics::Physics, pybinds::PythonPhysics}, pywrappers::{
+        CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper, SimulatorWrapper, StateWrapper, WorldStateWrapper, run_gui
+    }, simulator::SimulatorConfig, state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator}
 };
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -35,6 +26,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CommandWrapper>()?;
     m.add_class::<PythonNavigator>()?;
     m.add_class::<NodeWrapper>()?;
+    m.add_class::<MessageFlag>()?;
     m.add_function(wrap_pyfunction!(run_gui, m)?)?;
     Ok(())
 }
