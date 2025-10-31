@@ -414,7 +414,9 @@ impl Node {
             let mut waiting_parity = time_cv.intermediate_parity.lock().unwrap();
             *waiting_parity = 1 - *waiting_parity;
             time_cv.condvar.notify_all();
-            debug!("[intermediate wait] I am the last, end wait");
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("[intermediate wait] I am the last, end wait");
+            }
             return;
         }
         std::mem::drop(circulating_messages);
@@ -433,7 +435,9 @@ impl Node {
                 let mut waiting_parity = time_cv.intermediate_parity.lock().unwrap();
                 *waiting_parity = 1 - *waiting_parity;
                 time_cv.condvar.notify_all();
-                debug!("[intermediate wait] I am the last, end wait");
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("[intermediate wait] I am the last, end wait");
+                }
                 return;
             }
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
@@ -444,10 +448,14 @@ impl Node {
                 lk = time_cv.condvar.wait(lk).unwrap();
             }
             if waiting_parity != *time_cv.intermediate_parity.lock().unwrap() {
-                debug!("[intermediate wait] End wait");
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("[intermediate wait] End wait");
+                }
                 return;
             }
-            debug!("[intermediate wait] New loop: waiting = {}", *lk);
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("[intermediate wait] New loop: waiting = {}", *lk);
+            }
         }
     }
 

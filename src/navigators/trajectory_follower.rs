@@ -23,6 +23,7 @@ use crate::{
 extern crate nalgebra as na;
 use config_checker::macros::Check;
 use libm::atan2;
+use log::debug;
 use na::Vector3;
 
 use serde_derive::{Deserialize, Serialize};
@@ -42,6 +43,12 @@ pub struct TrajectoryFollowerConfig {
     /// Speed to reach, in m/s.
     #[check(ge(0.))]
     pub target_speed: f32,
+    /// Distance where to stop when reaching the end of the trajectory
+    #[check(ge(0.))]
+    pub stop_distance: f32,
+    /// Coefficient of the target velocity, multiplied by the remaining distance
+    #[check(ge(0.))]
+    pub stop_ramp_coefficient: f32,
 }
 
 impl Default for TrajectoryFollowerConfig {
@@ -50,6 +57,8 @@ impl Default for TrajectoryFollowerConfig {
             trajectory_path: String::from(""),
             forward_distance: 1.0,
             target_speed: 0.5,
+            stop_distance: 0.2,
+            stop_ramp_coefficient: 0.5,
         }
     }
 }
@@ -88,6 +97,22 @@ impl UIComponent for TrajectoryFollowerConfig {
                     }
                     ui.add(egui::DragValue::new(&mut self.target_speed).max_decimals(10));
                 });
+
+                ui.horizontal(|ui| {
+                    ui.label("Stop distance:");
+                    if self.stop_distance < 0. {
+                        self.stop_distance = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.stop_distance).max_decimals(10));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Stop ramp coefficient:");
+                    if self.stop_ramp_coefficient < 0. {
+                        self.stop_ramp_coefficient = 0.;
+                    }
+                    ui.add(egui::DragValue::new(&mut self.stop_ramp_coefficient).max_decimals(10));
+                });
             });
     }
 
@@ -105,6 +130,14 @@ impl UIComponent for TrajectoryFollowerConfig {
 
                 ui.horizontal(|ui| {
                     ui.label(format!("Target speed: {}", self.target_speed));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Stop distance: {}", self.stop_distance));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("Stop ramp coefficient: {}", self.stop_ramp_coefficient));
                 });
             });
     }
@@ -169,6 +202,10 @@ pub struct TrajectoryFollower {
     /// Last error, stored to make the [`TrajectoryFollowerRecord`]
     error: ControllerError,
     projected_point: [f32; 2],
+    /// Distance where to stop when reaching the end of the trajectory
+    stop_distance: f32,
+    /// Coefficient of the target velocity, multiplied by the remaining distance
+    stop_ramp_coefficient: f32,
 }
 
 impl TrajectoryFollower {
@@ -178,6 +215,8 @@ impl TrajectoryFollower {
             trajectory: Trajectory::new(),
             forward_distance: 0.2,
             target_speed: 0.5,
+            stop_distance: 0.2,
+            stop_ramp_coefficient: 0.5,
             error: ControllerError::default(),
             projected_point: [0., 0.],
         }
@@ -210,6 +249,8 @@ impl TrajectoryFollower {
             target_speed: config.target_speed,
             error: ControllerError::default(),
             projected_point: [0., 0.],
+            stop_distance: config.stop_distance,
+            stop_ramp_coefficient: config.stop_ramp_coefficient,
         }
     }
 
@@ -261,9 +302,15 @@ impl Navigator for TrajectoryFollower {
             self.forward_distance,
         );
         if end {
+            let distance_to_final = (state.pose.fixed_view::<2, 1>(0, 0) - segment.1).norm();
             self.target_speed = self
-                .target_speed
-                .min((state.pose.fixed_view::<2, 1>(0, 0) - projected_point).norm());
+            .target_speed
+            .min(distance_to_final * self.stop_ramp_coefficient);
+        
+            if distance_to_final < self.stop_distance {
+                self.target_speed = 0.;
+            }
+            println!("Distance to final: {} => speed = {}", distance_to_final, self.target_speed);
         }
         let segment_angle: f32 = atan2(
             (segment.1.y - segment.0.y).into(),

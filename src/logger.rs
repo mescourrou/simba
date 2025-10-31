@@ -39,27 +39,30 @@ impl Into<log::LevelFilter> for LogLevel {
     }
 }
 
-impl Into<&str> for LogLevel {
-    fn into(self) -> &'static str {
+impl Into<String> for LogLevel {
+    fn into(self) -> String {
         match self {
-            LogLevel::Off => "Off",
-            LogLevel::Error => "Error",
-            LogLevel::Warn => "Warn",
-            LogLevel::Info => "Info",
-            LogLevel::Debug => "Debug",
-            LogLevel::Internal(_) => "Internal",
+            LogLevel::Off => "Off".to_string(),
+            LogLevel::Error => "Error".to_string(),
+            LogLevel::Warn => "Warn".to_string(),
+            LogLevel::Info => "Info".to_string(),
+            LogLevel::Debug => "Debug".to_string(),
+            LogLevel::Internal(internals) => {
+                let internals_string = internals.iter().map(|il| il.to_string()).collect::<Vec<String>>().join(", ");
+                format!("Internal [{}]", internals_string)
+            }
         }
     }
 }
 
 impl Display for LogLevel {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Into::<&str>::into(self.clone()))
+        write!(f, "{}", Into::<String>::into(self.clone()))
     }
 }
 
-#[derive(Debug, Serialize, Deserialize, Check, Clone, PartialEq)]
-#[cfg_attr(feature = "gui", derive(ToVec, EnumToString))]
+#[derive(Debug, Serialize, Deserialize, Check, Clone, PartialEq, EnumToString)]
+#[cfg_attr(feature = "gui", derive(ToVec))]
 pub enum InternalLog {
     All,
     NetworkMessages,
