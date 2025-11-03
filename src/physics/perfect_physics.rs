@@ -6,7 +6,7 @@ Provide the implementation of the [`Physics`] trait without any noise added to t
 use crate::gui::UIComponent;
 
 use crate::{
-    networking::{service::HasService, NetworkError},
+    networking::service::HasService,
     plugin_api::PluginAPI,
     recordable::Recordable,
     simulator::SimulatorConfig,
@@ -15,7 +15,6 @@ use crate::{
 };
 use config_checker::macros::Check;
 use libm::atan2f;
-use log::debug;
 use nalgebra::SMatrix;
 use serde_derive::{Deserialize, Serialize};
 
@@ -237,7 +236,7 @@ impl PerfectPhysics {
 
         // let rot = nalgebra::Rotation2::from_matrix(&se2_mat.fixed_view::<2, 2>(0, 0).into());
         // self.state.pose.z = rot.angle();
-        self.state.pose.z = atan2f(se2_mat[(1,0)], se2_mat[(0,0)]);
+        self.state.pose.z = atan2f(se2_mat[(1, 0)], se2_mat[(0, 0)]);
 
         self.state.pose.x = se2_mat[(0, 2)];
         self.state.pose.y = se2_mat[(1, 2)];

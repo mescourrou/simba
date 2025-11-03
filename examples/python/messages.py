@@ -37,11 +37,11 @@ class StateEstimator(simba.StateEstimator):
         self.last_time = time
         if node.name() == "robot1":
             if abs(time - 30) < 0.001:
-                node.send_message("robot2", "Bye Bye", time, [simba.MessageFlag.Kill])
+                node.send_message("robot2", simba.MessageTypes.String("Bye Bye"), time, [simba.MessageFlag.Kill])
             elif time < 30:
-                node.send_message("robot2", "Hello fron robot1", time)
+                node.send_message("robot2", simba.MessageTypes.String("Hello from robot1"), time)
         else:
-            node.send_message("robot1", "Hello fron robot2", time)
+            node.send_message("robot1", simba.MessageTypes.String("Hello from robot2"), time)
         print(f"{node.name()}: Prediction {self._state}")
 
     def correction_step(self, node: simba.Node, observations: List[simba.Observation], t: float):
@@ -56,7 +56,15 @@ class StateEstimator(simba.StateEstimator):
         return next_time
     
     def pre_loop_hook(self, node: simba.Node, time: float):
-        messages = node.get_messages()
+        messages = []
+        for m in node.get_messages():
+            match m[1]:
+                case simba.MessageTypes.String(s):
+                    v = f"String({s})"
+                case simba.MessageTypes.GoTo(g):
+                    v = f"GoTo({g})"
+
+            messages.append((m[0], v, m[2]))
         print(f"Received messages: {messages}")
 
 

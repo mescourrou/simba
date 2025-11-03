@@ -206,8 +206,8 @@ impl Trajectory {
         let projected_point = start_point
             + forward_distance * Vector2::new(segment_direction.cos(), segment_direction.sin());
 
-        if !self.do_loop && self.current_segment + 1 == self.point_list.nrows()- 1 {
-            return ((pt1, pt2), projected_point, true);    
+        if !self.do_loop && self.current_segment + 1 == self.point_list.nrows() - 1 {
+            return ((pt1, pt2), projected_point, true);
         } else {
             return ((pt1, pt2), projected_point, false);
         }

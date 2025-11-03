@@ -23,28 +23,16 @@ impl Popup {
     }
 
     pub fn new_ok(title: String, description: String, action_on_click: fn(usize) -> ()) -> Self {
-        Self {
-            title,
-            description,
-            buttons: Vec::from(["OK".to_string()]),
-            clicked_button: None,
-            action_on_click: Box::new(action_on_click),
-        }
+        Self::new(title, description, Vec::from(["OK".to_string()]), action_on_click)
     }
 
-    pub fn new_ok_cancel(
-        title: String,
-        description: String,
-        action_on_click: fn(usize) -> (),
-    ) -> Self {
-        Self {
-            title,
-            description,
-            buttons: Vec::from(["OK".to_string(), "Cancel".to_string()]),
-            clicked_button: None,
-            action_on_click: Box::new(action_on_click),
-        }
-    }
+    // pub fn new_ok_cancel(
+    //     title: String,
+    //     description: String,
+    //     action_on_click: fn(usize) -> (),
+    // ) -> Self {
+    //     Self::new(title, description, Vec::from(["OK".to_string(), "Cancel".to_string()]), action_on_click)
+    // }
 
     pub fn draw(&mut self, ctx: &egui::Context) -> Option<usize> {
         egui::Window::new(&self.title).show(ctx, |ui| {

@@ -31,24 +31,13 @@ pub struct PythonNavigatorAsyncClient {
     pub record_response: Arc<Mutex<mpsc::Receiver<NavigatorRecord>>>,
     pub pre_loop_hook_request: mpsc::Sender<(NodeWrapper, f32)>,
     pub pre_loop_hook_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    received_msgs: Vec<(String, String, f32)>,
     letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
     letter_box_sender: Sender<(String, Value, f32)>,
 }
 
-impl PythonNavigatorAsyncClient {
-    fn update_messages(&mut self) {
-        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
-            let msg = serde_json::to_string(&msg).unwrap();
-            self.received_msgs.push((from, msg, time));
-        }
-    }
-}
-
 impl Navigator for PythonNavigatorAsyncClient {
     fn compute_error(&mut self, node: &mut Node, world_state: WorldState) -> ControllerError {
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         self.compute_error_request
             .send((node_py, world_state.clone()))
             .unwrap();
@@ -56,9 +45,7 @@ impl Navigator for PythonNavigatorAsyncClient {
     }
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        self.received_msgs.clear();
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         self.pre_loop_hook_request.send((node_py, time)).unwrap();
         self.pre_loop_hook_response.lock().unwrap().recv().unwrap()
     }
@@ -123,7 +110,6 @@ impl PythonNavigator {
                 pre_loop_hook_response: Arc::new(Mutex::new(pre_loop_hook_response_rx)),
                 letter_box_receiver: Arc::new(Mutex::new(letter_box_receiver)),
                 letter_box_sender: letter_box_sender,
-                received_msgs: Vec::new(),
             },
             compute_error_request: Arc::new(Mutex::new(compute_error_request_rx)),
             compute_error_response: compute_error_response_tx,

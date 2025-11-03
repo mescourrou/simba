@@ -167,7 +167,6 @@ pub struct PythonEstimator {
     state_estimator: Py<PyAny>,
     letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
     letter_box_sender: Sender<(String, Value, f32)>,
-    received_msgs: Vec<(String, String, f32)>,
 }
 
 impl PythonEstimator {
@@ -270,15 +269,7 @@ def convert(records):
             state_estimator: state_estimator_instance,
             letter_box_receiver: Arc::new(Mutex::new(rx)),
             letter_box_sender: tx,
-            received_msgs: Vec::new(),
         })
-    }
-
-    fn update_messages(&mut self) {
-        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
-            let msg = serde_json::to_string(&msg).unwrap();
-            self.received_msgs.push((from, msg, time));
-        }
     }
 }
 
@@ -293,8 +284,7 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         Python::with_gil(|py| {
             if let Err(e) =
                 self.state_estimator
@@ -315,8 +305,7 @@ impl StateEstimator for PythonEstimator {
         for obs in observations {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         Python::with_gil(|py| {
             if let Err(e) = self.state_estimator.bind(py).call_method(
                 "correction_step",
@@ -373,9 +362,7 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        self.received_msgs.clear();
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         Python::with_gil(|py| {
             match self
                 .state_estimator

@@ -36,7 +36,7 @@ extern crate confy;
 #[cfg(feature = "gui")]
 use crate::{
     gui::{
-        utils::{enum_combobox, json_config, path_finder},
+        utils::{json_config, path_finder},
         UIComponent,
     },
     utils::determinist_random_variable::seed_generation_component,
@@ -48,7 +48,7 @@ use egui::CollapsingHeader;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 #[cfg(feature = "gui")]
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString};
 
 use crate::{
     api::internal_api::NodeClient,
@@ -57,7 +57,7 @@ use crate::{
     logger::{init_log, is_enabled, LoggerConfig},
     networking::network_manager::NetworkManager,
     node::Node,
-    node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, NodeType, RobotConfig},
+    node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig},
     plugin_api::PluginAPI,
     recordable::Recordable,
     state_estimators::state_estimator::State,
@@ -74,7 +74,7 @@ use std::{
     cmp::Ordering,
     path::{Path, PathBuf},
 };
-use std::{collections::BTreeMap, mem};
+use std::collections::BTreeMap;
 
 use colored::Colorize;
 use serde_json::{self, Value};
@@ -611,7 +611,7 @@ impl SimulatorAsyncApiServer {
 
     pub fn send_record(&self, record: &Record) {
         for tx in &self.records {
-            tx.send(record.clone());
+            tx.send(record.clone()).unwrap();
         }
     }
 }

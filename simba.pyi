@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from enum import Enum
 
 class Pose:
@@ -140,6 +140,10 @@ class Command:
     def __init__(self):
         self.left_wheel_speed: float
         self.right_wheel_speed: float
+
+class GoToMessage:
+    def __init__(self, target:Tuple[float, float]|None=None):
+        self.target_point: Tuple[float, float]|None
         
 class MessageFlag(Enum):
     # God mode, messages are instaneous.
@@ -149,12 +153,15 @@ class MessageFlag(Enum):
     # Ask to kill the receiving node
     Kill = 2
 
+class MessageTypes(Enum):
+    String: str
+    GoTo: GoToMessage
 
 class Node:
     def name(self):
         raise NotImplementedError()
     
-    def send_message(self, to: str, message: str, time: float, flags: List[MessageFlag]=[]):
+    def send_message(self, to: str, message: MessageTypes, time: float, flags: List[MessageFlag]=[]):
         raise NotImplementedError()
     
     def get_messages(self) -> List[(str, str, float)]:

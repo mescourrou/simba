@@ -1,18 +1,19 @@
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, mpsc::Receiver},
 };
 
 use log::debug;
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::{exceptions::PyTypeError, prelude::*};
+use serde_json::Value;
 use simba_macros::EnumToString;
 
 #[cfg(feature = "gui")]
 use std::path::Path;
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{controller::ControllerError, pybinds::PythonController}, logger::is_enabled, navigators::pybinds::PythonNavigator, networking::network::MessageFlag, node::Node, physics::{physics::Command, pybinds::PythonPhysics}, plugin_api::PluginAPI, pybinds::PythonAPI, sensors::{
+    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{controller::ControllerError, pybinds::PythonController}, logger::is_enabled, navigators::pybinds::PythonNavigator, networking::{MessageTypes, network::MessageFlag}, node::Node, physics::{physics::Command, pybinds::PythonPhysics}, plugin_api::PluginAPI, pybinds::PythonAPI, sensors::{
         gnss_sensor::GNSSObservation,
         odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
@@ -585,7 +586,7 @@ impl CommandWrapper {
 #[pyo3(name = "Node")]
 pub struct NodeWrapper {
     node: Arc<Node>,
-    messages: Vec<(String, String, f32)>,
+    messages_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
 }
 
 #[pymethods]
@@ -595,11 +596,14 @@ impl NodeWrapper {
     }
 
     #[pyo3(signature = (to, message, time, flags=Vec::new()))]
-    pub fn send_message(&self, to: String, message: String, time: f32, flags: Vec<MessageFlag>) -> PyResult<()> {
+    pub fn send_message(&self, to: String, message: MessageTypes, time: f32, flags: Vec<MessageFlag>) -> PyResult<()> {
         debug!("Wait for network");
         if let Some(network) = &self.node.network {
             debug!("Got network");
-            let msg = serde_json::to_value(message).unwrap();
+            let msg = match message {
+                MessageTypes::String(s) => serde_json::to_value(s),
+                MessageTypes::GoTo(m) => serde_json::to_value(m),
+            }.map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
             if let Err(e) = network.write().unwrap().send_to(to, msg, time, flags) {
                 log::error!("{}", e.detailed_error());
             }
@@ -609,19 +613,28 @@ impl NodeWrapper {
         }
     }
 
-    pub fn get_messages(&self) -> Vec<(String, String, f32)> {
-        self.messages.clone()
+    pub fn get_messages(&self) -> Vec<(String, MessageTypes, f32)> {
+        let mut messages = Vec::new();
+        
+        while let Ok((from, msg, time)) = self.messages_receiver.lock().unwrap().try_recv() {
+            let msg = match serde_json::from_value(msg.clone()) {
+                Err(_) => MessageTypes::String(serde_json::to_string(&msg).unwrap()),
+                Ok(m) => m,
+            };
+            messages.push((from, msg, time));
+        }
+        messages
     }
 }
 
 impl NodeWrapper {
-    pub fn from_rust(n: &Node, messages: Vec<(String, String, f32)>) -> Self {
+    pub fn from_rust(n: &Node, messages_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>) -> Self {
         Self {
             // I did not find another solution.
             // Relatively safe as Nodes lives very long, almost all the time
             // For API usage
             node: unsafe { Arc::from_raw(&*n) },
-            messages,
+            messages_receiver,
         }
     }
 }

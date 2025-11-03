@@ -15,7 +15,6 @@ use core::f32;
 use std::{
     collections::BTreeMap,
     fmt::Debug,
-    rc::Rc,
     sync::{mpsc, Arc, Mutex, RwLock},
 };
 
@@ -24,7 +23,7 @@ use log::debug;
 use crate::{
     errors::{SimbaError, SimbaErrorTypes},
     logger::is_enabled,
-    networking::{service_manager::ServiceError, NetworkError},
+    networking::service_manager::ServiceError,
     simulator::TimeCv,
     utils::time_ordered_data::TimeOrderedData,
 };

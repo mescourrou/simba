@@ -40,18 +40,8 @@ pub struct PythonStateEstimatorAsyncClient {
     pub record_response: Arc<Mutex<mpsc::Receiver<StateEstimatorRecord>>>,
     pub pre_loop_hook_request: mpsc::Sender<(NodeWrapper, f32)>,
     pub pre_loop_hook_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    received_msgs: Vec<(String, String, f32)>,
     letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
     letter_box_sender: Sender<(String, Value, f32)>,
-}
-
-impl PythonStateEstimatorAsyncClient {
-    fn update_messages(&mut self) {
-        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
-            let msg = serde_json::to_string(&msg).unwrap();
-            self.received_msgs.push((from, msg, time));
-        }
-    }
 }
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
@@ -59,8 +49,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start prediction step from async client");
         }
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         self.prediction_step_request.send((node_py, time)).unwrap();
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start prediction step from async client: Request sent");
@@ -76,8 +65,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start correction step from async client");
         }
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         self.correction_step_request
             .send((node_py, observations.clone(), time))
             .unwrap();
@@ -125,9 +113,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start pre loop hook from async client");
         }
-        self.received_msgs.clear();
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         self.pre_loop_hook_request.send((node_py, time)).unwrap();
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start prediction step from async client: Request sent");
@@ -211,7 +197,6 @@ impl PythonStateEstimator {
                 record_response: Arc::new(Mutex::new(record_response_rx)),
                 pre_loop_hook_request: pre_loop_hook_request_tx,
                 pre_loop_hook_response: Arc::new(Mutex::new(pre_loop_hook_response_rx)),
-                received_msgs: Vec::new(),
                 letter_box_receiver: Arc::new(Mutex::new(letter_box_rx)),
                 letter_box_sender: letter_box_tx,
             },

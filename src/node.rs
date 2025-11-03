@@ -143,6 +143,18 @@ impl Node {
                     );
                 }
             }
+            if let Some(navigator) = &self.navigator {
+                network
+                    .write()
+                    .unwrap()
+                    .subscribe(navigator.read().unwrap().get_letter_box());
+            }
+            if let Some(controller) = &self.controller {
+                network
+                    .write()
+                    .unwrap()
+                    .subscribe(controller.read().unwrap().get_letter_box());
+            }
         }
         let (node_server, node_client) = internal_api::make_node_api(&self.node_type);
         self.node_server = Some(node_server);

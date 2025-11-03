@@ -2,8 +2,9 @@ use std::{fmt::Display, sync::RwLock};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
+use simba_macros::EnumToString;
 #[cfg(feature = "gui")]
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::ToVec;
 
 #[cfg(feature = "gui")]
 use crate::{
@@ -48,7 +49,11 @@ impl Into<String> for LogLevel {
             LogLevel::Info => "Info".to_string(),
             LogLevel::Debug => "Debug".to_string(),
             LogLevel::Internal(internals) => {
-                let internals_string = internals.iter().map(|il| il.to_string()).collect::<Vec<String>>().join(", ");
+                let internals_string = internals
+                    .iter()
+                    .map(|il| il.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
                 format!("Internal [{}]", internals_string)
             }
         }

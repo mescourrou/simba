@@ -14,7 +14,6 @@ use serde_json::Value;
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
-use crate::networking::NetworkError;
 use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,

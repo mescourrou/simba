@@ -25,6 +25,11 @@ sends a request to the server, and is blocked until the server sends a response.
 node should handle the requests in [`run_time_step`](crate::node::Node::run_time_step).
 */
 
+use pyo3::pyclass;
+use serde::{Deserialize, Serialize};
+
+use crate::navigators::go_to::GoToMessage;
+
 pub mod message_handler;
 pub mod network;
 pub mod network_manager;
@@ -38,6 +43,13 @@ pub enum NetworkError {
     Unknown(String),
     ClientSide,
     Other,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[pyclass]
+pub enum MessageTypes {
+    String(String),
+    GoTo(GoToMessage),
 }
 
 // Network message exchange test

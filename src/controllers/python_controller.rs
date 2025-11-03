@@ -165,7 +165,6 @@ use crate::node::Node;
 pub struct PythonController {
     /// External controller.
     controller: Py<PyAny>,
-    received_msgs: Vec<(String, String, f32)>,
     letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
     letter_box_sender: Sender<(String, Value, f32)>,
 }
@@ -268,15 +267,7 @@ def convert(records):
             controller: controller_instance,
             letter_box_receiver: Arc::new(Mutex::new(rx)),
             letter_box_sender: tx,
-            received_msgs: Vec::new(),
         })
-    }
-
-    fn update_messages(&mut self) {
-        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
-            let msg = serde_json::to_string(&msg).unwrap();
-            self.received_msgs.push((from, msg, time));
-        }
     }
 }
 
@@ -291,9 +282,7 @@ impl Controller for PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of make_command");
         }
-        // let node_record = node.record();
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         let result = Python::with_gil(|py| -> CommandWrapper {
             match self.controller.bind(py).call_method(
                 "make_command",
@@ -316,10 +305,7 @@ impl Controller for PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        // let node_record = node.record();
-        self.received_msgs.clear();
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_msgs.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         Python::with_gil(|py| {
             if let Err(e) =
                 self.controller

@@ -22,7 +22,6 @@ use serde_json::Value;
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::networking::service::HasService;
-use crate::networking::NetworkError;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;

@@ -12,10 +12,7 @@ use crate::{
     state_estimators::state_estimator::State,
 };
 
-use super::{
-    network::MessageFlag,
-    service::{Service, ServiceClient, ServiceInterface},
-};
+use super::service::{Service, ServiceClient, ServiceInterface};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum ServiceError {

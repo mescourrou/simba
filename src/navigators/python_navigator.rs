@@ -164,7 +164,6 @@ use crate::node::Node;
 pub struct PythonNavigator {
     /// External navigator.
     navigator: Py<PyAny>,
-    received_messages: Vec<(String, String, f32)>,
     letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
     letter_box_sender: Sender<(String, Value, f32)>,
 }
@@ -267,15 +266,7 @@ def convert(records):
             navigator: navigator_instance,
             letter_box_receiver: Arc::new(Mutex::new(rx)),
             letter_box_sender: tx,
-            received_messages: Vec::new(),
         })
-    }
-
-    fn update_messages(&mut self) {
-        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
-            let msg = serde_json::to_string(&msg).unwrap();
-            self.received_messages.push((from, msg, time));
-        }
     }
 }
 
@@ -290,9 +281,7 @@ impl Navigator for PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of compute_error");
         }
-        // let node_record = node.record();
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_messages.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         let result = Python::with_gil(|py| -> ControllerErrorWrapper {
             match self.navigator.bind(py).call_method(
                 "compute_error",
@@ -315,10 +304,7 @@ impl Navigator for PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        // let node_record = node.record();
-        self.received_messages.clear();
-        self.update_messages();
-        let node_py = NodeWrapper::from_rust(&node, self.received_messages.clone());
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         Python::with_gil(|py| {
             if let Err(e) =
                 self.navigator

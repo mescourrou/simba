@@ -23,7 +23,6 @@ use crate::{
 extern crate nalgebra as na;
 use config_checker::macros::Check;
 use libm::atan2;
-use log::debug;
 use na::Vector3;
 
 use serde_derive::{Deserialize, Serialize};
@@ -137,7 +136,10 @@ impl UIComponent for TrajectoryFollowerConfig {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label(format!("Stop ramp coefficient: {}", self.stop_ramp_coefficient));
+                    ui.label(format!(
+                        "Stop ramp coefficient: {}",
+                        self.stop_ramp_coefficient
+                    ));
                 });
             });
     }
@@ -304,13 +306,16 @@ impl Navigator for TrajectoryFollower {
         if end {
             let distance_to_final = (state.pose.fixed_view::<2, 1>(0, 0) - segment.1).norm();
             self.target_speed = self
-            .target_speed
-            .min(distance_to_final * self.stop_ramp_coefficient);
-        
+                .target_speed
+                .min(distance_to_final * self.stop_ramp_coefficient);
+
             if distance_to_final < self.stop_distance {
                 self.target_speed = 0.;
             }
-            println!("Distance to final: {} => speed = {}", distance_to_final, self.target_speed);
+            println!(
+                "Distance to final: {} => speed = {}",
+                distance_to_final, self.target_speed
+            );
         }
         let segment_angle: f32 = atan2(
             (segment.1.y - segment.0.y).into(),
