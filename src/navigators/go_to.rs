@@ -13,7 +13,7 @@ use crate::gui::UIComponent;
 
 use crate::{
     navigators::navigator::{Navigator, NavigatorRecord},
-    networking::message_handler::MessageHandler,
+    networking::{message_handler::MessageHandler, network::Envelope},
     plugin_api::PluginAPI,
     simulator::SimulatorConfig,
     utils::{
@@ -227,8 +227,8 @@ pub struct GoTo {
     /// Coefficient of the target velocity, multiplied by the remaining distance
     stop_ramp_coefficient: f32,
 
-    letter_box: Arc<Mutex<Receiver<(String, serde_json::Value, f32)>>>,
-    letter_box_sender: Sender<(String, serde_json::Value, f32)>,
+    letter_box: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_sender: Sender<Envelope>,
 }
 
 impl GoTo {
@@ -320,8 +320,8 @@ impl Navigator for GoTo {
     }
 
     fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {
-        while let Ok((_, msg, _)) = self.letter_box.lock().unwrap().try_recv() {
-            if let Ok(msg) = serde_json::from_value::<GoToMessage>(msg) {
+        while let Ok(envelope) = self.letter_box.lock().unwrap().try_recv() {
+            if let Ok(msg) = serde_json::from_value::<GoToMessage>(envelope.message) {
                 self.current_point = msg.target_point;
                 log::info!("Update target point to {:?}", self.current_point);
             }
@@ -341,7 +341,7 @@ impl Recordable<NavigatorRecord> for GoTo {
 }
 
 impl MessageHandler for GoTo {
-    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, serde_json::Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_sender.clone())
     }
 }

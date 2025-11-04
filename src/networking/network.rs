@@ -106,6 +106,13 @@ pub enum MessageFlag {
     Kill,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct Envelope {
+    pub from: String,
+    pub message: Value,
+    pub timestamp: f32,
+}
+
 /// Network interface for [`Node`].
 ///
 /// Each [`Node`] should have a [`Network`] instance. Through this interface,
@@ -119,7 +126,7 @@ pub struct Network {
     /// Added delay to the messages.
     reception_delay: f32,
     /// List of subscribed letter boxes.
-    letter_boxes: Vec<Sender<(String, Value, f32)>>,
+    letter_boxes: Vec<Sender<Envelope>>,
     to_network_manager: Option<Sender<NetworkMessage>>,
     from_network_manager: Option<Arc<Mutex<Receiver<NetworkMessage>>>>,
     /// Message list
@@ -325,7 +332,11 @@ impl Network {
             }
             for letter_box in &self.letter_boxes {
                 letter_box
-                    .send((from.clone(), message.clone(), msg_time))
+                    .send(Envelope {
+                        from: from.clone(),
+                        message: message.clone(),
+                        timestamp: msg_time,
+                    })
                     .unwrap();
             }
         }
@@ -344,7 +355,7 @@ impl Network {
     }
 
     /// Add a new handler to the [`Network`].
-    pub fn subscribe(&mut self, letter_box: Option<Sender<(String, Value, f32)>>) {
+    pub fn subscribe(&mut self, letter_box: Option<Sender<Envelope>>) {
         if let Some(letter_box) = letter_box {
             self.letter_boxes.push(letter_box);
         }

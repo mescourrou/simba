@@ -21,6 +21,7 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
+use crate::networking::network::Envelope;
 use crate::pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
@@ -165,8 +166,8 @@ use crate::node::Node;
 pub struct PythonEstimator {
     /// External state estimator.
     state_estimator: Py<PyAny>,
-    letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
-    letter_box_sender: Sender<(String, Value, f32)>,
+    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_sender: Sender<Envelope>,
 }
 
 impl PythonEstimator {
@@ -408,7 +409,7 @@ impl Recordable<StateEstimatorRecord> for PythonEstimator {
 }
 
 impl MessageHandler for PythonEstimator {
-    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_sender.clone())
     }
 }

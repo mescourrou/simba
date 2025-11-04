@@ -18,6 +18,7 @@ use serde_json::Value;
 use crate::gui::{utils::json_config, UIComponent};
 
 use crate::networking::message_handler::MessageHandler;
+use crate::networking::network::Envelope;
 use crate::pywrappers::NodeWrapper;
 use crate::{
     controllers::controller::{Controller, ControllerError, ControllerRecord},
@@ -165,8 +166,8 @@ use crate::node::Node;
 pub struct PythonController {
     /// External controller.
     controller: Py<PyAny>,
-    letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
-    letter_box_sender: Sender<(String, Value, f32)>,
+    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_sender: Sender<Envelope>,
 }
 
 impl PythonController {
@@ -350,7 +351,7 @@ impl Recordable<ControllerRecord> for PythonController {
 }
 
 impl MessageHandler for PythonController {
-    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_sender.clone())
     }
 }

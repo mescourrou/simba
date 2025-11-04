@@ -4,13 +4,13 @@ the groundtruth to provide the estimation. It can be used when the state used
 by the controller should be perfect.
 */
 
-use std::path::Path;
+use std::{path::Path, sync::mpsc::Sender};
 
 use super::state_estimator::{State, WorldState, WorldStateRecord};
 use crate::{
     constants::TIME_ROUND,
     errors::SimbaErrorTypes,
-    networking::{message_handler::MessageHandler, service_manager::ServiceError},
+    networking::{message_handler::MessageHandler, network::Envelope, service_manager::ServiceError},
 };
 
 #[cfg(feature = "gui")]
@@ -301,7 +301,7 @@ impl Recordable<StateEstimatorRecord> for PerfectEstimator {
 }
 
 impl MessageHandler for PerfectEstimator {
-    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, serde_json::Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         None
     }
 }

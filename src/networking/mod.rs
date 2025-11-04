@@ -67,7 +67,7 @@ mod tests {
     use crate::{
         constants::TIME_ROUND,
         logger::LogLevel,
-        networking::{message_handler::MessageHandler, network::NetworkConfig},
+        networking::{message_handler::MessageHandler, network::{Envelope, NetworkConfig}},
         node::Node,
         node_factory::RobotConfig,
         plugin_api::PluginAPI,
@@ -97,8 +97,8 @@ mod tests {
     struct StateEstimatorTest {
         pub last_time: f32,
         pub message: String,
-        pub letter_box: Option<Arc<Mutex<Receiver<(String, Value, f32)>>>>,
-        pub letter_box_sender: Option<Sender<(String, Value, f32)>>,
+        pub letter_box: Option<Arc<Mutex<Receiver<Envelope>>>>,
+        pub letter_box_sender: Option<Sender<Envelope>>,
         pub last_message: Arc<Mutex<Option<String>>>,
         pub last_from: Arc<Mutex<Option<String>>>,
     }
@@ -134,13 +134,13 @@ mod tests {
         fn prediction_step(&mut self, node: &mut crate::node::Node, time: f32) {
             self.last_time = time;
             if node.name() == "node2" {
-                while let Ok((from, message, _time)) =
+                while let Ok(envelope) =
                     self.letter_box.as_ref().unwrap().lock().unwrap().try_recv()
                 {
-                    let message = serde_json::from_value(message.clone()).unwrap();
-                    println!("Receiving message: {} from {from}", &message);
+                    let message = serde_json::from_value(envelope.message.clone()).unwrap();
+                    println!("Receiving message: {} from {}", &message, envelope.from);
                     *self.last_message.lock().unwrap() = Some(message);
-                    *self.last_from.lock().unwrap() = Some(from.clone());
+                    *self.last_from.lock().unwrap() = Some(envelope.from.clone());
                 }
             }
         }
@@ -165,7 +165,7 @@ mod tests {
     }
 
     impl MessageHandler for StateEstimatorTest {
-        fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+        fn get_letter_box(&self) -> Option<Sender<Envelope>> {
             self.letter_box_sender.clone()
         }
     }

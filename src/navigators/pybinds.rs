@@ -14,7 +14,7 @@ use crate::{
     controllers::controller::ControllerError,
     logger::is_enabled,
     navigators::external_navigator::ExternalNavigatorRecord,
-    networking::message_handler::MessageHandler,
+    networking::{message_handler::MessageHandler, network::Envelope},
     node::Node,
     pywrappers::{ControllerErrorWrapper, NodeWrapper, WorldStateWrapper},
     recordable::Recordable,
@@ -31,8 +31,8 @@ pub struct PythonNavigatorAsyncClient {
     pub record_response: Arc<Mutex<mpsc::Receiver<NavigatorRecord>>>,
     pub pre_loop_hook_request: mpsc::Sender<(NodeWrapper, f32)>,
     pub pre_loop_hook_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
-    letter_box_sender: Sender<(String, Value, f32)>,
+    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_sender: Sender<Envelope>,
 }
 
 impl Navigator for PythonNavigatorAsyncClient {
@@ -63,7 +63,7 @@ impl Recordable<NavigatorRecord> for PythonNavigatorAsyncClient {
 }
 
 impl MessageHandler for PythonNavigatorAsyncClient {
-    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_sender.clone())
     }
 }

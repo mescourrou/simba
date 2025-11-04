@@ -11,7 +11,7 @@ use crate::{
         navigator::{Navigator, NavigatorRecord},
         trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
     },
-    networking::message_handler::MessageHandler,
+    networking::{message_handler::MessageHandler, network::Envelope},
     plugin_api::PluginAPI,
     simulator::SimulatorConfig,
     utils::{
@@ -27,7 +27,7 @@ use na::Vector3;
 
 use serde_derive::{Deserialize, Serialize};
 
-use std::path::Path;
+use std::{path::Path, sync::mpsc::Sender};
 
 /// Configuration of the [`TrajectoryFollower`] strategy.
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
@@ -368,7 +368,7 @@ impl Recordable<NavigatorRecord> for TrajectoryFollower {
 }
 
 impl MessageHandler for TrajectoryFollower {
-    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, serde_json::Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         None
     }
 }

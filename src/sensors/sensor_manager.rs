@@ -8,7 +8,6 @@ use config_checker::macros::Check;
 use core::f32;
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
@@ -20,6 +19,7 @@ use crate::gui::{
 };
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
+use crate::networking::network::Envelope;
 use crate::node::Node;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{recordable::Recordable, simulator::SimulatorConfig};
@@ -247,8 +247,8 @@ pub struct SensorManager {
     next_time: Option<f32>,
     last_observations: Vec<ObservationRecord>,
     local_observations: Vec<Observation>,
-    letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
-    letter_box_sender: Sender<(String, Value, f32)>,
+    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_sender: Sender<Envelope>,
 }
 
 impl SensorManager {
@@ -340,8 +340,8 @@ impl SensorManager {
     /// Get the observations at the given `time`.
     pub fn get_observations(&mut self) -> Vec<Observation> {
         let mut observations = Vec::new();
-        while let Ok((from, msg, time)) = self.letter_box_receiver.lock().unwrap().try_recv() {
-            if let Ok(obs_list) = serde_json::from_value::<Vec<Observation>>(msg.clone()) {
+        while let Ok(envelope) = self.letter_box_receiver.lock().unwrap().try_recv() {
+            if let Ok(obs_list) = serde_json::from_value::<Vec<Observation>>(envelope.message.clone()) {
                 observations.extend(obs_list);
                 // Assure that the observations are always in the same order, for determinism:
                 observations.sort_by(|a, b| a.observer.cmp(&b.observer));
@@ -349,7 +349,7 @@ impl SensorManager {
                 //     self.next_time = Some(time);
                 // }
                 if is_enabled(crate::logger::InternalLog::SensorManager) {
-                    debug!("Receive observations from {from} at time {time}");
+                    debug!("Receive observations from {} at time {}", envelope.from, envelope.timestamp);
                 }
             }
         }
@@ -444,7 +444,7 @@ impl Recordable<SensorManagerRecord> for SensorManager {
 }
 
 impl MessageHandler for SensorManager {
-    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_sender.clone())
     }
 }

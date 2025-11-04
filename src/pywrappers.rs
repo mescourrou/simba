@@ -6,7 +6,6 @@ use std::{
 use log::debug;
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::{exceptions::PyTypeError, prelude::*};
-use serde_json::Value;
 use simba_macros::EnumToString;
 
 #[cfg(feature = "gui")]
@@ -17,7 +16,7 @@ use crate::{
     controllers::{controller::ControllerError, pybinds::PythonController},
     logger::is_enabled,
     navigators::pybinds::PythonNavigator,
-    networking::{network::MessageFlag, MessageTypes},
+    networking::{MessageTypes, network::{Envelope, MessageFlag}},
     node::Node,
     physics::{physics::Command, pybinds::PythonPhysics},
     plugin_api::PluginAPI,
@@ -594,11 +593,20 @@ impl CommandWrapper {
 }
 
 #[derive(Clone)]
+#[pyclass(get_all, set_all)]
+#[pyo3(name = "Envelope")]
+pub struct EnvelopeWrapper {
+    pub msg_from: String,
+    pub message: MessageTypes,
+    pub timestamp: f32,
+}
+
+#[derive(Clone)]
 #[pyclass]
 #[pyo3(name = "Node")]
 pub struct NodeWrapper {
     node: Arc<Node>,
-    messages_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+    messages_receiver: Arc<Mutex<Receiver<Envelope>>>,
 }
 
 #[pymethods]
@@ -632,15 +640,19 @@ impl NodeWrapper {
         }
     }
 
-    pub fn get_messages(&self) -> Vec<(String, MessageTypes, f32)> {
+    pub fn get_messages(&self) -> Vec<EnvelopeWrapper> {
         let mut messages = Vec::new();
 
-        while let Ok((from, msg, time)) = self.messages_receiver.lock().unwrap().try_recv() {
-            let msg = match serde_json::from_value(msg.clone()) {
-                Err(_) => MessageTypes::String(serde_json::to_string(&msg).unwrap()),
+        while let Ok(envelope) = self.messages_receiver.lock().unwrap().try_recv() {
+            let msg = match serde_json::from_value(envelope.message.clone()) {
+                Err(_) => MessageTypes::String(serde_json::to_string(&envelope.message).unwrap()),
                 Ok(m) => m,
             };
-            messages.push((from, msg, time));
+            messages.push(EnvelopeWrapper{
+                msg_from: envelope.from,
+                message: msg,
+                timestamp: envelope.timestamp
+            });
         }
         messages
     }
@@ -649,7 +661,7 @@ impl NodeWrapper {
 impl NodeWrapper {
     pub fn from_rust(
         n: &Node,
-        messages_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+        messages_receiver: Arc<Mutex<Receiver<Envelope>>>,
     ) -> Self {
         Self {
             // I did not find another solution.
@@ -868,7 +880,12 @@ impl SimulatorWrapper {
 #[cfg(feature = "gui")]
 #[pyfunction]
 #[pyo3(signature = (default_config_path=None, plugin_api=None, load_results=false))]
-pub fn run_gui(py: Python, default_config_path: Option<String>, plugin_api: Option<Py<PyAny>>, load_results: bool) {
+pub fn run_gui(
+    py: Python,
+    default_config_path: Option<String>,
+    plugin_api: Option<Py<PyAny>>,
+    load_results: bool,
+) {
     use std::{sync::RwLock, thread};
 
     use crate::gui;

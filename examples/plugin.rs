@@ -1,12 +1,12 @@
 #[allow(unused_variables)]
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use simba::controllers::controller::{Controller, ControllerError, ControllerRecord};
 use simba::controllers::external_controller::ExternalControllerRecord;
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::navigator::{Navigator, NavigatorRecord};
 use simba::networking::message_handler::MessageHandler;
+use simba::networking::network::Envelope;
 use simba::networking::service::HasService;
 use simba::physics::external_physics::ExternalPhysicsRecord;
 use simba::physics::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
@@ -33,8 +33,8 @@ struct MyWonderfulControllerConfig {}
 
 #[derive(Debug)]
 struct MyWonderfulController {
-    letter_box_rx: Arc<Mutex<Receiver<(String, Value, f32)>>>,
-    letter_box_tx: Sender<(String, Value, f32)>,
+    letter_box_rx: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_tx: Sender<Envelope>,
 }
 
 impl MyWonderfulController {
@@ -61,7 +61,7 @@ impl Controller for MyWonderfulController {
     }
 
     fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
-        while let Ok((_from, _msg, _msg_time)) = self.letter_box_rx.lock().unwrap().try_recv() {
+        while let Ok(_envelope) = self.letter_box_rx.lock().unwrap().try_recv() {
             // i.e. Do something with received messages
         }
     }
@@ -76,7 +76,7 @@ impl Recordable<ControllerRecord> for MyWonderfulController {
 }
 
 impl MessageHandler for MyWonderfulController {
-    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_tx.clone())
     }
 }
@@ -93,8 +93,8 @@ struct MyWonderfulNavigatorConfig {}
 
 #[derive(Debug)]
 struct MyWonderfulNavigator {
-    letter_box_rx: Arc<Mutex<Receiver<(String, Value, f32)>>>,
-    letter_box_tx: Sender<(String, Value, f32)>,
+    letter_box_rx: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_tx: Sender<Envelope>,
 }
 
 impl MyWonderfulNavigator {
@@ -121,7 +121,7 @@ impl Navigator for MyWonderfulNavigator {
     }
 
     fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
-        while let Ok((_from, _msg, _msg_time)) = self.letter_box_rx.lock().unwrap().try_recv() {
+        while let Ok(_envelope) = self.letter_box_rx.lock().unwrap().try_recv() {
             // i.e. Do something with received messages
         }
     }
@@ -136,7 +136,7 @@ impl Recordable<NavigatorRecord> for MyWonderfulNavigator {
 }
 
 impl MessageHandler for MyWonderfulNavigator {
-    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_tx.clone())
     }
 }
@@ -210,8 +210,8 @@ struct MyWonderfulStateEstimatorConfig {}
 #[derive(Debug)]
 struct MyWonderfulStateEstimator {
     last_prediction: f32,
-    letter_box_rx: Arc<Mutex<Receiver<(String, Value, f32)>>>,
-    letter_box_tx: Sender<(String, Value, f32)>,
+    letter_box_rx: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_tx: Sender<Envelope>,
 }
 
 impl MyWonderfulStateEstimator {
@@ -247,7 +247,7 @@ impl StateEstimator for MyWonderfulStateEstimator {
     }
 
     fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
-        while let Ok((_from, _msg, _msg_time)) = self.letter_box_rx.lock().unwrap().try_recv() {
+        while let Ok(_envelope) = self.letter_box_rx.lock().unwrap().try_recv() {
             // i.e. Do something with received messages
         }
     }
@@ -265,7 +265,7 @@ impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
 }
 
 impl MessageHandler for MyWonderfulStateEstimator {
-    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_tx.clone())
     }
 }

@@ -157,6 +157,12 @@ class MessageTypes(Enum):
     String: str
     GoTo: GoToMessage
 
+class Envelope:
+    def __init__(self):
+        self.msg_from: str
+        self.message: MessageTypes
+        self.timestamp: float
+
 class Node:
     def name(self):
         raise NotImplementedError()
@@ -164,7 +170,7 @@ class Node:
     def send_message(self, to: str, message: MessageTypes, time: float, flags: List[MessageFlag]=[]):
         raise NotImplementedError()
     
-    def get_messages(self) -> List[(str, str, float)]:
+    def get_messages(self) -> List[Envelope]:
         raise NotImplementedError()
 
 class StateEstimator:

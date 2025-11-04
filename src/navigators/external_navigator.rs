@@ -13,6 +13,8 @@ type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
+use std::sync::mpsc::Sender;
+
 use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
@@ -23,6 +25,7 @@ use crate::controllers::controller::ControllerError;
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
+use crate::networking::network::Envelope;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::WorldState;
@@ -202,7 +205,7 @@ impl Recordable<NavigatorRecord> for ExternalNavigator {
 }
 
 impl MessageHandler for ExternalNavigator {
-    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         self.navigator.get_letter_box()
     }
 }

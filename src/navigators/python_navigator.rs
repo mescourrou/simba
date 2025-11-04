@@ -17,6 +17,7 @@ use serde_json::Value;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::networking::message_handler::MessageHandler;
+use crate::networking::network::Envelope;
 use crate::pywrappers::NodeWrapper;
 use crate::{
     controllers::controller::ControllerError,
@@ -164,8 +165,8 @@ use crate::node::Node;
 pub struct PythonNavigator {
     /// External navigator.
     navigator: Py<PyAny>,
-    letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
-    letter_box_sender: Sender<(String, Value, f32)>,
+    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_sender: Sender<Envelope>,
 }
 
 impl PythonNavigator {
@@ -349,7 +350,7 @@ impl Recordable<NavigatorRecord> for PythonNavigator {
 }
 
 impl MessageHandler for PythonNavigator {
-    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_sender.clone())
     }
 }

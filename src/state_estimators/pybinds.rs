@@ -13,7 +13,7 @@ use serde_json::Value;
 use crate::{
     constants::TIME_ROUND,
     logger::is_enabled,
-    networking::message_handler::MessageHandler,
+    networking::{message_handler::MessageHandler, network::Envelope},
     node::Node,
     pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
     recordable::Recordable,
@@ -40,8 +40,8 @@ pub struct PythonStateEstimatorAsyncClient {
     pub record_response: Arc<Mutex<mpsc::Receiver<StateEstimatorRecord>>>,
     pub pre_loop_hook_request: mpsc::Sender<(NodeWrapper, f32)>,
     pub pre_loop_hook_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
-    letter_box_sender: Sender<(String, Value, f32)>,
+    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_sender: Sender<Envelope>,
 }
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
@@ -134,7 +134,7 @@ impl Recordable<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
 }
 
 impl MessageHandler for PythonStateEstimatorAsyncClient {
-    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_sender.clone())
     }
 }

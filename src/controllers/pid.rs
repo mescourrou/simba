@@ -9,9 +9,12 @@ The [`PID`] controller uses three derivative of the error:
 Each component has a gain, which can be set in [`PIDConfig`].
 */
 
+use std::sync::mpsc::Sender;
+
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::networking::message_handler::MessageHandler;
+use crate::networking::network::Envelope;
 use crate::{
     plugin_api::PluginAPI, recordable::Recordable, simulator::SimulatorConfig,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -323,7 +326,7 @@ impl Recordable<ControllerRecord> for PID {
 }
 
 impl MessageHandler for PID {
-    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, serde_json::Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         None
     }
 }

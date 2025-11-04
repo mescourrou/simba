@@ -24,6 +24,7 @@ use crate::constants::TIME_ROUND;
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
+use crate::networking::network::Envelope;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::utils::maths::round_precision;
@@ -221,7 +222,7 @@ impl Recordable<StateEstimatorRecord> for ExternalEstimator {
 }
 
 impl MessageHandler for ExternalEstimator {
-    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<Envelope>> {
         self.state_estimator.get_letter_box()
     }
 }

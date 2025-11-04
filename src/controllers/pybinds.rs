@@ -13,7 +13,7 @@ use serde_json::Value;
 use crate::{
     controllers::external_controller::ExternalControllerRecord,
     logger::is_enabled,
-    networking::message_handler::MessageHandler,
+    networking::{message_handler::MessageHandler, network::Envelope},
     node::Node,
     physics::physics::Command,
     pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
@@ -30,8 +30,8 @@ pub struct PythonControllerAsyncClient {
     pub record_response: Arc<Mutex<mpsc::Receiver<ControllerRecord>>>,
     pub pre_loop_hook_request: mpsc::Sender<(NodeWrapper, f32)>,
     pub pre_loop_hook_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
-    letter_box_sender: Sender<(String, Value, f32)>,
+    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_sender: Sender<Envelope>,
 }
 
 impl Controller for PythonControllerAsyncClient {
@@ -62,7 +62,7 @@ impl Recordable<ControllerRecord> for PythonControllerAsyncClient {
 }
 
 impl MessageHandler for PythonControllerAsyncClient {
-    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
         Some(self.letter_box_sender.clone())
     }
 }

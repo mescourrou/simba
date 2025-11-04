@@ -1572,7 +1572,7 @@ mod tests {
     use crate::{
         constants::TIME_ROUND,
         logger::LogLevel,
-        networking::{message_handler::MessageHandler, network::MessageFlag},
+        networking::{message_handler::MessageHandler, network::{Envelope, MessageFlag}},
         sensors::sensor::Observation,
         state_estimators::{
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
@@ -1671,7 +1671,7 @@ mod tests {
     }
 
     impl MessageHandler for StateEstimatorTest {
-        fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+        fn get_letter_box(&self) -> Option<Sender<Envelope>> {
             None
         }
     }
