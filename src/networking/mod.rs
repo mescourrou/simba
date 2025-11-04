@@ -25,26 +25,49 @@ sends a request to the server, and is blocked until the server sends a response.
 node should handle the requests in [`run_time_step`](crate::node::Node::run_time_step).
 */
 
+use pyo3::pyclass;
+use serde::{Deserialize, Serialize};
+
+use crate::navigators::go_to::GoToMessage;
+
 pub mod message_handler;
 pub mod network;
 pub mod network_manager;
 pub mod service;
 pub mod service_manager;
 
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum NetworkError {
+    ClosedChannel,
+    NodeUnknown,
+    Unknown(String),
+    ClientSide,
+    Other,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[pyclass]
+pub enum MessageTypes {
+    String(String),
+    GoTo(GoToMessage),
+}
+
 // Network message exchange test
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{Arc, RwLock},
+    use std::sync::{
+        mpsc::{self, Receiver, Sender},
+        Arc, Mutex,
     };
 
+    use log::debug;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
 
     use crate::{
         constants::TIME_ROUND,
         logger::LogLevel,
-        networking::network::NetworkConfig,
+        networking::{message_handler::MessageHandler, network::NetworkConfig},
         node::Node,
         node_factory::RobotConfig,
         plugin_api::PluginAPI,
@@ -57,7 +80,6 @@ mod tests {
         simulator::{Simulator, SimulatorConfig},
         state_estimators::{
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
-            perfect_estimator::PerfectEstimatorConfig,
             state_estimator::{
                 BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig,
                 StateEstimatorRecord, WorldState,
@@ -65,32 +87,6 @@ mod tests {
         },
         utils::maths::round_precision,
     };
-
-    use super::message_handler::MessageHandler;
-
-    #[derive(Debug, Default)]
-    struct NetworkHandlerTest {
-        pub last_message: Option<String>,
-        pub last_from: Option<String>,
-        pub last_time: Option<f32>,
-    }
-
-    impl MessageHandler for NetworkHandlerTest {
-        fn handle_message(
-            &mut self,
-            _node: &mut crate::node::Node,
-            from: &String,
-            message: &serde_json::Value,
-            time: f32,
-        ) -> Result<(), ()> {
-            self.last_message = Some(serde_json::from_value(message.clone()).unwrap());
-            println!("Receiving message: {}", self.last_message.as_ref().unwrap());
-            self.last_from = Some(from.clone());
-            self.last_time = Some(time);
-
-            Ok(())
-        }
-    }
 
     #[derive(Debug, Serialize, Deserialize, Clone)]
     struct StateEstimatorRecordTest {
@@ -101,6 +97,10 @@ mod tests {
     struct StateEstimatorTest {
         pub last_time: f32,
         pub message: String,
+        pub letter_box: Option<Arc<Mutex<Receiver<(String, Value, f32)>>>>,
+        pub letter_box_sender: Option<Sender<(String, Value, f32)>>,
+        pub last_message: Arc<Mutex<Option<String>>>,
+        pub last_from: Arc<Mutex<Option<String>>>,
     }
 
     impl StateEstimator for StateEstimatorTest {
@@ -112,21 +112,37 @@ mod tests {
         ) {
         }
 
+        fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
+            debug!("Doing pre_loop_hook");
+            if node.name() == "node1" {
+                println!("{} Sending message...", node.name());
+                node.network()
+                    .as_ref()
+                    .unwrap()
+                    .write()
+                    .unwrap()
+                    .send_to(
+                        "node2".to_string(),
+                        serde_json::to_value(self.message.clone()).unwrap(),
+                        time,
+                        Vec::new(),
+                    )
+                    .unwrap();
+            }
+        }
+
         fn prediction_step(&mut self, node: &mut crate::node::Node, time: f32) {
             self.last_time = time;
-            println!("{} Sending message...", node.name());
-            node.network()
-                .as_ref()
-                .unwrap()
-                .write()
-                .unwrap()
-                .send_to(
-                    "node2".to_string(),
-                    serde_json::to_value(self.message.clone()).unwrap(),
-                    time,
-                    Vec::new(),
-                )
-                .unwrap();
+            if node.name() == "node2" {
+                while let Ok((from, message, _time)) =
+                    self.letter_box.as_ref().unwrap().lock().unwrap().try_recv()
+                {
+                    let message = serde_json::from_value(message.clone()).unwrap();
+                    println!("Receiving message: {} from {from}", &message);
+                    *self.last_message.lock().unwrap() = Some(message);
+                    *self.last_from.lock().unwrap() = Some(from.clone());
+                }
+            }
         }
 
         fn next_time_step(&self) -> f32 {
@@ -148,47 +164,65 @@ mod tests {
         }
     }
 
+    impl MessageHandler for StateEstimatorTest {
+        fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+            self.letter_box_sender.clone()
+        }
+    }
+
     struct PluginAPITest {
         pub message: String,
-        pub message_handler: Arc<RwLock<dyn MessageHandler>>,
+        pub last_message: Arc<Mutex<Option<String>>>,
+        pub last_from: Arc<Mutex<Option<String>>>,
     }
 
     impl PluginAPI for PluginAPITest {
         fn get_state_estimator(
             &self,
-            _config: &serde_json::Value,
+            config: &serde_json::Value,
             _global_config: &SimulatorConfig,
         ) -> Box<dyn StateEstimator> {
+            let (tx, rx) = if config.as_bool().unwrap() {
+                let (tx, rx) = mpsc::channel();
+                (Some(tx), Some(Arc::new(Mutex::new(rx))))
+            } else {
+                (None, None)
+            };
             Box::new(StateEstimatorTest {
                 last_time: 0.,
                 message: self.message.clone(),
+                last_from: self.last_from.clone(),
+                last_message: self.last_message.clone(),
+                letter_box: rx,
+                letter_box_sender: tx,
             }) as Box<dyn StateEstimator>
         }
 
-        fn get_message_handlers(
-            &self,
-            node: &Node,
-        ) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
-            if node.name() == "node2" {
-                Some(vec![self.message_handler.clone()])
-            } else {
-                None
-            }
-        }
+        // fn get_message_handlers(
+        //     &self,
+        //     node: &Node,
+        // ) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
+        //     if node.name() == "node2" {
+        //         Some(vec![self.message_handler.clone()])
+        //     } else {
+        //         None
+        //     }
+        // }
     }
 
     #[test]
     fn send_message_test() {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
-        config.max_time = PerfectEstimatorConfig::default().prediction_period * 1.5;
-        config.log.log_level = LogLevel::Off; //LogLevel::Internal(vec![InternalLog::All]);
+        config.log.log_level = LogLevel::Off;
+        // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
+        config.max_time = RobotSensorConfig::default().period * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             state_estimator_bench: vec![BenchStateEstimatorConfig {
                 name: "own".to_string(),
                 config: StateEstimatorConfig::External(ExternalEstimatorConfig {
-                    config: Value::Null,
+                    config: Value::Bool(false),
                 }),
             }],
             ..Default::default()
@@ -199,16 +233,20 @@ mod tests {
                 reception_delay: 0.,
                 ..Default::default()
             },
+            state_estimator_bench: vec![BenchStateEstimatorConfig {
+                name: "own".to_string(),
+                config: StateEstimatorConfig::External(ExternalEstimatorConfig {
+                    config: Value::Bool(true),
+                }),
+            }],
             ..Default::default()
         });
 
         let message_to_send = String::from("HelloWorld");
-        let message_handler: Arc<RwLock<NetworkHandlerTest>> =
-            Arc::new(RwLock::new(NetworkHandlerTest::default()));
-
         let plugin_api = PluginAPITest {
             message: message_to_send.clone(),
-            message_handler: message_handler.clone(),
+            last_from: Arc::new(Mutex::new(None)),
+            last_message: Arc::new(Mutex::new(None)),
         };
 
         let mut simulator = Simulator::from_config(&config, &Some(Box::new(&plugin_api))).unwrap();
@@ -216,24 +254,18 @@ mod tests {
         simulator.run().unwrap();
 
         assert!(
-            message_handler.read().unwrap().last_message.is_some(),
+            plugin_api.last_message.lock().unwrap().is_some(),
             "Message not received"
         );
         assert!(
-            message_handler
-                .read()
-                .unwrap()
-                .last_message
-                .as_ref()
-                .unwrap()
-                == &message_to_send,
+            *plugin_api.last_message.lock().unwrap().as_ref().unwrap() == message_to_send,
             "Wrong message received"
         );
         assert!(
-            message_handler
-                .read()
-                .unwrap()
+            plugin_api
                 .last_from
+                .lock()
+                .unwrap()
                 .as_ref()
                 .unwrap()
                 .as_str()
@@ -246,7 +278,8 @@ mod tests {
     fn deadlock_service_test() {
         // Simulator::init_environment(log::LevelFilter::Debug, Vec::new(), Vec::new()); // For debug
         let mut config = SimulatorConfig::default();
-        config.log.log_level = LogLevel::Off; //LogLevel::Internal(vec![InternalLog::All]);
+        config.log.log_level = LogLevel::Off;
+        // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
         config.max_time = RobotSensorConfig::default().period * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),

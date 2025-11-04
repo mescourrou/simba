@@ -1,5 +1,13 @@
 # Changelogs
 
+## v1.2.0
+- GoTo Navigator: send a location and the robot goes.
+- Option for saving: At the end, continuously, by batch or periodically.
+- [breaking] Killing nodes by message.
+- [breaking] Send and receive messages with Python bindings.
+- Version tag in configuration file with warning if it differs.
+- Fix TrajectoryFollower when trajectory without loop.
+
 ## v1.1.0
 - [breaking] Synchronous parallel execution, remove need for from_record implementation
 - [breaking] Change of enumeration representation YAML configuration file: now using tags (ie `!RobotSensor`)

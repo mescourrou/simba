@@ -9,3 +9,4 @@ cd python
 ./navigator.py
 ./physics.py
 ./state_estimator.py
+./messages.py

@@ -175,17 +175,19 @@ impl Trajectory {
             }
         }
 
-        let mut d =
-            ((pt2.x - projected_point.x).powf(2.) + (pt2.y - projected_point.y).powf(2.)).sqrt();
+        let mut d = (pt2 - projected_point).norm();
         let mut start_point = projected_point;
         let mut segment = self.current_segment;
         while d < forward_distance {
             forward_distance -= d;
             segment += 1;
-            if segment >= self.point_list.nrows() && self.do_loop {
-                segment = 0;
-            }
-            if segment + 1 == self.point_list.nrows() && !self.do_loop {
+            if segment >= self.point_list.nrows() {
+                if self.do_loop {
+                    segment = 0;
+                } else {
+                    return ((pt1, pt2), pt2, true);
+                }
+            } else if !self.do_loop && segment >= self.point_list.nrows() - 1 {
                 return ((pt1, pt2), pt2, true);
             }
             pt1 = pt2;
@@ -200,9 +202,15 @@ impl Trajectory {
             d = ((pt2.x - pt1.x).powf(2.) + (pt2.y - pt1.y).powf(2.)).sqrt();
         }
         let segment_direction = atan2((pt2.y - pt1.y).into(), (pt2.x - pt1.x).into()) as f32;
+
         let projected_point = start_point
             + forward_distance * Vector2::new(segment_direction.cos(), segment_direction.sin());
-        return ((pt1, pt2), projected_point, false);
+
+        if !self.do_loop && self.current_segment + 1 == self.point_list.nrows() - 1 {
+            return ((pt1, pt2), projected_point, true);
+        } else {
+            return ((pt1, pt2), projected_point, false);
+        }
     }
 
     /// Handle the projection of a point on the current segment. Get to the next segment if needed.

@@ -36,6 +36,7 @@ use crate::{
             StateEstimatorConfig, StateEstimatorRecord,
         },
     },
+    time_analysis::TimeAnalysisFactory,
     utils::{
         determinist_random_variable::DeterministRandomVariableFactory,
         time_ordered_data::TimeOrderedData,
@@ -164,6 +165,13 @@ impl NodeRecord {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.sensors),
             Self::ComputationUnit(r) => Some(&r.sensor_manager),
+        }
+    }
+
+    pub fn name(&self) -> &String {
+        match &self {
+            Self::Robot(robot_record) => &robot_record.name,
+            Self::ComputationUnit(r) => &r.name,
         }
     }
 }
@@ -568,6 +576,7 @@ impl NodeFactory {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
+        time_analysis_factory: &mut TimeAnalysisFactory,
         time_cv: Arc<TimeCv>,
     ) -> Node {
         let node_type = NodeType::Robot;
@@ -622,6 +631,8 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
+            zombie: false,
+            time_analysis: time_analysis_factory.new_node(config.name.clone()),
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -646,15 +657,6 @@ impl NodeFactory {
         let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
             &node, time_cv,
         ))));
-        if plugin_api.is_some() {
-            if let Some(message_handlers) = plugin_api.as_ref().unwrap().get_message_handlers(&node)
-            {
-                let mut network = node.network.as_ref().unwrap().write().unwrap();
-                for message_handler in message_handlers {
-                    network.subscribe(message_handler.clone());
-                }
-            }
-        }
         // Services
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Setup services");
@@ -669,6 +671,7 @@ impl NodeFactory {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
+        time_analysis_factory: &mut TimeAnalysisFactory,
         time_cv: Arc<TimeCv>,
     ) -> Node {
         let node_type = NodeType::ComputationUnit;
@@ -700,6 +703,8 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
+            zombie: false,
+            time_analysis: time_analysis_factory.new_node(config.name.clone()),
         };
 
         for state_estimator_config in &config.state_estimators {
@@ -724,15 +729,6 @@ impl NodeFactory {
         let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
             &node, time_cv,
         ))));
-        if plugin_api.is_some() {
-            if let Some(message_handlers) = plugin_api.as_ref().unwrap().get_message_handlers(&node)
-            {
-                let mut network = node.network.as_ref().unwrap().write().unwrap();
-                for message_handler in message_handlers {
-                    network.subscribe(message_handler.clone());
-                }
-            }
-        }
         // Services
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Setup services");

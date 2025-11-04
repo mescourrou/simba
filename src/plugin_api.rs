@@ -43,12 +43,10 @@ fn main() {
 ```
 */
 
-use std::sync::{Arc, RwLock};
-
 use crate::{
     controllers::controller::Controller, navigators::navigator::Navigator,
-    networking::message_handler::MessageHandler, node::Node, physics::physics::Physics,
-    simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator,
+    physics::physics::Physics, simulator::SimulatorConfig,
+    state_estimators::state_estimator::StateEstimator,
 };
 
 use serde_json::Value;
@@ -129,9 +127,5 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the [`Physics`] to use.
     fn get_physics(&self, _config: &Value, _global_config: &SimulatorConfig) -> Box<dyn Physics> {
         panic!("The given PluginAPI does not provide physics");
-    }
-
-    fn get_message_handlers(&self, _robot: &Node) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
-        None
     }
 }

@@ -12,10 +12,11 @@ use crate::{
     api::async_api::{AsyncApi, AsyncApiRunner},
     constants::TIME_ROUND_DECIMALS,
     errors::SimbaError,
-    gui::UIComponent,
+    gui::{drawables::popup::Popup, UIComponent},
     node_factory::NodeRecord,
     plugin_api::PluginAPI,
     simulator::{Record, SimulatorConfig},
+    AUTHORS, VERSION,
 };
 
 use super::{
@@ -128,6 +129,7 @@ struct PrivateParams {
     configurator: Option<Configurator>,
     error_buffer: Vec<(time::Instant, SimbaError)>,
     painter_info: PainterInfo,
+    popups: Vec<Popup>,
 }
 
 impl Default for PrivateParams {
@@ -146,6 +148,7 @@ impl Default for PrivateParams {
             configurator: None,
             error_buffer: Vec::new(),
             painter_info: PainterInfo::default(),
+            popups: Vec::new(),
         }
     }
 }
@@ -316,6 +319,17 @@ impl eframe::App for SimbaApp {
             }
         }
 
+        let mut to_close = Vec::new();
+        for (i, pup) in self.p.popups.iter_mut().enumerate() {
+            pup.draw(ctx);
+            if pup.is_clicked() {
+                to_close.push(i);
+            }
+        }
+        for i in to_close.iter().rev() {
+            self.p.popups.remove(*i);
+        }
+
         egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
             // The top panel is often a good place for a menu bar:
 
@@ -327,6 +341,16 @@ impl eframe::App for SimbaApp {
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                             self.quit();
+                        }
+                    });
+                    ui.add_space(16.0);
+                    ui.menu_button("Help", |ui| {
+                        if ui.button("Version").clicked() {
+                            self.p.popups.push(Popup::new_ok(
+                                "Version".to_string(),
+                                format!("SiMBA\nVersion {}\nGPLv3\n{}", VERSION, AUTHORS),
+                                |_| {},
+                            ));
                         }
                     });
                     ui.add_space(16.0);
@@ -404,7 +428,7 @@ impl eframe::App for SimbaApp {
                             self.p.error_buffer.push((time::Instant::now(), e));
                         }
                     }
-                    let max_simulated_time = *self.p.api.simulator_api.current_time.lock().unwrap();
+                    let max_simulated_time = *self.p.api.simulator_api.current_time.read().unwrap();
                     let play_pause_btn = if self.p.playing.is_none() {
                         egui::Button::new("Play ")
                     } else {
@@ -471,7 +495,11 @@ impl eframe::App for SimbaApp {
         egui::CentralPanel::default().show(ctx, |ui| {
             egui::ScrollArea::both()
                 .auto_shrink([false; 2])
-                .scroll_source(egui::scroll_area::ScrollSource { scroll_bar: true, drag: true, mouse_wheel: true })
+                .scroll_source(egui::scroll_area::ScrollSource {
+                    scroll_bar: true,
+                    drag: true,
+                    mouse_wheel: true,
+                })
                 .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
                 .show_viewport(ui, |ui, viewport| {
                     let mut shapes = Vec::new();
@@ -479,7 +507,12 @@ impl eframe::App for SimbaApp {
                         let rect = self.p.painter_info.rect_painter(self.drawing_scale);
 
                         // Draw grid
-                        shapes.push(Shape::rect_stroke(rect, 0.0, (1.0, Color32::LIGHT_GRAY), egui::StrokeKind::Middle));
+                        shapes.push(Shape::rect_stroke(
+                            rect,
+                            0.0,
+                            (1.0, Color32::LIGHT_GRAY),
+                            egui::StrokeKind::Middle,
+                        ));
                         let x_min = rect.left(); //.max(viewport.left());
                         let x_max = rect.right(); //.min(viewport.right());
                         let y_min = rect.top(); //.max(viewport.top());

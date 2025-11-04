@@ -14,6 +14,7 @@ use crate::{
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use config_checker::macros::Check;
+use libm::atan2f;
 use nalgebra::SMatrix;
 use serde_derive::{Deserialize, Serialize};
 
@@ -233,8 +234,9 @@ impl PerfectPhysics {
 
         se2_mat = se2_mat * lie_action.exp();
 
-        self.state.pose.z =
-            nalgebra::Rotation2::from_matrix(&se2_mat.fixed_view::<2, 2>(0, 0).into()).angle();
+        // let rot = nalgebra::Rotation2::from_matrix(&se2_mat.fixed_view::<2, 2>(0, 0).into());
+        // self.state.pose.z = rot.angle();
+        self.state.pose.z = atan2f(se2_mat[(1, 0)], se2_mat[(0, 0)]);
 
         self.state.pose.x = se2_mat[(0, 2)];
         self.state.pose.y = se2_mat[(1, 2)];

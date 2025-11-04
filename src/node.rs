@@ -4,10 +4,12 @@ Module providing the main node manager, [`Node`]. The building of the Nodes is d
 
 use core::f32;
 use std::collections::BTreeMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use log::{debug, info};
 
+use crate::networking::message_handler::MessageHandler;
+use crate::time_analysis::TimeAnalysisNode;
 use crate::{
     api::internal_api::{self, NodeClient, NodeServer},
     constants::TIME_ROUND,
@@ -25,7 +27,6 @@ use crate::{
     state_estimators::state_estimator::{
         BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator,
     },
-    time_analysis,
     utils::maths::round_precision,
     utils::time_ordered_data::TimeOrderedData,
 };
@@ -83,7 +84,9 @@ pub struct Node {
 
     pub(crate) node_server: Option<NodeServer>,
 
-    pub other_node_names: Vec<String>,
+    pub(crate) other_node_names: Vec<String>,
+    pub(crate) zombie: bool,
+    pub(crate) time_analysis: Arc<Mutex<TimeAnalysisNode>>,
 }
 
 impl Node {
@@ -119,7 +122,39 @@ impl Node {
 
         if let Some(network) = &self.network {
             if let Some(sensor_manager) = &self.sensor_manager {
-                network.write().unwrap().subscribe(sensor_manager.clone());
+                network
+                    .write()
+                    .unwrap()
+                    .subscribe(sensor_manager.read().unwrap().get_letter_box());
+            }
+            if let Some(state_estimator) = &self.state_estimator {
+                network
+                    .write()
+                    .unwrap()
+                    .subscribe(state_estimator.read().unwrap().get_letter_box());
+            }
+            if let Some(state_estimator_bench) = &self.state_estimator_bench {
+                for state_estimator in state_estimator_bench.read().unwrap().iter() {
+                    network.write().unwrap().subscribe(
+                        state_estimator
+                            .state_estimator
+                            .read()
+                            .unwrap()
+                            .get_letter_box(),
+                    );
+                }
+            }
+            if let Some(navigator) = &self.navigator {
+                network
+                    .write()
+                    .unwrap()
+                    .subscribe(navigator.read().unwrap().get_letter_box());
+            }
+            if let Some(controller) = &self.controller {
+                network
+                    .write()
+                    .unwrap()
+                    .subscribe(controller.read().unwrap().get_letter_box());
             }
         }
         let (node_server, node_client) = internal_api::make_node_api(&self.node_type);
@@ -204,18 +239,46 @@ impl Node {
                 .unwrap();
         }
 
+        self.handle_messages(time);
+        // Pre loop calls to manage messages
+        if let Some(state_estimator) = self.state_estimator() {
+            state_estimator.write().unwrap().pre_loop_hook(self, time);
+        }
+        if let Some(state_estimator_bench) = self.state_estimator_bench.clone() {
+            for state_estimator in state_estimator_bench.read().unwrap().iter() {
+                state_estimator
+                    .state_estimator
+                    .write()
+                    .unwrap()
+                    .pre_loop_hook(self, time);
+            }
+        }
+        if let Some(controller) = self.controller() {
+            controller.write().unwrap().pre_loop_hook(self, time);
+        }
+        if let Some(navigator) = self.navigator() {
+            navigator.write().unwrap().pre_loop_hook(self, time);
+        }
+        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+            debug!("Pre prediction step wait");
+        }
+        self.sync_with_others(time_cv, nb_nodes, time);
+
         let mut do_control_loop = false;
 
         // If it is time for the state estimator to do the prediction
         if let Some(state_estimator) = &self.state_estimator() {
             if time >= state_estimator.read().unwrap().next_time_step() {
                 // Prediction step
-                let ta = time_analysis::time_analysis(
+                let ta = self.time_analysis.lock().unwrap().time_analysis(
                     time,
                     "control_loop_state_estimator_prediction_step".to_string(),
                 );
                 state_estimator.write().unwrap().prediction_step(self, time);
-                time_analysis::finished_time_analysis(ta);
+                self.time_analysis
+                    .lock()
+                    .unwrap()
+                    .finished_time_analysis(ta);
                 do_control_loop = true;
             }
         }
@@ -229,16 +292,20 @@ impl Node {
                         .unwrap()
                         .next_time_step()
                 {
-                    let ta = time_analysis::time_analysis(
-                        time,
-                        state_estimator.name.clone() + "_prediction_step",
-                    );
+                    let ta = self
+                        .time_analysis
+                        .lock()
+                        .unwrap()
+                        .time_analysis(time, state_estimator.name.clone() + "_prediction_step");
                     state_estimator
                         .state_estimator
                         .write()
                         .unwrap()
                         .prediction_step(self, time);
-                    time_analysis::finished_time_analysis(ta);
+                    self.time_analysis
+                        .lock()
+                        .unwrap()
+                        .finished_time_analysis(ta);
                 }
             }
         }
@@ -269,7 +336,7 @@ impl Node {
             if observations.len() > 0 {
                 // Treat the observations
                 if let Some(state_estimator) = &self.state_estimator() {
-                    let ta = time_analysis::time_analysis(
+                    let ta = self.time_analysis.lock().unwrap().time_analysis(
                         time,
                         "control_loop_state_estimator_correction_step".to_string(),
                     );
@@ -277,21 +344,28 @@ impl Node {
                         .write()
                         .unwrap()
                         .correction_step(self, &observations, time);
-                    time_analysis::finished_time_analysis(ta);
+                    self.time_analysis
+                        .lock()
+                        .unwrap()
+                        .finished_time_analysis(ta);
                 }
 
                 if let Some(state_estimator_bench) = &self.state_estimator_bench() {
                     for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                        let ta = time_analysis::time_analysis(
-                            time,
-                            state_estimator.name.clone() + "_correction_step",
-                        );
+                        let ta = self
+                            .time_analysis
+                            .lock()
+                            .unwrap()
+                            .time_analysis(time, state_estimator.name.clone() + "_correction_step");
                         state_estimator
                             .state_estimator
                             .write()
                             .unwrap()
                             .correction_step(self, &observations, time);
-                        time_analysis::finished_time_analysis(ta);
+                        self.time_analysis
+                            .lock()
+                            .unwrap()
+                            .finished_time_analysis(ta);
                     }
                 }
             }
@@ -307,10 +381,11 @@ impl Node {
             let world_state = state_estimator.read().unwrap().world_state();
 
             // Compute the error to the planned path
-            let ta = time_analysis::time_analysis(
-                time,
-                "control_loop_navigator_compute_error".to_string(),
-            );
+            let ta = self
+                .time_analysis
+                .lock()
+                .unwrap()
+                .time_analysis(time, "control_loop_navigator_compute_error".to_string());
             let error = self
                 .navigator()
                 .as_ref()
@@ -318,13 +393,17 @@ impl Node {
                 .write()
                 .unwrap()
                 .compute_error(self, world_state);
-            time_analysis::finished_time_analysis(ta);
+            self.time_analysis
+                .lock()
+                .unwrap()
+                .finished_time_analysis(ta);
 
             // Compute the command from the error
-            let ta = time_analysis::time_analysis(
-                time,
-                "control_loop_controller_make_command".to_string(),
-            );
+            let ta = self
+                .time_analysis
+                .lock()
+                .unwrap()
+                .time_analysis(time, "control_loop_controller_make_command".to_string());
             let command = self
                 .controller()
                 .as_ref()
@@ -332,7 +411,10 @@ impl Node {
                 .write()
                 .unwrap()
                 .make_command(self, &error, time);
-            time_analysis::finished_time_analysis(ta);
+            self.time_analysis
+                .lock()
+                .unwrap()
+                .finished_time_analysis(ta);
 
             // Apply the command to the physics
             self.physics
@@ -367,7 +449,9 @@ impl Node {
             let mut waiting_parity = time_cv.intermediate_parity.lock().unwrap();
             *waiting_parity = 1 - *waiting_parity;
             time_cv.condvar.notify_all();
-            debug!("[intermediate wait] I am the last, end wait");
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("[intermediate wait] I am the last, end wait");
+            }
             return;
         }
         std::mem::drop(circulating_messages);
@@ -386,7 +470,9 @@ impl Node {
                 let mut waiting_parity = time_cv.intermediate_parity.lock().unwrap();
                 *waiting_parity = 1 - *waiting_parity;
                 time_cv.condvar.notify_all();
-                debug!("[intermediate wait] I am the last, end wait");
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("[intermediate wait] I am the last, end wait");
+                }
                 return;
             }
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
@@ -397,12 +483,14 @@ impl Node {
                 lk = time_cv.condvar.wait(lk).unwrap();
             }
             if waiting_parity != *time_cv.intermediate_parity.lock().unwrap() {
-                debug!("[intermediate wait] End wait");
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("[intermediate wait] End wait");
+                }
                 return;
             }
-            debug!(
-                "[intermediate wait] New loop: waiting = {}", *lk
-            );
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("[intermediate wait] New loop: waiting = {}", *lk);
+            }
         }
     }
 
@@ -420,26 +508,27 @@ impl Node {
     }
 
     /// Computes the next time step, using state estimator, sensors and received messages.
-    pub fn next_time_step(&self) -> SimbaResult<f32> {
+    pub fn next_time_step(&self, min_time_excluded: f32) -> SimbaResult<f32> {
         let mut next_time_step = f32::INFINITY;
         if let Some(state_estimator) = &self.state_estimator {
-            next_time_step = state_estimator
-                .read()
-                .unwrap()
-                .next_time_step()
-                .min(next_time_step);
+            let next_time = state_estimator.read().unwrap().next_time_step();
+            if next_time > min_time_excluded {
+                next_time_step = next_time_step.min(next_time);
+            }
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                 debug!("Next time after state estimator: {next_time_step}");
             }
         }
 
         if let Some(sensor_manager) = &self.sensor_manager {
-            next_time_step = sensor_manager
+            let next_time = sensor_manager
                 .read()
                 .unwrap()
                 .next_time_step()
-                .unwrap_or(f32::INFINITY)
-                .min(next_time_step);
+                .unwrap_or(f32::INFINITY);
+            if next_time > min_time_excluded {
+                next_time_step = next_time_step.min(next_time);
+            }
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                 debug!("Next time after sensor manager: {next_time_step}");
             }
@@ -456,11 +545,11 @@ impl Node {
                 );
             }
             if let Some(msg_next_time) = message_next_time {
-                if next_time_step > msg_next_time {
+                if next_time_step > msg_next_time && msg_next_time > min_time_excluded {
                     next_time_step = msg_next_time;
-                }
-                if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-                    debug!("Time step changed with message: {}", next_time_step);
+                    if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                        debug!("Time step changed with message: {}", next_time_step);
+                    }
                 }
             }
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
@@ -469,26 +558,29 @@ impl Node {
         }
         if let Some(state_estimator_bench) = &self.state_estimator_bench {
             for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                next_time_step = next_time_step.min(
-                    state_estimator
-                        .state_estimator
-                        .read()
-                        .unwrap()
-                        .next_time_step(),
-                );
+                let next_time = state_estimator
+                    .state_estimator
+                    .read()
+                    .unwrap()
+                    .next_time_step();
+                if next_time > min_time_excluded {
+                    next_time_step = next_time_step.min(next_time);
+                }
             }
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                 debug!("Next time after state estimator bench: {next_time_step}");
             }
         }
-        next_time_step = next_time_step.min(
-            self.service_manager
-                .as_ref()
-                .unwrap()
-                .read()
-                .unwrap()
-                .next_time(),
-        );
+        let next_time = self
+            .service_manager
+            .as_ref()
+            .unwrap()
+            .read()
+            .unwrap()
+            .next_time();
+        if next_time > min_time_excluded {
+            next_time_step = next_time_step.min(next_time);
+        }
         if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
             debug!("Next time after service manager: {next_time_step}");
         }
@@ -575,6 +667,23 @@ impl Node {
         self.service_manager.as_ref().unwrap().clone()
     }
 
+    pub fn pre_kill(&mut self) {
+        self.zombie = true;
+    }
+
+    pub fn kill(&mut self) {
+        self.zombie = true;
+        if let Some(network) = &self.network {
+            network.write().unwrap().unsubscribe_node().unwrap();
+        }
+        if let Some(service_manager) = &self.service_manager {
+            service_manager.write().unwrap().unsubscribe_node();
+        }
+    }
+}
+
+// Record part
+impl Node {
     fn robot_record(&self) -> RobotRecord {
         let mut record = RobotRecord {
             name: self.name.clone(),

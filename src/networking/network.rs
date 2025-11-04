@@ -4,26 +4,26 @@ the configuration struct [`NetworkConfig`].
 */
 
 extern crate confy;
+use core::f32;
 use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use log::debug;
+use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
-#[cfg(feature = "gui")]
-use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
+#[cfg(feature = "gui")]
+use crate::{constants::TIME_ROUND, gui::UIComponent};
 
-use super::message_handler::MessageHandler;
 use super::network_manager::{MessageSendMethod, NetworkMessage};
 
 /// Configuration for the [`Network`].
@@ -43,7 +43,7 @@ impl Default for NetworkConfig {
     fn default() -> Self {
         Self {
             range: 0.,
-            reception_delay: TIME_ROUND,
+            reception_delay: 0.,
         }
     }
 }
@@ -69,7 +69,7 @@ impl UIComponent for NetworkConfig {
             });
 
             ui.horizontal(|ui| {
-                ui.label("Reception delay (0 not stable): ");
+                ui.label("Reception delay: ");
                 if self.reception_delay < 0. {
                     self.reception_delay = 0.;
                 }
@@ -88,10 +88,7 @@ impl UIComponent for NetworkConfig {
             });
 
             ui.horizontal(|ui| {
-                ui.label(format!(
-                    "Reception delay (0 not stable): {}",
-                    self.reception_delay
-                ));
+                ui.label(format!("Reception delay: {}", self.reception_delay));
             });
         });
     }
@@ -99,11 +96,14 @@ impl UIComponent for NetworkConfig {
 
 /// Transmission mode for messages.
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
+#[pyclass(get_all, set_all, eq, eq_int)]
 pub enum MessageFlag {
     /// God mode, messages are instaneous.
     God,
-    /// Read only: the recipient will do a quick jump in time, and will go back to its time
-    ReadOnly,
+    /// Ask to unsubscribe
+    Unsubscribe,
+    /// Ask to kill the receiving node
+    Kill,
 }
 
 /// Network interface for [`Node`].
@@ -118,8 +118,8 @@ pub struct Network {
     range: f32,
     /// Added delay to the messages.
     reception_delay: f32,
-    /// List of handler. First handler returning Ok has priority.
-    message_handlers: Vec<Arc<RwLock<dyn MessageHandler>>>,
+    /// List of subscribed letter boxes.
+    letter_boxes: Vec<Sender<(String, Value, f32)>>,
     to_network_manager: Option<Sender<NetworkMessage>>,
     from_network_manager: Option<Arc<Mutex<Receiver<NetworkMessage>>>>,
     /// Message list
@@ -162,7 +162,7 @@ impl Network {
             from,
             range: config.range,
             reception_delay: config.reception_delay,
-            message_handlers: Vec::new(),
+            letter_boxes: Vec::new(),
             messages_buffer: TimeOrderedData::new(),
             time_cv,
             to_network_manager: None,
@@ -258,6 +258,7 @@ impl Network {
                     .to_string(),
             ));
         }
+        let mut new_msgs = 0;
         for msg in self
             .from_network_manager
             .as_ref()
@@ -280,8 +281,9 @@ impl Network {
             }
             self.messages_buffer
                 .insert(time, (msg.from, msg.value, msg.message_flags), false);
+            new_msgs += 1;
         }
-        Ok(self.messages_buffer.len())
+        Ok(new_msgs)
     }
 
     /// Get the minimal time among all waiting messages. Bool is true if the message is read only.
@@ -294,32 +296,37 @@ impl Network {
     /// ## Arguments
     /// * `robot` - Reference to the robot to give to the handlers.
     /// * `time` - Time of the messages to handle.
-    pub fn handle_message_at_time(&mut self, robot: &mut Node, time: f32) {
+    pub fn handle_message_at_time(&mut self, node: &mut Node, time: f32) {
         if is_enabled(crate::logger::InternalLog::NetworkMessages) {
             debug!("Handling messages at time {time}");
         }
-        while let Some((msg_time, (from, message, _message_flags))) =
+        while let Some((msg_time, (from, message, message_flags))) =
             self.messages_buffer.remove(time)
         {
             if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                 debug!("Receive message from {from}: {:?}", message);
-                debug!("Handler list size: {}", self.message_handlers.len());
+                debug!("Letter box list size: {}", self.letter_boxes.len());
             }
-            for handler in &self.message_handlers {
-                if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                    debug!("Handler available: {:?}", handler.try_write().is_ok());
-                }
-                if handler
-                    .write()
-                    .unwrap()
-                    .handle_message(robot, &from, &message, msg_time)
-                    .is_ok()
-                {
-                    if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                        debug!("Found handler");
+            let mut throw_message = false;
+            for flag in &message_flags {
+                match flag {
+                    MessageFlag::Kill => {
+                        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                            debug!("Receive message from {from} to be killed");
+                        }
+                        node.pre_kill();
+                        throw_message = true;
                     }
-                    break;
+                    _ => (),
                 }
+            }
+            if throw_message {
+                continue;
+            }
+            for letter_box in &self.letter_boxes {
+                letter_box
+                    .send((from.clone(), message.clone(), msg_time))
+                    .unwrap();
             }
         }
 
@@ -337,7 +344,36 @@ impl Network {
     }
 
     /// Add a new handler to the [`Network`].
-    pub fn subscribe(&mut self, handler: Arc<RwLock<dyn MessageHandler>>) {
-        self.message_handlers.push(handler);
+    pub fn subscribe(&mut self, letter_box: Option<Sender<(String, Value, f32)>>) {
+        if let Some(letter_box) = letter_box {
+            self.letter_boxes.push(letter_box);
+        }
+    }
+
+    pub fn unsubscribe_node(&self) -> SimbaResult<()> {
+        if self.to_network_manager.is_none() {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ImplementationError,
+                "Network is not properly setup: `set_network_manager_link` should be called."
+                    .to_string(),
+            ));
+        }
+        {
+            let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
+            *circulating_messages += 1;
+        }
+        self.to_network_manager
+            .as_ref()
+            .unwrap()
+            .send(NetworkMessage {
+                from: self.from.clone(),
+                range: f32::INFINITY,
+                time: 0.,
+                to: MessageSendMethod::Manager,
+                value: Value::Null,
+                message_flags: vec![MessageFlag::Unsubscribe],
+            })
+            .unwrap();
+        Ok(())
     }
 }

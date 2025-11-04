@@ -35,7 +35,13 @@ pub fn run_gui(
     eframe::run_native(
         "SiMBA",
         native_options,
-        Box::new(|cc| Ok(Box::new(SimbaApp::new(cc, default_config_path, static_plugin_api)))),
+        Box::new(|cc| {
+            Ok(Box::new(SimbaApp::new(
+                cc,
+                default_config_path,
+                static_plugin_api,
+            )))
+        }),
     )
     .expect("Error during GUI execution");
 }

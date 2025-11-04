@@ -4,6 +4,8 @@ Module providing the interface to use external Python [`Controller`].
 
 use std::fs;
 use std::str::FromStr;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use log::{debug, info};
@@ -15,6 +17,8 @@ use serde_json::Value;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 
+use crate::networking::message_handler::MessageHandler;
+use crate::pywrappers::NodeWrapper;
 use crate::{
     controllers::controller::{Controller, ControllerError, ControllerRecord},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
@@ -161,6 +165,8 @@ use crate::node::Node;
 pub struct PythonController {
     /// External controller.
     controller: Py<PyAny>,
+    letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+    letter_box_sender: Sender<(String, Value, f32)>,
 }
 
 impl PythonController {
@@ -256,8 +262,11 @@ def convert(records):
             }
             Ok(instance) => instance,
         };
+        let (tx, rx) = mpsc::channel();
         Ok(Self {
             controller: controller_instance,
+            letter_box_receiver: Arc::new(Mutex::new(rx)),
+            letter_box_sender: tx,
         })
     }
 }
@@ -269,15 +278,15 @@ impl std::fmt::Debug for PythonController {
 }
 
 impl Controller for PythonController {
-    fn make_command(&mut self, _node: &mut Node, error: &ControllerError, time: f32) -> Command {
+    fn make_command(&mut self, node: &mut Node, error: &ControllerError, time: f32) -> Command {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of make_command");
         }
-        // let node_record = node.record();
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         let result = Python::with_gil(|py| -> CommandWrapper {
             match self.controller.bind(py).call_method(
                 "make_command",
-                (ControllerErrorWrapper::from_rust(error), time),
+                (node_py, ControllerErrorWrapper::from_rust(error), time),
                 None,
             ) {
                 Err(e) => {
@@ -290,6 +299,23 @@ impl Controller for PythonController {
             }
         });
         result.to_rust()
+    }
+
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of pre_loop_hook");
+        }
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
+        Python::with_gil(|py| {
+            if let Err(e) =
+                self.controller
+                    .bind(py)
+                    .call_method("pre_loop_hook", (node_py, time), None)
+            {
+                e.display(py);
+                panic!("Error while calling 'pre_loop_hook' method of PythonController.");
+            }
+        });
     }
 }
 
@@ -320,5 +346,11 @@ impl Recordable<ControllerRecord> for PythonController {
         // record.clone()
         // StateEstimatorRecord::External(PythonController::record(&self))
         ControllerRecord::Python(record)
+    }
+}
+
+impl MessageHandler for PythonController {
+    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+        Some(self.letter_box_sender.clone())
     }
 }

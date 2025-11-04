@@ -7,7 +7,11 @@ by the controller should be perfect.
 use std::path::Path;
 
 use super::state_estimator::{State, WorldState, WorldStateRecord};
-use crate::constants::TIME_ROUND;
+use crate::{
+    constants::TIME_ROUND,
+    errors::SimbaErrorTypes,
+    networking::{message_handler::MessageHandler, service_manager::ServiceError},
+};
 
 #[cfg(feature = "gui")]
 use crate::gui::{
@@ -23,7 +27,7 @@ use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use config_checker::macros::Check;
-use log::{error, info};
+use log::{error, info, warn};
 use serde_derive::{Deserialize, Serialize};
 
 /// Configuration for [`PerfectEstimator`].
@@ -237,19 +241,33 @@ impl StateEstimator for PerfectEstimator {
 
             *ego = physic.state(time).clone();
         }
+        let mut objects_to_delete = Vec::new();
         for (target, state) in &mut self.world_state.objects {
-            *state = node
+            *state = match node
                 .service_manager()
                 .read()
                 .unwrap()
                 .get_real_state(target, node, time)
-                .expect(
-                    format!(
-                        "[{}] {target} does not have physics, no perfect state can be computed!",
-                        node.name()
-                    )
-                    .as_str(),
-                );
+            {
+                Err(e) => match e.error_type() {
+                    SimbaErrorTypes::ServiceError(ServiceError::Closed) => {
+                        warn!(
+                                    "[{}] {target} does not have physics anymore, no perfect state can be computed: delete target from list!",
+                                    node.name()
+                                );
+                        objects_to_delete.push(target.clone());
+                        state.clone()
+                    }
+                    _ => {
+                        panic!("[{}] {target} does not have physics, no perfect state can be computed:\n{}",
+                                    node.name(), e.detailed_error())
+                    }
+                },
+                Ok(s) => s,
+            };
+        }
+        for obj in objects_to_delete {
+            self.world_state.objects.remove(&obj);
         }
         self.last_time_prediction = time;
     }
@@ -269,6 +287,8 @@ impl StateEstimator for PerfectEstimator {
         )
         .unwrap()
     }
+
+    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {}
 }
 
 impl Recordable<StateEstimatorRecord> for PerfectEstimator {
@@ -277,5 +297,11 @@ impl Recordable<StateEstimatorRecord> for PerfectEstimator {
             world_state: self.world_state.record(),
             last_time_prediction: self.last_time_prediction,
         })
+    }
+}
+
+impl MessageHandler for PerfectEstimator {
+    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<(String, serde_json::Value, f32)>> {
+        None
     }
 }

@@ -9,6 +9,7 @@ class StateEstimator(simba.StateEstimator):
     def __init__(self, config: dict):
         self.last_time = 0
         self.period = config["period"]
+        print(f"Period = {self.period}")
         self.filter_name = "anonyme"
         if "filter_name" in config:
             self.filter_name = config["filter_name"]
@@ -31,36 +32,40 @@ class StateEstimator(simba.StateEstimator):
             "state": self._state})
 
     def prediction_step(self, node: simba.Node, time: float):
-        print(f"Doing prediction step in {self.filter_name}")
+        print(f"Doing prediction step in {node.name()} at time {time}")
         self._state += 1
         self.last_time = time
-        print(f"{self.filter_name}: Prediction {self._state}")
+        if node.name() == "robot1":
+            if abs(time - 30) < 0.001:
+                node.send_message("robot2", simba.MessageTypes.String("Bye Bye"), time, [simba.MessageFlag.Kill])
+            elif time < 30:
+                node.send_message("robot2", simba.MessageTypes.String("Hello from robot1"), time)
+        else:
+            node.send_message("robot1", simba.MessageTypes.String("Hello from robot2"), time)
+        print(f"{node.name()}: Prediction {self._state}")
 
     def correction_step(self, node: simba.Node, observations: List[simba.Observation], t: float):
-        print(f"Doing correction step with observations for robot {self.filter_name}:")
-        for obs in observations:
-            sensor_obs = obs.sensor_observation
-            # Not the best interface, but it works!
-            # You can also use the sensor name given in the config!
-            match sensor_obs.kind:
-                case "OrientedLandmark":
-                    landmark=sensor_obs.as_oriented_landmark()
-                    print(f"Observation of landmark {landmark.id}: {landmark.pose}")
-                case "Odometry":
-                    odom=sensor_obs.as_odometry()
-                    print(f"Odometry: {odom}")
-                case _:
-                    print(f"Other: {sensor_obs.kind}")
+        print(f"Doing correction step with observations for robot {node.name()}:")
         self._state += 100
-        print(f"{self.filter_name}: Prediction {self._state}")
+        print(f"{node.name()}: Correction {self._state}")
 
 
     def next_time_step(self):
-        print("Returning next time step from python")
-        return self.last_time + self.period
+        next_time = self.last_time + self.period
+        print(f"Returning next time step from python: {next_time}")
+        return next_time
     
     def pre_loop_hook(self, node: simba.Node, time: float):
-        pass
+        messages = []
+        for m in node.get_messages():
+            match m[1]:
+                case simba.MessageTypes.String(s):
+                    v = f"String({s})"
+                case simba.MessageTypes.GoTo(g):
+                    v = f"GoTo({g})"
+
+            messages.append((m[0], v, m[2]))
+        print(f"Received messages: {messages}")
 
 
 class SimulatorAPI(simba.PluginAPI):

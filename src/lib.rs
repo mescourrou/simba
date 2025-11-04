@@ -84,3 +84,6 @@ fn simba(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
 pub mod constants;
 pub mod errors;
+
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const AUTHORS: &str = env!("CARGO_PKG_AUTHORS");

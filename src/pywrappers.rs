@@ -1,11 +1,13 @@
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex},
+    sync::{mpsc::Receiver, Arc, Mutex},
 };
 
 use log::debug;
 use nalgebra::{SVector, Vector2, Vector3};
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyTypeError, prelude::*};
+use serde_json::Value;
+use simba_macros::EnumToString;
 
 #[cfg(feature = "gui")]
 use std::path::Path;
@@ -15,6 +17,8 @@ use crate::{
     controllers::{controller::ControllerError, pybinds::PythonController},
     logger::is_enabled,
     navigators::pybinds::PythonNavigator,
+    networking::{network::MessageFlag, MessageTypes},
+    node::Node,
     physics::{physics::Command, pybinds::PythonPhysics},
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
@@ -417,7 +421,7 @@ impl OrientedRobotObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, EnumToString)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "SensorObservation")]
 pub enum SensorObservationWrapper {
@@ -434,36 +438,49 @@ impl SensorObservationWrapper {
         SensorObservationWrapper::GNSS(GNSSObservationWrapper::new())
     }
 
-    pub fn as_oriented_landmark(&self) -> Option<OrientedLandmarkObservationWrapper> {
+    pub fn as_oriented_landmark(&self) -> PyResult<OrientedLandmarkObservationWrapper> {
         if let Self::OrientedLandmark(o) = self {
-            Some(o.clone())
+            Ok(o.clone())
         } else {
-            None
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this observation to an OrientedLandmarkObservation",
+            ))
         }
     }
 
-    pub fn as_odometry(&self) -> Option<OdometryObservationWrapper> {
+    pub fn as_odometry(&self) -> PyResult<OdometryObservationWrapper> {
         if let Self::Odometry(o) = self {
-            Some(o.clone())
+            Ok(o.clone())
         } else {
-            None
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this observation to an OdometryObservation",
+            ))
         }
     }
 
-    pub fn as_gnss(&self) -> Option<GNSSObservationWrapper> {
+    pub fn as_gnss(&self) -> PyResult<GNSSObservationWrapper> {
         if let Self::GNSS(o) = self {
-            Some(o.clone())
+            Ok(o.clone())
         } else {
-            None
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this observation to an GNSSObservation",
+            ))
         }
     }
 
-    pub fn as_oriented_robot(&self) -> Option<OrientedRobotObservationWrapper> {
+    pub fn as_oriented_robot(&self) -> PyResult<OrientedRobotObservationWrapper> {
         if let Self::OrientedRobot(o) = self {
-            Some(o.clone())
+            Ok(o.clone())
         } else {
-            None
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this observation to an OrientedRobotObservation",
+            ))
         }
+    }
+
+    #[getter]
+    pub fn kind(&self) -> String {
+        self.to_string()
     }
 }
 
@@ -572,6 +589,74 @@ impl CommandWrapper {
         Command {
             left_wheel_speed: self.left_wheel_speed,
             right_wheel_speed: self.right_wheel_speed,
+        }
+    }
+}
+
+#[derive(Clone)]
+#[pyclass]
+#[pyo3(name = "Node")]
+pub struct NodeWrapper {
+    node: Arc<Node>,
+    messages_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+}
+
+#[pymethods]
+impl NodeWrapper {
+    pub fn name(&self) -> String {
+        self.node.name.clone()
+    }
+
+    #[pyo3(signature = (to, message, time, flags=Vec::new()))]
+    pub fn send_message(
+        &self,
+        to: String,
+        message: MessageTypes,
+        time: f32,
+        flags: Vec<MessageFlag>,
+    ) -> PyResult<()> {
+        debug!("Wait for network");
+        if let Some(network) = &self.node.network {
+            debug!("Got network");
+            let msg = match message {
+                MessageTypes::String(s) => serde_json::to_value(s),
+                MessageTypes::GoTo(m) => serde_json::to_value(m),
+            }
+            .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
+            if let Err(e) = network.write().unwrap().send_to(to, msg, time, flags) {
+                log::error!("{}", e.detailed_error());
+            }
+            Ok(())
+        } else {
+            Err(PyErr::new::<PyTypeError, _>("No network on this node"))
+        }
+    }
+
+    pub fn get_messages(&self) -> Vec<(String, MessageTypes, f32)> {
+        let mut messages = Vec::new();
+
+        while let Ok((from, msg, time)) = self.messages_receiver.lock().unwrap().try_recv() {
+            let msg = match serde_json::from_value(msg.clone()) {
+                Err(_) => MessageTypes::String(serde_json::to_string(&msg).unwrap()),
+                Ok(m) => m,
+            };
+            messages.push((from, msg, time));
+        }
+        messages
+    }
+}
+
+impl NodeWrapper {
+    pub fn from_rust(
+        n: &Node,
+        messages_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+    ) -> Self {
+        Self {
+            // I did not find another solution.
+            // Relatively safe as Nodes lives very long, almost all the time
+            // For API usage
+            node: unsafe { Arc::from_raw(&*n) },
+            messages_receiver,
         }
     }
 }

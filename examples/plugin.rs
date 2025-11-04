@@ -1,6 +1,7 @@
 #[allow(unused_variables)]
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use simba::controllers::controller::{Controller, ControllerError, ControllerRecord};
 use simba::controllers::external_controller::ExternalControllerRecord;
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
@@ -17,7 +18,8 @@ use simba::state_estimators::state_estimator::{
     State, StateEstimator, StateEstimatorRecord, WorldState,
 };
 use std::path::Path;
-use std::sync::{Arc, RwLock};
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 
 ///////////////////////////////////
 /// CONTROLLER TEMPLATE
@@ -30,11 +32,18 @@ struct MyWonderfulControllerRecord {}
 struct MyWonderfulControllerConfig {}
 
 #[derive(Debug)]
-struct MyWonderfulController {}
+struct MyWonderfulController {
+    letter_box_rx: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+    letter_box_tx: Sender<(String, Value, f32)>,
+}
 
 impl MyWonderfulController {
     pub fn from_config(_config: MyWonderfulControllerConfig) -> Self {
-        Self {}
+        let (tx, rx) = mpsc::channel();
+        Self {
+            letter_box_rx: Arc::new(Mutex::new(rx)),
+            letter_box_tx: tx,
+        }
     }
 }
 
@@ -50,6 +59,12 @@ impl Controller for MyWonderfulController {
             right_wheel_speed: 0.,
         }
     }
+
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
+        while let Ok((_from, _msg, _msg_time)) = self.letter_box_rx.lock().unwrap().try_recv() {
+            // i.e. Do something with received messages
+        }
+    }
 }
 
 impl Recordable<ControllerRecord> for MyWonderfulController {
@@ -57,6 +72,12 @@ impl Recordable<ControllerRecord> for MyWonderfulController {
         ControllerRecord::External(ExternalControllerRecord {
             record: serde_json::to_value(MyWonderfulControllerRecord {}).unwrap(),
         })
+    }
+}
+
+impl MessageHandler for MyWonderfulController {
+    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+        Some(self.letter_box_tx.clone())
     }
 }
 
@@ -71,11 +92,18 @@ struct MyWonderfulNavigatorRecord {}
 struct MyWonderfulNavigatorConfig {}
 
 #[derive(Debug)]
-struct MyWonderfulNavigator {}
+struct MyWonderfulNavigator {
+    letter_box_rx: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+    letter_box_tx: Sender<(String, Value, f32)>,
+}
 
 impl MyWonderfulNavigator {
     pub fn from_config(_config: MyWonderfulNavigatorConfig) -> Self {
-        Self {}
+        let (tx, rx) = mpsc::channel();
+        Self {
+            letter_box_rx: Arc::new(Mutex::new(rx)),
+            letter_box_tx: tx,
+        }
     }
 }
 
@@ -91,6 +119,12 @@ impl Navigator for MyWonderfulNavigator {
             velocity: 0.,
         }
     }
+
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
+        while let Ok((_from, _msg, _msg_time)) = self.letter_box_rx.lock().unwrap().try_recv() {
+            // i.e. Do something with received messages
+        }
+    }
 }
 
 impl Recordable<NavigatorRecord> for MyWonderfulNavigator {
@@ -98,6 +132,12 @@ impl Recordable<NavigatorRecord> for MyWonderfulNavigator {
         NavigatorRecord::External(ExternalNavigatorRecord {
             record: serde_json::to_value(MyWonderfulNavigatorRecord {}).unwrap(),
         })
+    }
+}
+
+impl MessageHandler for MyWonderfulNavigator {
+    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+        Some(self.letter_box_tx.clone())
     }
 }
 
@@ -143,7 +183,7 @@ impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
         _req: GetRealStateReq,
         _time: f32,
     ) -> Result<GetRealStateResp, String> {
-        Err(String::new())
+        Err("Unimplemented".to_string())
     }
 }
 
@@ -170,12 +210,17 @@ struct MyWonderfulStateEstimatorConfig {}
 #[derive(Debug)]
 struct MyWonderfulStateEstimator {
     last_prediction: f32,
+    letter_box_rx: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+    letter_box_tx: Sender<(String, Value, f32)>,
 }
 
 impl MyWonderfulStateEstimator {
     pub fn from_config(_config: MyWonderfulStateEstimatorConfig) -> Self {
+        let (tx, rx) = mpsc::channel();
         Self {
             last_prediction: 0.,
+            letter_box_rx: Arc::new(Mutex::new(rx)),
+            letter_box_tx: tx,
         }
     }
 }
@@ -200,6 +245,12 @@ impl StateEstimator for MyWonderfulStateEstimator {
     fn world_state(&self) -> WorldState {
         WorldState::new()
     }
+
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
+        while let Ok((_from, _msg, _msg_time)) = self.letter_box_rx.lock().unwrap().try_recv() {
+            // i.e. Do something with received messages
+        }
+    }
 }
 
 impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
@@ -213,31 +264,9 @@ impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
     }
 }
 
-///////////////////////////////////
-/// MESSAGE HANDLER TEMPLATE
-///////////////////////////////////
-
-#[derive(Debug)]
-struct MyWonderfulMessageHandler {}
-
-#[derive(Debug, Serialize, Deserialize)]
-struct MyMessage {}
-
-impl MessageHandler for MyWonderfulMessageHandler {
-    fn handle_message(
-        &mut self,
-        _robot: &mut simba::node::Node,
-        _from: &String,
-        message: &serde_json::Value,
-        _time: f32,
-    ) -> Result<(), ()> {
-        match serde_json::from_value::<MyMessage>(message.clone()) {
-            Err(_) => Err(()),
-            Ok(m) => {
-                println!("Receive message {:?}", &m);
-                Ok(())
-            }
-        }
+impl MessageHandler for MyWonderfulStateEstimator {
+    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+        Some(self.letter_box_tx.clone())
     }
 }
 
@@ -282,13 +311,6 @@ impl PluginAPI for MyWonderfulPlugin {
         Box::new(MyWonderfulStateEstimator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
         ))
-    }
-
-    fn get_message_handlers(
-        &self,
-        _robot: &simba::node::Node,
-    ) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
-        Some(vec![Arc::new(RwLock::new(MyWonderfulMessageHandler {}))])
     }
 }
 

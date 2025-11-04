@@ -1,21 +1,17 @@
 use config_checker::macros::Check;
-#[cfg(feature = "time-analysis")]
-use lazy_static::lazy_static;
-#[cfg(feature = "time-analysis")]
 use libm::ceilf;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "gui")]
 use simba_macros::{EnumToString, ToVec};
 
-#[cfg(feature = "time-analysis")]
-use std::{collections::HashMap, path::Path, sync::Mutex, thread::ThreadId, time::Duration};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
-#[cfg(feature = "time-analysis")]
 use log::info;
-#[cfg(any(feature = "time-analysis", feature = "gui"))]
 use std::collections::BTreeMap;
-#[cfg(feature = "time-analysis")]
-use std::thread;
 use std::time;
 
 use crate::errors::SimbaResult;
@@ -25,9 +21,8 @@ use crate::gui::{
     UIComponent,
 };
 
-#[cfg(feature = "time-analysis")]
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 struct ExecutionProfile {
     name: String,
     begin: i64, // micro
@@ -39,7 +34,6 @@ struct ExecutionProfile {
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
-#[cfg_attr(not(feature = "time-analysis"), allow(dead_code, unused_variables))]
 pub struct TimeAnalysisConfig {
     pub exporter: ProfileExporterConfig,
     pub keep_last: bool,
@@ -116,7 +110,6 @@ impl UIComponent for TimeAnalysisConfig {
     }
 }
 
-#[cfg(feature = "time-analysis")]
 #[derive(Debug, Clone)]
 struct ExecutionNode {
     name: String,
@@ -128,7 +121,6 @@ struct ExecutionNode {
     subdepth_child: Option<Box<ExecutionNode>>,
 }
 
-#[cfg(feature = "time-analysis")]
 impl ExecutionNode {
     pub fn from(name: String, begin: i64, depth: usize) -> Self {
         ExecutionNode {
@@ -143,14 +135,12 @@ impl ExecutionNode {
     }
 }
 
-#[cfg(feature = "time-analysis")]
 #[derive(Debug)]
 struct ExecutionTree {
     top_time_nodes: Vec<Box<ExecutionNode>>,
     keep_last: bool,
 }
 
-#[cfg(feature = "time-analysis")]
 impl ExecutionTree {
     pub fn new() -> Self {
         ExecutionTree {
@@ -260,7 +250,6 @@ impl ExecutionTree {
     }
 }
 
-#[cfg(feature = "time-analysis")]
 #[cfg(test)]
 mod test {
     use super::*;
@@ -404,7 +393,6 @@ mod test {
     }
 }
 
-#[cfg(feature = "time-analysis")]
 #[derive(Debug)]
 struct TimeAnalysisStatistics {
     pub mean: f32,
@@ -418,7 +406,6 @@ struct TimeAnalysisStatistics {
     pub q01: f32,
 }
 
-#[cfg(feature = "time-analysis")]
 impl TimeAnalysisStatistics {
     pub fn from_array(mut v: Vec<f32>) -> Self {
         v.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -465,151 +452,43 @@ impl TimeAnalysisStatistics {
     }
 }
 
-#[cfg(feature = "time-analysis")]
 #[derive(Debug)]
-struct TimeAnalysisFactory {
-    nodes_names: HashMap<ThreadId, String>,
-    nodes_depth: HashMap<ThreadId, usize>,
-    execution_tree: BTreeMap<String, ExecutionTree>,
-    current_coordinates: HashMap<ThreadId, (i64, Vec<usize>)>,
-    exporter: Box<dyn ProfilerExporter>,
-    config: TimeAnalysisConfig,
+pub struct TimeAnalysisNode {
+    name: String,
+    depth: usize,
+    execution_tree: ExecutionTree,
+    current_coordinates: (i64, Vec<usize>),
 }
 
-#[cfg(feature = "time-analysis")]
-impl TimeAnalysisFactory {
-    fn get_instance() -> &'static Mutex<TimeAnalysisFactory> {
-        lazy_static! {
-            static ref FACTORY: Mutex<TimeAnalysisFactory> = {
-                let m = Mutex::new(TimeAnalysisFactory {
-                    nodes_names: HashMap::new(),
-                    nodes_depth: HashMap::new(),
-                    current_coordinates: HashMap::new(),
-                    execution_tree: BTreeMap::new(),
-                    exporter: Box::new(TraceEventExporter {}),
-                    config: TimeAnalysisConfig::default(),
-                });
-                m
-            };
-        }
-        &FACTORY
-    }
-
-    pub fn init_from_config(config: &TimeAnalysisConfig) -> SimbaResult<()> {
-        let factory = TimeAnalysisFactory::get_instance();
-        let mut factory = factory.lock().unwrap();
-        factory._init_from_config(config)
-    }
-
-    fn _init_from_config(&mut self, config: &TimeAnalysisConfig) -> SimbaResult<()> {
-        match config.exporter {
-            ProfileExporterConfig::TraceEventExporter => {
-                self.exporter = Box::new(TraceEventExporter {});
-            }
-        }
-        self.config = config.clone();
-        Ok(())
-    }
-
-    pub fn set_node_name(name: String) {
-        let factory = TimeAnalysisFactory::get_instance();
-        let mut factory = factory.lock().unwrap();
-        factory._set_node_name(name);
-    }
-
-    fn _set_node_name(&mut self, name: String) {
-        self.nodes_names
-            .insert(thread::current().id(), name.clone());
-        self.nodes_depth.insert(thread::current().id(), 0);
-        self.current_coordinates
-            .insert(thread::current().id(), (0, Vec::new()));
-        self.execution_tree.insert(name, ExecutionTree::new());
-    }
-
-    pub fn time_analysis(time: f32, name: String) -> TimeAnalysis {
-        let factory = TimeAnalysisFactory::get_instance();
-        let mut factory = factory.lock().unwrap();
-        let ta = factory._time_analysis(time, name).clone();
-        ta
-    }
-
-    fn _time_analysis(&mut self, time: f32, name: String) -> TimeAnalysis {
-        self._time_analysis_node_name(
-            time,
-            name,
-            self.nodes_names
-                .get(&thread::current().id())
-                .unwrap()
-                .clone(),
-        )
-    }
-
-    pub fn time_analysis_node_name(time: f32, name: String, node_name: String) -> TimeAnalysis {
-        let factory = TimeAnalysisFactory::get_instance();
-        let mut factory = factory.lock().unwrap();
-        let ta = factory
-            ._time_analysis_node_name(time, name, node_name)
-            .clone();
-        ta
-    }
-
-    fn _time_analysis_node_name(
-        &mut self,
-        time: f32,
-        name: String,
-        node_name: String,
-    ) -> TimeAnalysis {
-        let node_id = self
-            .nodes_names
-            .iter()
-            .find_map(|(key, &ref val)| {
-                if val == &node_name {
-                    Some(key.clone())
-                } else {
-                    None
-                }
-            })
-            .expect("Robot name not found");
-
+impl TimeAnalysisNode {
+    pub fn time_analysis(&mut self, time: f32, name: String) -> TimeAnalysis {
         let time_int = Duration::from_secs_f32(time).as_micros() as i64;
-        let depth = *self.nodes_depth.get(&thread::current().id()).unwrap();
-        let current_coordinates = self.current_coordinates.get_mut(&node_id).unwrap();
-        if current_coordinates.0 != time_int {
-            current_coordinates.0 = time_int;
-            current_coordinates.1.clear();
+        if self.current_coordinates.0 != time_int {
+            self.current_coordinates.0 = time_int;
+            self.current_coordinates.1.clear();
         }
-        if current_coordinates.1.len() < depth + 1 {
-            current_coordinates.1.push(0);
+        if self.current_coordinates.1.len() < self.depth + 1 {
+            self.current_coordinates.1.push(0);
         } else {
-            current_coordinates.1[depth] += 1;
+            self.current_coordinates.1[self.depth] += 1;
         }
 
-        self.execution_tree.get_mut(&node_name).unwrap().add(
-            name.clone(),
-            time_int,
-            current_coordinates.1.clone(),
-        );
+        self.execution_tree
+            .add(name.clone(), time_int, self.current_coordinates.1.clone());
 
         let ta = TimeAnalysis {
             simulated_time: time,
             begin: time::Instant::now(),
-            name: node_name.clone() + "_" + &name,
-            coordinates: current_coordinates.1.clone(),
+            name: self.name.clone() + "_" + &name,
+            coordinates: self.current_coordinates.1.clone(),
         };
-        *self.nodes_depth.get_mut(&thread::current().id()).unwrap() += 1;
+        self.depth += 1;
         ta
     }
 
-    pub fn finished_time_analysis(ta: TimeAnalysis) {
+    pub fn finished_time_analysis(&mut self, ta: TimeAnalysis) {
         let elapsed = ta.begin.elapsed();
-        let factory = TimeAnalysisFactory::get_instance();
-        let mut factory = factory.lock().unwrap();
-        factory._finished_time_analysis(ta, elapsed);
-    }
-
-    fn _finished_time_analysis(&mut self, ta: TimeAnalysis, elapsed: time::Duration) {
-        let node_name = self.nodes_names.get(&thread::current().id()).unwrap();
-        *self.nodes_depth.get_mut(&thread::current().id()).unwrap() -= 1;
+        self.depth -= 1;
         // let indent = ta.depth*2;
         let time_int = Duration::from_secs_f32(ta.simulated_time).as_micros() as i64;
         // let coordinates = self.current_coordinates.get_mut(&thread::current().id()).unwrap();
@@ -617,8 +496,6 @@ impl TimeAnalysisFactory {
 
         let node = self
             .execution_tree
-            .get_mut(&node_name.clone())
-            .unwrap()
             .get_node(ta.name.clone(), time_int, coordinates.clone());
         if node.is_none() {
             panic!("Node not found: should not happen");
@@ -627,32 +504,60 @@ impl TimeAnalysisFactory {
         node.end = node.begin + elapsed.as_micros() as i64;
         node.duration = elapsed;
     }
+}
 
-    pub fn save_results() {
-        let factory = TimeAnalysisFactory::get_instance();
-        let factory = factory.lock().unwrap();
-        factory._save_results();
+#[derive(Debug)]
+pub struct TimeAnalysisFactory {
+    nodes: Vec<Arc<Mutex<TimeAnalysisNode>>>,
+    exporter: Box<dyn ProfilerExporter>,
+    config: TimeAnalysisConfig,
+}
+
+impl TimeAnalysisFactory {
+    pub fn init_from_config(config: &TimeAnalysisConfig) -> SimbaResult<Self> {
+        let s = Self {
+            config: config.clone(),
+            exporter: match config.exporter {
+                ProfileExporterConfig::TraceEventExporter => Box::new(TraceEventExporter {}),
+            },
+            nodes: Vec::new(),
+        };
+        Ok(s)
     }
 
-    pub fn iter_execution_profiles(
+    pub fn new_node(&mut self, name: String) -> Arc<Mutex<TimeAnalysisNode>> {
+        let node = TimeAnalysisNode {
+            current_coordinates: (0, Vec::new()),
+            execution_tree: ExecutionTree::new(),
+            depth: 0,
+            name,
+        };
+        let node = Arc::new(Mutex::new(node));
+        self.nodes.push(node.clone());
+        node
+    }
+
+    fn iter_execution_profiles(
         &self,
-    ) -> impl Iterator<Item = (&String, Vec<ExecutionProfile>)> {
-        self.execution_tree.iter().map(|(k, v)| {
-            let mut profiles = Vec::new();
-            for node in v.iter() {
+    ) -> impl Iterator<Item = (String, Vec<ExecutionProfile>)> + use<'_> {
+        self.nodes.iter().map(|n| {
+            let mut profiles: Vec<ExecutionProfile> = Vec::new();
+            let node = n.lock().unwrap();
+            for execution in node.execution_tree.iter() {
                 profiles.push(ExecutionProfile {
-                    name: node.name.clone(),
-                    begin: node.begin,
-                    end: node.end,
-                    depth: node.depth,
-                    duration: node.duration,
+                    name: execution.name.clone(),
+                    begin: execution.begin,
+                    end: execution.end,
+                    depth: execution.depth,
+                    duration: execution.duration,
                 });
             }
-            (k, profiles)
+            let name = node.name.clone();
+            (name, profiles)
         })
     }
 
-    fn _save_results(&self) {
+    pub fn save_results(&self) {
         let path = Path::new(self.config.output_path.as_str());
         info!("Saving Time Analysis results to {}", path.to_str().unwrap());
         self.exporter.export(self, path);
@@ -712,75 +617,6 @@ impl TimeAnalysisFactory {
     }
 }
 
-// Expose the function depending on the compilation feature "time-analysis"
-// Feature enabled
-#[cfg(feature = "time-analysis")]
-pub fn init_from_config(config: &TimeAnalysisConfig) -> SimbaResult<()> {
-    TimeAnalysisFactory::init_from_config(config)
-}
-
-#[cfg(feature = "time-analysis")]
-pub fn set_node_name(name: String) {
-    TimeAnalysisFactory::set_node_name(name);
-}
-
-#[cfg(feature = "time-analysis")]
-pub fn time_analysis(time: f32, name: String) -> TimeAnalysis {
-    TimeAnalysisFactory::time_analysis(time, name)
-}
-
-#[cfg(feature = "time-analysis")]
-pub fn time_analysis_node_name(time: f32, name: String, node_name: String) -> TimeAnalysis {
-    TimeAnalysisFactory::time_analysis_node_name(time, name, node_name)
-}
-
-#[cfg(feature = "time-analysis")]
-pub fn finished_time_analysis(ta: TimeAnalysis) {
-    TimeAnalysisFactory::finished_time_analysis(ta);
-}
-
-#[cfg(feature = "time-analysis")]
-pub fn save_results() {
-    TimeAnalysisFactory::save_results();
-}
-
-// Feature disabled
-#[cfg(not(feature = "time-analysis"))]
-pub fn init_from_config(_config: &TimeAnalysisConfig) -> SimbaResult<()> {
-    Ok(())
-}
-
-#[cfg(not(feature = "time-analysis"))]
-pub fn set_node_name(_name: String) {}
-
-#[cfg(not(feature = "time-analysis"))]
-pub fn time_analysis(time: f32, name: String) -> TimeAnalysis {
-    TimeAnalysis {
-        simulated_time: time,
-        begin: time::Instant::now(),
-        name,
-        coordinates: Vec::new(),
-    }
-}
-
-#[cfg(not(feature = "time-analysis"))]
-pub fn time_analysis_node_name(time: f32, name: String, _node_name: String) -> TimeAnalysis {
-    TimeAnalysis {
-        simulated_time: time,
-        begin: time::Instant::now(),
-        name,
-        coordinates: Vec::new(),
-    }
-}
-
-#[cfg(not(feature = "time-analysis"))]
-pub fn finished_time_analysis(_ta: TimeAnalysis) {}
-
-#[cfg(not(feature = "time-analysis"))]
-pub fn save_results() {}
-
-//////////////////////////////////////////////////
-
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "gui", derive(ToVec, EnumToString))]
 pub enum ProfileExporterConfig {
@@ -788,7 +624,6 @@ pub enum ProfileExporterConfig {
 }
 
 #[derive(Clone, Debug)]
-#[cfg_attr(not(feature = "time-analysis"), allow(dead_code, unused_variables))]
 pub struct TimeAnalysis {
     simulated_time: f32,
     begin: time::Instant,
@@ -796,15 +631,13 @@ pub struct TimeAnalysis {
     coordinates: Vec<usize>,
 }
 
-#[cfg(feature = "time-analysis")]
 trait ProfilerExporter: std::fmt::Debug + Sync + Send {
     fn export(&self, taf: &TimeAnalysisFactory, path: &Path);
 }
-#[cfg(feature = "time-analysis")]
+
 #[derive(Debug)]
 struct TraceEventExporter {}
 
-#[cfg(feature = "time-analysis")]
 #[derive(Serialize, Debug)]
 struct TraceEvent {
     name: String,
@@ -818,7 +651,6 @@ struct TraceEvent {
     sf: i64,
 }
 
-#[cfg(feature = "time-analysis")]
 #[derive(Serialize, Debug)]
 struct TraceEventRoot {
     #[serde(rename = "traceEvents")]
@@ -829,13 +661,12 @@ struct TraceEventRoot {
     other_data: serde_json::Value,
 }
 
-#[cfg(feature = "time-analysis")]
 impl ProfilerExporter for TraceEventExporter {
     fn export(&self, taf: &TimeAnalysisFactory, path: &Path) {
         let mut trace_events = Vec::new();
         let mut node_names = Vec::new();
         for (node_name, profiles) in taf.iter_execution_profiles() {
-            node_names.push(node_name);
+            node_names.push(node_name.clone());
             trace_events.push(TraceEvent {
                 name: "thread_name".to_string(),
                 cat: "PERF".to_string(),

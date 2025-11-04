@@ -20,7 +20,13 @@ use std::{
 
 use log::debug;
 
-use crate::{logger::is_enabled, simulator::TimeCv, utils::time_ordered_data::TimeOrderedData};
+use crate::{
+    errors::{SimbaError, SimbaErrorTypes},
+    logger::is_enabled,
+    networking::service_manager::ServiceError,
+    simulator::TimeCv,
+    utils::time_ordered_data::TimeOrderedData,
+};
 
 use super::network::MessageFlag;
 
@@ -37,12 +43,14 @@ pub trait ServiceInterface: Debug + Send + Sync {
 #[derive(Debug, Clone)]
 pub struct ServiceClient<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> {
     // Channel to send the request to the server (given by the server).
-    response_channel: Arc<Mutex<mpsc::Receiver<Result<ResponseMsg, String>>>>,
+    response_channel:
+        Arc<Mutex<mpsc::Receiver<(Result<ResponseMsg, SimbaError>, Vec<MessageFlag>)>>>,
     // Channel to receive the response from the server (given by the server).
-    request_channel: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32, Vec<MessageFlag>)>>>,
+    request_channel: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32)>>>,
     // Simulator condition variable needed so that all nodes wait the end of other,
     // and continue to treat messages.
     time_cv: Arc<TimeCv>,
+    living: Arc<Mutex<bool>>,
 }
 
 impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<RequestMsg, ResponseMsg> {
@@ -64,23 +72,40 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         node_name: String,
         req: RequestMsg,
         time: f32,
-        message_flags: Vec<MessageFlag>,
-    ) -> Result<(), String> {
+    ) -> Result<(), SimbaError> {
+        if !*self.living.lock().unwrap() {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ServiceError(ServiceError::Closed),
+                "Service server closed".to_string(),
+            ));
+        }
         let _lk = self.time_cv.waiting.lock().unwrap();
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
             debug!("Sending a request");
         }
         let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
         *circulating_messages += 1;
-        std::mem::drop(circulating_messages);
-        match self.request_channel.lock().unwrap().send((
-            node_name,
-            req,
-            time,
-            // To be changed when full support of the message mode will be implemented
-            message_flags,
-        )) {
-            Err(e) => panic!("{}", e.to_string()), //return Err(e.to_string()),
+        match self
+            .request_channel
+            .lock()
+            .unwrap()
+            .send((node_name, req, time))
+        {
+            Err(e) => {
+                *circulating_messages -= 1;
+                if e.to_string() == "sending on a closed channel".to_string() {
+                    *self.living.lock().unwrap() = false;
+                    return Err(SimbaError::new(
+                        SimbaErrorTypes::ServiceError(ServiceError::Closed),
+                        "Channel closed".to_string(),
+                    ));
+                } else {
+                    return Err(SimbaError::new(
+                        SimbaErrorTypes::ServiceError(ServiceError::Other(e.to_string())),
+                        format!("Error while sending the request: {}", e.to_string()),
+                    ));
+                }
+            }
             _ => (),
         }
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
@@ -94,18 +119,35 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         Ok(())
     }
 
-    pub fn try_recv(&self) -> Result<ResponseMsg, String> {
+    pub fn try_recv(&self) -> Result<ResponseMsg, SimbaError> {
         let result = match self.response_channel.lock().unwrap().try_recv() {
             Ok(result) => result,
-            Err(e) => return Err(e.to_string()),
+            Err(e) => {
+                return Err(SimbaError::new(
+                    SimbaErrorTypes::ServiceError(ServiceError::Other(e.to_string())),
+                    format!("{:?}", e),
+                ))
+            }
         };
 
         let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
         *circulating_messages -= 1;
+        for flag in result.1 {
+            match flag {
+                MessageFlag::Unsubscribe => {
+                    *self.living.lock().unwrap() = false;
+                    return Err(SimbaError::new(
+                        SimbaErrorTypes::ServiceError(ServiceError::Closed),
+                        "Closing service server: Unsubscribe".to_string(),
+                    ));
+                }
+                _ => (),
+            }
+        }
         if is_enabled(crate::logger::InternalLog::ServiceHandling) {
             debug!("Result received");
         }
-        result
+        result.0
     }
 }
 
@@ -120,13 +162,16 @@ pub struct Service<
     T: HasService<RequestMsg, ResponseMsg> + ?Sized,
 > {
     /// Channel to receive requests from clients.
-    request_channel: Arc<Mutex<mpsc::Receiver<(String, RequestMsg, f32, Vec<MessageFlag>)>>>,
+    request_channel: Arc<Mutex<mpsc::Receiver<(String, RequestMsg, f32)>>>,
     /// Channel to send requests to the server, which is cloned to the clients.
-    request_channel_give: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32, Vec<MessageFlag>)>>>,
+    request_channel_give: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32)>>>,
     /// Map of the clients and their sender channel, to send responses.
-    clients: BTreeMap<String, Arc<Mutex<mpsc::Sender<Result<ResponseMsg, String>>>>>,
+    clients: BTreeMap<
+        String,
+        Arc<Mutex<mpsc::Sender<(Result<ResponseMsg, SimbaError>, Vec<MessageFlag>)>>>,
+    >,
     /// Buffer to store the requests until it is time to treat them.
-    request_buffer: Arc<RwLock<TimeOrderedData<(String, RequestMsg, Vec<MessageFlag>)>>>,
+    request_buffer: Arc<RwLock<TimeOrderedData<(String, RequestMsg)>>>,
     /// Simulator condition variable needed so that all nodes wait the end of others,
     /// and continue to treat messages.
     time_cv: Arc<TimeCv>,
@@ -144,7 +189,7 @@ impl<
     /// ## Arguments
     /// * `time_cv` - Condition variable of the simulator, to wait the end of the nodes.
     pub fn new(time_cv: Arc<TimeCv>, target: Arc<RwLock<Box<T>>>) -> Self {
-        let (tx, rx) = mpsc::channel::<(String, RequestMsg, f32, Vec<MessageFlag>)>();
+        let (tx, rx) = mpsc::channel::<(String, RequestMsg, f32)>();
         Self {
             request_channel_give: Arc::new(Mutex::new(tx)),
             request_channel: Arc::new(Mutex::new(rx)),
@@ -160,13 +205,30 @@ impl<
     /// ## Arguments
     /// * `node_name` - Name of the client node, to be able to send responses to it.
     pub fn new_client(&mut self, node_name: &str) -> ServiceClient<RequestMsg, ResponseMsg> {
-        let (tx, rx) = mpsc::channel::<Result<ResponseMsg, String>>();
+        let (tx, rx) = mpsc::channel::<(Result<ResponseMsg, SimbaError>, Vec<MessageFlag>)>();
         self.clients
             .insert(node_name.to_string(), Arc::new(Mutex::new(tx)));
         ServiceClient {
             request_channel: self.request_channel_give.clone(),
             response_channel: Arc::new(Mutex::new(rx)),
             time_cv: self.time_cv.clone(),
+            living: Arc::new(Mutex::new(true)),
+        }
+    }
+
+    pub fn delete(&mut self) {
+        for (_, client) in &self.clients {
+            client
+                .lock()
+                .unwrap()
+                .send((
+                    Err(SimbaError::new(
+                        SimbaErrorTypes::ServiceError(ServiceError::Closed),
+                        format!("Closing channel"),
+                    )),
+                    vec![MessageFlag::Unsubscribe],
+                ))
+                .unwrap();
         }
     }
 }
@@ -185,19 +247,17 @@ impl<
     /// ## Returns
     /// The number of requests remaining in the buffer.
     fn process_requests(&self) -> usize {
-        for (from, message, time, message_flags) in self.request_channel.lock().unwrap().try_iter()
-        {
+        for (from, message, time) in self.request_channel.lock().unwrap().try_iter() {
             let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
             *circulating_messages -= 1;
             std::mem::drop(circulating_messages);
             if is_enabled(crate::logger::InternalLog::ServiceHandling) {
                 debug!("Insert request from {from} at time {time}");
             }
-            self.request_buffer.write().unwrap().insert(
-                time,
-                (from, message, message_flags),
-                false,
-            );
+            self.request_buffer
+                .write()
+                .unwrap()
+                .insert(time, (from, message), false);
         }
         self.request_buffer.read().unwrap().len()
     }
@@ -208,7 +268,7 @@ impl<
     /// return the response to send to the client. The request is then removed from the
     /// buffer. If no request is matching the given `time`, the method does nothing.
     fn handle_requests(&self, time: f32) {
-        while let Some((_msg_time, (from, message, _message_flags))) =
+        while let Some((_msg_time, (from, message))) =
             self.request_buffer.write().unwrap().remove(time)
         {
             if is_enabled(crate::logger::InternalLog::ServiceHandling) {
@@ -234,7 +294,12 @@ impl<
                 )
                 .lock()
                 .unwrap()
-                .send(result)
+                .send((
+                    result.map_err(|e| {
+                        SimbaError::new(SimbaErrorTypes::ServiceError(ServiceError::ClientSide), e)
+                    }),
+                    Vec::new(),
+                ))
                 .expect("Fail to send response");
             if is_enabled(crate::logger::InternalLog::ServiceHandling) {
                 debug!("Handling message from {from} at time {time}... Response sent");

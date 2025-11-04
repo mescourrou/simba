@@ -4,6 +4,8 @@ Module providing the interface to use external Python [`Navigator`].
 
 use std::fs;
 use std::str::FromStr;
+use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use log::{debug, info};
@@ -14,6 +16,8 @@ use serde_json::Value;
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
+use crate::networking::message_handler::MessageHandler;
+use crate::pywrappers::NodeWrapper;
 use crate::{
     controllers::controller::ControllerError,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
@@ -160,6 +164,8 @@ use crate::node::Node;
 pub struct PythonNavigator {
     /// External navigator.
     navigator: Py<PyAny>,
+    letter_box_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+    letter_box_sender: Sender<(String, Value, f32)>,
 }
 
 impl PythonNavigator {
@@ -255,8 +261,11 @@ def convert(records):
             }
             Ok(instance) => instance,
         };
+        let (tx, rx) = mpsc::channel();
         Ok(Self {
             navigator: navigator_instance,
+            letter_box_receiver: Arc::new(Mutex::new(rx)),
+            letter_box_sender: tx,
         })
     }
 }
@@ -268,15 +277,15 @@ impl std::fmt::Debug for PythonNavigator {
 }
 
 impl Navigator for PythonNavigator {
-    fn compute_error(&mut self, _node: &mut Node, state: WorldState) -> ControllerError {
+    fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of compute_error");
         }
-        // let node_record = node.record();
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
         let result = Python::with_gil(|py| -> ControllerErrorWrapper {
             match self.navigator.bind(py).call_method(
                 "compute_error",
-                (WorldStateWrapper::from_rust(&state),),
+                (node_py, WorldStateWrapper::from_rust(&state)),
                 None,
             ) {
                 Err(e) => {
@@ -289,6 +298,23 @@ impl Navigator for PythonNavigator {
             }
         });
         result.to_rust()
+    }
+
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of pre_loop_hook");
+        }
+        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
+        Python::with_gil(|py| {
+            if let Err(e) =
+                self.navigator
+                    .bind(py)
+                    .call_method("pre_loop_hook", (node_py, time), None)
+            {
+                e.display(py);
+                panic!("Error while calling 'pre_loop_hook' method of PythonNavigator.");
+            }
+        });
     }
 }
 
@@ -319,5 +345,11 @@ impl Recordable<NavigatorRecord> for PythonNavigator {
         // record.clone()
         // StateEstimatorRecord::External(PythonNavigator::record(&self))
         NavigatorRecord::Python(record)
+    }
+}
+
+impl MessageHandler for PythonNavigator {
+    fn get_letter_box(&self) -> Option<Sender<(String, Value, f32)>> {
+        Some(self.letter_box_sender.clone())
     }
 }

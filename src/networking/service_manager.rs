@@ -5,16 +5,22 @@ use std::{
 };
 
 use crate::{
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     node::Node,
     physics::physics::{GetRealStateReq, GetRealStateResp, Physics},
     simulator::TimeCv,
     state_estimators::state_estimator::State,
 };
 
-use super::{
-    network::MessageFlag,
-    service::{Service, ServiceClient, ServiceInterface},
-};
+use super::service::{Service, ServiceClient, ServiceInterface};
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum ServiceError {
+    Closed,
+    Unavailable,
+    Other(String),
+    ClientSide,
+}
 
 #[derive(Debug, Clone)]
 pub struct ServiceManager {
@@ -39,28 +45,27 @@ impl ServiceManager {
     fn get_real_state_client(
         &self,
         client_node_name: &str,
-    ) -> Option<ServiceClient<GetRealStateReq, GetRealStateResp>> {
+    ) -> SimbaResult<ServiceClient<GetRealStateReq, GetRealStateResp>> {
         if let Some(get_real_state) = &self.get_real_state {
-            Some(get_real_state.write().unwrap().new_client(client_node_name))
+            Ok(get_real_state.write().unwrap().new_client(client_node_name))
         } else {
-            None
+            Err(SimbaError::new(
+                SimbaErrorTypes::ServiceError(ServiceError::Unavailable),
+                format!("No service `get_real_state` available."),
+            ))
         }
     }
 
-    pub fn get_real_state(&self, node_name: &String, node: &Node, time: f32) -> Option<State> {
+    pub fn get_real_state(&self, node_name: &String, node: &Node, time: f32) -> SimbaResult<State> {
         let client = self.get_real_state_clients.get(node_name);
         if client.is_none() {
-            return None;
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ServiceError(ServiceError::Unavailable),
+                format!("No service `get_real_state` found for node {node_name}."),
+            ));
         }
         let client = client.unwrap();
-        client
-            .send_request(
-                node.name(),
-                GetRealStateReq {},
-                time,
-                vec![MessageFlag::God],
-            )
-            .unwrap();
+        client.send_request(node.name(), GetRealStateReq {}, time)?;
 
         // Next loop to avoid deadlock between services
         let resp;
@@ -75,7 +80,7 @@ impl ServiceManager {
             }
         }
 
-        Some(resp.state)
+        Ok(resp.state)
     }
 
     pub fn make_links(
@@ -88,7 +93,7 @@ impl ServiceManager {
             if name == &my_name {
                 continue;
             }
-            if let Some(client) = sm.read().unwrap().get_real_state_client(&my_name) {
+            if let Ok(client) = sm.read().unwrap().get_real_state_client(&my_name) {
                 self.get_real_state_clients.insert(name.clone(), client);
             }
         }
@@ -118,5 +123,11 @@ impl ServiceManager {
         }
         // Place for new services
         min_time
+    }
+
+    pub fn unsubscribe_node(&self) {
+        if let Some(get_real_state) = &self.get_real_state {
+            get_real_state.write().unwrap().delete();
+        }
     }
 }

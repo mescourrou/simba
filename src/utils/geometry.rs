@@ -69,7 +69,7 @@ mod tests {
     use std::f32::consts::PI;
 
     #[test]
-    pub fn test_smalles_theta_diff() {
+    pub fn test_smallest_theta_diff() {
         let a = 0.1;
         let b = 0.2;
         let diff = super::smallest_theta_diff(a, b);
@@ -82,5 +82,15 @@ mod tests {
         let b = PI - 0.2;
         let diff = super::smallest_theta_diff(a, b);
         assert!((diff - 0.3).abs() < 1e-6, "Diff = {diff}");
+
+        let a = -PI + 0.01;
+        let b = PI;
+        let diff = super::smallest_theta_diff(a, b);
+        assert!((diff - 0.01).abs() < 1e-6, "Diff = {diff}");
+
+        let a = -PI;
+        let b = PI;
+        let diff = super::smallest_theta_diff(a, b);
+        assert!(diff.abs() < 1e-6, "Diff = {diff}");
     }
 }

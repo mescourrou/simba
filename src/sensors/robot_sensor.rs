@@ -7,9 +7,11 @@ use super::sensor::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
+use crate::errors::SimbaErrorTypes;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
+use crate::networking::service_manager::ServiceError;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
@@ -421,34 +423,50 @@ impl Sensor for RobotSensor {
             assert!(*other_node_name != node.name());
 
             let service_manager = node.service_manager();
-            if let Some(other_state) = service_manager.read().unwrap().get_real_state(
+            match service_manager.read().unwrap().get_real_state(
                 &other_node_name.to_string(),
                 node,
                 time,
             ) {
-                let d = ((other_state.pose.x - state.pose.x).powi(2)
-                    + (other_state.pose.y - state.pose.y).powi(2))
-                .sqrt();
-                if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-                    debug!("Distance is {d}");
-                }
-                if d <= self.detection_distance {
-                    let robot_seed = 1. / (100. * self.period) * (i as f32);
-                    let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
-                    observation_list.push(SensorObservation::OrientedRobot(
-                        OrientedRobotObservation {
-                            name: other_node_name.clone(),
-                            pose,
-                        },
-                    ));
-                    for fault_model in self.faults.lock().unwrap().iter() {
-                        fault_model.add_faults(
-                            time + robot_seed,
-                            self.period,
-                            &mut observation_list,
-                            SensorObservation::OrientedRobot(OrientedRobotObservation::default()),
-                        );
+                Ok(other_state) => {
+                    let d = ((other_state.pose.x - state.pose.x).powi(2)
+                        + (other_state.pose.y - state.pose.y).powi(2))
+                    .sqrt();
+                    if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                        debug!("Distance is {d}");
                     }
+                    if d <= self.detection_distance {
+                        let robot_seed = 1. / (100. * self.period) * (i as f32);
+                        let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
+                        observation_list.push(SensorObservation::OrientedRobot(
+                            OrientedRobotObservation {
+                                name: other_node_name.clone(),
+                                pose,
+                            },
+                        ));
+                        for fault_model in self.faults.lock().unwrap().iter() {
+                            fault_model.add_faults(
+                                time + robot_seed,
+                                self.period,
+                                &mut observation_list,
+                                SensorObservation::OrientedRobot(
+                                    OrientedRobotObservation::default(),
+                                ),
+                            );
+                        }
+                    };
+                }
+                Err(e) => {
+                    match e.error_type() {
+                        SimbaErrorTypes::ServiceError(
+                            ServiceError::Unavailable | ServiceError::Closed,
+                        ) => (),
+                        _ => log::error!(
+                            "Error trying to get real state of node {}: {}",
+                            &other_node_name.to_string(),
+                            e.detailed_error()
+                        ),
+                    };
                 }
             };
         }
