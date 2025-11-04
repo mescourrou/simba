@@ -57,7 +57,7 @@ pub enum MessageTypes {
 mod tests {
     use std::sync::{
         mpsc::{self, Receiver, Sender},
-        Arc, Mutex, RwLock,
+        Arc, Mutex,
     };
 
     use log::debug;
@@ -80,7 +80,6 @@ mod tests {
         simulator::{Simulator, SimulatorConfig},
         state_estimators::{
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
-            perfect_estimator::PerfectEstimatorConfig,
             state_estimator::{
                 BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig,
                 StateEstimatorRecord, WorldState,

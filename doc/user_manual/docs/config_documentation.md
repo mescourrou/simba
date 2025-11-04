@@ -5,6 +5,7 @@ To get more information on the parameter, check the documentation (or follow the
 
 List of parameters:
 
+- `version`: String
 - `log`: [LoggerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/logger/struct.LoggerConfig.html)
 	- `included_nodes`: String, List
 	- `excluded_nodes`: String, List
@@ -33,11 +34,9 @@ List of parameters:
 	- `analyse_script`: String, Optional
 	- `figures_path`: String, Optional
 	- `python_params`: User-specific struct
+	- `save_mode`: ResultSaveMode
 - `base_path`: String
 - `max_time`: Float
-- `time_mode`: [TimeMode](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/simulator/enum.TimeMode.html), Enum
-	- `Centralized` 
-	- `Decentralized` 
 - `time_analysis`: [TimeAnalysisConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/time_analysis/struct.TimeAnalysisConfig.html)
 	- `exporter`: [ProfileExporterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/time_analysis/enum.ProfileExporterConfig.html), Enum
 		- `TraceEventExporter` 
@@ -52,12 +51,19 @@ List of parameters:
 			- `trajectory_path`: String
 			- `forward_distance`: Float
 			- `target_speed`: Float
+			- `stop_distance`: Float
+			- `stop_ramp_coefficient`: Float
 		- `External`: [ExternalNavigatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/navigators/external_navigator/struct.ExternalNavigatorConfig.html)
 			- `config`: User-specific struct
 		- `Python`: [PythonNavigatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/navigators/python_navigator/struct.PythonNavigatorConfig.html)
 			- `file`: String
 			- `class_name`: String
 			- `config`: User-specific struct
+		- `GoTo`: [GoToConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/navigators/go_to/struct.GoToConfig.html)
+			- `target_point`: ], Optional
+			- `target_speed`: Float
+			- `stop_distance`: Float
+			- `stop_ramp_coefficient`: Float
 	- `controller`: [ControllerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/controllers/controller/enum.ControllerConfig.html), Enum
 		- `PID`: [PIDConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/controllers/pid/struct.PIDConfig.html)
 			- `kp_v`: Float

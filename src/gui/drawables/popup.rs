@@ -23,7 +23,12 @@ impl Popup {
     }
 
     pub fn new_ok(title: String, description: String, action_on_click: fn(usize) -> ()) -> Self {
-        Self::new(title, description, Vec::from(["OK".to_string()]), action_on_click)
+        Self::new(
+            title,
+            description,
+            Vec::from(["OK".to_string()]),
+            action_on_click,
+        )
     }
 
     // pub fn new_ok_cancel(

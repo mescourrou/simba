@@ -15,4 +15,4 @@ classifiers = [
 
 [tool.maturin]
 # "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
-features = ["pyo3/extension-module", "pyo3/abi3", "pyo3/abi3-py310", "time-analysis", "gui"]
+features = ["pyo3/extension-module", "pyo3/abi3", "pyo3/abi3-py310", "gui"]

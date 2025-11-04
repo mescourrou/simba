@@ -8,7 +8,6 @@ use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::navigator::{Navigator, NavigatorRecord};
 use simba::networking::message_handler::MessageHandler;
 use simba::networking::service::HasService;
-use simba::networking::NetworkError;
 use simba::physics::external_physics::ExternalPhysicsRecord;
 use simba::physics::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 use simba::plugin_api::PluginAPI;
@@ -20,7 +19,7 @@ use simba::state_estimators::state_estimator::{
 };
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 
 ///////////////////////////////////
 /// CONTROLLER TEMPLATE

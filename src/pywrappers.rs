@@ -1,6 +1,6 @@
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex, mpsc::Receiver},
+    sync::{mpsc::Receiver, Arc, Mutex},
 };
 
 use log::debug;
@@ -13,16 +13,28 @@ use simba_macros::EnumToString;
 use std::path::Path;
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI}, controllers::{controller::ControllerError, pybinds::PythonController}, logger::is_enabled, navigators::pybinds::PythonNavigator, networking::{MessageTypes, network::MessageFlag}, node::Node, physics::{physics::Command, pybinds::PythonPhysics}, plugin_api::PluginAPI, pybinds::PythonAPI, sensors::{
+    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
+    controllers::{controller::ControllerError, pybinds::PythonController},
+    logger::is_enabled,
+    navigators::pybinds::PythonNavigator,
+    networking::{network::MessageFlag, MessageTypes},
+    node::Node,
+    physics::{physics::Command, pybinds::PythonPhysics},
+    plugin_api::PluginAPI,
+    pybinds::PythonAPI,
+    sensors::{
         gnss_sensor::GNSSObservation,
         odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
         robot_sensor::OrientedRobotObservation,
         sensor::{Observation, SensorObservation},
-    }, simulator::Simulator, state_estimators::{
+    },
+    simulator::Simulator,
+    state_estimators::{
         pybinds::PythonStateEstimator,
         state_estimator::{State, WorldState},
-    }, utils::occupancy_grid::OccupancyGrid
+    },
+    utils::occupancy_grid::OccupancyGrid,
 };
 
 #[derive(Clone)]
@@ -596,14 +608,21 @@ impl NodeWrapper {
     }
 
     #[pyo3(signature = (to, message, time, flags=Vec::new()))]
-    pub fn send_message(&self, to: String, message: MessageTypes, time: f32, flags: Vec<MessageFlag>) -> PyResult<()> {
+    pub fn send_message(
+        &self,
+        to: String,
+        message: MessageTypes,
+        time: f32,
+        flags: Vec<MessageFlag>,
+    ) -> PyResult<()> {
         debug!("Wait for network");
         if let Some(network) = &self.node.network {
             debug!("Got network");
             let msg = match message {
                 MessageTypes::String(s) => serde_json::to_value(s),
                 MessageTypes::GoTo(m) => serde_json::to_value(m),
-            }.map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
+            }
+            .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
             if let Err(e) = network.write().unwrap().send_to(to, msg, time, flags) {
                 log::error!("{}", e.detailed_error());
             }
@@ -615,7 +634,7 @@ impl NodeWrapper {
 
     pub fn get_messages(&self) -> Vec<(String, MessageTypes, f32)> {
         let mut messages = Vec::new();
-        
+
         while let Ok((from, msg, time)) = self.messages_receiver.lock().unwrap().try_recv() {
             let msg = match serde_json::from_value(msg.clone()) {
                 Err(_) => MessageTypes::String(serde_json::to_string(&msg).unwrap()),
@@ -628,7 +647,10 @@ impl NodeWrapper {
 }
 
 impl NodeWrapper {
-    pub fn from_rust(n: &Node, messages_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>) -> Self {
+    pub fn from_rust(
+        n: &Node,
+        messages_receiver: Arc<Mutex<Receiver<(String, Value, f32)>>>,
+    ) -> Self {
         Self {
             // I did not find another solution.
             // Relatively safe as Nodes lives very long, almost all the time

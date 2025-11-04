@@ -1,5 +1,6 @@
 log:
-  log_level: !Internal ["NavigatorDetailed"]
+  log_level: #!Internal ["NavigatorDetailed"]
+    Info
 results: 
   result_path: "./result.json"
   show_figures: false # Disabled for automatic testing

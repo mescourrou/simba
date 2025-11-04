@@ -4,11 +4,12 @@ Module providing the main node manager, [`Node`]. The building of the Nodes is d
 
 use core::f32;
 use std::collections::BTreeMap;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use log::{debug, info};
 
 use crate::networking::message_handler::MessageHandler;
+use crate::time_analysis::TimeAnalysisNode;
 use crate::{
     api::internal_api::{self, NodeClient, NodeServer},
     constants::TIME_ROUND,
@@ -26,7 +27,6 @@ use crate::{
     state_estimators::state_estimator::{
         BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator,
     },
-    time_analysis,
     utils::maths::round_precision,
     utils::time_ordered_data::TimeOrderedData,
 };
@@ -84,8 +84,9 @@ pub struct Node {
 
     pub(crate) node_server: Option<NodeServer>,
 
-    pub other_node_names: Vec<String>,
-    pub zombie: bool,
+    pub(crate) other_node_names: Vec<String>,
+    pub(crate) zombie: bool,
+    pub(crate) time_analysis: Arc<Mutex<TimeAnalysisNode>>,
 }
 
 impl Node {
@@ -269,12 +270,15 @@ impl Node {
         if let Some(state_estimator) = &self.state_estimator() {
             if time >= state_estimator.read().unwrap().next_time_step() {
                 // Prediction step
-                let ta = time_analysis::time_analysis(
+                let ta = self.time_analysis.lock().unwrap().time_analysis(
                     time,
                     "control_loop_state_estimator_prediction_step".to_string(),
                 );
                 state_estimator.write().unwrap().prediction_step(self, time);
-                time_analysis::finished_time_analysis(ta);
+                self.time_analysis
+                    .lock()
+                    .unwrap()
+                    .finished_time_analysis(ta);
                 do_control_loop = true;
             }
         }
@@ -288,16 +292,20 @@ impl Node {
                         .unwrap()
                         .next_time_step()
                 {
-                    let ta = time_analysis::time_analysis(
-                        time,
-                        state_estimator.name.clone() + "_prediction_step",
-                    );
+                    let ta = self
+                        .time_analysis
+                        .lock()
+                        .unwrap()
+                        .time_analysis(time, state_estimator.name.clone() + "_prediction_step");
                     state_estimator
                         .state_estimator
                         .write()
                         .unwrap()
                         .prediction_step(self, time);
-                    time_analysis::finished_time_analysis(ta);
+                    self.time_analysis
+                        .lock()
+                        .unwrap()
+                        .finished_time_analysis(ta);
                 }
             }
         }
@@ -328,7 +336,7 @@ impl Node {
             if observations.len() > 0 {
                 // Treat the observations
                 if let Some(state_estimator) = &self.state_estimator() {
-                    let ta = time_analysis::time_analysis(
+                    let ta = self.time_analysis.lock().unwrap().time_analysis(
                         time,
                         "control_loop_state_estimator_correction_step".to_string(),
                     );
@@ -336,21 +344,28 @@ impl Node {
                         .write()
                         .unwrap()
                         .correction_step(self, &observations, time);
-                    time_analysis::finished_time_analysis(ta);
+                    self.time_analysis
+                        .lock()
+                        .unwrap()
+                        .finished_time_analysis(ta);
                 }
 
                 if let Some(state_estimator_bench) = &self.state_estimator_bench() {
                     for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                        let ta = time_analysis::time_analysis(
-                            time,
-                            state_estimator.name.clone() + "_correction_step",
-                        );
+                        let ta = self
+                            .time_analysis
+                            .lock()
+                            .unwrap()
+                            .time_analysis(time, state_estimator.name.clone() + "_correction_step");
                         state_estimator
                             .state_estimator
                             .write()
                             .unwrap()
                             .correction_step(self, &observations, time);
-                        time_analysis::finished_time_analysis(ta);
+                        self.time_analysis
+                            .lock()
+                            .unwrap()
+                            .finished_time_analysis(ta);
                     }
                 }
             }
@@ -366,10 +381,11 @@ impl Node {
             let world_state = state_estimator.read().unwrap().world_state();
 
             // Compute the error to the planned path
-            let ta = time_analysis::time_analysis(
-                time,
-                "control_loop_navigator_compute_error".to_string(),
-            );
+            let ta = self
+                .time_analysis
+                .lock()
+                .unwrap()
+                .time_analysis(time, "control_loop_navigator_compute_error".to_string());
             let error = self
                 .navigator()
                 .as_ref()
@@ -377,13 +393,17 @@ impl Node {
                 .write()
                 .unwrap()
                 .compute_error(self, world_state);
-            time_analysis::finished_time_analysis(ta);
+            self.time_analysis
+                .lock()
+                .unwrap()
+                .finished_time_analysis(ta);
 
             // Compute the command from the error
-            let ta = time_analysis::time_analysis(
-                time,
-                "control_loop_controller_make_command".to_string(),
-            );
+            let ta = self
+                .time_analysis
+                .lock()
+                .unwrap()
+                .time_analysis(time, "control_loop_controller_make_command".to_string());
             let command = self
                 .controller()
                 .as_ref()
@@ -391,7 +411,10 @@ impl Node {
                 .write()
                 .unwrap()
                 .make_command(self, &error, time);
-            time_analysis::finished_time_analysis(ta);
+            self.time_analysis
+                .lock()
+                .unwrap()
+                .finished_time_analysis(ta);
 
             // Apply the command to the physics
             self.physics

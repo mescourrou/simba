@@ -48,7 +48,7 @@ use egui::CollapsingHeader;
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 #[cfg(feature = "gui")]
-use simba_macros::{EnumToString};
+use simba_macros::EnumToString;
 
 use crate::{
     api::internal_api::NodeClient,
@@ -61,7 +61,7 @@ use crate::{
     plugin_api::PluginAPI,
     recordable::Recordable,
     state_estimators::state_estimator::State,
-    time_analysis::{self, TimeAnalysisConfig},
+    time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
     utils::{
         self, barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory,
         enum_tools::ToVec, format_option_f32, maths::round_precision,
@@ -70,11 +70,11 @@ use crate::{
     VERSION,
 };
 use core::f32;
+use std::collections::BTreeMap;
 use std::{
     cmp::Ordering,
     path::{Path, PathBuf},
 };
-use std::collections::BTreeMap;
 
 use colored::Colorize;
 use serde_json::{self, Value};
@@ -714,6 +714,7 @@ pub struct Simulator {
 
     result_saving_data: Option<ResultSavingData>,
     records: Vec<Record>,
+    time_analysis_factory: TimeAnalysisFactory,
 }
 
 impl Simulator {
@@ -735,6 +736,10 @@ impl Simulator {
             node_apis: BTreeMap::new(),
             result_saving_data: Some(ResultSavingData::default()),
             records: Vec::new(),
+            time_analysis_factory: TimeAnalysisFactory::init_from_config(
+                &TimeAnalysisConfig::default(),
+            )
+            .unwrap(),
         }
     }
 
@@ -781,6 +786,8 @@ impl Simulator {
         self.network_manager = NetworkManager::new(self.time_cv.clone());
         let config = self.config.clone();
         self.common_time = Arc::new(RwLock::new(f32::INFINITY));
+
+        self.time_analysis_factory = TimeAnalysisFactory::init_from_config(&config.time_analysis)?;
 
         self.result_saving_data = match &self.config.results {
             Some(cfg) => Some(ResultSavingData {
@@ -901,8 +908,6 @@ impl Simulator {
             self.config.random_seed = Some(self.determinist_va_factory.global_seed);
         }
 
-        time_analysis::init_from_config(&self.config.time_analysis)?;
-
         self.reset(plugin_api)
     }
 
@@ -916,7 +921,6 @@ impl Simulator {
     /// - Time analysis setup
     pub fn init_environment() {
         // env_logger::init();
-        time_analysis::set_node_name("simulator".to_string());
 
         prepare_freethreaded_python();
     }
@@ -1008,6 +1012,7 @@ impl Simulator {
             plugin_api,
             &global_config,
             &self.determinist_va_factory,
+            &mut self.time_analysis_factory,
             self.time_cv.clone(),
         );
         self.network_manager.register_node_network(&mut new_node);
@@ -1025,6 +1030,7 @@ impl Simulator {
             plugin_api,
             &global_config,
             &self.determinist_va_factory,
+            &mut self.time_analysis_factory,
             self.time_cv.clone(),
         );
         self.network_manager.register_node_network(&mut new_node);
@@ -1230,7 +1236,7 @@ impl Simulator {
 
         if time.is_none() {
             // Only at the end
-            time_analysis::save_results();
+            self.time_analysis_factory.save_results();
         }
 
         let mut new_records = Vec::new();
@@ -1321,7 +1327,6 @@ impl Simulator {
         thread_ids.push(thread::current().id());
         THREAD_NAMES.write().unwrap().push(node.name());
         drop(thread_ids);
-        time_analysis::set_node_name(node.name());
         let mut next_time = -1.;
         loop {
             if *time_cv.force_finish.lock().unwrap() {
@@ -1561,7 +1566,7 @@ mod tests {
         constants::TIME_ROUND,
         logger::LogLevel,
         networking::{message_handler::MessageHandler, network::MessageFlag},
-        sensors::{robot_sensor::RobotSensorConfig, sensor::Observation},
+        sensors::sensor::Observation,
         state_estimators::{
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
             perfect_estimator::PerfectEstimatorConfig,
@@ -1638,7 +1643,7 @@ mod tests {
             }
         }
 
-        fn prediction_step(&mut self, node: &mut crate::node::Node, time: f32) {
+        fn prediction_step(&mut self, _node: &mut crate::node::Node, time: f32) {
             self.last_time = time;
         }
 
@@ -1683,8 +1688,8 @@ mod tests {
     fn kill_node() {
         let kill_time = 5.;
         let mut config = SimulatorConfig::default();
-        // config.log.log_level = LogLevel::Off;
-        config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
+        config.log.log_level = LogLevel::Off;
+        // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
         config.max_time = 10.;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),

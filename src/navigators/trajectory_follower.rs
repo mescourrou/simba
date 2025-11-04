@@ -312,10 +312,6 @@ impl Navigator for TrajectoryFollower {
             if distance_to_final < self.stop_distance {
                 self.target_speed = 0.;
             }
-            println!(
-                "Distance to final: {} => speed = {}",
-                distance_to_final, self.target_speed
-            );
         }
         let segment_angle: f32 = atan2(
             (segment.1.y - segment.0.y).into(),

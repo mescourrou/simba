@@ -36,6 +36,7 @@ use crate::{
             StateEstimatorConfig, StateEstimatorRecord,
         },
     },
+    time_analysis::TimeAnalysisFactory,
     utils::{
         determinist_random_variable::DeterministRandomVariableFactory,
         time_ordered_data::TimeOrderedData,
@@ -575,6 +576,7 @@ impl NodeFactory {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
+        time_analysis_factory: &mut TimeAnalysisFactory,
         time_cv: Arc<TimeCv>,
     ) -> Node {
         let node_type = NodeType::Robot;
@@ -630,6 +632,7 @@ impl NodeFactory {
             node_server: None,
             other_node_names: Vec::new(),
             zombie: false,
+            time_analysis: time_analysis_factory.new_node(config.name.clone()),
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -668,6 +671,7 @@ impl NodeFactory {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
+        time_analysis_factory: &mut TimeAnalysisFactory,
         time_cv: Arc<TimeCv>,
     ) -> Node {
         let node_type = NodeType::ComputationUnit;
@@ -700,6 +704,7 @@ impl NodeFactory {
             node_server: None,
             other_node_names: Vec::new(),
             zombie: false,
+            time_analysis: time_analysis_factory.new_node(config.name.clone()),
         };
 
         for state_estimator_config in &config.state_estimators {
