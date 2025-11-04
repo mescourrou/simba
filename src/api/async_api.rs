@@ -25,6 +25,7 @@ pub struct AsyncApi {
     pub simulator_api: Arc<SimulatorAsyncApi>,
     // Channels
     pub load_config: rfc::RemoteFunctionCall<String, SimbaResult<SimulatorConfig>>,
+    pub load_results: rfc::RemoteFunctionCall<(), SimbaResult<f32>>,
     pub run: rfc::RemoteFunctionCall<Option<f32>, SimbaResult<()>>,
     pub compute_results: rfc::RemoteFunctionCall<(), SimbaResult<()>>,
 }
@@ -33,6 +34,7 @@ pub struct AsyncApi {
 #[derive(Clone)]
 pub struct AsyncApiServer {
     pub load_config: Arc<rfc::RemoteFunctionCallHost<String, SimbaResult<SimulatorConfig>>>,
+    pub load_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<f32>>>,
     pub run: Arc<rfc::RemoteFunctionCallHost<Option<f32>, SimbaResult<()>>>,
     pub compute_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<()>>>,
 }
@@ -57,17 +59,20 @@ impl AsyncApiRunner {
         let (load_config_call, load_config_host) = rfc::make_pair();
         let (run_call, run_host) = rfc::make_pair();
         let (results_call, results_host) = rfc::make_pair();
+        let (load_results_call, load_results_host) = rfc::make_pair();
         let (keep_alive_tx, keep_alive_rx) = mpsc::channel();
         let simulator_api = simulator.lock().unwrap().get_async_api();
         Self {
             public_api: AsyncApi {
                 simulator_api,
                 load_config: load_config_call,
+                load_results: load_results_call,
                 run: run_call,
                 compute_results: results_call,
             },
             private_api: AsyncApiServer {
                 load_config: Arc::new(load_config_host),
+                load_results: Arc::new(load_results_host),
                 run: Arc::new(run_host),
                 compute_results: Arc::new(results_host),
             },
@@ -127,6 +132,18 @@ impl AsyncApiRunner {
                         simulator.load_config_path(path, &plugin_api_threaded)?;
                         println!("End loading");
                         Ok(simulator.config())
+                    });
+                }
+            });
+
+            let stopping = stopping_root.clone();
+            let load_results = private_api.load_results.clone();
+            let simulator_arc = simulator_cloned.clone();
+            thread::spawn(move || {
+                while !*stopping.read().unwrap() {
+                    load_results.recv_closure(|()| {
+                        let mut simulator = simulator_arc.lock().unwrap();
+                        simulator.load_results()
                     });
                 }
             });

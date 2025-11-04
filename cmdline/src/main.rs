@@ -13,6 +13,9 @@ struct Cli {
     no_gui: bool,
     /// Default config path. Required if no-gui is used
     config_path: Option<String>,
+    /// Load result from the result file specified in the configuration. Without GUI, processes the results directly.
+    #[arg(long, default_value_t = false)]
+    load_results: bool,
 }
 
 fn main() {
@@ -44,11 +47,15 @@ fn main() {
         // Show the simulator loaded configuration
         simulator.show();
 
-        // Run the simulator for the time given in the configuration
-        // It also save the results to json
-        simulator.run().unwrap();
-
+        if !args.load_results {
+            // Run the simulator for the time given in the configuration
+            // It also save the results to json
+            simulator.run().unwrap();
+        } else {
+            simulator.load_results().unwrap();
+        }
         simulator.compute_results().unwrap();
+
 
         return;
     }
@@ -61,5 +68,5 @@ fn main() {
         None
     };
 
-    gui::run_gui(config_path, None);
+    gui::run_gui(config_path, None, args.load_results);
 }

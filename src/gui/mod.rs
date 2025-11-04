@@ -17,6 +17,7 @@ use crate::{
 pub fn run_gui(
     default_config_path: Option<Box<&'static Path>>,
     plugin_api: Option<Box<&dyn PluginAPI>>,
+    load_results: bool,
 ) {
     // Initialize the environment, essentially the logging part
     Simulator::init_environment();
@@ -40,6 +41,7 @@ pub fn run_gui(
                 cc,
                 default_config_path,
                 static_plugin_api,
+                load_results,
             )))
         }),
     )

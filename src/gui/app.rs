@@ -191,6 +191,7 @@ impl SimbaApp {
         cc: &eframe::CreationContext<'_>,
         default_config_path: Option<Box<&'static Path>>,
         plugin_api: Option<Box<&'static dyn PluginAPI>>,
+        load_results: bool,
     ) -> Self {
         // This is also where you can customize the look and feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
@@ -199,18 +200,19 @@ impl SimbaApp {
         // // Note that you must enable the `persistence` feature for this to work.
         if let Some(storage) = cc.storage {
             if let Some(app) = eframe::get_value::<SimbaApp>(storage, eframe::APP_KEY) {
-                app.update_api(default_config_path, plugin_api)
+                app.update_api(default_config_path, plugin_api, load_results)
             } else {
-                Self::new_full(default_config_path, plugin_api)
+                Self::new_full(default_config_path, plugin_api, load_results)
             }
         } else {
-            Self::new_full(default_config_path, plugin_api)
+            Self::new_full(default_config_path, plugin_api, load_results)
         }
     }
 
     fn new_full(
         default_config_path: Option<Box<&'static Path>>,
         plugin_api: Option<Box<&'static dyn PluginAPI>>,
+        load_results: bool,
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = server.lock().unwrap().get_api();
@@ -228,6 +230,10 @@ impl SimbaApp {
             n.p.config = None;
             n.p.api.load_config.async_call(n.config_path.clone());
         }
+        if load_results {
+            n.p.api.load_results.async_call(());
+            n.p.simulation_run = true;
+        }
         n
     }
 
@@ -235,6 +241,7 @@ impl SimbaApp {
         mut self,
         default_config_path: Option<Box<&'static Path>>,
         plugin_api: Option<Box<&'static dyn PluginAPI>>,
+        load_results: bool,
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = server.lock().unwrap().get_api();
@@ -245,6 +252,10 @@ impl SimbaApp {
             self.config_path = config.to_str().unwrap().to_string();
             self.p.config = None;
             self.p.api.load_config.async_call(self.config_path.clone());
+        }
+        if load_results {
+            self.p.api.load_results.async_call(());
+            self.p.simulation_run = true;
         }
         self
     }
@@ -391,6 +402,11 @@ impl eframe::App for SimbaApp {
                         //Closing
                         self.p.configurator = None;
                     }
+                }
+                if ui.button("Load results").clicked() {
+                    log::info!("Load previous results");
+                    self.p.api.load_results.async_call(());
+                    self.p.simulation_run = true;
                 }
             });
 

@@ -1289,9 +1289,9 @@ impl Simulator {
         Ok(())
     }
 
-    pub fn load_results_and_analyse(&mut self) -> SimbaResult<()> {
+    pub fn load_results(&mut self) -> SimbaResult<f32> {
         if self.config.results.is_none() {
-            return Ok(());
+            return Ok(0.);
         }
         let result_config = self.config.results.clone().unwrap();
         let filename = result_config.result_path;
@@ -1304,7 +1304,14 @@ impl Simulator {
 
         let results: Results = serde_json::from_str(&content).expect("Error during json parsing");
 
-        self._compute_results(results.records, &results.config)
+        self.records = results.records;
+        let mut max_time = self.common_time.write().unwrap();
+        for record in &self.records {
+            *max_time = max_time.max(record.time);
+            self.async_api_server.send_record(record);
+        }
+        self.async_api_server.update_time(*max_time);
+        Ok(*max_time)
     }
 
     /// Run the loop for the given `node` until reaching `max_time`.

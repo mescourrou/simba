@@ -867,8 +867,8 @@ impl SimulatorWrapper {
 
 #[cfg(feature = "gui")]
 #[pyfunction]
-#[pyo3(signature = (default_config_path=None, plugin_api=None))]
-pub fn run_gui(py: Python, default_config_path: Option<String>, plugin_api: Option<Py<PyAny>>) {
+#[pyo3(signature = (default_config_path=None, plugin_api=None, load_results=false))]
+pub fn run_gui(py: Python, default_config_path: Option<String>, plugin_api: Option<Py<PyAny>>, load_results: bool) {
     use std::{sync::RwLock, thread};
 
     use crate::gui;
@@ -949,6 +949,7 @@ pub fn run_gui(py: Python, default_config_path: Option<String>, plugin_api: Opti
                 })),
                 None => None,
             },
+            load_results,
         );
         *local_running.write().unwrap() = false;
         thread_handle.join().unwrap();
