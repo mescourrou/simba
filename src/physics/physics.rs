@@ -221,7 +221,7 @@ pub fn make_physics_from_config(
     config: &PhysicsConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     global_config: &SimulatorConfig,
-    va_factory: &DeterministRandomVariableFactory,
+    va_factory: &Arc<DeterministRandomVariableFactory>,
 ) -> Arc<RwLock<Box<dyn Physics>>> {
     Arc::new(RwLock::new(match &config {
         PhysicsConfig::Perfect(c) => {

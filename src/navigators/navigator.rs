@@ -192,7 +192,7 @@ pub fn make_navigator_from_config(
     config: &NavigatorConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     global_config: &SimulatorConfig,
-    va_factory: &DeterministRandomVariableFactory,
+    va_factory: &Arc<DeterministRandomVariableFactory>,
 ) -> Arc<RwLock<Box<dyn Navigator>>> {
     Arc::new(RwLock::new(match config {
         NavigatorConfig::TrajectoryFollower(c) => Box::new(

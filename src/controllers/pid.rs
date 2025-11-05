@@ -11,14 +11,11 @@ Each component has a gain, which can be set in [`PIDConfig`].
 
 use std::sync::mpsc::Sender;
 
-#[cfg(feature = "gui")]
-use crate::gui::UIComponent;
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
-use crate::{
-    plugin_api::PluginAPI, recordable::Recordable, simulator::SimulatorConfig,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
-};
+use crate::recordable::Recordable;
+#[cfg(feature = "gui")]
+use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
 

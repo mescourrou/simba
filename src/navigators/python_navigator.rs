@@ -24,12 +24,10 @@ use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
     navigators::navigator::{Navigator, NavigatorRecord},
-    plugin_api::PluginAPI,
     pywrappers::{ControllerErrorWrapper, WorldStateWrapper},
     recordable::Recordable,
     simulator::SimulatorConfig,
     state_estimators::state_estimator::WorldState,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use serde_derive::{Deserialize, Serialize};
 

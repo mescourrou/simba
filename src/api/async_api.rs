@@ -199,13 +199,29 @@ impl AsyncApiRunner {
 #[derive(Clone)]
 pub struct PluginAsyncAPI {
     pub client: PluginAsyncAPIClient,
-    pub get_state_estimator_request: mpsc::Sender<(Value, SimulatorConfig)>,
+    pub get_state_estimator_request: mpsc::Sender<(
+        Value,
+        SimulatorConfig,
+        Arc<DeterministRandomVariableFactory>,
+    )>,
     pub get_state_estimator_response: Arc<Mutex<mpsc::Receiver<Box<dyn StateEstimator>>>>,
-    pub get_controller_request: mpsc::Sender<(Value, SimulatorConfig)>,
+    pub get_controller_request: mpsc::Sender<(
+        Value,
+        SimulatorConfig,
+        Arc<DeterministRandomVariableFactory>,
+    )>,
     pub get_controller_response: Arc<Mutex<mpsc::Receiver<Box<dyn Controller>>>>,
-    pub get_navigator_request: mpsc::Sender<(Value, SimulatorConfig)>,
+    pub get_navigator_request: mpsc::Sender<(
+        Value,
+        SimulatorConfig,
+        Arc<DeterministRandomVariableFactory>,
+    )>,
     pub get_navigator_response: Arc<Mutex<mpsc::Receiver<Box<dyn Navigator>>>>,
-    pub get_physic_request: mpsc::Sender<(Value, SimulatorConfig)>,
+    pub get_physic_request: mpsc::Sender<(
+        Value,
+        SimulatorConfig,
+        Arc<DeterministRandomVariableFactory>,
+    )>,
     pub get_physic_response: Arc<Mutex<mpsc::Receiver<Box<dyn Physics>>>>,
 }
 
@@ -248,10 +264,10 @@ impl PluginAPI for PluginAsyncAPI {
         &self,
         config: &Value,
         global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn StateEstimator> {
         self.get_state_estimator_request
-            .send((config.clone(), global_config.clone()))
+            .send((config.clone(), global_config.clone(), va_factory.clone()))
             .unwrap();
 
         self.get_state_estimator_response
@@ -265,10 +281,10 @@ impl PluginAPI for PluginAsyncAPI {
         &self,
         config: &Value,
         global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Controller> {
         self.get_controller_request
-            .send((config.clone(), global_config.clone()))
+            .send((config.clone(), global_config.clone(), va_factory.clone()))
             .unwrap();
 
         self.get_controller_response.lock().unwrap().recv().unwrap()
@@ -278,10 +294,10 @@ impl PluginAPI for PluginAsyncAPI {
         &self,
         config: &Value,
         global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Navigator> {
         self.get_navigator_request
-            .send((config.clone(), global_config.clone()))
+            .send((config.clone(), global_config.clone(), va_factory.clone()))
             .unwrap();
 
         self.get_navigator_response.lock().unwrap().recv().unwrap()
@@ -291,10 +307,10 @@ impl PluginAPI for PluginAsyncAPI {
         &self,
         config: &Value,
         global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Physics> {
         self.get_physic_request
-            .send((config.clone(), global_config.clone()))
+            .send((config.clone(), global_config.clone(), va_factory.clone()))
             .unwrap();
 
         self.get_physic_response.lock().unwrap().recv().unwrap()
@@ -303,12 +319,44 @@ impl PluginAPI for PluginAsyncAPI {
 
 #[derive(Clone)]
 pub struct PluginAsyncAPIClient {
-    pub get_state_estimator_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
+    pub get_state_estimator_request: Arc<
+        Mutex<
+            mpsc::Receiver<(
+                Value,
+                SimulatorConfig,
+                Arc<DeterministRandomVariableFactory>,
+            )>,
+        >,
+    >,
     pub get_state_estimator_response: mpsc::Sender<Box<dyn StateEstimator>>,
-    pub get_controller_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
+    pub get_controller_request: Arc<
+        Mutex<
+            mpsc::Receiver<(
+                Value,
+                SimulatorConfig,
+                Arc<DeterministRandomVariableFactory>,
+            )>,
+        >,
+    >,
     pub get_controller_response: mpsc::Sender<Box<dyn Controller>>,
-    pub get_navigator_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
+    pub get_navigator_request: Arc<
+        Mutex<
+            mpsc::Receiver<(
+                Value,
+                SimulatorConfig,
+                Arc<DeterministRandomVariableFactory>,
+            )>,
+        >,
+    >,
     pub get_navigator_response: mpsc::Sender<Box<dyn Navigator>>,
-    pub get_physics_request: Arc<Mutex<mpsc::Receiver<(Value, SimulatorConfig)>>>,
+    pub get_physics_request: Arc<
+        Mutex<
+            mpsc::Receiver<(
+                Value,
+                SimulatorConfig,
+                Arc<DeterministRandomVariableFactory>,
+            )>,
+        >,
+    >,
     pub get_physics_response: mpsc::Sender<Box<dyn Physics>>,
 }

@@ -450,7 +450,7 @@ pub fn make_state_estimator_from_config(
     config: &StateEstimatorConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     global_config: &SimulatorConfig,
-    va_factory: &DeterministRandomVariableFactory,
+    va_factory: &Arc<DeterministRandomVariableFactory>,
 ) -> Box<dyn StateEstimator> {
     return match config {
         StateEstimatorConfig::Perfect(c) => Box::new(
@@ -510,69 +510,6 @@ pub trait StateEstimator:
     fn next_time_step(&self) -> f32;
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CentralStateEstimatorRecord {
-    pub name: String,
-    pub estimator: StateEstimatorRecord,
-}
-
-#[derive(Debug, Serialize, Deserialize, Check, Clone)]
-pub struct CentralStateEstimatorConfig {
-    pub name: String,
-    pub robots: Vec<String>,
-    #[check]
-    pub config: StateEstimatorConfig,
-}
-
-impl Default for CentralStateEstimatorConfig {
-    fn default() -> Self {
-        Self {
-            name: "central_state_estimator".to_string(),
-            robots: Vec::new(),
-            config: StateEstimatorConfig::Perfect(PerfectEstimatorConfig::default()),
-        }
-    }
-}
-
-pub struct CentralStateEstimator {
-    pub name: String,
-    pub robots: Vec<String>,
-    pub estimator: Box<dyn StateEstimator>,
-}
-
-impl CentralStateEstimator {
-    pub fn from_config(
-        config: &CentralStateEstimatorConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        va_factory: &DeterministRandomVariableFactory,
-    ) -> Self {
-        Self {
-            name: config.name.clone(),
-            robots: config.robots.clone(),
-            estimator: make_state_estimator_from_config(
-                &config.config,
-                plugin_api,
-                global_config,
-                va_factory,
-            ),
-        }
-    }
-
-    pub fn next_time_step(&self) -> f32 {
-        self.estimator.next_time_step()
-    }
-}
-
-impl Recordable<CentralStateEstimatorRecord> for CentralStateEstimator {
-    fn record(&self) -> CentralStateEstimatorRecord {
-        CentralStateEstimatorRecord {
-            name: self.name.clone(),
-            estimator: self.estimator.record(),
-        }
-    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]

@@ -12,12 +12,8 @@ use crate::{
         trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
     },
     networking::{message_handler::MessageHandler, network::Envelope},
-    plugin_api::PluginAPI,
     simulator::SimulatorConfig,
-    utils::{
-        determinist_random_variable::DeterministRandomVariableFactory,
-        geometry::{mod2pi, smallest_theta_diff},
-    },
+    utils::geometry::{mod2pi, smallest_theta_diff},
 };
 
 extern crate nalgebra as na;

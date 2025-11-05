@@ -14,6 +14,7 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use std::sync::mpsc::Sender;
+use std::sync::Arc;
 
 use config_checker::macros::Check;
 use log::debug;
@@ -151,7 +152,7 @@ impl ExternalNavigator {
             &ExternalNavigatorConfig::default(),
             &None,
             &SimulatorConfig::default(),
-            &DeterministRandomVariableFactory::default(),
+            &Arc::new(DeterministRandomVariableFactory::default()),
         )
     }
 
@@ -168,7 +169,7 @@ impl ExternalNavigator {
         config: &ExternalNavigatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Self {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);

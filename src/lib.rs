@@ -68,7 +68,7 @@ pub mod utils;
 
 pub mod plugin_api;
 pub mod pybinds;
-mod pywrappers;
+pub mod pywrappers;
 
 pub mod api;
 pub mod time_analysis;
@@ -77,7 +77,7 @@ pub mod time_analysis;
 pub mod gui;
 
 #[pymodule]
-fn simba(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn simba(m: &Bound<'_, PyModule>) -> PyResult<()> {
     pybinds::make_python_bindings(m)?;
     Ok(())
 }

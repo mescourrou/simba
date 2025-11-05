@@ -575,7 +575,7 @@ impl NodeFactory {
         config: &RobotConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
         time_analysis_factory: &mut TimeAnalysisFactory,
         time_cv: Arc<TimeCv>,
     ) -> Node {
@@ -670,7 +670,7 @@ impl NodeFactory {
         config: &ComputationUnitConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
         time_analysis_factory: &mut TimeAnalysisFactory,
         time_cv: Arc<TimeCv>,
     ) -> Node {

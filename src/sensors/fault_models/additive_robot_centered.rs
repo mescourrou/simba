@@ -167,7 +167,7 @@ impl AdditiveRobotCenteredFault {
         }
         Self {
             apparition: DeterministBernouilliRandomVariable::from_config(
-                va_factory.global_seed,
+                va_factory.global_seed(),
                 config.apparition.clone(),
             ),
             distributions,

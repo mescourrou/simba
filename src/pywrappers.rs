@@ -31,7 +31,7 @@ use crate::{
         robot_sensor::OrientedRobotObservation,
         sensor::{Observation, SensorObservation},
     },
-    simulator::Simulator,
+    simulator::{AsyncSimulator, Simulator},
     state_estimators::{
         pybinds::PythonStateEstimator,
         state_estimator::{State, WorldState},
@@ -759,10 +759,8 @@ impl PluginAPIWrapper {
 #[pyclass]
 #[pyo3(name = "Simulator")]
 pub struct SimulatorWrapper {
-    server: Arc<Mutex<AsyncApiRunner>>,
-    api: AsyncApi,
-    async_plugin_api: Option<PluginAsyncAPI>,
-    python_api: Option<PythonAPI>,
+    simulator: AsyncSimulator,
+    python_api: Option<Box<dyn PluginAPI>>,
 }
 
 #[pymethods]
@@ -772,108 +770,20 @@ impl SimulatorWrapper {
     pub fn from_config(config_path: String, plugin_api: Option<Py<PyAny>>) -> SimulatorWrapper {
         Simulator::init_environment();
 
-        let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
-        let api = server.lock().unwrap().get_api();
-        let mut wrapper = SimulatorWrapper {
-            server,
-            api,
-            async_plugin_api: match &plugin_api {
-                Some(_) => Some(PluginAsyncAPI::new()),
-                None => None,
-            },
-            python_api: match plugin_api {
-                Some(a) => Some(PythonAPI::new(a)),
-                None => None,
-            },
+        let python_api = match plugin_api {
+            Some(api) => Some(Box::new(PythonAPI::new(api)) as Box<dyn PluginAPI>),
+            None => None,
         };
 
-        // Unsafe use because wrapper is a python object, which should be used until the end. But PyO3 does not support lifetimes to force the behaviour
-        wrapper
-            .server
-            .lock()
-            .unwrap()
-            .run(match &wrapper.async_plugin_api {
-                Some(api) => Some(Box::<&dyn PluginAPI>::new(unsafe {
-                    std::mem::transmute::<&dyn PluginAPI, &'static dyn PluginAPI>(api)
-                })),
-                None => None,
-            });
-        wrapper.api.load_config.async_call(config_path);
-
-        if let Some(unwrapped_async_api) = &wrapper.async_plugin_api {
-            let api_client = &unwrapped_async_api.client;
-            let python_api = wrapper.python_api.as_mut().unwrap();
-            while wrapper.api.load_config.try_get_result().is_none() {
-                if let Ok((config, simulator_config)) = api_client
-                    .get_state_estimator_request
-                    .lock()
-                    .unwrap()
-                    .try_recv()
-                {
-                    let state_estimator =
-                        python_api.get_state_estimator(&config, &simulator_config);
-                    api_client
-                        .get_state_estimator_response
-                        .send(state_estimator)
-                        .unwrap();
-                }
-                if let Ok((config, simulator_config)) =
-                    api_client.get_controller_request.lock().unwrap().try_recv()
-                {
-                    let controller = python_api.get_controller(&config, &simulator_config);
-                    api_client.get_controller_response.send(controller).unwrap();
-                }
-                if let Ok((config, simulator_config)) =
-                    api_client.get_navigator_request.lock().unwrap().try_recv()
-                {
-                    let navigator = python_api.get_navigator(&config, &simulator_config);
-                    api_client.get_navigator_response.send(navigator).unwrap();
-                }
-                if let Ok((config, simulator_config)) =
-                    api_client.get_physics_request.lock().unwrap().try_recv()
-                {
-                    let physic = python_api.get_physics(&config, &simulator_config);
-                    api_client.get_physics_response.send(physic).unwrap();
-                }
-                python_api.check_requests();
-            }
-        } else {
-            wrapper.api.load_config.wait_result().unwrap().unwrap();
+        let simulator = AsyncSimulator::from_config(config_path, &python_api);
+        SimulatorWrapper {
+            simulator,
+            python_api,
         }
-
-        wrapper
     }
 
     pub fn run(&mut self) {
-        self.api.run.async_call(None);
-        if let Some(python_api) = &mut self.python_api {
-            while self.api.run.try_get_result().is_none() {
-                python_api.check_requests();
-                if Python::with_gil(|py| py.check_signals()).is_err() {
-                    break;
-                }
-            }
-        } else {
-            while self.api.run.try_get_result().is_none() {
-                if Python::with_gil(|py| py.check_signals()).is_err() {
-                    break;
-                }
-            }
-        }
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Stop server");
-        }
-        // Stop server thread
-        self.server.lock().unwrap().stop();
-        // Calling directly the simulator to keep python in one thread
-        self.server
-            .lock()
-            .unwrap()
-            .get_simulator()
-            .lock()
-            .unwrap()
-            .compute_results()
-            .unwrap();
+        self.simulator.run(&self.python_api);
     }
 }
 
@@ -911,35 +821,37 @@ pub fn run_gui(
             if let Some(api_client) = &api_client {
                 let python_api = python_api.as_mut().unwrap();
                 // TODO: Multiple wait can be optimized the same way than AsyncAPI runner (or maybe not as it's Python)
-                if let Ok((config, simulator_config)) = api_client
+                if let Ok((config, simulator_config, va_factory)) = api_client
                     .get_state_estimator_request
                     .lock()
                     .unwrap()
                     .try_recv()
                 {
                     let state_estimator =
-                        python_api.get_state_estimator(&config, &simulator_config);
+                        python_api.get_state_estimator(&config, &simulator_config, &va_factory);
                     api_client
                         .get_state_estimator_response
                         .send(state_estimator)
                         .unwrap();
                 }
-                if let Ok((config, simulator_config)) =
+                if let Ok((config, simulator_config, va_factory)) =
                     api_client.get_controller_request.lock().unwrap().try_recv()
                 {
-                    let controller = python_api.get_controller(&config, &simulator_config);
+                    let controller =
+                        python_api.get_controller(&config, &simulator_config, &va_factory);
                     api_client.get_controller_response.send(controller).unwrap();
                 }
-                if let Ok((config, simulator_config)) =
+                if let Ok((config, simulator_config, va_factory)) =
                     api_client.get_navigator_request.lock().unwrap().try_recv()
                 {
-                    let navigator = python_api.get_navigator(&config, &simulator_config);
+                    let navigator =
+                        python_api.get_navigator(&config, &simulator_config, &va_factory);
                     api_client.get_navigator_response.send(navigator).unwrap();
                 }
-                if let Ok((config, simulator_config)) =
+                if let Ok((config, simulator_config, va_factory)) =
                     api_client.get_physics_request.lock().unwrap().try_recv()
                 {
-                    let physic = python_api.get_physics(&config, &simulator_config);
+                    let physic = python_api.get_physics(&config, &simulator_config, &va_factory);
                     api_client.get_physics_response.send(physic).unwrap();
                 }
                 python_api.check_requests();

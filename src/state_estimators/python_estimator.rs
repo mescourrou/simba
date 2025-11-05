@@ -26,9 +26,6 @@ use crate::pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::utils::maths::round_precision;
-use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
-};
 
 use super::state_estimator::StateEstimatorRecord;
 use crate::sensors::sensor::Observation;

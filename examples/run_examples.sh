@@ -10,3 +10,6 @@ cd python
 ./physics.py
 ./state_estimator.py
 ./messages.py
+
+cd ..
+cd stacked_plugins && ./run.sh

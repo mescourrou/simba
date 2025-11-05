@@ -25,9 +25,6 @@ use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
 use crate::sensors::sensor::Observation;
 use crate::simulator::SimulatorConfig;
 use crate::utils::maths::round_precision;
-use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
-};
 use config_checker::macros::Check;
 use log::{error, info, warn};
 use serde_derive::{Deserialize, Serialize};

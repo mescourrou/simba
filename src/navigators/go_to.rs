@@ -9,17 +9,12 @@ use std::sync::{
 };
 
 #[cfg(feature = "gui")]
-use crate::gui::UIComponent;
+use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
     navigators::navigator::{Navigator, NavigatorRecord},
     networking::{message_handler::MessageHandler, network::Envelope},
-    plugin_api::PluginAPI,
-    simulator::SimulatorConfig,
-    utils::{
-        determinist_random_variable::DeterministRandomVariableFactory,
-        geometry::smallest_theta_diff,
-    },
+    utils::geometry::smallest_theta_diff,
 };
 
 extern crate nalgebra as na;

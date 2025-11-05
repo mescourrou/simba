@@ -209,7 +209,7 @@ pub fn make_controller_from_config(
     config: &ControllerConfig,
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     global_config: &SimulatorConfig,
-    va_factory: &DeterministRandomVariableFactory,
+    va_factory: &Arc<DeterministRandomVariableFactory>,
 ) -> Arc<RwLock<Box<dyn Controller>>> {
     Arc::new(RwLock::new(match config {
         ControllerConfig::PID(c) => Box::new(pid::PID::from_config(c)) as Box<dyn Controller>,

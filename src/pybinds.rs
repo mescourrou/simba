@@ -1,3 +1,5 @@
+use std::sync::{Arc, Mutex};
+
 use log::debug;
 use pyo3::prelude::*;
 use serde_json::Value;
@@ -8,6 +10,7 @@ use crate::{
     navigators::{go_to::GoToMessage, navigator::Navigator, pybinds::PythonNavigator},
     networking::{network::MessageFlag, MessageTypes},
     physics::{physics::Physics, pybinds::PythonPhysics},
+    plugin_api::PluginAPI,
     pywrappers::{
         run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper,
         ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
@@ -16,6 +19,7 @@ use crate::{
     },
     simulator::SimulatorConfig,
     state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -46,49 +50,52 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[derive(Debug)]
 pub struct PythonAPI {
     api: Py<PyAny>,
-    state_estimators: Vec<PythonStateEstimator>,
-    controllers: Vec<PythonController>,
-    navigators: Vec<PythonNavigator>,
-    physics: Vec<PythonPhysics>,
+    state_estimators: Mutex<Vec<PythonStateEstimator>>,
+    controllers: Mutex<Vec<PythonController>>,
+    navigators: Mutex<Vec<PythonNavigator>>,
+    physics: Mutex<Vec<PythonPhysics>>,
 }
 
 impl PythonAPI {
     pub fn new(m: Py<PyAny>) -> PythonAPI {
         PythonAPI {
             api: m,
-            state_estimators: Vec::new(),
-            controllers: Vec::new(),
-            navigators: Vec::new(),
-            physics: Vec::new(),
+            state_estimators: Mutex::new(Vec::new()),
+            controllers: Mutex::new(Vec::new()),
+            navigators: Mutex::new(Vec::new()),
+            physics: Mutex::new(Vec::new()),
         }
     }
 }
 
-impl PythonAPI {
-    pub fn check_requests(&mut self) {
-        for state_estimator in &mut self.state_estimators {
+impl PluginAPI for PythonAPI {
+    fn check_requests(&self) {
+        for state_estimator in self.state_estimators.lock().unwrap().iter_mut() {
             state_estimator.check_requests();
         }
-        for controller in &mut self.controllers {
+        for controller in self.controllers.lock().unwrap().iter_mut() {
             controller.check_requests();
         }
-        for navigator in &mut self.navigators {
+        for navigator in self.navigators.lock().unwrap().iter_mut() {
             navigator.check_requests();
         }
-        for physics in &mut self.physics {
+        for physics in self.physics.lock().unwrap().iter_mut() {
             physics.check_requests();
         }
     }
 
-    pub fn get_state_estimator(
-        &mut self,
+    fn get_state_estimator(
+        &self,
         config: &Value,
         global_config: &SimulatorConfig,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn StateEstimator> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling Python API");
         }
         self.state_estimators
+            .lock()
+            .unwrap()
             .push(PythonStateEstimator::new(Python::with_gil(|py| match self
                 .api
                 .bind(py)
@@ -109,22 +116,32 @@ impl PythonAPI {
                     .extract()
                     .expect("Expecting function return of PythonStateEstimator but failed"),
             })));
-        let st = Box::new(self.state_estimators.last().unwrap().get_client());
+        let st = Box::new(
+            self.state_estimators
+                .lock()
+                .unwrap()
+                .last()
+                .unwrap()
+                .get_client(),
+        );
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Got api {:?}", st);
         }
         st
     }
 
-    pub fn get_controller(
-        &mut self,
+    fn get_controller(
+        &self,
         config: &Value,
         global_config: &SimulatorConfig,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Controller> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling Python API");
         }
         self.controllers
+            .lock()
+            .unwrap()
             .push(PythonController::new(Python::with_gil(|py| {
                 match self.api.bind(py).call_method(
                     "get_controller",
@@ -144,22 +161,32 @@ impl PythonAPI {
                         .expect("Expecting function return of PythonController but failed"),
                 }
             })));
-        let st = Box::new(self.controllers.last().unwrap().get_client());
+        let st = Box::new(
+            self.controllers
+                .lock()
+                .unwrap()
+                .last()
+                .unwrap()
+                .get_client(),
+        );
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Got api {:?}", st);
         }
         st
     }
 
-    pub fn get_navigator(
-        &mut self,
+    fn get_navigator(
+        &self,
         config: &Value,
         global_config: &SimulatorConfig,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Navigator> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling Python API");
         }
         self.navigators
+            .lock()
+            .unwrap()
             .push(PythonNavigator::new(Python::with_gil(|py| {
                 match self.api.bind(py).call_method(
                     "get_navigator",
@@ -179,41 +206,45 @@ impl PythonAPI {
                         .expect("Expecting function return of Python?avigator but failed"),
                 }
             })));
-        let st = Box::new(self.navigators.last().unwrap().get_client());
+        let st = Box::new(self.navigators.lock().unwrap().last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Got api {:?}", st);
         }
         st
     }
 
-    pub fn get_physics(
-        &mut self,
+    fn get_physics(
+        &self,
         config: &Value,
         global_config: &SimulatorConfig,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Physics> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling Python API");
         }
-        self.physics.push(PythonPhysics::new(Python::with_gil(|py| {
-            match self.api.bind(py).call_method(
-                "get_physics",
-                (
-                    config.to_string(),
-                    serde_json::to_string(global_config)
-                        .expect("Failed to serialize global_config"),
-                ),
-                None,
-            ) {
-                Err(e) => {
-                    e.display(py);
-                    panic!("Error during execution of python method 'get_physics'.");
+        self.physics
+            .lock()
+            .unwrap()
+            .push(PythonPhysics::new(Python::with_gil(|py| {
+                match self.api.bind(py).call_method(
+                    "get_physics",
+                    (
+                        config.to_string(),
+                        serde_json::to_string(global_config)
+                            .expect("Failed to serialize global_config"),
+                    ),
+                    None,
+                ) {
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error during execution of python method 'get_physics'.");
+                    }
+                    Ok(r) => r
+                        .extract()
+                        .expect("Expecting function return of PythonPhysics but failed"),
                 }
-                Ok(r) => r
-                    .extract()
-                    .expect("Expecting function return of PythonPhysics but failed"),
-            }
-        })));
-        let st = Box::new(self.physics.last().unwrap().get_client());
+            })));
+        let st = Box::new(self.physics.lock().unwrap().last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Got api {:?}", st);
         }

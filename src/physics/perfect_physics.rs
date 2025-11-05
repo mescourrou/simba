@@ -3,15 +3,12 @@ Provide the implementation of the [`Physics`] trait without any noise added to t
 */
 
 #[cfg(feature = "gui")]
-use crate::gui::UIComponent;
+use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
     networking::service::HasService,
-    plugin_api::PluginAPI,
     recordable::Recordable,
-    simulator::SimulatorConfig,
     state_estimators::state_estimator::{State, StateConfig, StateRecord},
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use config_checker::macros::Check;
 use libm::atan2f;

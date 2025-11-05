@@ -51,7 +51,10 @@ use serde_derive::{Deserialize, Serialize};
 use simba_macros::EnumToString;
 
 use crate::{
-    api::internal_api::NodeClient,
+    api::{
+        async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
+        internal_api::NodeClient,
+    },
     constants::TIME_ROUND,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::{init_log, is_enabled, LoggerConfig},
@@ -59,6 +62,7 @@ use crate::{
     node::Node,
     node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig},
     plugin_api::PluginAPI,
+    pybinds::PythonAPI,
     recordable::Recordable,
     state_estimators::state_estimator::State,
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
@@ -702,7 +706,7 @@ pub struct Simulator {
     /// Network Manager
     network_manager: NetworkManager,
     /// Factory for components to make random variables generators
-    determinist_va_factory: DeterministRandomVariableFactory,
+    determinist_va_factory: Arc<DeterministRandomVariableFactory>,
 
     time_cv: Arc<TimeCv>,
     common_time: Arc<RwLock<f32>>,
@@ -728,7 +732,7 @@ impl Simulator {
             nodes: Vec::new(),
             config: SimulatorConfig::default(),
             network_manager: NetworkManager::new(time_cv.clone()),
-            determinist_va_factory: DeterministRandomVariableFactory::new(rng),
+            determinist_va_factory: Arc::new(DeterministRandomVariableFactory::new(rng)),
             time_cv,
             async_api: Arc::new(simulator_api_client),
             async_api_server: simulator_api,
@@ -903,9 +907,9 @@ impl Simulator {
         }
         self.config = config.clone();
         if let Some(seed) = config.random_seed {
-            self.determinist_va_factory.global_seed = seed;
+            self.determinist_va_factory.set_global_seed(seed);
         } else {
-            self.config.random_seed = Some(self.determinist_va_factory.global_seed);
+            self.config.random_seed = Some(self.determinist_va_factory.global_seed());
         }
 
         self.reset(plugin_api)
@@ -1564,6 +1568,126 @@ def convert(records):
     }
 }
 
+pub struct AsyncSimulator {
+    server: Arc<Mutex<AsyncApiRunner>>,
+    api: AsyncApi,
+    async_plugin_api: Option<PluginAsyncAPI>,
+    // python_api: Option<PythonAPI>,
+}
+
+impl AsyncSimulator {
+    pub fn from_config(
+        config_path: String,
+        plugin_api: &Option<Box<dyn PluginAPI>>,
+    ) -> AsyncSimulator {
+        Simulator::init_environment();
+
+        let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
+        let api = server.lock().unwrap().get_api();
+        let sim = Self {
+            server,
+            api,
+            async_plugin_api: match &plugin_api {
+                Some(_) => Some(PluginAsyncAPI::new()),
+                None => None,
+            },
+        };
+
+        // Unsafe use because wrapper is a python object, which should be used until the end. But PyO3 does not support lifetimes to force the behaviour
+        sim.server.lock().unwrap().run(match &sim.async_plugin_api {
+            Some(api) => Some(Box::<&dyn PluginAPI>::new(unsafe {
+                std::mem::transmute::<&dyn PluginAPI, &'static dyn PluginAPI>(api)
+            })),
+            None => None,
+        });
+        sim.api.load_config.async_call(config_path);
+
+        if let Some(unwrapped_async_api) = &sim.async_plugin_api {
+            let api_client = &unwrapped_async_api.client;
+            let plugin_api_unwrapped = plugin_api.as_ref().unwrap();
+            while sim.api.load_config.try_get_result().is_none() {
+                if let Ok((config, simulator_config, va_factory)) = api_client
+                    .get_state_estimator_request
+                    .lock()
+                    .unwrap()
+                    .try_recv()
+                {
+                    let state_estimator = plugin_api_unwrapped.get_state_estimator(
+                        &config,
+                        &simulator_config,
+                        &va_factory,
+                    );
+                    api_client
+                        .get_state_estimator_response
+                        .send(state_estimator)
+                        .unwrap();
+                }
+                if let Ok((config, simulator_config, va_factory)) =
+                    api_client.get_controller_request.lock().unwrap().try_recv()
+                {
+                    let controller = plugin_api_unwrapped.get_controller(
+                        &config,
+                        &simulator_config,
+                        &va_factory,
+                    );
+                    api_client.get_controller_response.send(controller).unwrap();
+                }
+                if let Ok((config, simulator_config, va_factory)) =
+                    api_client.get_navigator_request.lock().unwrap().try_recv()
+                {
+                    let navigator =
+                        plugin_api_unwrapped.get_navigator(&config, &simulator_config, &va_factory);
+                    api_client.get_navigator_response.send(navigator).unwrap();
+                }
+                if let Ok((config, simulator_config, va_factory)) =
+                    api_client.get_physics_request.lock().unwrap().try_recv()
+                {
+                    let physic =
+                        plugin_api_unwrapped.get_physics(&config, &simulator_config, &va_factory);
+                    api_client.get_physics_response.send(physic).unwrap();
+                }
+                plugin_api_unwrapped.check_requests();
+            }
+        } else {
+            sim.api.load_config.wait_result().unwrap().unwrap();
+        }
+
+        sim
+    }
+
+    pub fn run(&mut self, plugin_api: &Option<Box<dyn PluginAPI>>) {
+        self.api.run.async_call(None);
+        if let Some(plugin_api) = &plugin_api {
+            while self.api.run.try_get_result().is_none() {
+                plugin_api.check_requests();
+                if Python::with_gil(|py| py.check_signals()).is_err() {
+                    break;
+                }
+            }
+        } else {
+            while self.api.run.try_get_result().is_none() {
+                if Python::with_gil(|py| py.check_signals()).is_err() {
+                    break;
+                }
+            }
+        }
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Stop server");
+        }
+        // Stop server thread
+        self.server.lock().unwrap().stop();
+        // Calling directly the simulator to keep python in one thread
+        self.server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .compute_results()
+            .unwrap();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use core::f32;
@@ -1686,7 +1810,7 @@ mod tests {
             &self,
             config: &serde_json::Value,
             _global_config: &SimulatorConfig,
-            _va_factory: &DeterministRandomVariableFactory,
+            _va_factory: &Arc<DeterministRandomVariableFactory>,
         ) -> Box<dyn StateEstimator> {
             Box::new(StateEstimatorTest {
                 last_time: 0.,

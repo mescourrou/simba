@@ -186,7 +186,7 @@ mod tests {
             &self,
             config: &serde_json::Value,
             _global_config: &SimulatorConfig,
-            _va_factory: &DeterministRandomVariableFactory,
+            _va_factory: &Arc<DeterministRandomVariableFactory>,
         ) -> Box<dyn StateEstimator> {
             let (tx, rx) = if config.as_bool().unwrap() {
                 let (tx, rx) = mpsc::channel();

@@ -43,6 +43,8 @@ fn main() {
 ```
 */
 
+use std::sync::Arc;
+
 use crate::{
     controllers::controller::Controller, navigators::navigator::Navigator,
     physics::physics::Physics, simulator::SimulatorConfig,
@@ -70,7 +72,7 @@ pub trait PluginAPI: Send + Sync {
         &self,
         _config: &Value,
         _global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn StateEstimator> {
         panic!("The given PluginAPI does not provide a state estimator");
     }
@@ -91,7 +93,7 @@ pub trait PluginAPI: Send + Sync {
         &self,
         _config: &Value,
         _global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Controller> {
         panic!("The given PluginAPI does not provide a controller");
     }
@@ -112,7 +114,7 @@ pub trait PluginAPI: Send + Sync {
         &self,
         _config: &Value,
         _global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Navigator> {
         panic!("The given PluginAPI does not provide a navigator");
     }
@@ -133,8 +135,10 @@ pub trait PluginAPI: Send + Sync {
         &self,
         _config: &Value,
         _global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Physics> {
         panic!("The given PluginAPI does not provide physics");
     }
+
+    fn check_requests(&self) {}
 }

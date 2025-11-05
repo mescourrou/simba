@@ -25,11 +25,9 @@ use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
     physics::physics::Command,
-    plugin_api::PluginAPI,
     pywrappers::{CommandWrapper, ControllerErrorWrapper},
     recordable::Recordable,
     simulator::SimulatorConfig,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 use serde_derive::{Deserialize, Serialize};

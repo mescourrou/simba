@@ -19,12 +19,10 @@ use crate::{
     logger::is_enabled,
     networking::service::HasService,
     physics::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord},
-    plugin_api::PluginAPI,
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
     simulator::SimulatorConfig,
     state_estimators::state_estimator::State,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 use serde_derive::{Deserialize, Serialize};

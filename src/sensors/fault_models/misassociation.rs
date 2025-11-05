@@ -219,14 +219,14 @@ impl MisassociationFault {
         };
         Self {
             apparition: DeterministBernouilliRandomVariable::from_config(
-                va_factory.global_seed,
+                va_factory.global_seed(),
                 config.apparition.clone(),
             ),
             distribution,
             sort: config.sort.clone(),
             _source: config.source.clone(),
             id_list,
-            global_seed: va_factory.global_seed,
+            global_seed: va_factory.global_seed(),
         }
     }
 }
