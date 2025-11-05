@@ -174,9 +174,7 @@ impl PythonNavigator {
     pub fn new() -> SimbaResult<Self> {
         Self::from_config(
             &PythonNavigatorConfig::default(),
-            &None,
             &SimulatorConfig::default(),
-            &DeterministRandomVariableFactory::default(),
         )
     }
 
@@ -189,9 +187,7 @@ impl PythonNavigator {
     /// * `_va_factory` -- Factory for Determinists random variables.
     pub fn from_config(
         config: &PythonNavigatorConfig,
-        _plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
     ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);

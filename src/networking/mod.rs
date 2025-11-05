@@ -67,7 +67,10 @@ mod tests {
     use crate::{
         constants::TIME_ROUND,
         logger::LogLevel,
-        networking::{message_handler::MessageHandler, network::{Envelope, NetworkConfig}},
+        networking::{
+            message_handler::MessageHandler,
+            network::{Envelope, NetworkConfig},
+        },
         node::Node,
         node_factory::RobotConfig,
         plugin_api::PluginAPI,
@@ -85,7 +88,9 @@ mod tests {
                 StateEstimatorRecord, WorldState,
             },
         },
-        utils::maths::round_precision,
+        utils::{
+            determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
+        },
     };
 
     #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -181,6 +186,7 @@ mod tests {
             &self,
             config: &serde_json::Value,
             _global_config: &SimulatorConfig,
+            _va_factory: &DeterministRandomVariableFactory,
         ) -> Box<dyn StateEstimator> {
             let (tx, rx) = if config.as_bool().unwrap() {
                 let (tx, rx) = mpsc::channel();

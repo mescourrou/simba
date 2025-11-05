@@ -453,14 +453,9 @@ pub fn make_state_estimator_from_config(
     va_factory: &DeterministRandomVariableFactory,
 ) -> Box<dyn StateEstimator> {
     return match config {
-        StateEstimatorConfig::Perfect(c) => {
-            Box::new(perfect_estimator::PerfectEstimator::from_config(
-                c,
-                plugin_api,
-                global_config,
-                va_factory,
-            )) as Box<dyn StateEstimator>
-        }
+        StateEstimatorConfig::Perfect(c) => Box::new(
+            perfect_estimator::PerfectEstimator::from_config(c, global_config),
+        ) as Box<dyn StateEstimator>,
         StateEstimatorConfig::External(c) => {
             Box::new(external_estimator::ExternalEstimator::from_config(
                 c,
@@ -469,15 +464,10 @@ pub fn make_state_estimator_from_config(
                 va_factory,
             )) as Box<dyn StateEstimator>
         }
-        StateEstimatorConfig::Python(c) => Box::new(
-            python_estimator::PythonEstimator::from_config(
-                c,
-                plugin_api,
-                global_config,
-                va_factory,
-            )
-            .unwrap(),
-        ) as Box<dyn StateEstimator>,
+        StateEstimatorConfig::Python(c) => {
+            Box::new(python_estimator::PythonEstimator::from_config(c, global_config).unwrap())
+                as Box<dyn StateEstimator>
+        }
     };
 }
 

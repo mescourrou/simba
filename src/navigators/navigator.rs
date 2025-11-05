@@ -195,14 +195,9 @@ pub fn make_navigator_from_config(
     va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn Navigator>>> {
     Arc::new(RwLock::new(match config {
-        NavigatorConfig::TrajectoryFollower(c) => {
-            Box::new(trajectory_follower::TrajectoryFollower::from_config(
-                c,
-                plugin_api,
-                global_config,
-                va_factory,
-            )) as Box<dyn Navigator>
-        }
+        NavigatorConfig::TrajectoryFollower(c) => Box::new(
+            trajectory_follower::TrajectoryFollower::from_config(c, global_config),
+        ) as Box<dyn Navigator>,
         NavigatorConfig::External(c) => {
             Box::new(external_navigator::ExternalNavigator::from_config(
                 c,
@@ -211,20 +206,10 @@ pub fn make_navigator_from_config(
                 va_factory,
             )) as Box<dyn Navigator>
         }
-        NavigatorConfig::Python(c) => Box::new(
-            python_navigator::PythonNavigator::from_config(
-                c,
-                plugin_api,
-                global_config,
-                va_factory,
-            )
-            .unwrap(),
-        ) as Box<dyn Navigator>,
-        NavigatorConfig::GoTo(c) => Box::new(go_to::GoTo::from_config(
-            c,
-            plugin_api,
-            global_config,
-            va_factory,
-        )) as Box<dyn Navigator>,
+        NavigatorConfig::Python(c) => {
+            Box::new(python_navigator::PythonNavigator::from_config(c, global_config).unwrap())
+                as Box<dyn Navigator>
+        }
+        NavigatorConfig::GoTo(c) => Box::new(go_to::GoTo::from_config(c)) as Box<dyn Navigator>,
     }))
 }

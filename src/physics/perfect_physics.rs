@@ -157,12 +157,7 @@ pub struct PerfectPhysics {
 impl PerfectPhysics {
     /// Makes a new [`PerfectPhysics`] situated at (0,0,0) and 25cm between wheels.
     pub fn new() -> Self {
-        Self::from_config(
-            &PerfectsPhysicConfig::default(),
-            &None,
-            &SimulatorConfig::default(),
-            &DeterministRandomVariableFactory::default(),
-        )
+        Self::from_config(&PerfectsPhysicConfig::default())
     }
 
     /// Makes a new [`PerfectPhysics`] with the given configurations.
@@ -171,12 +166,7 @@ impl PerfectPhysics {
     /// * `config` - Configuration of [`PerfectPhysics`].
     /// * `plugin_api` - [`PluginAPI`] not used there.
     /// * `global_config` - Configuration of the simulator.
-    pub fn from_config(
-        config: &PerfectsPhysicConfig,
-        _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        _global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
-    ) -> Self {
+    pub fn from_config(config: &PerfectsPhysicConfig) -> Self {
         PerfectPhysics {
             wheel_distance: config.wheel_distance,
             state: State::from_config(&config.initial_state),

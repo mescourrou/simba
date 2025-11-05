@@ -47,6 +47,7 @@ use crate::{
     controllers::controller::Controller, navigators::navigator::Navigator,
     physics::physics::Physics, simulator::SimulatorConfig,
     state_estimators::state_estimator::StateEstimator,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 use serde_json::Value;
@@ -69,6 +70,7 @@ pub trait PluginAPI: Send + Sync {
         &self,
         _config: &Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Box<dyn StateEstimator> {
         panic!("The given PluginAPI does not provide a state estimator");
     }
@@ -89,6 +91,7 @@ pub trait PluginAPI: Send + Sync {
         &self,
         _config: &Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Box<dyn Controller> {
         panic!("The given PluginAPI does not provide a controller");
     }
@@ -109,6 +112,7 @@ pub trait PluginAPI: Send + Sync {
         &self,
         _config: &Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Box<dyn Navigator> {
         panic!("The given PluginAPI does not provide a navigator");
     }
@@ -125,7 +129,12 @@ pub trait PluginAPI: Send + Sync {
     /// # Return
     ///
     /// Returns the [`Physics`] to use.
-    fn get_physics(&self, _config: &Value, _global_config: &SimulatorConfig) -> Box<dyn Physics> {
+    fn get_physics(
+        &self,
+        _config: &Value,
+        _global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
+    ) -> Box<dyn Physics> {
         panic!("The given PluginAPI does not provide physics");
     }
 }

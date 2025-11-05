@@ -16,7 +16,7 @@ use crate::{
     plugin_api::PluginAPI,
     simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::state_estimator::StateEstimator,
-    utils::rfc,
+    utils::{determinist_random_variable::DeterministRandomVariableFactory, rfc},
 };
 
 // Run by client
@@ -248,6 +248,7 @@ impl PluginAPI for PluginAsyncAPI {
         &self,
         config: &Value,
         global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Box<dyn StateEstimator> {
         self.get_state_estimator_request
             .send((config.clone(), global_config.clone()))
@@ -264,6 +265,7 @@ impl PluginAPI for PluginAsyncAPI {
         &self,
         config: &Value,
         global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Box<dyn Controller> {
         self.get_controller_request
             .send((config.clone(), global_config.clone()))
@@ -272,7 +274,12 @@ impl PluginAPI for PluginAsyncAPI {
         self.get_controller_response.lock().unwrap().recv().unwrap()
     }
 
-    fn get_navigator(&self, config: &Value, global_config: &SimulatorConfig) -> Box<dyn Navigator> {
+    fn get_navigator(
+        &self,
+        config: &Value,
+        global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
+    ) -> Box<dyn Navigator> {
         self.get_navigator_request
             .send((config.clone(), global_config.clone()))
             .unwrap();
@@ -280,7 +287,12 @@ impl PluginAPI for PluginAsyncAPI {
         self.get_navigator_response.lock().unwrap().recv().unwrap()
     }
 
-    fn get_physics(&self, config: &Value, global_config: &SimulatorConfig) -> Box<dyn Physics> {
+    fn get_physics(
+        &self,
+        config: &Value,
+        global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
+    ) -> Box<dyn Physics> {
         self.get_physic_request
             .send((config.clone(), global_config.clone()))
             .unwrap();

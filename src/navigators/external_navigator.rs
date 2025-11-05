@@ -168,7 +168,7 @@ impl ExternalNavigator {
         config: &ExternalNavigatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
+        va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
@@ -177,7 +177,7 @@ impl ExternalNavigator {
             navigator: plugin_api
                 .as_ref()
                 .expect("Plugin API not set!")
-                .get_navigator(&config.config, global_config),
+                .get_navigator(&config.config, global_config, va_factory),
         }
     }
 }

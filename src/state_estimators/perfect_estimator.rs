@@ -10,7 +10,9 @@ use super::state_estimator::{State, WorldState, WorldStateRecord};
 use crate::{
     constants::TIME_ROUND,
     errors::SimbaErrorTypes,
-    networking::{message_handler::MessageHandler, network::Envelope, service_manager::ServiceError},
+    networking::{
+        message_handler::MessageHandler, network::Envelope, service_manager::ServiceError,
+    },
 };
 
 #[cfg(feature = "gui")]
@@ -176,19 +178,12 @@ impl PerfectEstimator {
     pub fn new() -> Self {
         Self::from_config(
             &PerfectEstimatorConfig::default(),
-            &None,
             &SimulatorConfig::default(),
-            &DeterministRandomVariableFactory::default(),
         )
     }
 
     /// Creates a new [`PerfectEstimator`] from the given `config`.
-    pub fn from_config(
-        config: &PerfectEstimatorConfig,
-        _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
-    ) -> Self {
+    pub fn from_config(config: &PerfectEstimatorConfig, global_config: &SimulatorConfig) -> Self {
         let mut world_state = WorldState::new();
         for target in &config.targets {
             if target == "self" {

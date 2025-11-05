@@ -14,9 +14,11 @@ use simba::plugin_api::PluginAPI;
 use simba::recordable::Recordable;
 use simba::simulator::{Simulator, SimulatorConfig};
 use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
+use simba::state_estimators::python_estimator::PythonEstimator;
 use simba::state_estimators::state_estimator::{
     State, StateEstimator, StateEstimatorRecord, WorldState,
 };
+use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -277,6 +279,7 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Box<dyn Controller> {
         Box::new(MyWonderfulController::from_config(
             serde_json::from_value(config.clone()).unwrap(),
@@ -287,6 +290,7 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Box<dyn Navigator> {
         Box::new(MyWonderfulNavigator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
@@ -297,6 +301,7 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Box<dyn Physics> {
         Box::new(MyWonderfulPhysics::from_config(
             serde_json::from_value(config.clone()).unwrap(),
@@ -307,10 +312,15 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &DeterministRandomVariableFactory,
     ) -> Box<dyn StateEstimator> {
         Box::new(MyWonderfulStateEstimator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
         ))
+
+        // Example: use already existing state estimator (PythonEstimator here)
+        // let config = serde_json::from_value(config.clone()).unwrap();
+        // Box::new(PythonEstimator::from_config(&config, global_config).unwrap())
     }
 }
 

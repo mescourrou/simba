@@ -231,12 +231,7 @@ impl TrajectoryFollower {
     /// * `plugin_api` - Not used there.
     /// * `global_config` - Global configuration of the simulator. Used there to get the
     /// path of the config, used as relative reference for the trajectory path.
-    pub fn from_config(
-        config: &TrajectoryFollowerConfig,
-        _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
-    ) -> Self {
+    pub fn from_config(config: &TrajectoryFollowerConfig, global_config: &SimulatorConfig) -> Self {
         let mut path = Path::new(&config.trajectory_path);
         if config.trajectory_path == "" {
             return Self::new();

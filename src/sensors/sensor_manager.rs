@@ -341,7 +341,9 @@ impl SensorManager {
     pub fn get_observations(&mut self) -> Vec<Observation> {
         let mut observations = Vec::new();
         while let Ok(envelope) = self.letter_box_receiver.lock().unwrap().try_recv() {
-            if let Ok(obs_list) = serde_json::from_value::<Vec<Observation>>(envelope.message.clone()) {
+            if let Ok(obs_list) =
+                serde_json::from_value::<Vec<Observation>>(envelope.message.clone())
+            {
                 observations.extend(obs_list);
                 // Assure that the observations are always in the same order, for determinism:
                 observations.sort_by(|a, b| a.observer.cmp(&b.observer));
@@ -349,7 +351,10 @@ impl SensorManager {
                 //     self.next_time = Some(time);
                 // }
                 if is_enabled(crate::logger::InternalLog::SensorManager) {
-                    debug!("Receive observations from {} at time {}", envelope.from, envelope.timestamp);
+                    debug!(
+                        "Receive observations from {} at time {}",
+                        envelope.from, envelope.timestamp
+                    );
                 }
             }
         }

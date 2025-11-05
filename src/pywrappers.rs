@@ -16,7 +16,10 @@ use crate::{
     controllers::{controller::ControllerError, pybinds::PythonController},
     logger::is_enabled,
     navigators::pybinds::PythonNavigator,
-    networking::{MessageTypes, network::{Envelope, MessageFlag}},
+    networking::{
+        network::{Envelope, MessageFlag},
+        MessageTypes,
+    },
     node::Node,
     physics::{physics::Command, pybinds::PythonPhysics},
     plugin_api::PluginAPI,
@@ -648,10 +651,10 @@ impl NodeWrapper {
                 Err(_) => MessageTypes::String(serde_json::to_string(&envelope.message).unwrap()),
                 Ok(m) => m,
             };
-            messages.push(EnvelopeWrapper{
+            messages.push(EnvelopeWrapper {
                 msg_from: envelope.from,
                 message: msg,
-                timestamp: envelope.timestamp
+                timestamp: envelope.timestamp,
             });
         }
         messages
@@ -659,10 +662,7 @@ impl NodeWrapper {
 }
 
 impl NodeWrapper {
-    pub fn from_rust(
-        n: &Node,
-        messages_receiver: Arc<Mutex<Receiver<Envelope>>>,
-    ) -> Self {
+    pub fn from_rust(n: &Node, messages_receiver: Arc<Mutex<Receiver<Envelope>>>) -> Self {
         Self {
             // I did not find another solution.
             // Relatively safe as Nodes lives very long, almost all the time

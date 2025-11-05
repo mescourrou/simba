@@ -232,21 +232,11 @@ pub struct PID {
 impl PID {
     /// Makes a new default PID.
     pub fn new() -> Self {
-        Self::from_config(
-            &PIDConfig::default(),
-            &None,
-            &SimulatorConfig::default(),
-            &DeterministRandomVariableFactory::default(),
-        )
+        Self::from_config(&PIDConfig::default())
     }
 
     /// Makes a new [`PID`] from the given `config`.
-    pub fn from_config(
-        config: &PIDConfig,
-        _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        _global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
-    ) -> Self {
+    pub fn from_config(config: &PIDConfig) -> Self {
         PID {
             kp_v: config.kp_v,
             kd_v: config.kd_v,

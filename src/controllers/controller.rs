@@ -212,12 +212,7 @@ pub fn make_controller_from_config(
     va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn Controller>>> {
     Arc::new(RwLock::new(match config {
-        ControllerConfig::PID(c) => Box::new(pid::PID::from_config(
-            c,
-            plugin_api,
-            global_config,
-            va_factory,
-        )) as Box<dyn Controller>,
+        ControllerConfig::PID(c) => Box::new(pid::PID::from_config(c)) as Box<dyn Controller>,
         ControllerConfig::External(c) => {
             Box::new(external_controller::ExternalController::from_config(
                 c,
@@ -226,14 +221,9 @@ pub fn make_controller_from_config(
                 va_factory,
             )) as Box<dyn Controller>
         }
-        ControllerConfig::Python(c) => Box::new(
-            python_controller::PythonController::from_config(
-                c,
-                plugin_api,
-                global_config,
-                va_factory,
-            )
-            .unwrap(),
-        ) as Box<dyn Controller>,
+        ControllerConfig::Python(c) => {
+            Box::new(python_controller::PythonController::from_config(c, global_config).unwrap())
+                as Box<dyn Controller>
+        }
     }))
 }

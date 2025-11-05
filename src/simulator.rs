@@ -1572,7 +1572,10 @@ mod tests {
     use crate::{
         constants::TIME_ROUND,
         logger::LogLevel,
-        networking::{message_handler::MessageHandler, network::{Envelope, MessageFlag}},
+        networking::{
+            message_handler::MessageHandler,
+            network::{Envelope, MessageFlag},
+        },
         sensors::sensor::Observation,
         state_estimators::{
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
@@ -1683,6 +1686,7 @@ mod tests {
             &self,
             config: &serde_json::Value,
             _global_config: &SimulatorConfig,
+            _va_factory: &DeterministRandomVariableFactory,
         ) -> Box<dyn StateEstimator> {
             Box::new(StateEstimatorTest {
                 last_time: 0.,

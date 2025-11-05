@@ -252,12 +252,7 @@ impl GoTo {
     /// * `config` - GoTo configuration
     /// * `plugin_api` - Not used there.
     /// * `global_config` - Global configuration of the simulator.
-    pub fn from_config(
-        config: &GoToConfig,
-        _plugin_api: &Option<Box<&dyn PluginAPI>>,
-        _global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
-    ) -> Self {
+    pub fn from_config(config: &GoToConfig) -> Self {
         let (tx, rx) = mpsc::channel();
         Self {
             target_speed: config.target_speed,

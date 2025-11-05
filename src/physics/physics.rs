@@ -224,21 +224,17 @@ pub fn make_physics_from_config(
     va_factory: &DeterministRandomVariableFactory,
 ) -> Arc<RwLock<Box<dyn Physics>>> {
     Arc::new(RwLock::new(match &config {
-        PhysicsConfig::Perfect(c) => Box::new(perfect_physics::PerfectPhysics::from_config(
-            c,
-            plugin_api,
-            global_config,
-            va_factory,
-        )) as Box<dyn Physics>,
+        PhysicsConfig::Perfect(c) => {
+            Box::new(perfect_physics::PerfectPhysics::from_config(c)) as Box<dyn Physics>
+        }
         PhysicsConfig::External(c) => Box::new(external_physics::ExternalPhysics::from_config(
             c,
             plugin_api,
             global_config,
             va_factory,
         )),
-        PhysicsConfig::Python(c) => Box::new(
-            python_physics::PythonPhysics::from_config(c, plugin_api, global_config, va_factory)
-                .unwrap(),
-        ),
+        PhysicsConfig::Python(c) => {
+            Box::new(python_physics::PythonPhysics::from_config(c, global_config).unwrap())
+        }
     }))
 }
