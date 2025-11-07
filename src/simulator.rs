@@ -120,7 +120,7 @@ impl Default for ResultSaveMode {
 pub struct ResultConfig {
     /// Filename to save the results, in JSON format. The directory of this
     /// file is used to save the figures if results are computed.
-    pub result_path: String,
+    pub result_path: Option<String>,
     /// Show the matplotlib figures
     pub show_figures: bool,
     /// Path to the python analyse scrit.
@@ -137,8 +137,8 @@ impl Default for ResultConfig {
     /// Default scenario configuration: no nodes.
     fn default() -> Self {
         Self {
-            result_path: String::from("../results.json"),
-            show_figures: true,
+            result_path: None,
+            show_figures: false,
             analyse_script: None,
             figures_path: None,
             python_params: Value::Null,
@@ -163,7 +163,14 @@ impl UIComponent for ResultConfig {
         CollapsingHeader::new("Results").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Result Path:");
-                path_finder(ui, &mut self.result_path, &global_config.base_path);
+                if let Some(path) = &mut self.result_path {
+                    path_finder(ui, path, &global_config.base_path);
+                    if ui.button("X").clicked() {
+                        self.result_path = None;
+                    }
+                } else if ui.button("+").clicked() {
+                    self.result_path = Some(String::from(""));
+                }
             });
 
             let mut current_str = self.save_mode.to_string();
@@ -212,7 +219,7 @@ impl UIComponent for ResultConfig {
             });
 
             ui.horizontal(|ui| {
-                ui.label("Result Path:");
+                ui.label("Analyse script path:");
                 if let Some(script) = &mut self.analyse_script {
                     path_finder(ui, script, &global_config.base_path);
                     if ui.button("X").clicked() {
@@ -249,7 +256,12 @@ impl UIComponent for ResultConfig {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         CollapsingHeader::new("Results").show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("Result Path: {}", self.result_path));
+                ui.label("Result Path: ");
+                if let Some(path) = &self.figures_path {
+                    ui.label(path);
+                } else {
+                    ui.label("None");
+                }
             });
 
             ui.horizontal(|ui| {
@@ -711,8 +723,8 @@ pub struct Simulator {
     time_cv: Arc<TimeCv>,
     common_time: Arc<RwLock<f32>>,
 
-    async_api: Arc<SimulatorAsyncApi>,
-    async_api_server: SimulatorAsyncApiServer,
+    async_api: Option<Arc<SimulatorAsyncApi>>,
+    async_api_server: Option<SimulatorAsyncApiServer>,
 
     node_apis: BTreeMap<String, NodeClient>,
 
@@ -726,16 +738,14 @@ impl Simulator {
     pub fn new() -> Simulator {
         let rng = rand::random();
         let time_cv = Arc::new(TimeCv::new());
-        let mut simulator_api = SimulatorAsyncApiServer::new(0.);
-        let simulator_api_client = simulator_api.new_client();
         Simulator {
             nodes: Vec::new(),
             config: SimulatorConfig::default(),
             network_manager: NetworkManager::new(time_cv.clone()),
             determinist_va_factory: Arc::new(DeterministRandomVariableFactory::new(rng)),
             time_cv,
-            async_api: Arc::new(simulator_api_client),
-            async_api_server: simulator_api,
+            async_api: None,
+            async_api_server: None,
             common_time: Arc::new(RwLock::new(f32::INFINITY)),
             node_apis: BTreeMap::new(),
             result_saving_data: Some(ResultSavingData::default()),
@@ -793,6 +803,10 @@ impl Simulator {
         self.common_time = Arc::new(RwLock::new(f32::INFINITY));
 
         self.time_analysis_factory = TimeAnalysisFactory::init_from_config(&config.time_analysis)?;
+
+        if config.results.is_some() && self.async_api.is_none() {
+            self.async_api = Some(self.get_async_api());
+        }
 
         self.result_saving_data = match &self.config.results {
             Some(cfg) => Some(ResultSavingData {
@@ -1151,7 +1165,10 @@ impl Simulator {
         }
         let result_config = self.config.results.clone().unwrap();
         let filename = result_config.result_path;
-        let filename = self.config.base_path.as_ref().join(filename);
+        if filename.is_none() {
+            return Ok(());
+        }
+        let filename = self.config.base_path.as_ref().join(filename.unwrap());
 
         info!(
             "Saving results to {}",
@@ -1187,11 +1204,11 @@ impl Simulator {
     /// If the configuration of the [`Simulator`] do not contain a result path, no results are saved.
     fn process_records(&mut self, time: Option<f32>) -> SimbaResult<()> {
         if self.config.results.is_none() {
-            if time.is_none() {
-                while let Ok(record) = self.async_api.records.lock().unwrap().try_recv() {
-                    self.records.push(record)
-                }
-            }
+            // if time.is_none() {
+            //     while let Ok(record) = self.async_api.records.lock().unwrap().try_recv() {
+            //         self.records.push(record)
+            //     }
+            // }
             return Ok(());
         }
         let result_saving_data = self.result_saving_data.as_ref().unwrap().clone();
@@ -1255,50 +1272,55 @@ impl Simulator {
         }
 
         let mut new_records = Vec::new();
-        while let Ok(record) = self.async_api.records.lock().unwrap().try_recv() {
-            new_records.push(record)
+        if let Some(async_api) = &self.async_api {
+            while let Ok(record) = async_api.records.lock().unwrap().try_recv() {
+                new_records.push(record)
+            }
         }
+        
         let result_config = self.config.results.clone().unwrap();
         let filename = result_config.result_path;
-        let filename = self.config.base_path.as_ref().join(filename);
+        if filename.is_some() {
+            let filename = self.config.base_path.as_ref().join(filename.unwrap());
 
-        info!(
-            "Saving results to {}",
-            filename.to_str().unwrap_or_default()
-        );
-        let mut recording_file = match File::options().append(true).open(filename.clone()) {
-            Err(e) => {
-                return Err(SimbaError::new(
-                    SimbaErrorTypes::ConfigError,
-                    format!(
-                        "Impossible to open result file '{}': {}",
-                        filename.to_str().unwrap(),
-                        e
-                    ),
-                ));
-            }
-            Ok(f) => f,
-        };
+            info!(
+                "Saving results to {}",
+                filename.to_str().unwrap_or_default()
+            );
+            let mut recording_file = match File::options().append(true).open(filename.clone()) {
+                Err(e) => {
+                    return Err(SimbaError::new(
+                        SimbaErrorTypes::ConfigError,
+                        format!(
+                            "Impossible to open result file '{}': {}",
+                            filename.to_str().unwrap(),
+                            e
+                        ),
+                    ));
+                }
+                Ok(f) => f,
+            };
 
-        for record in &new_records {
-            if result_saving_data.first_row {
-                result_saving_data.first_row = false;
-            } else {
-                recording_file.write(b",\n").unwrap();
+            for record in &new_records {
+                if result_saving_data.first_row {
+                    result_saving_data.first_row = false;
+                } else {
+                    recording_file.write(b",\n").unwrap();
+                }
+                if let Err(e) = serde_json::to_writer(&recording_file, &record) {
+                    return Err(SimbaError::new(
+                        SimbaErrorTypes::ImplementationError,
+                        format!(
+                            "Error during json serialization of record {:?}: {}",
+                            &record, e
+                        ),
+                    ));
+                }
             }
-            if let Err(e) = serde_json::to_writer(&recording_file, &record) {
-                return Err(SimbaError::new(
-                    SimbaErrorTypes::ImplementationError,
-                    format!(
-                        "Error during json serialization of record {:?}: {}",
-                        &record, e
-                    ),
-                ));
+            if time.is_none() {
+                // Only at the end. If crashes in between, the user need to close the json array+object manually
+                recording_file.write(b"\n]}").unwrap();
             }
-        }
-        if time.is_none() {
-            // Only at the end. If crashes in between, the user need to close the json array+object manually
-            recording_file.write(b"\n]}").unwrap();
         }
         self.records.extend(new_records);
         Ok(())
@@ -1306,11 +1328,14 @@ impl Simulator {
 
     pub fn load_results(&mut self) -> SimbaResult<f32> {
         if self.config.results.is_none() {
-            return Ok(0.);
+            return Err(SimbaError::new(SimbaErrorTypes::ConfigError, "Request for loading results but no result configuration".to_string()));
         }
         let result_config = self.config.results.clone().unwrap();
         let filename = result_config.result_path;
-        let filename = self.config.base_path.as_ref().join(filename);
+        if filename.is_none() {
+            return Err(SimbaError::new(SimbaErrorTypes::ConfigError, "Request for loading results but no result path in configuration".to_string()));
+        }
+        let filename = self.config.base_path.as_ref().join(filename.unwrap());
         let mut recording_file = File::open(filename).expect("Impossible to open record file");
         let mut content = String::new();
         recording_file
@@ -1323,9 +1348,9 @@ impl Simulator {
         let mut max_time = self.common_time.write().unwrap();
         for record in &self.records {
             *max_time = max_time.max(record.time);
-            self.async_api_server.send_record(record);
+            self.async_api_server.as_ref().unwrap().send_record(record);
         }
-        self.async_api_server.update_time(*max_time);
+        self.async_api_server.as_ref().unwrap().update_time(*max_time);
         Ok(*max_time)
     }
 
@@ -1340,7 +1365,7 @@ impl Simulator {
         nb_nodes: Arc<RwLock<usize>>,
         _node_idx: usize,
         time_cv: Arc<TimeCv>,
-        async_api_server: SimulatorAsyncApiServer,
+        async_api_server: Option<SimulatorAsyncApiServer>,
         common_time: Arc<RwLock<f32>>,
         barrier: Arc<Barrier>,
     ) -> SimbaResult<Option<Node>> {
@@ -1380,7 +1405,9 @@ impl Simulator {
             barrier.wait();
             *common_time.write().unwrap() = f32::INFINITY;
             barrier.wait();
-            async_api_server.update_time(next_time);
+            if let Some(async_api_server) = &async_api_server {
+                async_api_server.update_time(next_time);
+            }
             *TIME.write().unwrap() = next_time;
             if next_time > max_time {
                 break;
@@ -1389,10 +1416,12 @@ impl Simulator {
             let nb_nodes_unlocked = *nb_nodes.read().unwrap();
             node.run_next_time_step(next_time, &time_cv, nb_nodes_unlocked)?;
             node.sync_with_others(&time_cv, nb_nodes_unlocked, next_time);
-            async_api_server.send_record(&Record {
-                time: next_time,
-                node: node.record(),
-            });
+            if let Some(async_api_server) = &async_api_server {
+                async_api_server.send_record(&Record {
+                    time: next_time,
+                    node: node.record(),
+                });
+            }
             if node.zombie {
                 // Only place where nb_node should change.
                 if is_enabled(crate::logger::InternalLog::NodeRunning) {
@@ -1436,10 +1465,12 @@ impl Simulator {
                     }
                 }
             }
-            let current_time = *self.async_api.current_time.read().unwrap();
-            if (current_time - previous_time).abs() >= TIME_ROUND {
-                previous_time = current_time;
-                self.process_records(Some(current_time))?;
+            if let Some(async_api) = &self.async_api {
+                let current_time = *async_api.current_time.read().unwrap();
+                if (current_time - previous_time).abs() >= TIME_ROUND {
+                    previous_time = current_time;
+                    self.process_records(Some(current_time))?;
+                }
             }
             self.network_manager.process_messages(&node_states)?;
             if *finishing_cv.0.lock().unwrap() >= *nb_nodes.read().unwrap() {
@@ -1576,7 +1607,10 @@ def convert(records):
     }
 
     pub fn get_async_api(&mut self) -> Arc<SimulatorAsyncApi> {
-        Arc::new(self.async_api_server.new_client())
+        if self.async_api_server.is_none() {
+            self.async_api_server = Some(SimulatorAsyncApiServer::new(0.));
+        }
+        Arc::new(self.async_api_server.as_mut().unwrap().new_client())
     }
 }
 
@@ -1848,6 +1882,7 @@ mod tests {
         config.log.log_level = LogLevel::Off;
         // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
         config.max_time = 10.;
+        config.results = Some(ResultConfig::default());
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             state_estimator: StateEstimatorConfig::Perfect(PerfectEstimatorConfig {

@@ -1,7 +1,7 @@
 log:
   log_level: #!Internal ["NavigatorDetailed"]
-    Info
-results: 
+    Off
+results:
   result_path: "./result.json"
   show_figures: false # Disabled for automatic testing
   analyse_script: "../python_scripts/analyse_results.py"
@@ -11,7 +11,7 @@ time_analysis:
   exporter: TraceEventExporter
   output_path: "time_performance"
   keep_last: true
-max_time: 300.
+max_time: 100.
 robots:
   - name: "robot1"
     navigator: !TrajectoryFollower

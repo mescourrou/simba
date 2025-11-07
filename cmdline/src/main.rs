@@ -2,7 +2,7 @@ use std::path::Path;
 use clap::Parser;
 
 use simba::{
-    gui, simulator::Simulator,
+    gui, simulator::Simulator, errors::SimbaResult,
 };
 
 #[derive(Parser)]
@@ -18,11 +18,7 @@ struct Cli {
     load_results: bool,
 }
 
-fn main() {
-    let args = Cli::parse();
-
-    
-
+fn doit(args: Cli) -> SimbaResult<()> {
     if args.no_gui {
         let config_path = if let Some(p) = &args.config_path {
             Some(Path::new(unsafe {
@@ -33,7 +29,7 @@ fn main() {
         };
         if config_path.is_none() {
             println!("If no gui is used, provide a config path!");
-            return;
+            return Ok(());
         }
         // Initialize the environment
         Simulator::init_environment();
@@ -41,8 +37,7 @@ fn main() {
         let mut simulator = Simulator::from_config_path(
             config_path.unwrap(),
             &None, //<- plugin API, to load external modules
-        )
-        .unwrap();
+        )?;
 
         // Show the simulator loaded configuration
         simulator.show();
@@ -50,14 +45,14 @@ fn main() {
         if !args.load_results {
             // Run the simulator for the time given in the configuration
             // It also save the results to json
-            simulator.run().unwrap();
+            simulator.run()?;
         } else {
-            simulator.load_results().unwrap();
+            simulator.load_results()?;
         }
-        simulator.compute_results().unwrap();
+        simulator.compute_results()?;
 
 
-        return;
+        return Ok(());
     }
 
     let config_path = if let Some(p) = &args.config_path {
@@ -69,4 +64,16 @@ fn main() {
     };
 
     gui::run_gui(config_path, None, args.load_results);
+    Ok(())
+}
+
+fn main() {
+    let args = Cli::parse();
+
+    let res = doit(args);
+    if let Err(e) = res {
+        println!("{}", e.detailed_error());
+    }
+
+
 }
