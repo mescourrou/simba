@@ -1,6 +1,6 @@
 log:
   log_level:
-    Off
+    Info
 max_time: 60.
 robots:
   - name: "robot1"

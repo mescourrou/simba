@@ -14,7 +14,7 @@ use crate::{
     navigators::navigator::Navigator,
     physics::physics::Physics,
     plugin_api::PluginAPI,
-    simulator::{Simulator, SimulatorAsyncApi, SimulatorConfig},
+    simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::state_estimator::StateEstimator,
     utils::{determinist_random_variable::DeterministRandomVariableFactory, rfc},
 };
@@ -26,7 +26,8 @@ pub struct AsyncApi {
     // Channels
     pub load_config: rfc::RemoteFunctionCall<String, SimbaResult<SimulatorConfig>>,
     pub load_results: rfc::RemoteFunctionCall<(), SimbaResult<f32>>,
-    pub run: rfc::RemoteFunctionCall<Option<f32>, SimbaResult<()>>,
+    pub run: rfc::RemoteFunctionCall<(Option<f32>, bool), SimbaResult<()>>,
+    pub get_records: rfc::RemoteFunctionCall<bool, SimbaResult<Vec<Record>>>,
     pub compute_results: rfc::RemoteFunctionCall<(), SimbaResult<()>>,
 }
 
@@ -35,8 +36,9 @@ pub struct AsyncApi {
 pub struct AsyncApiServer {
     pub load_config: Arc<rfc::RemoteFunctionCallHost<String, SimbaResult<SimulatorConfig>>>,
     pub load_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<f32>>>,
-    pub run: Arc<rfc::RemoteFunctionCallHost<Option<f32>, SimbaResult<()>>>,
+    pub run: Arc<rfc::RemoteFunctionCallHost<(Option<f32>, bool), SimbaResult<()>>>,
     pub compute_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<()>>>,
+    pub get_records: Arc<rfc::RemoteFunctionCallHost<bool, SimbaResult<Vec<Record>>>>,
 }
 
 // #[derive(Clone)]
@@ -47,6 +49,7 @@ pub struct AsyncApiRunner {
     keep_alive_tx: mpsc::Sender<()>,
     keep_alive_rx: Arc<Mutex<mpsc::Receiver<()>>>,
     thread_handle: Option<JoinHandle<()>>,
+    running: bool,
 }
 
 impl AsyncApiRunner {
@@ -60,6 +63,7 @@ impl AsyncApiRunner {
         let (run_call, run_host) = rfc::make_pair();
         let (results_call, results_host) = rfc::make_pair();
         let (load_results_call, load_results_host) = rfc::make_pair();
+        let (get_records_call, get_records_host) = rfc::make_pair();
         let (keep_alive_tx, keep_alive_rx) = mpsc::channel();
         let simulator_api = simulator.lock().unwrap().get_async_api();
         Self {
@@ -69,17 +73,20 @@ impl AsyncApiRunner {
                 load_results: load_results_call,
                 run: run_call,
                 compute_results: results_call,
+                get_records: get_records_call,
             },
             private_api: AsyncApiServer {
                 load_config: Arc::new(load_config_host),
                 load_results: Arc::new(load_results_host),
                 run: Arc::new(run_host),
                 compute_results: Arc::new(results_host),
+                get_records: Arc::new(get_records_host),
             },
             simulator,
             keep_alive_rx: Arc::new(Mutex::new(keep_alive_rx)),
             keep_alive_tx,
             thread_handle: None,
+            running: true,
         }
     }
 
@@ -92,6 +99,9 @@ impl AsyncApiRunner {
     }
 
     pub fn stop(&mut self) {
+        if !self.running {
+            return;
+        }
         self.keep_alive_tx.send(()).unwrap();
         log::info!("Stop requested...");
         if let Some(handle) = self.thread_handle.take() {
@@ -105,6 +115,7 @@ impl AsyncApiRunner {
                 .join()
                 .expect("Error while waiting for server thread to join");
         }
+        self.running = false;
     }
 
     pub fn run(&mut self, plugin_api: Option<Box<&'static dyn PluginAPI>>) {
@@ -112,6 +123,7 @@ impl AsyncApiRunner {
         let keep_alive_rx = self.keep_alive_rx.clone();
         let simulator_cloned = self.simulator.clone();
         let plugin_api = plugin_api.clone();
+        self.running = true;
         self.thread_handle = Some(thread::spawn(move || {
             println!("AsyncApiRunner thread started");
             let plugin_api = plugin_api.clone();
@@ -154,16 +166,15 @@ impl AsyncApiRunner {
             let plugin_api_threaded = plugin_api.clone();
             thread::spawn(move || {
                 while !*stopping.read().unwrap() {
-                    run.recv_closure_mut(|max_time| {
+                    run.recv_closure_mut(|(max_time, reset)| {
                         let mut simulator = simulator_arc.lock().unwrap();
-                        if need_reset {
+                        if reset {
                             simulator.reset(&plugin_api_threaded)?;
                         }
                         if let Some(max_time) = max_time {
                             simulator.set_max_time(max_time);
                         }
                         log::info!("Run...");
-                        need_reset = true;
                         simulator.run()
                     });
                 }
@@ -182,6 +193,18 @@ impl AsyncApiRunner {
                 }
             });
 
+            let get_records = private_api.get_records.clone();
+            let simulator_arc = simulator_cloned.clone();
+            let stopping = stopping_root.clone();
+            thread::spawn(move || {
+                while !*stopping.read().unwrap() {
+                    get_records.recv_closure_mut(|sort| {
+                        let simulator = simulator_arc.lock().unwrap();
+                        Ok(simulator.get_records(sort))
+                    });
+                }
+            });
+
             // Wait for end
             let _ = keep_alive_rx.lock().unwrap().recv();
 
@@ -193,6 +216,12 @@ impl AsyncApiRunner {
 
             log::info!("AsyncApiRunner thread exited");
         }));
+    }
+}
+
+impl Drop for AsyncApiRunner {
+    fn drop(&mut self) {
+        self.stop();
     }
 }
 

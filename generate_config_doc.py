@@ -152,7 +152,10 @@ def document_config(node, docfile, configs, depth=0):
             comments_str = ""
             if len(comments) > 0:
                 comments_str += ", ".join(comments)
-            docfile.write(f"{indent}- `{name}`{':' if comments_str != '' else ''} {comments_str}\n")
+            if n.type == "enum_variant":
+                docfile.write(f"{indent}- `!{name}`{':' if comments_str != '' else ''} {comments_str}\n")
+            else:
+                docfile.write(f"{indent}- `{name}`{':' if comments_str != '' else ''} {comments_str}\n")
             if not next_node is None:
                 document_config(next_node, docfile, configs, depth+1)
             

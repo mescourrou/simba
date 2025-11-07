@@ -783,7 +783,9 @@ impl SimulatorWrapper {
     }
 
     pub fn run(&mut self) {
-        self.simulator.run(&self.python_api);
+        self.simulator.run(&self.python_api, None, false);
+        self.simulator.compute_results();
+        self.simulator.stop();
     }
 }
 

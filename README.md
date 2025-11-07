@@ -29,7 +29,6 @@ Here is a list of available and considered features. The order is not a priority
 - [X] Central algorithm possibility
 
 ## Cargo Features:
-- "time-analysis": enable time analysis features (with performance report compatible with [https://profiler.firefox.com/](https://profiler.firefox.com/)). May slow down the simulation (shared memory).
 - "gui": enable GUI running. Use `gui::run_gui` to start a GUI.
 
 ## Documentation

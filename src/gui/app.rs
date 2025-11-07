@@ -436,7 +436,7 @@ impl eframe::App for SimbaApp {
                         .clicked()
                     {
                         log::info!("Run simulation");
-                        self.p.api.run.async_call(Some(self.duration));
+                        self.p.api.run.async_call((Some(self.duration), self.p.simulation_run));
                         self.p.simulation_run = true;
                     }
                     if let Some(r) = self.p.api.run.try_get_result() {

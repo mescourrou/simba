@@ -336,9 +336,19 @@ fn main() {
     )
     .unwrap();
 
+    println!("------------------ RUN TO 10");
+    simulator.set_max_time(10.);
     // Run the simulator for the time given in the configuration
     // It also save the results to json
     simulator.run().unwrap();
+    println!("{:?}", simulator.get_records(false));
+
+    println!("------------------ RUN TO 20");
+    simulator.set_max_time(20.);
+    // Run the simulator for the time given in the configuration
+    // It also save the results to json
+    simulator.run().unwrap();
+    println!("{:?}", simulator.get_records(false));
 
     simulator.compute_results().unwrap();
 }

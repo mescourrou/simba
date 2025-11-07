@@ -70,10 +70,18 @@ impl ServiceManager {
         // Next loop to avoid deadlock between services
         let resp;
         loop {
-            if let Ok(r) = client.try_recv() {
-                // Time_cv circulating_messages already decreased in client
-                resp = r;
-                break;
+            match client.try_recv() {
+                Ok(r) => {
+                    // Time_cv circulating_messages already decreased in client
+                    resp = r;
+                    break;
+                },
+                Err(e) => {
+                    match e.error_type() {
+                        SimbaErrorTypes::ServiceError(ServiceError::Closed) => return Err(e),
+                        _ => {}
+                    }
+                }
             }
             if self.process_requests() > 0 {
                 self.handle_requests(time);

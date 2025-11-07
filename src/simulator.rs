@@ -785,6 +785,7 @@ impl Simulator {
     }
 
     pub fn reset(&mut self, plugin_api: &Option<Box<&dyn PluginAPI>>) -> SimbaResult<()> {
+        info!("Reset node");
         self.nodes = Vec::new();
         self.time_cv = Arc::new(TimeCv::new());
         self.network_manager = NetworkManager::new(self.time_cv.clone());
@@ -1082,7 +1083,7 @@ impl Simulator {
             let finishing_cv_clone = finishing_cv.clone();
             let barrier_clone = barrier.clone();
             let nb_nodes = nb_nodes.clone();
-            let handle = thread::spawn(move || -> SimbaResult<()> {
+            let handle = thread::spawn(move || -> SimbaResult<Option<Node>> {
                 let ret = Self::run_one_node(
                     node,
                     new_max_time,
@@ -1093,11 +1094,17 @@ impl Simulator {
                     common_time_clone,
                     barrier_clone,
                 );
-                if ret.is_err() {
-                    *time_cv.force_finish.lock().unwrap() = true;
-                }
-                *finishing_cv_clone.0.lock().unwrap() += 1;
-                finishing_cv_clone.1.notify_all();
+                match &ret {
+                    Err(_) => *time_cv.force_finish.lock().unwrap() = true,
+                    Ok(Some(_)) => {
+                        // Increase finishing nodes only if the node is still existing
+                        // as in case of zombie, the total number of node has been decreased.
+                        *finishing_cv_clone.0.lock().unwrap() += 1;
+                        finishing_cv_clone.1.notify_all();
+                    }
+                    _ => {}   
+                };
+                
                 ret
             });
             handles.push(handle);
@@ -1111,7 +1118,11 @@ impl Simulator {
         for handle in handles {
             match handle.join().unwrap() {
                 Err(e) => error = Some(e),
-                Ok(_) => (),
+                Ok(node) => {
+                    if let Some(n) = node {
+                        self.nodes.push(n)
+                    }
+                },
             };
         }
 
@@ -1332,7 +1343,7 @@ impl Simulator {
         async_api_server: SimulatorAsyncApiServer,
         common_time: Arc<RwLock<f32>>,
         barrier: Arc<Barrier>,
-    ) -> SimbaResult<()> {
+    ) -> SimbaResult<Option<Node>> {
         info!("Start thread of node {}", node.name());
         let mut thread_ids = THREAD_IDS.write().unwrap();
         thread_ids.push(thread::current().id());
@@ -1394,12 +1405,13 @@ impl Simulator {
                 time_cv.condvar.notify_all();
                 node.kill();
                 barrier.remove_one();
-                break;
+                return Ok(None);
             }
 
             barrier.wait();
         }
-        Ok(())
+
+        Ok(Some(node))
     }
 
     fn simulator_spin(
@@ -1430,7 +1442,7 @@ impl Simulator {
                 self.process_records(Some(current_time))?;
             }
             self.network_manager.process_messages(&node_states)?;
-            if *finishing_cv.0.lock().unwrap() == *nb_nodes.read().unwrap() {
+            if *finishing_cv.0.lock().unwrap() >= *nb_nodes.read().unwrap() {
                 return Ok(());
             }
         }
@@ -1655,8 +1667,8 @@ impl AsyncSimulator {
         sim
     }
 
-    pub fn run(&mut self, plugin_api: &Option<Box<dyn PluginAPI>>) {
-        self.api.run.async_call(None);
+    pub fn run(&mut self, plugin_api: &Option<Box<dyn PluginAPI>>, max_time: Option<f32>, reset: bool) {
+        self.api.run.async_call((max_time, reset));
         if let Some(plugin_api) = &plugin_api {
             while self.api.run.try_get_result().is_none() {
                 plugin_api.check_requests();
@@ -1671,11 +1683,13 @@ impl AsyncSimulator {
                 }
             }
         }
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Stop server");
-        }
-        // Stop server thread
-        self.server.lock().unwrap().stop();
+    }
+
+    pub fn get_records(&self, sorted: bool) -> SimbaResult<Vec<Record>> {
+        self.api.get_records.call(sorted).unwrap()
+    }
+
+    pub fn compute_results(&self) {
         // Calling directly the simulator to keep python in one thread
         self.server
             .lock()
@@ -1685,6 +1699,14 @@ impl AsyncSimulator {
             .unwrap()
             .compute_results()
             .unwrap();
+    }
+
+    pub fn stop(&self) {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Stop server");
+        }
+        // Stop server thread
+        self.server.lock().unwrap().stop();
     }
 }
 

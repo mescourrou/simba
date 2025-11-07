@@ -50,7 +50,7 @@ pub struct ServiceClient<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> 
     // Simulator condition variable needed so that all nodes wait the end of other,
     // and continue to treat messages.
     time_cv: Arc<TimeCv>,
-    living: Arc<Mutex<bool>>,
+    living: Arc<RwLock<bool>>,
 }
 
 impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<RequestMsg, ResponseMsg> {
@@ -73,7 +73,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         req: RequestMsg,
         time: f32,
     ) -> Result<(), SimbaError> {
-        if !*self.living.lock().unwrap() {
+        if !*self.living.read().unwrap() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ServiceError(ServiceError::Closed),
                 "Service server closed".to_string(),
@@ -94,7 +94,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
             Err(e) => {
                 *circulating_messages -= 1;
                 if e.to_string() == "sending on a closed channel".to_string() {
-                    *self.living.lock().unwrap() = false;
+                    *self.living.write().unwrap() = false;
                     return Err(SimbaError::new(
                         SimbaErrorTypes::ServiceError(ServiceError::Closed),
                         "Channel closed".to_string(),
@@ -135,7 +135,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         for flag in result.1 {
             match flag {
                 MessageFlag::Unsubscribe => {
-                    *self.living.lock().unwrap() = false;
+                    *self.living.write().unwrap() = false;
                     return Err(SimbaError::new(
                         SimbaErrorTypes::ServiceError(ServiceError::Closed),
                         "Closing service server: Unsubscribe".to_string(),
@@ -176,6 +176,7 @@ pub struct Service<
     /// and continue to treat messages.
     time_cv: Arc<TimeCv>,
     target: Arc<RwLock<Box<T>>>,
+    living: Arc<RwLock<bool>>
 }
 
 impl<
@@ -197,6 +198,7 @@ impl<
             request_buffer: Arc::new(RwLock::new(TimeOrderedData::new())),
             time_cv,
             target,
+            living: Arc::new(RwLock::new(true)),
         }
     }
 
@@ -212,11 +214,12 @@ impl<
             request_channel: self.request_channel_give.clone(),
             response_channel: Arc::new(Mutex::new(rx)),
             time_cv: self.time_cv.clone(),
-            living: Arc::new(Mutex::new(true)),
+            living: Arc::new(RwLock::new(true)),
         }
     }
 
     pub fn delete(&mut self) {
+        *self.living.write().unwrap() = false;
         for (_, client) in &self.clients {
             client
                 .lock()

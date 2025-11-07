@@ -134,5 +134,10 @@ fn start(python_api: Py<PyAny>) {
     let my_plugin = Some(Box::new(my_plugin) as Box<dyn PluginAPI>);
 
     let mut simulator = AsyncSimulator::from_config("config_plugin.yaml".to_string(), &my_plugin);
-    simulator.run(&my_plugin);
+    simulator.run(&my_plugin, Some(20.), false);
+    simulator.get_records(false);
+    simulator.run(&my_plugin, Some(40.), false);
+    simulator.get_records(false);
+    simulator.compute_results();
+    simulator.stop();
 }
