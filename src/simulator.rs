@@ -731,6 +731,7 @@ pub struct Simulator {
     result_saving_data: Option<ResultSavingData>,
     records: Vec<Record>,
     time_analysis_factory: TimeAnalysisFactory,
+    force_send_results: bool,
 }
 
 impl Simulator {
@@ -754,6 +755,7 @@ impl Simulator {
                 &TimeAnalysisConfig::default(),
             )
             .unwrap(),
+            force_send_results: false,
         }
     }
 
@@ -819,13 +821,13 @@ impl Simulator {
         let mut service_managers = BTreeMap::new();
         // Create robots
         for robot_config in &config.robots {
-            self.add_robot(robot_config, plugin_api, &config);
+            self.add_robot(robot_config, plugin_api, &config, self.force_send_results);
             let node = self.nodes.last().unwrap();
             service_managers.insert(node.name(), node.service_manager());
         }
         // Create computation units
         for computation_unit_config in &config.computation_units {
-            self.add_computation_unit(computation_unit_config, plugin_api, &config);
+            self.add_computation_unit(computation_unit_config, plugin_api, &config, self.force_send_results);
             let node = self.nodes.last().unwrap();
             service_managers.insert(node.name(), node.service_manager());
         }
@@ -838,10 +840,19 @@ impl Simulator {
         Ok(())
     }
 
-    pub fn load_config_path(
+    pub(crate) fn load_config_path(
         &mut self,
         config_path: &Path,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
+    ) -> SimbaResult<()> {
+        self.load_config_path_full(config_path, plugin_api, false)
+    }
+
+    pub(crate) fn load_config_path_full(
+        &mut self,
+        config_path: &Path,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        force_send_results: bool,
     ) -> SimbaResult<()> {
         println!("Load configuration from {:?}", config_path);
         let mut config: serde_yaml::Value = match confy::load_path(config_path) {
@@ -883,13 +894,22 @@ impl Simulator {
             .to_str()
             .unwrap()
             .to_string();
-        self.load_config(&config, plugin_api)
+        self.load_config_full(&config, plugin_api, force_send_results)
     }
 
     pub fn load_config(
         &mut self,
         config: &SimulatorConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
+    ) -> SimbaResult<()> {
+        self.load_config_full(config, plugin_api, false)
+    }
+
+    pub(crate) fn load_config_full(
+        &mut self,
+        config: &SimulatorConfig,
+        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        force_send_results: bool,
     ) -> SimbaResult<()> {
         println!("Checking configuration:");
         if config.check() {
@@ -926,6 +946,7 @@ impl Simulator {
         } else {
             self.config.random_seed = Some(self.determinist_va_factory.global_seed());
         }
+        self.force_send_results = force_send_results;
 
         self.reset(plugin_api)
     }
@@ -1025,6 +1046,7 @@ impl Simulator {
         robot_config: &RobotConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
+        force_send_results: bool,
     ) {
         let mut new_node = NodeFactory::make_robot(
             robot_config,
@@ -1033,6 +1055,7 @@ impl Simulator {
             &self.determinist_va_factory,
             &mut self.time_analysis_factory,
             self.time_cv.clone(),
+            force_send_results,
         );
         self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
@@ -1043,6 +1066,7 @@ impl Simulator {
         computation_unit_config: &ComputationUnitConfig,
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         global_config: &SimulatorConfig,
+        force_send_results: bool,
     ) {
         let mut new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
@@ -1051,6 +1075,7 @@ impl Simulator {
             &self.determinist_va_factory,
             &mut self.time_analysis_factory,
             self.time_cv.clone(),
+            force_send_results,
         );
         self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
@@ -1643,7 +1668,7 @@ impl AsyncSimulator {
             })),
             None => None,
         });
-        sim.api.load_config.async_call(config_path);
+        sim.api.load_config.async_call((config_path, false));
 
         if let Some(unwrapped_async_api) = &sim.async_plugin_api {
             let api_client = &unwrapped_async_api.client;

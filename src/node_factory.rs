@@ -578,6 +578,7 @@ impl NodeFactory {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         time_analysis_factory: &mut TimeAnalysisFactory,
         time_cv: Arc<TimeCv>,
+        force_send_results: bool,
     ) -> Node {
         let node_type = NodeType::Robot;
         let mut node = Node {
@@ -632,7 +633,7 @@ impl NodeFactory {
             other_node_names: Vec::new(),
             zombie: false,
             time_analysis: time_analysis_factory.new_node(config.name.clone()),
-            send_records: global_config.results.is_some(),
+            send_records: force_send_results || global_config.results.is_some(),
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -673,6 +674,7 @@ impl NodeFactory {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         time_analysis_factory: &mut TimeAnalysisFactory,
         time_cv: Arc<TimeCv>,
+        force_send_results: bool,
     ) -> Node {
         let node_type = NodeType::ComputationUnit;
         let mut node = Node {
@@ -704,7 +706,7 @@ impl NodeFactory {
             other_node_names: Vec::new(),
             zombie: false,
             time_analysis: time_analysis_factory.new_node(config.name.clone()),
-            send_records: global_config.results.is_some(),
+            send_records: force_send_results || global_config.results.is_some(),
         };
 
         for state_estimator_config in &config.state_estimators {

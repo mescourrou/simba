@@ -24,7 +24,7 @@ use crate::{
 pub struct AsyncApi {
     pub simulator_api: Arc<SimulatorAsyncApi>,
     // Channels
-    pub load_config: rfc::RemoteFunctionCall<String, SimbaResult<SimulatorConfig>>,
+    pub load_config: rfc::RemoteFunctionCall<(String, bool), SimbaResult<SimulatorConfig>>,
     pub load_results: rfc::RemoteFunctionCall<(), SimbaResult<f32>>,
     pub run: rfc::RemoteFunctionCall<(Option<f32>, bool), SimbaResult<()>>,
     pub get_records: rfc::RemoteFunctionCall<bool, SimbaResult<Vec<Record>>>,
@@ -34,7 +34,7 @@ pub struct AsyncApi {
 // Run by the simulator
 #[derive(Clone)]
 pub struct AsyncApiServer {
-    pub load_config: Arc<rfc::RemoteFunctionCallHost<String, SimbaResult<SimulatorConfig>>>,
+    pub load_config: Arc<rfc::RemoteFunctionCallHost<(String, bool), SimbaResult<SimulatorConfig>>>,
     pub load_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<f32>>>,
     pub run: Arc<rfc::RemoteFunctionCallHost<(Option<f32>, bool), SimbaResult<()>>>,
     pub compute_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<()>>>,
@@ -137,11 +137,11 @@ impl AsyncApiRunner {
             let stopping = stopping_root.clone();
             thread::spawn(move || {
                 while !*stopping.read().unwrap() {
-                    load_config.recv_closure_mut(|config_path| {
+                    load_config.recv_closure_mut(|(config_path, force_send_results)| {
                         let mut simulator = simulator_arc.lock().unwrap();
                         println!("Loading config: {}", config_path);
                         let path = Path::new(&config_path);
-                        simulator.load_config_path(path, &plugin_api_threaded)?;
+                        simulator.load_config_path_full(path, &plugin_api_threaded, force_send_results)?;
                         println!("End loading");
                         Ok(simulator.config())
                     });
