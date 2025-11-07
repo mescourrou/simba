@@ -623,7 +623,6 @@ impl NodeFactory {
                 va_factory,
                 time_cv.clone(),
             )))),
-            state_history: TimeOrderedData::new(),
             state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimator_bench.len(),
             )))),
@@ -633,6 +632,7 @@ impl NodeFactory {
             other_node_names: Vec::new(),
             zombie: false,
             time_analysis: time_analysis_factory.new_node(config.name.clone()),
+            send_records: global_config.results.is_some(),
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -696,7 +696,6 @@ impl NodeFactory {
                 va_factory,
                 time_cv.clone(),
             )))),
-            state_history: TimeOrderedData::new(),
             state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimators.len(),
             )))),
@@ -705,6 +704,7 @@ impl NodeFactory {
             other_node_names: Vec::new(),
             zombie: false,
             time_analysis: time_analysis_factory.new_node(config.name.clone()),
+            send_records: global_config.results.is_some(),
         };
 
         for state_estimator_config in &config.state_estimators {

@@ -72,9 +72,6 @@ pub struct Node {
     pub(crate) sensor_manager: Option<Arc<RwLock<SensorManager>>>,
     /// [`Network`] interface to receive and send messages with other nodes.
     pub(crate) network: Option<Arc<RwLock<Network>>>,
-    /// History of the states ([`NodeRecord`]) of the node, to set the [`Node`]
-    /// in a past state.
-    pub(crate) state_history: TimeOrderedData<NodeRecord>,
     /// Additional [`StateEstimator`] to be evaluated.
     pub(crate) state_estimator_bench: Option<Arc<RwLock<Vec<BenchStateEstimator>>>>,
 
@@ -87,6 +84,7 @@ pub struct Node {
     pub(crate) other_node_names: Vec<String>,
     pub(crate) zombie: bool,
     pub(crate) time_analysis: Arc<Mutex<TimeAnalysisNode>>,
+    pub(crate) send_records: bool,
 }
 
 impl Node {
@@ -159,10 +157,6 @@ impl Node {
         }
         let (node_server, node_client) = internal_api::make_node_api(&self.node_type);
         self.node_server = Some(node_server);
-        if is_enabled(crate::logger::InternalLog::SetupStepsDetailed) {
-            debug!("Save initial state");
-        }
-        self.save_state(0.);
         node_client
     }
 
@@ -430,9 +424,6 @@ impl Node {
         }
         self.sync_with_others(time_cv, nb_nodes, time);
 
-        // Save state (replace if needed)
-        self.save_state(time);
-
         Ok(())
     }
 
@@ -589,16 +580,6 @@ impl Node {
             debug!("next_time_step: {}", next_time_step);
         }
         Ok(next_time_step)
-    }
-
-    /// Save the current state to the given `time`.
-    fn save_state(&mut self, time: f32) {
-        self.state_history.insert(time, self.record(), true);
-    }
-
-    /// Returs the current state history.
-    pub fn record_history(&self) -> &TimeOrderedData<NodeRecord> {
-        &self.state_history
     }
 
     /// Get the name of the node.

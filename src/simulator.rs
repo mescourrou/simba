@@ -1204,11 +1204,6 @@ impl Simulator {
     /// If the configuration of the [`Simulator`] do not contain a result path, no results are saved.
     fn process_records(&mut self, time: Option<f32>) -> SimbaResult<()> {
         if self.config.results.is_none() {
-            // if time.is_none() {
-            //     while let Ok(record) = self.async_api.records.lock().unwrap().try_recv() {
-            //         self.records.push(record)
-            //     }
-            // }
             return Ok(());
         }
         let result_saving_data = self.result_saving_data.as_ref().unwrap().clone();
@@ -1416,11 +1411,13 @@ impl Simulator {
             let nb_nodes_unlocked = *nb_nodes.read().unwrap();
             node.run_next_time_step(next_time, &time_cv, nb_nodes_unlocked)?;
             node.sync_with_others(&time_cv, nb_nodes_unlocked, next_time);
-            if let Some(async_api_server) = &async_api_server {
-                async_api_server.send_record(&Record {
-                    time: next_time,
-                    node: node.record(),
-                });
+            if node.send_records {
+                if let Some(async_api_server) = &async_api_server {
+                    async_api_server.send_record(&Record {
+                        time: next_time,
+                        node: node.record(),
+                    });
+                }
             }
             if node.zombie {
                 // Only place where nb_node should change.
