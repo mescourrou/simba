@@ -303,6 +303,7 @@ pub struct OrientedRobotObservation {
     pub name: String,
     /// Pose of the Robot
     pub pose: Vector3<f32>,
+    pub applied_faults: Vec<FaultModelConfig>,
 }
 
 impl Recordable<OrientedRobotObservationRecord> for OrientedRobotObservation {
@@ -442,6 +443,7 @@ impl Sensor for RobotSensor {
                             OrientedRobotObservation {
                                 name: other_node_name.clone(),
                                 pose,
+                                applied_faults: Vec::new(),
                             },
                         ));
                         for fault_model in self.faults.lock().unwrap().iter() {

@@ -23,7 +23,7 @@ use crate::gui::{
     UIComponent,
 };
 use crate::{
-    sensors::{oriented_landmark_sensor::OrientedLandmarkSensor, sensor::SensorObservation},
+    sensors::{fault_models::fault_model::FaultModelConfig, oriented_landmark_sensor::OrientedLandmarkSensor, sensor::SensorObservation},
     simulator::SimulatorConfig,
     utils::{
         determinist_random_variable::{
@@ -176,6 +176,7 @@ pub struct MisassociationFault {
     id_list: Vec<(String, Vector2<f32>)>,
     _source: Source,
     global_seed: f32,
+    config: MisassociationFaultConfig,
 }
 
 impl MisassociationFault {
@@ -227,6 +228,7 @@ impl MisassociationFault {
             _source: config.source.clone(),
             id_list,
             global_seed: va_factory.global_seed(),
+            config: config.clone(),
         }
     }
 }
@@ -268,6 +270,7 @@ impl FaultModel for MisassociationFault {
                     .0
                     .clone();
                     o.name = new_id;
+                    o.applied_faults.push(FaultModelConfig::Misassociation(self.config.clone()));
                 }
                 SensorObservation::GNSS(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
@@ -291,6 +294,7 @@ impl FaultModel for MisassociationFault {
                     o.id = from_str(&new_id).expect(
                         "Unexpected error: id_list should only contain int represented as string",
                     );
+                    o.applied_faults.push(FaultModelConfig::Misassociation(self.config.clone()));
                 }
             }
         }

@@ -314,6 +314,7 @@ pub struct OrientedLandmarkObservation {
     pub id: i32,
     /// Pose of the landmark
     pub pose: Vector3<f32>,
+    pub applied_faults: Vec<FaultModelConfig>,
 }
 
 impl Recordable<OrientedLandmarkObservationRecord> for OrientedLandmarkObservation {
@@ -468,6 +469,7 @@ impl Sensor for OrientedLandmarkSensor {
                     OrientedLandmarkObservation {
                         id: landmark.id,
                         pose,
+                        applied_faults: Vec::new(),
                     },
                 ));
                 for fault_model in self.faults.lock().unwrap().iter() {

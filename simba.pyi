@@ -92,21 +92,25 @@ class OrientedLandmarkObservation:
     def __init__(self):
         self.id: int
         self.pose: Pose
+        self.applied_faults: str """ Applied faults in JSON format """
 
 class OdometryObservation:
     def __init__(self):
         self.linear_velocity: float
         self.angular_velocity: float
+        self.applied_faults: str """ Applied faults in JSON format """
 
 class GNSSObservation: 
     def __init__(self):
         self.position: List[float]
         self.velocity: List[float]
+        self.applied_faults: str """ Applied faults in JSON format """
 
 class OrientedRobotObservation:
     def __init__(self):
         self.name: str
         self.pose: Pose
+        self.applied_faults: str """ Applied faults in JSON format """
 
 class SensorObservation(Enum):
     OrientedLandmark: OrientedLandmarkObservation

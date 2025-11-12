@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
 use crate::{
-    sensors::sensor::SensorObservation,
+    sensors::{fault_models::fault_model::FaultModelConfig, sensor::SensorObservation},
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -132,6 +132,7 @@ pub struct AdditiveRobotCenteredPolarFault {
     apparition: DeterministBernouilliRandomVariable,
     distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
     variable_order: Vec<String>,
+    config: AdditiveRobotCenteredPolarFaultConfig,
 }
 
 impl AdditiveRobotCenteredPolarFault {
@@ -165,6 +166,7 @@ impl AdditiveRobotCenteredPolarFault {
             ),
             distributions,
             variable_order: config.variable_order.clone(),
+            config: config.clone(),
         }
     }
 }
@@ -216,6 +218,7 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                     o.pose.x = r * theta.cos();
                     o.pose.y = r * theta.sin();
                     o.pose.z = mod2pi(z);
+                    o.applied_faults.push(FaultModelConfig::AdditiveRobotCenteredPolar(self.config.clone()));
                 }
                 SensorObservation::GNSS(_) => {
                     panic!("Not implemented yet (need to find a logical way to do it.");
@@ -250,6 +253,7 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                     o.pose.x = r * theta.cos();
                     o.pose.y = r * theta.sin();
                     o.pose.z = mod2pi(z);
+                    o.applied_faults.push(FaultModelConfig::AdditiveRobotCenteredPolar(self.config.clone()));
                 }
             }
         }

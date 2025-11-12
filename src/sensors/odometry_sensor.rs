@@ -123,6 +123,7 @@ impl UIComponent for OdometrySensorRecord {
 pub struct OdometryObservation {
     pub linear_velocity: f32,
     pub angular_velocity: f32,
+    pub applied_faults: Vec<FaultModelConfig>,
 }
 
 impl Recordable<OdometryObservationRecord> for OdometryObservation {
@@ -231,6 +232,7 @@ impl Sensor for OdometrySensor {
         observation_list.push(SensorObservation::Odometry(OdometryObservation {
             linear_velocity: state.velocity,
             angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
+            applied_faults: Vec::new(),
         }));
         for fault_model in self.faults.lock().unwrap().iter() {
             fault_model.add_faults(

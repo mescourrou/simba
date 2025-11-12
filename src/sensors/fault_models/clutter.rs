@@ -9,7 +9,7 @@ use crate::gui::{
     UIComponent,
 };
 use crate::{
-    sensors::sensor::SensorObservation,
+    sensors::{fault_models::fault_model::FaultModelConfig, sensor::SensorObservation},
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -154,6 +154,7 @@ pub struct ClutterFault {
     distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
     variable_order: Vec<String>,
     observation_id: String,
+    config: ClutterFaultConfig,
 }
 
 impl ClutterFault {
@@ -192,6 +193,7 @@ impl ClutterFault {
             distributions,
             variable_order: config.variable_order.clone(),
             observation_id: config.observation_id.clone(),
+            config: config.clone(),
         }
     }
 }
@@ -234,6 +236,7 @@ impl FaultModel for ClutterFault {
                     }
                     o.pose.z = mod2pi(o.pose.z);
                     o.name = self.observation_id.clone();
+                    o.applied_faults.push(FaultModelConfig::Clutter(self.config.clone()));
                 }
                 SensorObservation::GNSS(o) => {
                     if self.variable_order.len() > 0 {
@@ -257,6 +260,7 @@ impl FaultModel for ClutterFault {
                             o.velocity.y = random_sample[3];
                         }
                     }
+                    o.applied_faults.push(FaultModelConfig::Clutter(self.config.clone()));
                 }
                 SensorObservation::Odometry(o) => {
                     if self.variable_order.len() > 0 {
@@ -272,6 +276,7 @@ impl FaultModel for ClutterFault {
                         o.angular_velocity = random_sample[0];
                         o.linear_velocity = random_sample[1];
                     }
+                    o.applied_faults.push(FaultModelConfig::Clutter(self.config.clone()));
                 }
                 SensorObservation::OrientedLandmark(o) => {
                     if self.variable_order.len() > 0 {
@@ -291,6 +296,7 @@ impl FaultModel for ClutterFault {
                     }
                     o.pose.z = mod2pi(o.pose.z);
                     o.id = self.observation_id.parse().unwrap_or(-1);
+                    o.applied_faults.push(FaultModelConfig::Clutter(self.config.clone()));
                 }
             }
             obs_list.push(new_obs);

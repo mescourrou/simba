@@ -275,6 +275,8 @@ pub struct OrientedLandmarkObservationWrapper {
     pub id: i32,
     /// Pose of the landmark
     pub pose: Pose,
+    /// Applied fault in JSON format
+    pub applied_faults: String,
 }
 
 #[pymethods]
@@ -288,6 +290,7 @@ impl OrientedLandmarkObservationWrapper {
                 y: 0.,
                 theta: 0.,
             },
+            applied_faults: "[]".to_string(),
         }
     }
 }
@@ -301,12 +304,14 @@ impl OrientedLandmarkObservationWrapper {
                 y: s.pose[1],
                 theta: s.pose[2],
             },
+            applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
     pub fn to_rust(&self) -> OrientedLandmarkObservation {
         OrientedLandmarkObservation {
             id: self.id,
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
+            applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
     }
 }
@@ -317,6 +322,8 @@ impl OrientedLandmarkObservationWrapper {
 pub struct OdometryObservationWrapper {
     pub linear_velocity: f32,
     pub angular_velocity: f32,
+    /// Applied faults in JSON format
+    pub applied_faults: String,
 }
 
 #[pymethods]
@@ -326,6 +333,7 @@ impl OdometryObservationWrapper {
         Self {
             linear_velocity: 0.,
             angular_velocity: 0.,
+            applied_faults: "[]".to_string(),
         }
     }
 }
@@ -335,12 +343,14 @@ impl OdometryObservationWrapper {
         Self {
             linear_velocity: s.linear_velocity,
             angular_velocity: s.angular_velocity,
+            applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
     pub fn to_rust(&self) -> OdometryObservation {
         OdometryObservation {
             linear_velocity: self.linear_velocity,
             angular_velocity: self.angular_velocity,
+            applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
     }
 }
@@ -351,6 +361,8 @@ impl OdometryObservationWrapper {
 pub struct GNSSObservationWrapper {
     pub position: [f32; 2],
     pub velocity: [f32; 2],
+    /// Applied faults in JSON format
+    pub applied_faults: String,
 }
 
 #[pymethods]
@@ -360,6 +372,7 @@ impl GNSSObservationWrapper {
         Self {
             position: [0., 0.],
             velocity: [0., 0.],
+            applied_faults: "[]".to_string(),
         }
     }
 }
@@ -369,12 +382,14 @@ impl GNSSObservationWrapper {
         Self {
             position: s.position.into(),
             velocity: s.velocity.into(),
+            applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
     pub fn to_rust(&self) -> GNSSObservation {
         GNSSObservation {
             position: Vector2::from(self.position),
             velocity: Vector2::from(self.velocity),
+            applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
     }
 }
@@ -387,6 +402,8 @@ pub struct OrientedRobotObservationWrapper {
     pub name: String,
     /// Pose of the Robot
     pub pose: Pose,
+    /// Applied faults in JSON format
+    pub applied_faults: String,
 }
 
 #[pymethods]
@@ -400,6 +417,7 @@ impl OrientedRobotObservationWrapper {
                 y: 0.,
                 theta: 0.,
             },
+            applied_faults: "[]".to_string(),
         }
     }
 }
@@ -413,12 +431,14 @@ impl OrientedRobotObservationWrapper {
                 y: s.pose[1],
                 theta: s.pose[2],
             },
+            applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
     pub fn to_rust(&self) -> OrientedRobotObservation {
         OrientedRobotObservation {
             name: self.name.clone(),
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
+            applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
     }
 }

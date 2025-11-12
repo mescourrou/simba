@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
 use crate::{
-    sensors::sensor::SensorObservation,
+    sensors::{fault_models::fault_model::FaultModelConfig, sensor::SensorObservation},
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -132,6 +132,7 @@ pub struct AdditiveObservationCenteredPolarFault {
     apparition: DeterministBernouilliRandomVariable,
     distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
     variable_order: Vec<String>,
+    config: AdditiveObservationCenteredPolarFaultConfig,
 }
 
 impl AdditiveObservationCenteredPolarFault {
@@ -165,6 +166,7 @@ impl AdditiveObservationCenteredPolarFault {
             ),
             distributions,
             variable_order: config.variable_order.clone(),
+            config: config.clone(),
         }
     }
 }
@@ -214,6 +216,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     o.pose.y += r_add * theta.sin();
                     o.pose.z = o.pose.z + z_add;
                     o.pose.z = mod2pi(o.pose.z);
+                    o.applied_faults.push(FaultModelConfig::AdditiveObservationCenteredPolar(self.config.clone()));
                 }
                 SensorObservation::GNSS(o) => {
                     let mut r_add = 0.;
@@ -234,6 +237,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
 
                     o.position.x += r_add * theta_add.cos();
                     o.position.y += r_add * theta_add.sin();
+                    o.applied_faults.push(FaultModelConfig::AdditiveObservationCenteredPolar(self.config.clone()));
                 }
                 SensorObservation::Odometry(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
@@ -262,6 +266,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     o.pose.y += r_add * theta.sin();
                     o.pose.z = o.pose.z + z_add;
                     o.pose.z = mod2pi(o.pose.z);
+                    o.applied_faults.push(FaultModelConfig::AdditiveObservationCenteredPolar(self.config.clone()));
                 }
             }
         }

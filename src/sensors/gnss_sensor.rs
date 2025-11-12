@@ -119,6 +119,7 @@ impl UIComponent for GNSSSensorRecord {
 pub struct GNSSObservation {
     pub position: Vector2<f32>,
     pub velocity: Vector2<f32>,
+    pub applied_faults: Vec<FaultModelConfig>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
@@ -226,6 +227,7 @@ impl Sensor for GNSSSensor {
         observation_list.push(SensorObservation::GNSS(GNSSObservation {
             position: state.pose.fixed_rows::<2>(0).into(),
             velocity,
+            applied_faults: Vec::new(),
         }));
         for fault_model in self.faults.lock().unwrap().iter() {
             fault_model.add_faults(
