@@ -2,13 +2,13 @@
 Provide the implementation of the [`Physics`] trait without any noise added to the [`Command`].
 */
 
+use std::sync::{Arc, Mutex};
+
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
-    networking::service::HasService,
-    recordable::Recordable,
-    state_estimators::state_estimator::{State, StateConfig, StateRecord},
+    networking::service::HasService, physics::fault_models::fault_model::{PhysicsFaultModel, PhysicsFaultModelConfig, make_physics_fault_model_from_config}, recordable::Recordable, state_estimators::state_estimator::{State, StateConfig, StateRecord}, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 use config_checker::macros::Check;
 use libm::atan2f;
@@ -26,6 +26,8 @@ pub struct PerfectsPhysicConfig {
     /// Starting state.
     #[check]
     pub initial_state: StateConfig,
+    #[check]
+    pub faults: Vec<PhysicsFaultModelConfig>
 }
 
 #[cfg(feature = "gui")]
@@ -61,6 +63,16 @@ impl UIComponent for PerfectsPhysicConfig {
                         unique_id,
                     );
                 });
+
+                PhysicsFaultModelConfig::show_faults_mut(
+                    &mut self.faults,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
             });
     }
 
@@ -76,6 +88,8 @@ impl UIComponent for PerfectsPhysicConfig {
                     ui.label("Initial state:");
                     self.initial_state.show(ui, ctx, unique_id);
                 });
+
+                PhysicsFaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
     }
 }
@@ -85,6 +99,7 @@ impl Default for PerfectsPhysicConfig {
         Self {
             wheel_distance: 0.25,
             initial_state: StateConfig::default(),
+            faults: Vec::new(),
         }
     }
 }
@@ -149,21 +164,17 @@ pub struct PerfectPhysics {
     last_time_update: f32,
     /// Current command applied.
     current_command: Command,
+    faults: Arc<Mutex<Vec<Box<dyn PhysicsFaultModel>>>>,
 }
 
 impl PerfectPhysics {
-    /// Makes a new [`PerfectPhysics`] situated at (0,0,0) and 25cm between wheels.
-    pub fn new() -> Self {
-        Self::from_config(&PerfectsPhysicConfig::default())
-    }
-
     /// Makes a new [`PerfectPhysics`] with the given configurations.
     ///
     /// ## Arguments
     /// * `config` - Configuration of [`PerfectPhysics`].
     /// * `plugin_api` - [`PluginAPI`] not used there.
     /// * `global_config` - Configuration of the simulator.
-    pub fn from_config(config: &PerfectsPhysicConfig) -> Self {
+    pub fn from_config(config: &PerfectsPhysicConfig, robot_name: &String, va_factory: &Arc<DeterministRandomVariableFactory>) -> Self {
         PerfectPhysics {
             wheel_distance: config.wheel_distance,
             state: State::from_config(&config.initial_state),
@@ -172,6 +183,7 @@ impl PerfectPhysics {
                 left_wheel_speed: 0.,
                 right_wheel_speed: 0.,
             },
+            faults: Arc::new(Mutex::new(config.faults.iter().map(|f| make_physics_fault_model_from_config(f, robot_name, va_factory)).collect())),
         }
     }
 
@@ -229,6 +241,10 @@ impl PerfectPhysics {
         self.state.pose.y = se2_mat[(1, 2)];
 
         self.state.velocity = translation / dt;
+
+        for fault in self.faults.lock().unwrap().iter() {
+            fault.add_faults(time, &mut self.state);
+        }
     }
 }
 

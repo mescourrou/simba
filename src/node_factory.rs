@@ -600,6 +600,7 @@ impl NodeFactory {
                 &config.physics,
                 plugin_api,
                 global_config,
+                &config.name,
                 va_factory,
             )),
             state_estimator: Some(Arc::new(RwLock::new(

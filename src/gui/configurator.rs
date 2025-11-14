@@ -13,9 +13,10 @@ pub struct Configurator {
 impl Configurator {
     pub fn init(config_path: &String) -> Self {
         let mut save_path = config_path.clone();
-        let current_config = match confy::load_path(&config_path) {
+        let current_config = match SimulatorConfig::load_from_path(Path::new(&config_path)) {
             Ok(config) => config,
-            Err(_) => {
+            Err(e) => {
+                log::error!("Impossible to load config at path {}: {}", config_path, e.detailed_error());
                 save_path = String::new();
                 SimulatorConfig::default()
             }

@@ -7,3 +7,5 @@ pub mod perfect_physics;
 pub mod physics;
 pub mod pybinds;
 pub mod python_physics;
+
+pub mod fault_models;

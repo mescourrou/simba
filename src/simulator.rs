@@ -55,7 +55,7 @@ use crate::{
         async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
         internal_api::NodeClient,
     },
-    constants::TIME_ROUND,
+    constants::{TIME_ROUND_DECIMALS, TIME_ROUND},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::{init_log, is_enabled, LoggerConfig},
     networking::network_manager::NetworkManager,
@@ -366,6 +366,52 @@ impl Default for SimulatorConfig {
     }
 }
 
+impl SimulatorConfig {
+    pub fn load_from_path(path: &Path) -> SimbaResult<Self> {
+        let mut config: serde_yaml::Value = match confy::load_path(path) {
+            Ok(config) => config,
+            Err(error) => {
+                let what = format!(
+                    "Error from Confy while loading the config file : {}",
+                    utils::confy::detailed_error(&error)
+                );
+                println!("ERROR: {what}");
+                return Err(SimbaError::new(SimbaErrorTypes::ConfigError, what));
+            }
+        };
+        config.apply_merge().map_err(|e| {
+            let what = format!(
+                "Error from SerdeYAML while merging YAML tags: {}",
+                e.to_string()
+            );
+            println!("ERROR: {what}");
+            SimbaError::new(SimbaErrorTypes::ConfigError, what)
+        })?;
+        let mut config: SimulatorConfig = match serde_yaml::from_value(config) {
+            Ok(c) => c,
+            Err(e) => {
+                let what = format!(
+                    "Error from SerdeYAML while loading SimulatorConfig : {}",
+                    e.to_string()
+                );
+                println!("ERROR: {what}");
+                return Err(SimbaError::new(SimbaErrorTypes::ConfigError, what));
+            }
+        };
+
+        config.base_path = Box::from(path.parent().unwrap());
+        config.time_analysis.output_path = config
+            .base_path
+            .as_ref()
+            .join(&config.time_analysis.output_path)
+            .to_str()
+            .unwrap()
+            .to_string();
+
+        Ok(config)
+    }
+}
+
 #[cfg(feature = "gui")]
 impl crate::gui::UIComponent for SimulatorConfig {
     fn show_mut(
@@ -425,10 +471,11 @@ impl crate::gui::UIComponent for SimulatorConfig {
             });
 
             ui.horizontal(|ui| {
+
                 ui.label("Max time: ");
                 ui.add(
                     egui::DragValue::new(&mut self.max_time)
-                        .max_decimals((1. / TIME_ROUND) as usize),
+                        .max_decimals((TIME_ROUND_DECIMALS) as usize),
                 );
             });
 
@@ -855,45 +902,7 @@ impl Simulator {
         force_send_results: bool,
     ) -> SimbaResult<()> {
         println!("Load configuration from {:?}", config_path);
-        let mut config: serde_yaml::Value = match confy::load_path(config_path) {
-            Ok(config) => config,
-            Err(error) => {
-                let what = format!(
-                    "Error from Confy while loading the config file : {}",
-                    utils::confy::detailed_error(&error)
-                );
-                println!("ERROR: {what}");
-                return Err(SimbaError::new(SimbaErrorTypes::ConfigError, what));
-            }
-        };
-        config.apply_merge().map_err(|e| {
-            let what = format!(
-                "Error from SerdeYAML while merging YAML tags: {}",
-                e.to_string()
-            );
-            println!("ERROR: {what}");
-            SimbaError::new(SimbaErrorTypes::ConfigError, what)
-        })?;
-        let mut config: SimulatorConfig = match serde_yaml::from_value(config) {
-            Ok(c) => c,
-            Err(e) => {
-                let what = format!(
-                    "Error from SerdeYAML while loading SimulatorConfig : {}",
-                    e.to_string()
-                );
-                println!("ERROR: {what}");
-                return Err(SimbaError::new(SimbaErrorTypes::ConfigError, what));
-            }
-        };
-
-        config.base_path = Box::from(config_path.parent().unwrap());
-        config.time_analysis.output_path = config
-            .base_path
-            .as_ref()
-            .join(&config.time_analysis.output_path)
-            .to_str()
-            .unwrap()
-            .to_string();
+        let config = SimulatorConfig::load_from_path(config_path)?;
         self.load_config_full(&config, plugin_api, force_send_results)
     }
 
