@@ -23,7 +23,7 @@ use crate::{
     },
     node::Node,
     physics::{
-        perfect_physics,
+        internal_physics,
         physics::{self, PhysicsConfig, PhysicsRecord},
     },
     plugin_api::PluginAPI,
@@ -227,7 +227,7 @@ impl Default for RobotConfig {
                 trajectory_follower::TrajectoryFollowerConfig::default(),
             ),
             controller: ControllerConfig::PID(pid::PIDConfig::default()),
-            physics: PhysicsConfig::Perfect(perfect_physics::PerfectsPhysicConfig::default()),
+            physics: PhysicsConfig::Internal(internal_physics::InternalPhysicConfig::default()),
             state_estimator: StateEstimatorConfig::Perfect(
                 perfect_estimator::PerfectEstimatorConfig::default(),
             ),

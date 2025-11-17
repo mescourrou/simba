@@ -15,7 +15,7 @@ use crate::{
     logger::is_enabled,
     networking::{message_handler::MessageHandler, network::Envelope},
     node::Node,
-    physics::physics::Command,
+    physics::robot_models::Command,
     pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
     recordable::Recordable,
 };

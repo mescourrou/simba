@@ -9,7 +9,9 @@ use simba::networking::message_handler::MessageHandler;
 use simba::networking::network::Envelope;
 use simba::networking::service::HasService;
 use simba::physics::external_physics::ExternalPhysicsRecord;
-use simba::physics::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
+use simba::physics::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
+use simba::physics::robot_models::unicycle::UnicycleCommand;
+use simba::physics::robot_models::Command;
 use simba::plugin_api::PluginAPI;
 use simba::recordable::Recordable;
 use simba::simulator::{Simulator, SimulatorConfig};
@@ -56,8 +58,10 @@ impl Controller for MyWonderfulController {
         _time: f32,
     ) -> Command {
         Command {
-            left_wheel_speed: 0.,
-            right_wheel_speed: 0.,
+            unicycle: Some(UnicycleCommand {
+                left_wheel_speed: 0.,
+                right_wheel_speed: 0.,
+            }),
         }
     }
 

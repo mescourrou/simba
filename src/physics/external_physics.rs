@@ -24,6 +24,7 @@ use serde_json::Value;
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::networking::service::HasService;
+use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
@@ -133,7 +134,7 @@ impl ExternalPhysicsRecord {
     }
 }
 
-use super::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
+use super::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 
 /// External physics strategy, which does the bridge with your own strategy.
 pub struct ExternalPhysics {

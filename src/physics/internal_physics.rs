@@ -1,5 +1,5 @@
 /*!
-Provide the implementation of the [`Physics`] trait without any noise added to the [`Command`].
+Provide the implementation of the [`Physics`] trait.
 */
 
 use std::sync::{Arc, Mutex};
@@ -9,26 +9,28 @@ use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
     networking::service::HasService,
-    physics::fault_models::fault_model::{
-        make_physics_fault_model_from_config, PhysicsFaultModel, PhysicsFaultModelConfig,
+    physics::{
+        fault_models::fault_model::{
+            make_physics_fault_model_from_config, PhysicsFaultModel, PhysicsFaultModelConfig,
+        },
+        robot_models::{
+            make_model_from_config, unicycle::UnicycleConfig, Command, RobotModel, RobotModelConfig,
+        },
     },
     recordable::Recordable,
     state_estimators::state_estimator::{State, StateConfig, StateRecord},
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use config_checker::macros::Check;
-use libm::atan2f;
-use nalgebra::SMatrix;
 use serde_derive::{Deserialize, Serialize};
 
-/// Config for the [`PerfectPhysics`].
+/// Config for the [`InternalPhysics`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
-pub struct PerfectsPhysicConfig {
-    /// Distance between the two wheels, to compute the angular velocity from the wheel speeds.
-    #[check(ge(0.))]
-    pub wheel_distance: f32,
+pub struct InternalPhysicConfig {
+    #[check]
+    pub model: RobotModelConfig,
     /// Starting state.
     #[check]
     pub initial_state: StateConfig,
@@ -37,7 +39,7 @@ pub struct PerfectsPhysicConfig {
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for PerfectsPhysicConfig {
+impl UIComponent for InternalPhysicConfig {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
@@ -47,16 +49,17 @@ impl UIComponent for PerfectsPhysicConfig {
         current_node_name: Option<&String>,
         unique_id: &String,
     ) {
-        egui::CollapsingHeader::new("Perfect Physics")
-            .id_salt(format!("perfect-physics-{}", unique_id))
+        egui::CollapsingHeader::new("Internal Physics")
+            .id_salt(format!("internal-physics-{}", unique_id))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Wheel distance:");
-                    if self.wheel_distance < 0. {
-                        self.wheel_distance = 0.;
-                    }
-                    ui.add(egui::DragValue::new(&mut self.wheel_distance));
-                });
+                self.model.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
 
                 ui.horizontal(|ui| {
                     ui.label("Initial state:");
@@ -84,11 +87,9 @@ impl UIComponent for PerfectsPhysicConfig {
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("Perfect Physics")
-            .id_salt(format!("perfect-physics-{}", unique_id))
+            .id_salt(format!("internal-physics-{}", unique_id))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(format!("Wheel distance: {}", self.wheel_distance));
-                });
+                self.model.show(ui, ctx, unique_id);
 
                 ui.horizontal(|ui| {
                     ui.label("Initial state:");
@@ -100,19 +101,19 @@ impl UIComponent for PerfectsPhysicConfig {
     }
 }
 
-impl Default for PerfectsPhysicConfig {
+impl Default for InternalPhysicConfig {
     fn default() -> Self {
         Self {
-            wheel_distance: 0.25,
+            model: RobotModelConfig::Unicycle(UnicycleConfig::default()),
             initial_state: StateConfig::default(),
             faults: Vec::new(),
         }
     }
 }
 
-/// Record for the [`PerfectPhysics`].
+/// Record for the [`InternalPhysics`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct PerfectPhysicsRecord {
+pub struct InternalPhysicsRecord {
     /// State at the time `last_time_update`
     pub state: StateRecord,
     /// Time of the state
@@ -122,7 +123,7 @@ pub struct PerfectPhysicsRecord {
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for PerfectPhysicsRecord {
+impl UIComponent for InternalPhysicsRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
             egui::CollapsingHeader::new("State").show(ui, |ui| {
@@ -136,34 +137,9 @@ impl UIComponent for PerfectPhysicsRecord {
     }
 }
 
-// Services
-
-// /// Request to get the real state of the robot.
-// /// (not used yet)
-// struct RealStateHandler {
-//     pub physics: Box<dyn Physic>,
-// }
-
-// impl fmt::Debug for RealStateHandler {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-//         write!(f, "RealStateHandler {{ physics: ... }}")
-//     }
-// }
-
-// impl ServiceHandler<GetRealStateReq, GetRealStateResp> for RealStateHandler {
-//     fn treat_request(&self, _req: GetRealStateReq, time: f32) -> Result<GetRealStateResp, String> {
-//         debug!("Treating request...");
-//         let state = self.physics.state(time).clone();
-//         debug!("Treating request...OK");
-//         Ok(GetRealStateResp { state })
-//     }
-// }
-
-/// Implementation of [`Physics`] with the command perfectly applied.
-#[derive(Debug, Clone)]
-pub struct PerfectPhysics {
-    /// Distance between the wheels
-    wheel_distance: f32,
+#[derive(Debug)]
+pub struct InternalPhysics {
+    model: Box<dyn RobotModel>,
     /// Current state
     state: State,
     /// Time of the current state.
@@ -173,26 +149,25 @@ pub struct PerfectPhysics {
     faults: Arc<Mutex<Vec<Box<dyn PhysicsFaultModel>>>>,
 }
 
-impl PerfectPhysics {
-    /// Makes a new [`PerfectPhysics`] with the given configurations.
+impl InternalPhysics {
+    /// Makes a new [`InternalPhysics`] with the given configurations.
     ///
     /// ## Arguments
-    /// * `config` - Configuration of [`PerfectPhysics`].
+    /// * `config` - Configuration of [`InternalPhysics`].
     /// * `plugin_api` - [`PluginAPI`] not used there.
     /// * `global_config` - Configuration of the simulator.
     pub fn from_config(
-        config: &PerfectsPhysicConfig,
+        config: &InternalPhysicConfig,
         robot_name: &String,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Self {
-        PerfectPhysics {
-            wheel_distance: config.wheel_distance,
+        let model = make_model_from_config(&config.model);
+        let current_command = model.default_command();
+        InternalPhysics {
+            model,
             state: State::from_config(&config.initial_state),
             last_time_update: 0.,
-            current_command: Command {
-                left_wheel_speed: 0.,
-                right_wheel_speed: 0.,
-            },
+            current_command,
             faults: Arc::new(Mutex::new(
                 config
                     .faults
@@ -217,46 +192,10 @@ impl PerfectPhysics {
             return;
         }
 
-        let theta = self.state.pose.z;
-
-        let displacement_wheel_left = self.current_command.left_wheel_speed * dt;
-        let displacement_wheel_right = self.current_command.right_wheel_speed * dt;
-
-        let translation = (displacement_wheel_left + displacement_wheel_right) / 2.;
-        let rotation = (displacement_wheel_right - displacement_wheel_left) / self.wheel_distance;
+        self.model
+            .update_state(&mut self.state, &self.current_command, dt);
 
         self.last_time_update = time;
-
-        // Using Lie theory
-        // Reference: Sola, J., Deray, J., & Atchuthan, D. (2018). A micro lie theory for state estimation in robotics. arXiv preprint arXiv:1812.01537.
-
-        let lie_action =
-            SMatrix::<f32, 3, 3>::new(0., -rotation, translation, rotation, 0., 0., 0., 0., 0.);
-
-        let rot_mat = nalgebra::Rotation2::new(theta).matrix().clone();
-
-        let mut se2_mat = SMatrix::<f32, 3, 3>::new(
-            rot_mat[(0, 0)],
-            rot_mat[(0, 1)],
-            self.state.pose.x,
-            rot_mat[(1, 0)],
-            rot_mat[(1, 1)],
-            self.state.pose.y,
-            0.,
-            0.,
-            1.,
-        );
-
-        se2_mat = se2_mat * lie_action.exp();
-
-        // let rot = nalgebra::Rotation2::from_matrix(&se2_mat.fixed_view::<2, 2>(0, 0).into());
-        // self.state.pose.z = rot.angle();
-        self.state.pose.z = atan2f(se2_mat[(1, 0)], se2_mat[(0, 0)]);
-
-        self.state.pose.x = se2_mat[(0, 2)];
-        self.state.pose.y = se2_mat[(1, 2)];
-
-        self.state.velocity = translation / dt;
 
         for fault in self.faults.lock().unwrap().iter() {
             fault.add_faults(time, &mut self.state);
@@ -264,10 +203,10 @@ impl PerfectPhysics {
     }
 }
 
-use super::physics::{Command, GetRealStateReq, GetRealStateResp};
+use super::physics::{GetRealStateReq, GetRealStateResp};
 use super::physics::{Physics, PhysicsRecord};
 
-impl Physics for PerfectPhysics {
+impl Physics for InternalPhysics {
     /// Apply the given `command` perfectly.
     fn apply_command(&mut self, command: &Command, _time: f32) {
         self.current_command = command.clone();
@@ -285,7 +224,7 @@ impl Physics for PerfectPhysics {
     }
 }
 
-impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysics {
+impl HasService<GetRealStateReq, GetRealStateResp> for InternalPhysics {
     fn handle_service_requests(
         &mut self,
         _req: GetRealStateReq,
@@ -297,9 +236,9 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PerfectPhysics {
     }
 }
 
-impl Recordable<PhysicsRecord> for PerfectPhysics {
+impl Recordable<PhysicsRecord> for InternalPhysics {
     fn record(&self) -> PhysicsRecord {
-        PhysicsRecord::Perfect(PerfectPhysicsRecord {
+        PhysicsRecord::Internal(InternalPhysicsRecord {
             state: self.state.record(),
             last_time_update: self.last_time_update,
             current_command: self.current_command.clone(),

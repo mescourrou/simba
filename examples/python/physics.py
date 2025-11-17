@@ -51,8 +51,9 @@ class Physics(simba.Physics):
         
         
     def apply_command(self, command: simba.Command, time: float):
-        self.current_command[0] = command.left_wheel_speed
-        self.current_command[1] = command.right_wheel_speed
+        # Warning: command.unicycle could be none
+        self.current_command[0] = command.unicycle.left_wheel_speed
+        self.current_command[1] = command.unicycle.right_wheel_speed
         
     def state(self, time: float): 
         state = simba.State()

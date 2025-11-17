@@ -10,13 +10,13 @@ use serde_json::Value;
 use crate::{
     logger::is_enabled,
     networking::service::HasService,
-    physics::external_physics::ExternalPhysicsRecord,
+    physics::{external_physics::ExternalPhysicsRecord, robot_models::Command},
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
     state_estimators::state_estimator::State,
 };
 
-use super::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
+use super::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonPhysicAsyncClient {

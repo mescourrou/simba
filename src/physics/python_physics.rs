@@ -14,11 +14,12 @@ use serde_json::Value;
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
+use crate::physics::robot_models::Command;
 use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
     networking::service::HasService,
-    physics::physics::{Command, GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord},
+    physics::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord},
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
     simulator::SimulatorConfig,

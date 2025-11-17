@@ -19,12 +19,12 @@ use crate::gui::{utils::json_config, UIComponent};
 
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
+use crate::physics::robot_models::Command;
 use crate::pywrappers::NodeWrapper;
 use crate::{
     controllers::controller::{Controller, ControllerError, ControllerRecord},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
-    physics::physics::Command,
     pywrappers::{CommandWrapper, ControllerErrorWrapper},
     recordable::Recordable,
     simulator::SimulatorConfig,

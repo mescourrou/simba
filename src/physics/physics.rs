@@ -1,7 +1,7 @@
 /*!
 Provide the [`Physics`] trait and the utilitary structs ([`PhysicsRecord`] and [`PhysicsConfig`]).
 
-It also defines the [`Command`] that it can take. The control is done controlling the speed of the two wheels.
+It also defines the [`Command`] that it can take.
 
 The [`Physics`] implementation should take a command, apply it to the internal state, and it can add noise to it.
 However, the [`Physics::state`] should provide the real [`State`].
@@ -14,32 +14,13 @@ use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::{EnumToString, ToVec};
 
-/// Command struct, to control both wheel speed, in m/s.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Command {
-    /// Left wheel speed.
-    pub left_wheel_speed: f32,
-    /// Right wheel speed.
-    pub right_wheel_speed: f32,
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for Command {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
-        ui.vertical(|ui| {
-            ui.label(format!("Left wheel speed: {}", self.left_wheel_speed));
-            ui.label(format!("Right wheel speed: {}", self.right_wheel_speed));
-        });
-    }
-}
-
-use super::{external_physics, perfect_physics};
+use super::{external_physics, internal_physics};
 
 /// Enumeration of the different physic implementations.
 #[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
 #[serde(deny_unknown_fields)]
 pub enum PhysicsConfig {
-    Perfect(perfect_physics::PerfectsPhysicConfig),
+    Internal(internal_physics::InternalPhysicConfig),
     External(external_physics::ExternalPhysicsConfig),
     Python(python_physics::PythonPhysicsConfig),
 }
@@ -70,8 +51,9 @@ impl UIComponent for PhysicsConfig {
         });
         if current_str != self.to_string() {
             match current_str.as_str() {
-                "Perfect" => {
-                    *self = PhysicsConfig::Perfect(perfect_physics::PerfectsPhysicConfig::default())
+                "Internal" => {
+                    *self =
+                        PhysicsConfig::Internal(internal_physics::InternalPhysicConfig::default())
                 }
                 "External" => {
                     *self =
@@ -84,7 +66,7 @@ impl UIComponent for PhysicsConfig {
             };
         }
         match self {
-            PhysicsConfig::Perfect(c) => c.show_mut(
+            PhysicsConfig::Internal(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -116,7 +98,7 @@ impl UIComponent for PhysicsConfig {
             ui.label(format!("Physics: {}", self.to_string()));
         });
         match self {
-            PhysicsConfig::Perfect(c) => c.show(ui, ctx, unique_id),
+            PhysicsConfig::Internal(c) => c.show(ui, ctx, unique_id),
             PhysicsConfig::External(c) => c.show(ui, ctx, unique_id),
             PhysicsConfig::Python(c) => c.show(ui, ctx, unique_id),
         }
@@ -126,7 +108,7 @@ impl UIComponent for PhysicsConfig {
 /// Enumeration of the records by physics implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PhysicsRecord {
-    Perfect(perfect_physics::PerfectPhysicsRecord),
+    Internal(internal_physics::InternalPhysicsRecord),
     External(external_physics::ExternalPhysicsRecord),
     Python(python_physics::PythonPhysicsRecord),
 }
@@ -136,7 +118,7 @@ impl PhysicsRecord {
         match self {
             Self::External(_) => [0., 0., 0.], // TODO: Find a way to get info from external record
             Self::Python(_) => [0., 0., 0.],   // TODO: Find a way to get info from external record
-            Self::Perfect(p) => p.state.pose.into(),
+            Self::Internal(p) => p.state.pose.into(),
         }
     }
 }
@@ -145,8 +127,8 @@ impl PhysicsRecord {
 impl UIComponent for PhysicsRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| match self {
-            Self::Perfect(r) => {
-                egui::CollapsingHeader::new("Perfect").show(ui, |ui| {
+            Self::Internal(r) => {
+                egui::CollapsingHeader::new("Internal").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }
@@ -170,8 +152,12 @@ use crate::{
     utils::enum_tools::ToVec,
 };
 use crate::{
-    networking::service::HasService, physics::python_physics, plugin_api::PluginAPI,
-    recordable::Recordable, simulator::SimulatorConfig, state_estimators::state_estimator::State,
+    networking::service::HasService,
+    physics::{python_physics, robot_models::Command},
+    plugin_api::PluginAPI,
+    recordable::Recordable,
+    simulator::SimulatorConfig,
+    state_estimators::state_estimator::State,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
@@ -225,7 +211,7 @@ pub fn make_physics_from_config(
     va_factory: &Arc<DeterministRandomVariableFactory>,
 ) -> Arc<RwLock<Box<dyn Physics>>> {
     Arc::new(RwLock::new(match &config {
-        PhysicsConfig::Perfect(c) => Box::new(perfect_physics::PerfectPhysics::from_config(
+        PhysicsConfig::Internal(c) => Box::new(internal_physics::InternalPhysics::from_config(
             c, robot_name, va_factory,
         )) as Box<dyn Physics>,
         PhysicsConfig::External(c) => Box::new(external_physics::ExternalPhysics::from_config(

@@ -8,14 +8,11 @@ use crate::{
     controllers::{controller::Controller, pybinds::PythonController},
     logger::is_enabled,
     navigators::{go_to::GoToMessage, navigator::Navigator, pybinds::PythonNavigator},
-    networking::{network::MessageFlag, MessageTypes},
+    networking::{MessageTypes, network::MessageFlag},
     physics::{physics::Physics, pybinds::PythonPhysics},
     plugin_api::PluginAPI,
     pywrappers::{
-        run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper,
-        ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
-        OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
-        SimulatorWrapper, StateWrapper, WorldStateWrapper,
+        CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper, SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, WorldStateWrapper, run_gui
     },
     simulator::SimulatorConfig,
     state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},
@@ -38,6 +35,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<OrientedRobotObservationWrapper>()?;
     m.add_class::<PythonController>()?;
     m.add_class::<CommandWrapper>()?;
+    m.add_class::<UnicycleCommandWrapper>()?;
     m.add_class::<PythonNavigator>()?;
     m.add_class::<NodeWrapper>()?;
     m.add_class::<MessageFlag>()?;

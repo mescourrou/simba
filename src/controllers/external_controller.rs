@@ -26,7 +26,7 @@ use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
-use crate::physics::physics::Command;
+use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::{

@@ -21,7 +21,10 @@ use crate::{
         MessageTypes,
     },
     node::Node,
-    physics::{physics::Command, pybinds::PythonPhysics},
+    physics::{
+        pybinds::PythonPhysics,
+        robot_models::{unicycle::UnicycleCommand, Command},
+    },
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
@@ -583,6 +586,37 @@ impl ObservationWrapper {
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Command")]
 pub struct CommandWrapper {
+    unicycle: Option<UnicycleCommandWrapper>,
+}
+
+#[pymethods]
+impl CommandWrapper {
+    #[new]
+    pub fn new() -> CommandWrapper {
+        Self { unicycle: None }
+    }
+}
+
+impl CommandWrapper {
+    pub fn from_rust(s: &Command) -> Self {
+        Self {
+            unicycle: s
+                .unicycle
+                .clone()
+                .map(|s| UnicycleCommandWrapper::from_rust(&s)),
+        }
+    }
+    pub fn to_rust(&self) -> Command {
+        Command {
+            unicycle: self.unicycle.clone().map(|s| s.to_rust()),
+        }
+    }
+}
+
+#[derive(Clone)]
+#[pyclass(get_all, set_all)]
+#[pyo3(name = "UnicycleCommand")]
+pub struct UnicycleCommandWrapper {
     /// Left wheel speed.
     pub left_wheel_speed: f32,
     /// Right wheel speed.
@@ -590,9 +624,9 @@ pub struct CommandWrapper {
 }
 
 #[pymethods]
-impl CommandWrapper {
+impl UnicycleCommandWrapper {
     #[new]
-    pub fn new() -> CommandWrapper {
+    pub fn new() -> UnicycleCommandWrapper {
         Self {
             left_wheel_speed: 0.,
             right_wheel_speed: 0.,
@@ -600,15 +634,15 @@ impl CommandWrapper {
     }
 }
 
-impl CommandWrapper {
-    pub fn from_rust(s: &Command) -> Self {
+impl UnicycleCommandWrapper {
+    pub fn from_rust(s: &UnicycleCommand) -> Self {
         Self {
             left_wheel_speed: s.left_wheel_speed,
             right_wheel_speed: s.right_wheel_speed,
         }
     }
-    pub fn to_rust(&self) -> Command {
-        Command {
+    pub fn to_rust(&self) -> UnicycleCommand {
+        UnicycleCommand {
             left_wheel_speed: self.left_wheel_speed,
             right_wheel_speed: self.right_wheel_speed,
         }

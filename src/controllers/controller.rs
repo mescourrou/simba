@@ -4,7 +4,8 @@ Module defining the [Controller]
 
 use crate::{
     controllers::python_controller, networking::message_handler::MessageHandler,
-    recordable::Recordable, utils::determinist_random_variable::DeterministRandomVariableFactory,
+    physics::robot_models::Command, recordable::Recordable,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -13,7 +14,7 @@ use crate::{
 };
 use std::sync::{Arc, RwLock};
 
-use crate::{physics::physics::Command, plugin_api::PluginAPI, simulator::SimulatorConfig};
+use crate::{plugin_api::PluginAPI, simulator::SimulatorConfig};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};

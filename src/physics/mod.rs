@@ -3,9 +3,11 @@ This module proposes the [`Physics`](physics::Physics) trait and the perfect phy
 */
 
 pub mod external_physics;
-pub mod perfect_physics;
+pub mod internal_physics;
 pub mod physics;
 pub mod pybinds;
 pub mod python_physics;
+
+pub mod robot_models;
 
 pub mod fault_models;

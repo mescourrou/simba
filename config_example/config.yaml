@@ -28,8 +28,9 @@ robots:
     kd_theta: 0.1
     ki_theta: 0.0
     wheel_distance: 0.25
-  physics: !Perfect
-    wheel_distance: 0.25
+  physics: !Internal
+    model: !Unicycle
+      wheel_distance: 0.25
     initial_state:
       pose:
       - 0.0
@@ -117,8 +118,9 @@ robots:
     kd_theta: 0.1
     ki_theta: 0.0
     wheel_distance: 0.25
-  physics: !Perfect
-    wheel_distance: 0.25
+  physics: !Internal
+    model: !Unicycle
+      wheel_distance: 0.25
     initial_state:
       pose:
       - 0.0

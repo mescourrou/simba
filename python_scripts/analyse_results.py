@@ -28,7 +28,7 @@ def analyse(records: dict, config: dict, figure_path: str, figure_type: str, add
         if "physics" in record["node"][node_type]:
             turtle_data.times.append(t)
             try:
-                perfect_physics = record["node"][node_type]["physics"]["Perfect"]
+                perfect_physics = record["node"][node_type]["physics"]["Internal"]
                 real_pose = None
                 if "states" in perfect_physics:
                     states = perfect_physics["states"]

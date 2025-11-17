@@ -142,6 +142,10 @@ class Observation:
 
 class Command:
     def __init__(self):
+        self.unicycle: UnicycleCommand | None
+
+class UnicycleCommand:
+    def __init__(self):
         self.left_wheel_speed: float
         self.right_wheel_speed: float
 

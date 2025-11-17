@@ -13,6 +13,8 @@ use std::sync::mpsc::Sender;
 
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
+use crate::physics::robot_models::unicycle::UnicycleCommand;
+use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
@@ -168,8 +170,10 @@ impl Default for PIDRecord {
             theta_integral: 0.,
             velocity: 0.,
             command: Command {
-                left_wheel_speed: 0.,
-                right_wheel_speed: 0.,
+                unicycle: Some(UnicycleCommand {
+                    left_wheel_speed: 0.,
+                    right_wheel_speed: 0.,
+                }),
             },
             last_command_time: 0.,
             previous_velocity_error: 0.,
@@ -256,7 +260,6 @@ impl PID {
 use super::controller::{Controller, ControllerRecord};
 use crate::controllers::controller::ControllerError;
 use crate::node::Node;
-use crate::physics::physics::Command;
 
 impl Controller for PID {
     fn make_command(&mut self, _robot: &mut Node, error: &ControllerError, time: f32) -> Command {
@@ -288,8 +291,10 @@ impl Controller for PID {
         self.last_command_time = time;
 
         let command = Command {
-            left_wheel_speed: self.velocity - correction_theta / 2.,
-            right_wheel_speed: self.velocity + correction_theta / 2.,
+            unicycle: Some(UnicycleCommand {
+                left_wheel_speed: self.velocity - correction_theta / 2.,
+                right_wheel_speed: self.velocity + correction_theta / 2.,
+            }),
         };
         self.current_record = PIDRecord {
             v_integral: self.v_integral,
