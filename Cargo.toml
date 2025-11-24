@@ -42,7 +42,7 @@ rand = "0.8.5"
 rand_chacha = "0.3.1"
 statrs = "0.17.1"
 
-config-checker = { git = "https://github.com/mescourrou/rust_config_checker", branch = "master"}
+config-checker = { git = "https://github.com/mescourrou/rust_config_checker", rev = "fdfcd15"}
 
 simba-macros ={ path = "./macros" , version = "*"}
 

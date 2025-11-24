@@ -921,14 +921,13 @@ impl Simulator {
         force_send_results: bool,
     ) -> SimbaResult<()> {
         println!("Checking configuration:");
-        if config.check() {
-            println!("Config valid");
-        } else {
-            return Err(SimbaError::new(
+        match config.check() {
+            Ok(_) => println!("Config valid"),
+            Err(e) => return Err(SimbaError::new(
                 SimbaErrorTypes::ConfigError,
-                "Error in config".to_string(),
-            ));
-        }
+                format!("Error in config: {e}"),
+            ))
+        };
         let config_version: Vec<usize> = config
             .version
             .split(".")
