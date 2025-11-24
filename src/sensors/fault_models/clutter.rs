@@ -236,7 +236,8 @@ impl FaultModel for ClutterFault {
                     }
                     o.pose.z = mod2pi(o.pose.z);
                     o.name = self.observation_id.clone();
-                    o.applied_faults.push(FaultModelConfig::Clutter(self.config.clone()));
+                    o.applied_faults
+                        .push(FaultModelConfig::Clutter(self.config.clone()));
                 }
                 SensorObservation::GNSS(o) => {
                     if self.variable_order.len() > 0 {
@@ -260,7 +261,8 @@ impl FaultModel for ClutterFault {
                             o.velocity.y = random_sample[3];
                         }
                     }
-                    o.applied_faults.push(FaultModelConfig::Clutter(self.config.clone()));
+                    o.applied_faults
+                        .push(FaultModelConfig::Clutter(self.config.clone()));
                 }
                 SensorObservation::Odometry(o) => {
                     if self.variable_order.len() > 0 {
@@ -276,7 +278,8 @@ impl FaultModel for ClutterFault {
                         o.angular_velocity = random_sample[0];
                         o.linear_velocity = random_sample[1];
                     }
-                    o.applied_faults.push(FaultModelConfig::Clutter(self.config.clone()));
+                    o.applied_faults
+                        .push(FaultModelConfig::Clutter(self.config.clone()));
                 }
                 SensorObservation::OrientedLandmark(o) => {
                     if self.variable_order.len() > 0 {
@@ -296,7 +299,8 @@ impl FaultModel for ClutterFault {
                     }
                     o.pose.z = mod2pi(o.pose.z);
                     o.id = self.observation_id.parse().unwrap_or(-1);
-                    o.applied_faults.push(FaultModelConfig::Clutter(self.config.clone()));
+                    o.applied_faults
+                        .push(FaultModelConfig::Clutter(self.config.clone()));
                 }
             }
             obs_list.push(new_obs);

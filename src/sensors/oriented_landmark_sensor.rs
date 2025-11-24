@@ -10,16 +10,21 @@ use super::sensor::{Sensor, SensorObservation, SensorRecord};
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::path_finder, UIComponent};
+use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
+use crate::sensors::sensor_filters::{
+    make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
+};
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
+use rand_chacha::rand_core::le;
 use serde_derive::{Deserialize, Serialize};
 
-use log::error;
+use log::{debug, error};
 extern crate nalgebra as na;
 use na::Vector3;
 
@@ -43,6 +48,8 @@ pub struct OrientedLandmarkSensorConfig {
     pub period: f32,
     #[check]
     pub faults: Vec<FaultModelConfig>,
+    #[check]
+    pub filters: Vec<SensorFilterConfig>,
 }
 
 impl Default for OrientedLandmarkSensorConfig {
@@ -52,6 +59,7 @@ impl Default for OrientedLandmarkSensorConfig {
             map_path: String::from(""),
             period: 0.1,
             faults: Vec::new(),
+            filters: Vec::new(),
         }
     }
 }
@@ -94,6 +102,16 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     path_finder(ui, &mut self.map_path, &global_config.base_path);
                 });
 
+                SensorFilterConfig::show_filters_mut(
+                    &mut self.filters,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+
                 FaultModelConfig::show_faults_mut(
                     &mut self.faults,
                     ui,
@@ -121,6 +139,8 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                 ui.horizontal(|ui| {
                     ui.label(format!("Map path: {}", self.map_path));
                 });
+
+                SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
 
                 FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
@@ -365,6 +385,7 @@ pub struct OrientedLandmarkSensor {
     /// Last observation time.
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
+    filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
 }
 
 impl OrientedLandmarkSensor {
@@ -401,12 +422,21 @@ impl OrientedLandmarkSensor {
             ));
         }
         drop(unlock_fault_model);
+
+        let filters = Arc::new(Mutex::new(Vec::new()));
+        let mut unlock_filters = filters.lock().unwrap();
+        for filter_config in &config.filters {
+            unlock_filters.push(make_sensor_filter_from_config(filter_config));
+        }
+        drop(unlock_filters);
+
         let mut sensor = Self {
             detection_distance: config.detection_distance,
             landmarks: Vec::new(),
             period: config.period,
             last_time: 0.,
             faults: fault_models,
+            filters,
         };
 
         if config.map_path == "" {
@@ -465,20 +495,35 @@ impl Sensor for OrientedLandmarkSensor {
             if d <= self.detection_distance {
                 let landmark_seed = 1. / (100. * self.period) * (landmark.id as f32);
                 let pose = rotation_matrix.transpose() * (landmark.pose - state.pose);
-                observation_list.push(SensorObservation::OrientedLandmark(
-                    OrientedLandmarkObservation {
-                        id: landmark.id,
-                        pose,
-                        applied_faults: Vec::new(),
-                    },
-                ));
-                for fault_model in self.faults.lock().unwrap().iter() {
-                    fault_model.add_faults(
-                        time + landmark_seed,
-                        self.period,
-                        &mut observation_list,
-                        SensorObservation::OrientedLandmark(OrientedLandmarkObservation::default()),
-                    );
+                let mut new_obs = Vec::new();
+                let obs = SensorObservation::OrientedLandmark(OrientedLandmarkObservation {
+                    id: landmark.id,
+                    pose,
+                    applied_faults: Vec::new(),
+                });
+                if let Some(observation) = self
+                    .filters
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .fold(Some(obs), |obs, filter| obs.and_then(|o| filter.filter(o, &state, None)))
+                {
+                    new_obs.push(observation);
+                    for fault_model in self.faults.lock().unwrap().iter() {
+                        fault_model.add_faults(
+                            time + landmark_seed,
+                            self.period,
+                            &mut new_obs,
+                            SensorObservation::OrientedLandmark(
+                                OrientedLandmarkObservation::default(),
+                            ),
+                        );
+                    }
+                    observation_list.extend(new_obs);
+                } else {
+                    if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                        debug!("Observation of landmark {} was filtered out", landmark.id);
+                    }
                 }
             }
         }

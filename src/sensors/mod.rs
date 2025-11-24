@@ -20,3 +20,4 @@ pub mod sensor;
 pub mod sensor_manager;
 
 pub mod fault_models;
+pub mod sensor_filters;

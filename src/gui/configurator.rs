@@ -16,7 +16,11 @@ impl Configurator {
         let current_config = match SimulatorConfig::load_from_path(Path::new(&config_path)) {
             Ok(config) => config,
             Err(e) => {
-                log::error!("Impossible to load config at path {}: {}", config_path, e.detailed_error());
+                log::error!(
+                    "Impossible to load config at path {}: {}",
+                    config_path,
+                    e.detailed_error()
+                );
                 save_path = String::new();
                 SimulatorConfig::default()
             }

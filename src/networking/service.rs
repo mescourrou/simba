@@ -176,7 +176,7 @@ pub struct Service<
     /// and continue to treat messages.
     time_cv: Arc<TimeCv>,
     target: Arc<RwLock<Box<T>>>,
-    living: Arc<RwLock<bool>>
+    living: Arc<RwLock<bool>>,
 }
 
 impl<

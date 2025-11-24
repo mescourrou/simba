@@ -12,12 +12,18 @@ use super::sensor::{Sensor, SensorObservation, SensorRecord};
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
+use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
+use crate::sensors::sensor_filters::{
+    make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
+};
 use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
+use libc::RTEXT_FILTER_SKIP_STATS;
+use log::debug;
 use nalgebra::Vector2;
 use serde_derive::{Deserialize, Serialize};
 
@@ -34,6 +40,8 @@ pub struct GNSSSensorConfig {
     /// Fault on the x, y positions, and on the x and y velocities
     #[check]
     pub faults: Vec<FaultModelConfig>,
+    #[check]
+    pub filters: Vec<SensorFilterConfig>,
 }
 
 impl Default for GNSSSensorConfig {
@@ -41,6 +49,7 @@ impl Default for GNSSSensorConfig {
         Self {
             period: 1.,
             faults: Vec::new(),
+            filters: Vec::new(),
         }
     }
 }
@@ -70,6 +79,16 @@ impl UIComponent for GNSSSensorConfig {
                     );
                 });
 
+                SensorFilterConfig::show_filters_mut(
+                    &mut self.filters,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+
                 FaultModelConfig::show_faults_mut(
                     &mut self.faults,
                     ui,
@@ -89,6 +108,8 @@ impl UIComponent for GNSSSensorConfig {
                 ui.horizontal(|ui| {
                     ui.label(format!("Period: {}", self.period));
                 });
+
+                SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
 
                 FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
@@ -162,6 +183,7 @@ pub struct GNSSSensor {
     last_time: f32,
     /// Fault models for x and y positions and on x and y velocities
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
+    filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
 }
 
 impl GNSSSensor {
@@ -195,10 +217,18 @@ impl GNSSSensor {
             ));
         }
         drop(unlock_fault_model);
+
+        let filters = Arc::new(Mutex::new(Vec::new()));
+        let mut unlock_filters = filters.lock().unwrap();
+        for filter_config in &config.filters {
+            unlock_filters.push(make_sensor_filter_from_config(filter_config));
+        }
+        drop(unlock_filters);
         Self {
             period: config.period,
             last_time: 0.,
             faults: fault_models,
+            filters,
         }
     }
 }
@@ -224,18 +254,32 @@ impl Sensor for GNSSSensor {
             state.velocity * state.pose.z.sin(),
         ]);
 
-        observation_list.push(SensorObservation::GNSS(GNSSObservation {
+        // Apply filters until one rejects the observation
+        let obs = SensorObservation::GNSS(GNSSObservation {
             position: state.pose.fixed_rows::<2>(0).into(),
             velocity,
             applied_faults: Vec::new(),
-        }));
-        for fault_model in self.faults.lock().unwrap().iter() {
-            fault_model.add_faults(
-                time,
-                self.period,
-                &mut observation_list,
-                SensorObservation::GNSS(GNSSObservation::default()),
-            );
+        });
+        if let Some(observation) = self
+            .filters
+            .lock()
+            .unwrap()
+            .iter()
+            .fold(Some(obs), |obs, filter| obs.and_then(|o| filter.filter(o, &state, None)))
+        {
+            observation_list.push(observation);
+            for fault_model in self.faults.lock().unwrap().iter() {
+                fault_model.add_faults(
+                    time,
+                    self.period,
+                    &mut observation_list,
+                    SensorObservation::GNSS(GNSSObservation::default()),
+                );
+            }
+        } else {
+            if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                debug!("GNSS Observation was filtered out");
+            }
         }
 
         self.last_time = time;

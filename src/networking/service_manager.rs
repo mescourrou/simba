@@ -75,13 +75,11 @@ impl ServiceManager {
                     // Time_cv circulating_messages already decreased in client
                     resp = r;
                     break;
-                },
-                Err(e) => {
-                    match e.error_type() {
-                        SimbaErrorTypes::ServiceError(ServiceError::Closed) => return Err(e),
-                        _ => {}
-                    }
                 }
+                Err(e) => match e.error_type() {
+                    SimbaErrorTypes::ServiceError(ServiceError::Closed) => return Err(e),
+                    _ => {}
+                },
             }
             if self.process_requests() > 0 {
                 self.handle_requests(time);

@@ -218,7 +218,10 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                     o.pose.x = r * theta.cos();
                     o.pose.y = r * theta.sin();
                     o.pose.z = mod2pi(z);
-                    o.applied_faults.push(FaultModelConfig::AdditiveRobotCenteredPolar(self.config.clone()));
+                    o.applied_faults
+                        .push(FaultModelConfig::AdditiveRobotCenteredPolar(
+                            self.config.clone(),
+                        ));
                 }
                 SensorObservation::GNSS(_) => {
                     panic!("Not implemented yet (need to find a logical way to do it.");
@@ -253,7 +256,10 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                     o.pose.x = r * theta.cos();
                     o.pose.y = r * theta.sin();
                     o.pose.z = mod2pi(z);
-                    o.applied_faults.push(FaultModelConfig::AdditiveRobotCenteredPolar(self.config.clone()));
+                    o.applied_faults
+                        .push(FaultModelConfig::AdditiveRobotCenteredPolar(
+                            self.config.clone(),
+                        ));
                 }
             }
         }

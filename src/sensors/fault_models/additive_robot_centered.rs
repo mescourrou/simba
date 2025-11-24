@@ -215,7 +215,8 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         o.pose.z += random_sample[2];
                     }
                     o.pose.z = mod2pi(o.pose.z);
-                    o.applied_faults.push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
+                    o.applied_faults
+                        .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
                 SensorObservation::GNSS(o) => {
                     if self.variable_order.len() > 0 {
@@ -239,7 +240,8 @@ impl FaultModel for AdditiveRobotCenteredFault {
                             o.velocity.y += random_sample[3];
                         }
                     }
-                    o.applied_faults.push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
+                    o.applied_faults
+                        .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
                 SensorObservation::Odometry(o) => {
                     if self.variable_order.len() > 0 {
@@ -255,7 +257,8 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         o.angular_velocity += random_sample[0];
                         o.linear_velocity += random_sample[1];
                     }
-                    o.applied_faults.push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
+                    o.applied_faults
+                        .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
                 SensorObservation::OrientedLandmark(o) => {
                     if self.variable_order.len() > 0 {
@@ -274,7 +277,8 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         o.pose.z += random_sample[2];
                     }
                     o.pose.z = mod2pi(o.pose.z);
-                    o.applied_faults.push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
+                    o.applied_faults
+                        .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
             }
         }

@@ -141,7 +141,11 @@ impl AsyncApiRunner {
                         let mut simulator = simulator_arc.lock().unwrap();
                         println!("Loading config: {}", config_path);
                         let path = Path::new(&config_path);
-                        simulator.load_config_path_full(path, &plugin_api_threaded, force_send_results)?;
+                        simulator.load_config_path_full(
+                            path,
+                            &plugin_api_threaded,
+                            force_send_results,
+                        )?;
                         println!("End loading");
                         Ok(simulator.config())
                     });

@@ -55,7 +55,7 @@ use crate::{
         async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
         internal_api::NodeClient,
     },
-    constants::{TIME_ROUND_DECIMALS, TIME_ROUND},
+    constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::{init_log, is_enabled, LoggerConfig},
     networking::network_manager::NetworkManager,
@@ -471,7 +471,6 @@ impl crate::gui::UIComponent for SimulatorConfig {
             });
 
             ui.horizontal(|ui| {
-
                 ui.label("Max time: ");
                 ui.add(
                     egui::DragValue::new(&mut self.max_time)
@@ -874,7 +873,12 @@ impl Simulator {
         }
         // Create computation units
         for computation_unit_config in &config.computation_units {
-            self.add_computation_unit(computation_unit_config, plugin_api, &config, self.force_send_results);
+            self.add_computation_unit(
+                computation_unit_config,
+                plugin_api,
+                &config,
+                self.force_send_results,
+            );
             let node = self.nodes.last().unwrap();
             service_managers.insert(node.name(), node.service_manager());
         }
@@ -923,10 +927,12 @@ impl Simulator {
         println!("Checking configuration:");
         match config.check() {
             Ok(_) => println!("Config valid"),
-            Err(e) => return Err(SimbaError::new(
-                SimbaErrorTypes::ConfigError,
-                format!("Error in config: {e}"),
-            ))
+            Err(e) => {
+                return Err(SimbaError::new(
+                    SimbaErrorTypes::ConfigError,
+                    format!("Error in config: {e}"),
+                ))
+            }
         };
         let config_version: Vec<usize> = config
             .version
@@ -1149,9 +1155,9 @@ impl Simulator {
                         *finishing_cv_clone.0.lock().unwrap() += 1;
                         finishing_cv_clone.1.notify_all();
                     }
-                    _ => {}   
+                    _ => {}
                 };
-                
+
                 ret
             });
             handles.push(handle);
@@ -1169,7 +1175,7 @@ impl Simulator {
                     if let Some(n) = node {
                         self.nodes.push(n)
                     }
-                },
+                }
             };
         }
 
@@ -1305,7 +1311,7 @@ impl Simulator {
                 new_records.push(record)
             }
         }
-        
+
         let result_config = self.config.results.clone().unwrap();
         let filename = result_config.result_path;
         if filename.is_some() {
@@ -1356,12 +1362,18 @@ impl Simulator {
 
     pub fn load_results(&mut self) -> SimbaResult<f32> {
         if self.config.results.is_none() {
-            return Err(SimbaError::new(SimbaErrorTypes::ConfigError, "Request for loading results but no result configuration".to_string()));
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ConfigError,
+                "Request for loading results but no result configuration".to_string(),
+            ));
         }
         let result_config = self.config.results.clone().unwrap();
         let filename = result_config.result_path;
         if filename.is_none() {
-            return Err(SimbaError::new(SimbaErrorTypes::ConfigError, "Request for loading results but no result path in configuration".to_string()));
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ConfigError,
+                "Request for loading results but no result path in configuration".to_string(),
+            ));
         }
         let filename = self.config.base_path.as_ref().join(filename.unwrap());
         let mut recording_file = File::open(filename).expect("Impossible to open record file");
@@ -1378,7 +1390,10 @@ impl Simulator {
             *max_time = max_time.max(record.time);
             self.async_api_server.as_ref().unwrap().send_record(record);
         }
-        self.async_api_server.as_ref().unwrap().update_time(*max_time);
+        self.async_api_server
+            .as_ref()
+            .unwrap()
+            .update_time(*max_time);
         Ok(*max_time)
     }
 
@@ -1731,7 +1746,12 @@ impl AsyncSimulator {
         sim
     }
 
-    pub fn run(&mut self, plugin_api: &Option<Box<dyn PluginAPI>>, max_time: Option<f32>, reset: bool) {
+    pub fn run(
+        &mut self,
+        plugin_api: &Option<Box<dyn PluginAPI>>,
+        max_time: Option<f32>,
+        reset: bool,
+    ) {
         self.api.run.async_call((max_time, reset));
         if let Some(plugin_api) = &plugin_api {
             while self.api.run.try_get_result().is_none() {

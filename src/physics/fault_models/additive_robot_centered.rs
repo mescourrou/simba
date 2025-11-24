@@ -7,7 +7,19 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
-use crate::{physics::fault_models::fault_model::PhysicsFaultModel, state_estimators::state_estimator::State, utils::{determinist_random_variable::{DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig}, distributions::{bernouilli::BernouilliRandomVariableConfig, normal::NormalRandomVariableConfig}, geometry::mod2pi}};
+use crate::{
+    physics::fault_models::fault_model::PhysicsFaultModel,
+    state_estimators::state_estimator::State,
+    utils::{
+        determinist_random_variable::{
+            DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
+        },
+        distributions::{
+            bernouilli::BernouilliRandomVariableConfig, normal::NormalRandomVariableConfig,
+        },
+        geometry::mod2pi,
+    },
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Check)]
 #[serde(default)]
@@ -50,15 +62,10 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = vec![
-                "x",
-                "y",
-                "orientation",
-                "velocity",
-            ]
-            .iter()
-            .map(|x| String::from(*x))
-            .collect();
+            let possible_variables = vec!["x", "y", "orientation", "velocity"]
+                .iter()
+                .map(|x| String::from(*x))
+                .collect();
             ui.horizontal(|ui| {
                 ui.label("Variable order:");
                 for (i, var) in self.variable_order.iter_mut().enumerate() {
@@ -135,18 +142,14 @@ impl AdditiveRobotCenteredPhysicsFault {
 }
 
 impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
-    fn add_faults(
-        &self,
-        time: f32,
-        state: &mut State,
-    ) {
+    fn add_faults(&self, time: f32, state: &mut State) {
         let mut last_time_draw = self.last_time_draw.lock().unwrap();
         let delta_time = time - *last_time_draw;
         let mut random_sample = Vec::new();
         for d in self.distributions.lock().unwrap().iter() {
             random_sample.extend_from_slice(&d.gen(time));
         }
-        
+
         if self.variable_order.len() > 0 {
             for i in 0..self.variable_order.len() {
                 match self.variable_order[i].as_str() {

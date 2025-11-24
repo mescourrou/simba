@@ -29,7 +29,7 @@ List of parameters:
 			- `!API` 
 			- `!NavigatorDetailed` 
 - `results`: [ResultConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/simulator/struct.ResultConfig.html), Optional
-	- `result_path`: String
+	- `result_path`: String, Optional
 	- `show_figures`: Boolean
 	- `analyse_script`: String, Optional
 	- `figures_path`: String, Optional
@@ -85,6 +85,27 @@ List of parameters:
 			- `initial_state`: [StateConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/state_estimator/struct.StateConfig.html)
 				- `pose`: Float, List
 				- `velocity`: Float
+			- `faults`: [PhysicsFaultModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/fault_models/fault_model/enum.PhysicsFaultModelConfig.html), List, Enum
+				- `!AdditiveRobotCentered`: [AdditiveRobotCenteredPhysicsFaultConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/fault_models/additive_robot_centered/struct.AdditiveRobotCenteredPhysicsFaultConfig.html)
+					- `distributions`: [RandomVariableTypeConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/determinist_random_variable/enum.RandomVariableTypeConfig.html), List, Enum
+						- `!None` 
+						- `!Fixed`: [FixedRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/fixed/struct.FixedRandomVariableConfig.html)
+							- `values`: Float, List
+						- `!Uniform`: [UniformRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/uniform/struct.UniformRandomVariableConfig.html)
+							- `unique_seed`: Float
+							- `min`: Float, List
+							- `max`: Float, List
+						- `!Normal`: [NormalRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/normal/struct.NormalRandomVariableConfig.html)
+							- `unique_seed`: Float
+							- `mean`: Float, List
+							- `covariance`: Float, List
+						- `!Poisson`: [PoissonRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/poisson/struct.PoissonRandomVariableConfig.html)
+							- `unique_seed`: Float
+							- `lambda`: Float, List
+						- `!Exponential`: [ExponentialRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/exponential/struct.ExponentialRandomVariableConfig.html)
+							- `unique_seed`: Float
+							- `lambda`: Float, List
+					- `variable_order`: String, List
 		- `!External`: [ExternalPhysicsConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/external_physics/struct.ExternalPhysicsConfig.html)
 			- `config`: User-specific struct
 		- `!Python`: [PythonPhysicsConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/python_physics/struct.PythonPhysicsConfig.html)
@@ -116,24 +137,7 @@ List of parameters:
 							- `apparition`: [BernouilliRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/bernouilli/struct.BernouilliRandomVariableConfig.html)
 								- `unique_seed`: Float
 								- `probability`: Float, List
-							- `distributions`: [RandomVariableTypeConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/determinist_random_variable/enum.RandomVariableTypeConfig.html), List, Enum
-								- `!None` 
-								- `!Fixed`: [FixedRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/fixed/struct.FixedRandomVariableConfig.html)
-									- `values`: Float, List
-								- `!Uniform`: [UniformRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/uniform/struct.UniformRandomVariableConfig.html)
-									- `unique_seed`: Float
-									- `min`: Float, List
-									- `max`: Float, List
-								- `!Normal`: [NormalRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/normal/struct.NormalRandomVariableConfig.html)
-									- `unique_seed`: Float
-									- `mean`: Float, List
-									- `covariance`: Float, List
-								- `!Poisson`: [PoissonRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/poisson/struct.PoissonRandomVariableConfig.html)
-									- `unique_seed`: Float
-									- `lambda`: Float, List
-								- `!Exponential`: [ExponentialRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/exponential/struct.ExponentialRandomVariableConfig.html)
-									- `unique_seed`: Float
-									- `lambda`: Float, List
+							- `distributions`: [RandomVariableTypeConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/determinist_random_variable/enum.RandomVariableTypeConfig.html), See above, List
 							- `variable_order`: String, List
 						- `!AdditiveRobotCenteredPolar`: [AdditiveRobotCenteredPolarFaultConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/fault_models/additive_robot_centered_polar/struct.AdditiveRobotCenteredPolarFaultConfig.html)
 							- `apparition`: [BernouilliRandomVariableConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/distributions/bernouilli/struct.BernouilliRandomVariableConfig.html), See above
@@ -160,16 +164,25 @@ List of parameters:
 							- `source`: [Source](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/fault_models/misassociation/enum.Source.html), Enum
 								- `!Map`: String
 								- `!Robots` 
+					- `filters`: [SensorFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filter/mod/enum.SensorFilterConfig.html), List, Enum
+						- `!RangeFilter`: [RangeFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filter/range_filter/struct.RangeFilterConfig.html)
+							- `variables`: String, List
+							- `min_range`: Float, List
+							- `max_range`: Float, List
+							- `inside`: Boolean
 				- `!OdometrySensor`: [OdometrySensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/odometry_sensor/struct.OdometrySensorConfig.html)
 					- `period`: Float
 					- `faults`: [FaultModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/fault_models/fault_model/enum.FaultModelConfig.html), See above, List
+					- `filters`: [SensorFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filter/mod/enum.SensorFilterConfig.html), See above, List
 				- `!GNSSSensor`: [GNSSSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/gnss_sensor/struct.GNSSSensorConfig.html)
 					- `period`: Float
 					- `faults`: [FaultModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/fault_models/fault_model/enum.FaultModelConfig.html), See above, List
+					- `filters`: [SensorFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filter/mod/enum.SensorFilterConfig.html), See above, List
 				- `!RobotSensor`: [RobotSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/robot_sensor/struct.RobotSensorConfig.html)
 					- `detection_distance`: Float
 					- `period`: Float
 					- `faults`: [FaultModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/fault_models/fault_model/enum.FaultModelConfig.html), See above, List
+					- `filters`: [SensorFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filter/mod/enum.SensorFilterConfig.html), See above, List
 	- `network`: [NetworkConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/networking/network/struct.NetworkConfig.html)
 		- `range`: Float
 		- `reception_delay`: Float

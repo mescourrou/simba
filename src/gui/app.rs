@@ -228,7 +228,9 @@ impl SimbaApp {
         if let Some(config) = default_config_path {
             n.config_path = config.to_str().unwrap().to_string();
             n.p.config = None;
-            n.p.api.load_config.async_call((n.config_path.clone(), true));
+            n.p.api
+                .load_config
+                .async_call((n.config_path.clone(), true));
         }
         if load_results {
             n.p.api.load_results.async_call(());
@@ -251,7 +253,10 @@ impl SimbaApp {
         if let Some(config) = default_config_path {
             self.config_path = config.to_str().unwrap().to_string();
             self.p.config = None;
-            self.p.api.load_config.async_call((self.config_path.clone(), true));
+            self.p
+                .api
+                .load_config
+                .async_call((self.config_path.clone(), true));
         }
         if load_results {
             self.p.api.load_results.async_call(());
@@ -378,7 +383,10 @@ impl eframe::App for SimbaApp {
                 if ui.button("Load").clicked() {
                     log::info!("Load configuration");
                     self.p.config = None;
-                    self.p.api.load_config.async_call((self.config_path.clone(), true));
+                    self.p
+                        .api
+                        .load_config
+                        .async_call((self.config_path.clone(), true));
                 }
                 if self.p.config.is_none() {
                     if let Some(res) = self.p.api.load_config.try_get_result() {
@@ -436,7 +444,10 @@ impl eframe::App for SimbaApp {
                         .clicked()
                     {
                         log::info!("Run simulation");
-                        self.p.api.run.async_call((Some(self.duration), self.p.simulation_run));
+                        self.p
+                            .api
+                            .run
+                            .async_call((Some(self.duration), self.p.simulation_run));
                         self.p.simulation_run = true;
                     }
                     if let Some(r) = self.p.api.run.try_get_result() {

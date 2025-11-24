@@ -344,6 +344,8 @@ impl SensorManager {
             if let Ok(obs_list) =
                 serde_json::from_value::<Vec<Observation>>(envelope.message.clone())
             {
+                self.last_observations
+                    .extend(obs_list.iter().map(|o| o.record()));
                 observations.extend(obs_list);
                 // Assure that the observations are always in the same order, for determinism:
                 observations.sort_by(|a, b| a.observer.cmp(&b.observer));
@@ -373,6 +375,7 @@ impl SensorManager {
 
     pub fn make_observations(&mut self, node: &mut Node, time: f32) {
         self.local_observations.clear();
+        self.last_observations.clear();
         let mut min_next_time = None;
         let mut obs_to_send = BTreeMap::new();
         for sensor in &mut self.sensors {
@@ -422,6 +425,8 @@ impl SensorManager {
                 }
             }
         }
+        self.last_observations
+            .extend(self.local_observations.iter().map(|o| o.record()));
         self.next_time = min_next_time;
     }
 

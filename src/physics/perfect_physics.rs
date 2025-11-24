@@ -8,7 +8,13 @@ use std::sync::{Arc, Mutex};
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
-    networking::service::HasService, physics::fault_models::fault_model::{PhysicsFaultModel, PhysicsFaultModelConfig, make_physics_fault_model_from_config}, recordable::Recordable, state_estimators::state_estimator::{State, StateConfig, StateRecord}, utils::determinist_random_variable::DeterministRandomVariableFactory
+    networking::service::HasService,
+    physics::fault_models::fault_model::{
+        make_physics_fault_model_from_config, PhysicsFaultModel, PhysicsFaultModelConfig,
+    },
+    recordable::Recordable,
+    state_estimators::state_estimator::{State, StateConfig, StateRecord},
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use config_checker::macros::Check;
 use libm::atan2f;
@@ -27,7 +33,7 @@ pub struct PerfectsPhysicConfig {
     #[check]
     pub initial_state: StateConfig,
     #[check]
-    pub faults: Vec<PhysicsFaultModelConfig>
+    pub faults: Vec<PhysicsFaultModelConfig>,
 }
 
 #[cfg(feature = "gui")]
@@ -174,7 +180,11 @@ impl PerfectPhysics {
     /// * `config` - Configuration of [`PerfectPhysics`].
     /// * `plugin_api` - [`PluginAPI`] not used there.
     /// * `global_config` - Configuration of the simulator.
-    pub fn from_config(config: &PerfectsPhysicConfig, robot_name: &String, va_factory: &Arc<DeterministRandomVariableFactory>) -> Self {
+    pub fn from_config(
+        config: &PerfectsPhysicConfig,
+        robot_name: &String,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+    ) -> Self {
         PerfectPhysics {
             wheel_distance: config.wheel_distance,
             state: State::from_config(&config.initial_state),
@@ -183,7 +193,13 @@ impl PerfectPhysics {
                 left_wheel_speed: 0.,
                 right_wheel_speed: 0.,
             },
-            faults: Arc::new(Mutex::new(config.faults.iter().map(|f| make_physics_fault_model_from_config(f, robot_name, va_factory)).collect())),
+            faults: Arc::new(Mutex::new(
+                config
+                    .faults
+                    .iter()
+                    .map(|f| make_physics_fault_model_from_config(f, robot_name, va_factory))
+                    .collect(),
+            )),
         }
     }
 

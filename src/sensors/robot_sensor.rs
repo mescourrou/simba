@@ -15,6 +15,9 @@ use crate::networking::service_manager::ServiceError;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
+use crate::sensors::sensor_filters::{
+    make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
+};
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -42,6 +45,8 @@ pub struct RobotSensorConfig {
     pub period: f32,
     #[check]
     pub faults: Vec<FaultModelConfig>,
+    #[check]
+    pub filters: Vec<SensorFilterConfig>,
 }
 
 impl Default for RobotSensorConfig {
@@ -50,6 +55,7 @@ impl Default for RobotSensorConfig {
             detection_distance: 5.0,
             period: 0.1,
             faults: Vec::new(),
+            filters: Vec::new(),
         }
     }
 }
@@ -87,6 +93,16 @@ impl UIComponent for RobotSensorConfig {
                     );
                 });
 
+                SensorFilterConfig::show_filters_mut(
+                    &mut self.filters,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+
                 FaultModelConfig::show_faults_mut(
                     &mut self.faults,
                     ui,
@@ -110,6 +126,8 @@ impl UIComponent for RobotSensorConfig {
                 ui.horizontal(|ui| {
                     ui.label(format!("Period: {}", self.period));
                 });
+
+                SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
 
                 FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
@@ -346,6 +364,7 @@ pub struct RobotSensor {
     /// Last observation time.
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
+    filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
 }
 
 impl RobotSensor {
@@ -382,11 +401,20 @@ impl RobotSensor {
             ));
         }
         drop(unlock_fault_model);
+
+        let filters = Arc::new(Mutex::new(Vec::new()));
+        let mut unlock_filters = filters.lock().unwrap();
+        for filter_config in &config.filters {
+            unlock_filters.push(make_sensor_filter_from_config(filter_config));
+        }
+        drop(unlock_filters);
+
         Self {
             detection_distance: config.detection_distance,
             period: config.period,
             last_time: 0.,
             faults: fault_models,
+            filters,
         }
     }
 }
@@ -439,22 +467,39 @@ impl Sensor for RobotSensor {
                     if d <= self.detection_distance {
                         let robot_seed = 1. / (100. * self.period) * (i as f32);
                         let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
-                        observation_list.push(SensorObservation::OrientedRobot(
-                            OrientedRobotObservation {
-                                name: other_node_name.clone(),
-                                pose,
-                                applied_faults: Vec::new(),
-                            },
-                        ));
-                        for fault_model in self.faults.lock().unwrap().iter() {
-                            fault_model.add_faults(
-                                time + robot_seed,
-                                self.period,
-                                &mut observation_list,
-                                SensorObservation::OrientedRobot(
-                                    OrientedRobotObservation::default(),
-                                ),
-                            );
+                        let mut new_obs = Vec::new();
+                        let obs = SensorObservation::OrientedRobot(OrientedRobotObservation {
+                            name: other_node_name.clone(),
+                            pose,
+                            applied_faults: Vec::new(),
+                        });
+
+                        if let Some(observation) = self
+                            .filters
+                            .lock()
+                            .unwrap()
+                            .iter()
+                            .fold(Some(obs), |obs, filter| obs.and_then(|o| filter.filter(o, &state, Some(&other_state))))
+                        {
+                            new_obs.push(observation);
+                            for fault_model in self.faults.lock().unwrap().iter() {
+                                fault_model.add_faults(
+                                    time + robot_seed,
+                                    self.period,
+                                    &mut observation_list,
+                                    SensorObservation::OrientedRobot(
+                                        OrientedRobotObservation::default(),
+                                    ),
+                                );
+                            }
+                            observation_list.extend(new_obs);
+                        } else {
+                            if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                                debug!(
+                                    "Observation of node {} was filtered out",
+                                    &other_node_name.to_string()
+                                );
+                            }
                         }
                     };
                 }

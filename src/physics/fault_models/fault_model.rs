@@ -8,12 +8,18 @@ use simba_macros::{EnumToString, ToVec};
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
-use crate::{physics::fault_models::additive_robot_centered::{AdditiveRobotCenteredPhysicsFault, AdditiveRobotCenteredPhysicsFaultConfig}, state_estimators::state_estimator::State, utils::determinist_random_variable::DeterministRandomVariableFactory};
+use crate::{
+    physics::fault_models::additive_robot_centered::{
+        AdditiveRobotCenteredPhysicsFault, AdditiveRobotCenteredPhysicsFaultConfig,
+    },
+    state_estimators::state_estimator::State,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 
 #[derive(Debug, Serialize, Deserialize, Clone, Check, ToVec, EnumToString)]
 #[serde(deny_unknown_fields)]
 pub enum PhysicsFaultModelConfig {
-    AdditiveRobotCentered(AdditiveRobotCenteredPhysicsFaultConfig)
+    AdditiveRobotCentered(AdditiveRobotCenteredPhysicsFaultConfig),
 }
 
 #[cfg(feature = "gui")]
@@ -144,17 +150,13 @@ pub fn make_physics_fault_model_from_config(
     va_factory: &Arc<DeterministRandomVariableFactory>,
 ) -> Box<dyn PhysicsFaultModel> {
     match &config {
-        PhysicsFaultModelConfig::AdditiveRobotCentered(cfg) => {
-            Box::new(AdditiveRobotCenteredPhysicsFault::from_config(&cfg, va_factory))
-                as Box<dyn PhysicsFaultModel>
-        }
+        PhysicsFaultModelConfig::AdditiveRobotCentered(cfg) => Box::new(
+            AdditiveRobotCenteredPhysicsFault::from_config(&cfg, va_factory),
+        )
+            as Box<dyn PhysicsFaultModel>,
     }
 }
 
 pub trait PhysicsFaultModel: Debug + Sync + Send {
-    fn add_faults(
-        &self,
-        time: f32,
-        state: &mut State,
-    );
+    fn add_faults(&self, time: f32, state: &mut State);
 }

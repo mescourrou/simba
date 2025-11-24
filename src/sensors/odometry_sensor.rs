@@ -13,14 +13,19 @@ use crate::constants::TIME_ROUND;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
+use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
+use crate::sensors::sensor_filters::{
+    make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
+};
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::state_estimator::{State, StateRecord};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
+use log::debug;
 use serde_derive::{Deserialize, Serialize};
 
 extern crate nalgebra as na;
@@ -35,6 +40,8 @@ pub struct OdometrySensorConfig {
     pub period: f32,
     #[check]
     pub faults: Vec<FaultModelConfig>,
+    #[check]
+    pub filters: Vec<SensorFilterConfig>,
 }
 
 impl Default for OdometrySensorConfig {
@@ -42,6 +49,7 @@ impl Default for OdometrySensorConfig {
         Self {
             period: 0.1,
             faults: Vec::new(),
+            filters: Vec::new(),
         }
     }
 }
@@ -68,6 +76,16 @@ impl UIComponent for OdometrySensorConfig {
                     ui.add(egui::DragValue::new(&mut self.period));
                 });
 
+                SensorFilterConfig::show_filters_mut(
+                    &mut self.filters,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+
                 FaultModelConfig::show_faults_mut(
                     &mut self.faults,
                     ui,
@@ -87,6 +105,8 @@ impl UIComponent for OdometrySensorConfig {
                 ui.horizontal(|ui| {
                     ui.label(format!("Period: {}", self.period));
                 });
+
+                SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
 
                 FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
             });
@@ -161,6 +181,7 @@ pub struct OdometrySensor {
     /// Last observation time.
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
+    filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
 }
 
 impl OdometrySensor {
@@ -194,11 +215,20 @@ impl OdometrySensor {
             ));
         }
         drop(unlock_fault_model);
+
+        let filters = Arc::new(Mutex::new(Vec::new()));
+        let mut unlock_filters = filters.lock().unwrap();
+        for filter_config in &config.filters {
+            unlock_filters.push(make_sensor_filter_from_config(filter_config));
+        }
+        drop(unlock_filters);
+
         Self {
             last_state: State::new(),
             period: config.period,
             last_time: 0.,
             faults: fault_models,
+            filters,
         }
     }
 }
@@ -229,18 +259,32 @@ impl Sensor for OdometrySensor {
 
         let dt = time - self.last_time;
 
-        observation_list.push(SensorObservation::Odometry(OdometryObservation {
+        let obs = SensorObservation::Odometry(OdometryObservation {
             linear_velocity: state.velocity,
             angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
             applied_faults: Vec::new(),
-        }));
-        for fault_model in self.faults.lock().unwrap().iter() {
-            fault_model.add_faults(
-                time,
-                self.period,
-                &mut observation_list,
-                SensorObservation::Odometry(OdometryObservation::default()),
-            );
+        });
+
+        if let Some(obs) = self
+            .filters
+            .lock()
+            .unwrap()
+            .iter()
+            .fold(Some(obs), |obs, filter| obs.and_then(|o| filter.filter(o, &state, None)))
+        {
+            observation_list.push(obs);
+            for fault_model in self.faults.lock().unwrap().iter() {
+                fault_model.add_faults(
+                    time,
+                    self.period,
+                    &mut observation_list,
+                    SensorObservation::Odometry(OdometryObservation::default()),
+                );
+            }
+        } else {
+            if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                debug!("Odometry observation was filtered out");
+            }
         }
 
         self.last_time = time;
