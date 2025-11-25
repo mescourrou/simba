@@ -14,8 +14,7 @@ robots:
       target_speed: 0.5
       forward_distance: 0.2
     controller: !PID
-      kp_v: 1.0
-      kp_theta: 6.0
+      proportional_gains: [1.0, 6.0]
     sensor_manager:
       sensors:
         - name: "RobotSensor"
@@ -41,9 +40,10 @@ robots:
       trajectory_path: "paths/path1.yaml"
       target_speed: 0.3
       forward_distance: 0.2
+    physics: !Internal
+      model: !Honolomic
     controller: !PID
-      kp_v: 1.0
-      kp_theta: 3.0
+      proportional_gains: [1.0, 3.0]
     sensor_manager:
       sensors:
         - name: "RobotSensor"

@@ -309,10 +309,12 @@ impl Navigator for TrajectoryFollower {
             (segment.1.x - segment.0.x).into(),
         ) as f32;
         let projected_point = Vector3::new(projected_point.x, projected_point.y, segment_angle);
+        let projection_vector = projected_point.fixed_view::<2, 1>(0, 0)
+            - state.pose.fixed_view::<2, 1>(0, 0);
         // Compute the orientation error
         let mut projected_point_direction = atan2(
-            (projected_point.y - state.pose.y).into(),
-            (projected_point.x - state.pose.x).into(),
+            projection_vector.y.into(),
+            projection_vector.x.into(),
         ) as f32;
 
         self.projected_point = [projected_point.x, projected_point.y];
@@ -324,18 +326,11 @@ impl Navigator for TrajectoryFollower {
         let theta_error = mod2pi(theta_error);
         self.error.theta = theta_error;
 
-        // Compute the lateral error
-        let pose_with_segment: f32 = segment_angle
-            - atan2(
-                (state.pose.y - segment.0.y).into(),
-                (state.pose.x - segment.0.x).into(),
-            ) as f32;
-        self.error.lateral = ((state.pose.x - projected_point.x).powf(2.)
-            + (state.pose.y - projected_point.y).powf(2.))
-        .sqrt();
-        if pose_with_segment < 0. {
-            self.error.lateral *= -1.;
-        }
+
+        let rot = na::Rotation2::new(-state.pose.z);
+        let local_projection = rot * projection_vector.fixed_view::<2, 1>(0, 0);
+        self.error.lateral = local_projection.y;
+        self.error.longitudinal = local_projection.x;
 
         // Compute the velocity error
         self.error.velocity = self.target_speed - state.velocity;

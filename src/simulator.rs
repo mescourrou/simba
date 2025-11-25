@@ -924,14 +924,16 @@ impl Simulator {
         plugin_api: &Option<Box<&dyn PluginAPI>>,
         force_send_results: bool,
     ) -> SimbaResult<()> {
-        println!("Checking configuration:");
+        println!("Checking configuration...");
+        Self::init_log(&config.log)?;
         match config.check() {
             Ok(_) => println!("Config valid"),
             Err(e) => {
-                return Err(SimbaError::new(
+                let e = SimbaError::new(
                     SimbaErrorTypes::ConfigError,
-                    format!("Error in config: {e}"),
-                ))
+                    format!("Error in config:\n{e}"));
+                log::error!("{}", e.detailed_error());
+                return Err(e);
             }
         };
         let config_version: Vec<usize> = config
@@ -945,7 +947,6 @@ impl Simulator {
                 "Version is expected to be XX.YY at least".to_string(),
             ));
         }
-        Self::init_log(&config.log)?;
         if config_version[0] != env!("CARGO_PKG_VERSION_MAJOR").parse::<usize>().unwrap()
             || config_version[1] != env!("CARGO_PKG_VERSION_MINOR").parse::<usize>().unwrap()
         {
@@ -1670,7 +1671,7 @@ impl AsyncSimulator {
     pub fn from_config(
         config_path: String,
         plugin_api: &Option<Box<dyn PluginAPI>>,
-    ) -> AsyncSimulator {
+    ) -> SimbaResult<AsyncSimulator> {
         Simulator::init_environment();
 
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
@@ -1696,7 +1697,8 @@ impl AsyncSimulator {
         if let Some(unwrapped_async_api) = &sim.async_plugin_api {
             let api_client = &unwrapped_async_api.client;
             let plugin_api_unwrapped = plugin_api.as_ref().unwrap();
-            while sim.api.load_config.try_get_result().is_none() {
+            let mut res = sim.api.load_config.try_get_result();
+            while res.is_none() {
                 if let Ok((config, simulator_config, va_factory)) = api_client
                     .get_state_estimator_request
                     .lock()
@@ -1738,12 +1740,18 @@ impl AsyncSimulator {
                     api_client.get_physics_response.send(physic).unwrap();
                 }
                 plugin_api_unwrapped.check_requests();
+                res = sim.api.load_config.try_get_result();
+            }
+            if let Err(e) = res.unwrap() {
+                return Err(e);
             }
         } else {
-            sim.api.load_config.wait_result().unwrap().unwrap();
+            if let Err(e) = sim.api.load_config.wait_result().unwrap() {
+                return Err(e);
+            }
         }
 
-        sim
+        Ok(sim)
     }
 
     pub fn run(

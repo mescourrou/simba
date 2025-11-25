@@ -140,14 +140,38 @@ class Observation:
         self.time: float
         self.sensor_observation: SensorObservation
 
-class Command:
+
+class Command(Enum):
+    Unicycle: UnicycleCommand
+    Honolomic: HonolomicCommand
+
     def __init__(self):
-        self.unicycle: UnicycleCommand | None
+        self.kind: str
+
+    def as_unicycle_command(self) -> UnicycleCommand | None:
+        raise NotImplementedError()
+
+    def as_honolomic_command(self) -> HonolomicCommand | None: 
+        raise NotImplementedError()
+
+    def from_unicycle_command(cmd: UnicycleCommand) -> Command:
+        raise NotImplementedError()
+
+    def from_honolomic_command(cmd: HonolomicCommand) -> Command:
+        raise NotImplementedError()
 
 class UnicycleCommand:
     def __init__(self):
         self.left_wheel_speed: float
         self.right_wheel_speed: float
+
+
+class HonolomicCommand:
+    def __init__(self):
+        self.longitudinal_velocity: float
+        self.lateral_velocity: float
+        self.angular_velocity: float
+
 
 class GoToMessage:
     def __init__(self, target:Tuple[float, float]|None=None):

@@ -13,52 +13,296 @@ use std::sync::mpsc::Sender;
 
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
-use crate::physics::robot_models::unicycle::UnicycleCommand;
-use crate::physics::robot_models::Command;
+use crate::physics::internal_physics::InternalPhysicConfig;
+use crate::physics::physics::PhysicsConfig;
+use crate::physics::robot_models::honolomic::HolonomicCommand;
+use crate::physics::robot_models::unicycle::{UnicycleCommand, UnicycleConfig};
+use crate::physics::robot_models::{Command, RobotModel, RobotModelConfig};
 use crate::recordable::Recordable;
+use crate::utils::maths::{Derivator, Integrator};
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
+use config_checker::ConfigCheckable;
 use config_checker::macros::Check;
+use log::warn;
+use serde::{Deserializer, de};
+use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde_derive::{Deserialize, Serialize};
 
-/// Configuration of the [`PID`], it contains the 3 gains for the velocity
-/// control, 3 gain for the orientation control, and the wheel distance.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+/// Configuration of the [`PID`], it contains the 3 list of gains:
+/// proportional gains, derivative gains and integral gains.
+/// The size of each gains depends on the model used, and follow this order:
+/// - longitudinal (All models)
+/// - lateral (Holonomic model)
+/// - angular (All models)
+#[derive(Serialize, Debug, Clone)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct PIDConfig {
-    #[check(ge(0.))]
-    pub kp_v: f32,
-    #[check(ge(0.))]
-    pub kd_v: f32,
-    #[check(ge(0.))]
-    pub ki_v: f32,
-    #[check(ge(0.))]
-    pub kp_theta: f32,
-    #[check(ge(0.))]
-    pub kd_theta: f32,
-    #[check(ge(0.))]
-    pub ki_theta: f32,
-    #[check(ge(0.))]
-    pub wheel_distance: f32,
+    pub robot_model: Option<RobotModelConfig>,
+    pub proportional_gains: Vec<f32>,
+    pub derivative_gains: Vec<f32>,
+    pub integral_gains: Vec<f32>,
+}
+
+impl PIDConfig {
+    fn default_from_model(config: &RobotModelConfig) -> Self {
+        match config {
+            // Order: longitudinal, angular
+            RobotModelConfig::Unicycle(_) => Self {
+                robot_model: Some(config.clone()),
+                proportional_gains: vec![1., 1.],
+                derivative_gains: vec![0., 0.1],
+                integral_gains: vec![0., 0.],
+            },
+            // Order: longitudinal, lateral, angular
+            RobotModelConfig::Honolomic(_) => Self {
+                robot_model: Some(config.clone()),
+                proportional_gains: vec![1., 1., 1.],
+                derivative_gains: vec![0., 0., 0.1],
+                integral_gains: vec![0., 0., 0.],
+            },
+        }
+    }
+
+    fn kp_longitudinal(&self) -> Option<f32> {
+        Some(self.proportional_gains[0])
+    }
+
+    fn kp_lateral(&self) -> Option<f32> {
+        match self.robot_model.as_ref().unwrap() {
+            RobotModelConfig::Unicycle(_) => None,
+            RobotModelConfig::Honolomic(_) => Some(self.proportional_gains[1])
+        }
+    }
+
+    fn kp_angular(&self) -> Option<f32> {
+        match self.robot_model.as_ref().unwrap() {
+            RobotModelConfig::Unicycle(_) => Some(self.proportional_gains[1]),
+            RobotModelConfig::Honolomic(_) => Some(self.proportional_gains[2])
+        }
+    }
+
+    fn ki_longitudinal(&self) -> Option<f32> {
+        Some(self.integral_gains[0])
+    }
+
+    fn ki_lateral(&self) -> Option<f32> {
+        match self.robot_model.as_ref().unwrap() {
+            RobotModelConfig::Unicycle(_) => None,
+            RobotModelConfig::Honolomic(_) => Some(self.integral_gains[1])
+        }
+    }
+
+    fn ki_angular(&self) -> Option<f32> {
+        match self.robot_model.as_ref().unwrap() {
+            RobotModelConfig::Unicycle(_) => Some(self.integral_gains[1]),
+            RobotModelConfig::Honolomic(_) => Some(self.integral_gains[2])
+        }
+    }
+
+    fn kd_longitudinal(&self) -> Option<f32> {
+        Some(self.derivative_gains[0])
+    }
+
+    fn kd_lateral(&self) -> Option<f32> {
+        match self.robot_model.as_ref().unwrap() {
+            RobotModelConfig::Unicycle(_) => None,
+            RobotModelConfig::Honolomic(_) => Some(self.derivative_gains[1])
+        }
+    }
+
+    fn kd_angular(&self) -> Option<f32> {
+        match self.robot_model.as_ref().unwrap() {
+            RobotModelConfig::Unicycle(_) => Some(self.derivative_gains[1]),
+            RobotModelConfig::Honolomic(_) => Some(self.derivative_gains[2])
+        }
+    }
+}
+
+impl ConfigCheckable for PIDConfig {
+    fn __check(&self, depth: usize) -> Result<(), String> {
+        use colored::Colorize;
+        let depth_space = vec!["| "; depth].join("");
+        let mut ret = Ok(());
+        if self.robot_model.is_none() {
+            warn!("{} No model given to PID controller, will use physics' one or default", "NOTE:".blue());
+            return Ok(());
+        }
+        let canonical_config = Self::default_from_model(self.robot_model.as_ref().unwrap());
+        if canonical_config.proportional_gains.len() != self.proportional_gains.len() {
+            if ret.is_ok() {
+                ret = Err(String::new());
+            }
+            ret = Err(ret.err().unwrap() + format!("{}  {depth_space}Length of proportional gains mismatch ({} vs {} expected for {} model)\n", "ERROR:".red(), self.proportional_gains.len(), canonical_config.proportional_gains.len(), self.robot_model.as_ref().unwrap().to_string()).as_str());
+        }
+        if canonical_config.integral_gains.len() != self.integral_gains.len() {
+            if ret.is_ok() {
+                ret = Err(String::new());
+            }
+            ret = Err(ret.err().unwrap() + format!("{}  {depth_space}Length of integral gains mismatch ({} vs {} expected for {} model)\n", "ERROR:".red(), self.integral_gains.len(), canonical_config.integral_gains.len(), self.robot_model.as_ref().unwrap().to_string()).as_str());
+        }
+        if canonical_config.derivative_gains.len() != self.derivative_gains.len() {
+            if ret.is_ok() {
+                ret = Err(String::new());
+            }
+            ret = Err(ret.err().unwrap() + format!("{}  {depth_space}Length of derivative gains mismatch ({} vs {} expected for {} model)\n", "ERROR:".red(), self.derivative_gains.len(), canonical_config.derivative_gains.len(), self.robot_model.as_ref().unwrap().to_string()).as_str());
+        }
+        ret
+    }
+
+    fn check(&self) -> Result<(), String> {
+        self.__check(0)
+    }
 }
 
 impl Default for PIDConfig {
-    /// Defaut PID configuration.
-    ///
-    /// - Velocity: Proportionnal 1, others 0
-    /// - Orientation: P=1., D=0.1
-    /// - Wheel distance: 0.25
     fn default() -> Self {
-        Self {
-            kp_v: 1.0,
-            kd_v: 0.,
-            ki_v: 0.,
-            kp_theta: 1.,
-            kd_theta: 0.1,
-            ki_theta: 0.,
-            wheel_distance: 0.25,
+        Self { robot_model: None, proportional_gains: Vec::new(), derivative_gains: Vec::new(), integral_gains: Vec::new() }
+    }
+}
+
+/// Custom deserialization to fill missing gains with zeros depending on the model.
+/// Looking for a method to use serde derive instead with the additional logic.
+impl<'de> serde::Deserialize<'de> for PIDConfig {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        enum Field { RobotModel, ProportionalGains, DerivativeGains, IntegralGains }
+
+        // This part could also be generated independently by:
+        //
+        //    #[derive(Deserialize)]
+        //    #[serde(field_identifier, rename_all = "lowercase")]
+        //    enum Field { Secs, Nanos }
+        impl<'de> serde::Deserialize<'de> for Field {
+            fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                struct FieldVisitor;
+
+                impl<'de> Visitor<'de> for FieldVisitor {
+                    type Value = Field;
+
+                    fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        formatter.write_str("`robot_model`, `proportional_gains`, `derivative_gains` or `integral_gains`")
+                    }
+
+                    fn visit_str<E>(self, value: &str) -> Result<Field, E>
+                    where
+                        E: de::Error,
+                    {
+                        match value {
+                            "robot_model" => Ok(Field::RobotModel),
+                            "proportional_gains" => Ok(Field::ProportionalGains),
+                            "derivative_gains" => Ok(Field::DerivativeGains),
+                            "integral_gains" => Ok(Field::IntegralGains),
+                            _ => Err(de::Error::unknown_field(value, FIELDS)),
+                        }
+                    }
+                }
+
+                deserializer.deserialize_identifier(FieldVisitor)
+            }
         }
+
+        struct PIDConfigVisitor;
+
+        impl<'de> Visitor<'de> for PIDConfigVisitor {
+            type Value = PIDConfig;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("struct PIDConfig")
+            }
+
+            fn visit_seq<V>(self, mut seq: V) -> Result<PIDConfig, V::Error>
+            where
+                V: SeqAccess<'de>,
+            {
+                let robot_model = seq.next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+                let proportional_gains = seq.next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+                let derivative_gains = seq.next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
+                let integral_gains = seq.next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                Ok(PIDConfig {
+                    robot_model,
+                    proportional_gains,
+                    derivative_gains,
+                    integral_gains,
+                })
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<PIDConfig, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut robot_model = None;
+                let mut proportional_gains = None;
+                let mut derivative_gains = None;
+                let mut integral_gains = None;
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::RobotModel => {
+                            if robot_model.is_some() {
+                                return Err(de::Error::duplicate_field("robot_model"));
+                            }
+                            robot_model = Some(map.next_value()?);
+                        }
+                        Field::ProportionalGains => {
+                            if proportional_gains.is_some() {
+                                return Err(de::Error::duplicate_field("proportional_gains"));
+                            }
+                            proportional_gains = Some(map.next_value()?);
+                        }
+                        Field::DerivativeGains => {
+                            if derivative_gains.is_some() {
+                                return Err(de::Error::duplicate_field("derivative_gains"));
+                            }
+                            derivative_gains = Some(map.next_value()?);
+                        }
+                        Field::IntegralGains => {
+                            if integral_gains.is_some() {
+                                return Err(de::Error::duplicate_field("integral_gains"));
+                            }
+                            integral_gains = Some(map.next_value()?);
+                        }
+                    }
+                }
+                let default_config = PIDConfig::default();
+                let robot_model = robot_model.unwrap_or(default_config.robot_model);
+                let proportional_gains = proportional_gains.unwrap_or(default_config.proportional_gains);
+                let derivative_gains = derivative_gains.unwrap_or(default_config.derivative_gains);
+                let integral_gains = integral_gains.unwrap_or(default_config.integral_gains);
+                Ok(PIDConfig {
+                    robot_model,
+                    proportional_gains,
+                    derivative_gains,
+                    integral_gains,
+                })
+            }
+        }
+
+        const FIELDS: &[&str] = &["robot_model", "proportional_gains", "derivative_gains", "integral_gains"];
+        let mut config = deserializer.deserialize_struct("PIDConfig", FIELDS, PIDConfigVisitor)?;
+
+        if config.robot_model.is_some() {
+            let canonical_config = Self::default_from_model(config.robot_model.as_ref().unwrap());
+            if config.proportional_gains.len() == 0 {
+                config.proportional_gains = vec![0.0; canonical_config.proportional_gains.len()];
+            }
+            if config.integral_gains.len() == 0 {
+                config.integral_gains = vec![0.0; canonical_config.integral_gains.len()];
+            }
+            if config.derivative_gains.len() == 0 {
+                config.derivative_gains = vec![0.0; canonical_config.derivative_gains.len()];
+            }
+        }
+        Ok(config)
     }
 }
 
@@ -67,86 +311,83 @@ impl UIComponent for PIDConfig {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
         unique_id: &String,
     ) {
+        if self.robot_model.is_none() {
+            *self = Self::default();
+        }
         egui::CollapsingHeader::new("PID")
             .id_salt(format!("pid-{}", unique_id))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Velocity - P:");
-                    ui.add(egui::DragValue::new(&mut self.kp_v).max_decimals(10));
-                });
+                let previous_model = self.robot_model.as_ref().unwrap().to_string();
+                self.robot_model.as_mut().unwrap().show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+                if self.robot_model.as_ref().unwrap().to_string() != previous_model {
+                    *self = Self::default_from_model(&self.robot_model.as_ref().unwrap());
+                }
 
-                ui.horizontal(|ui| {
-                    ui.label("Velocity - I:");
-                    ui.add(egui::DragValue::new(&mut self.ki_v).max_decimals(10));
-                });
+                let label_order = match self.robot_model.as_ref().unwrap() {
+                    RobotModelConfig::Honolomic(_) => vec!["Longitudinal", "Lateral", "Angular"],
+                    RobotModelConfig::Unicycle(_) => vec!["Longitudinal", "Angular"],
+                };
 
-                ui.horizontal(|ui| {
-                    ui.label("Velocity - D:");
-                    ui.add(egui::DragValue::new(&mut self.kd_v).max_decimals(10));
-                });
+                for (i, label) in label_order.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{} - P:", *label));
+                        ui.add(egui::DragValue::new(&mut self.proportional_gains[i]).max_decimals(10));
+                    });
+                    
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{} - I:", *label));
+                        ui.add(egui::DragValue::new(&mut self.integral_gains[i]).max_decimals(10));
+                    });
 
-                ui.horizontal(|ui| {
-                    ui.label("Theta - P:");
-                    ui.add(egui::DragValue::new(&mut self.kp_theta).max_decimals(10));
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Theta - I:");
-                    ui.add(egui::DragValue::new(&mut self.ki_theta).max_decimals(10));
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Theta - D:");
-                    ui.add(egui::DragValue::new(&mut self.kd_theta).max_decimals(10));
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Wheel distance:");
-                    if self.wheel_distance < 0. {
-                        self.wheel_distance = 0.;
-                    }
-                    ui.add(egui::DragValue::new(&mut self.wheel_distance).max_decimals(10));
-                });
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{} - D:", *label));
+                        ui.add(egui::DragValue::new(&mut self.derivative_gains[i]).max_decimals(10));
+                    });
+                }
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         egui::CollapsingHeader::new("PID")
             .id_salt(format!("pid-{}", unique_id))
             .show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(format!("Velocity - P: {}", self.kp_v));
-                });
+                self.robot_model.as_ref().unwrap().show(
+                    ui,
+                    ctx,
+                    unique_id,
+                );
+                
+                let label_order = match self.robot_model.as_ref().unwrap() {
+                    RobotModelConfig::Honolomic(_) => vec!["Longitudinal", "Lateral", "Angular"],
+                    RobotModelConfig::Unicycle(_) => vec!["Longitudinal", "Angular"],
+                };
 
-                ui.horizontal(|ui| {
-                    ui.label(format!("Velocity - I: {}", self.ki_v));
-                });
+                for (i, label) in label_order.iter().enumerate() {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{} - P: {}", *label,self.proportional_gains[i]));
+                    });
+                    
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{} - I: {}", *label, self.integral_gains[i]));
+                    });
 
-                ui.horizontal(|ui| {
-                    ui.label(format!("Velocity - D: {}", self.kd_v));
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label(format!("Theta - P: {}", self.kp_theta));
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label(format!("Theta - I: {}", self.ki_theta));
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label(format!("Theta - D: {}", self.kd_theta));
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label(format!("Wheel distance: {}", self.wheel_distance));
-                });
+                    ui.horizontal(|ui| {
+                        ui.label(format!("{} - D: {}", *label, self.derivative_gains[i]));
+                    });
+                }
             });
     }
 }
@@ -154,30 +395,19 @@ impl UIComponent for PIDConfig {
 /// Record of the [`PID`] controller.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PIDRecord {
-    pub v_integral: f32,
-    pub theta_integral: f32,
+    pub config: PIDConfig,
     pub velocity: f32,
     pub command: Command,
     pub last_command_time: f32,
-    pub previous_velocity_error: f32,
-    pub previous_theta_error: f32,
 }
 
 impl Default for PIDRecord {
     fn default() -> Self {
         Self {
-            v_integral: 0.,
-            theta_integral: 0.,
+            config: PIDConfig::default(),
             velocity: 0.,
-            command: Command {
-                unicycle: Some(UnicycleCommand {
-                    left_wheel_speed: 0.,
-                    right_wheel_speed: 0.,
-                }),
-            },
+            command:  Command::default(),
             last_command_time: 0.,
-            previous_velocity_error: 0.,
-            previous_theta_error: 0.,
         }
     }
 }
@@ -186,13 +416,14 @@ impl Default for PIDRecord {
 impl UIComponent for PIDRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
         ui.vertical(|ui| {
+            egui::CollapsingHeader::new("Config").show(ui, |ui| {
+                self.config.show(ui, ctx, unique_id);
+            });
             egui::CollapsingHeader::new("Command").show(ui, |ui| {
                 self.command.show(ui, ctx, unique_id);
             });
             ui.label(format!("velocity: {}", self.velocity));
-            ui.label(format!("last command time: {}", self.last_command_time));
-            ui.label(format!("velocity integral: {}", self.v_integral));
-            ui.label(format!("theta integral: {}", self.theta_integral));
+            ui.label(format!("last command time: {}", self.last_command_time));;
         });
     }
 }
@@ -200,32 +431,27 @@ impl UIComponent for PIDRecord {
 /// Proportional-integral-derivative controller for velocity and angle.
 #[derive(Debug)]
 pub struct PID {
-    /// Velocity proportional gain
-    kp_v: f32,
-    /// Velocity derivative gain
-    kd_v: f32,
-    /// Velocity integral gain
-    ki_v: f32,
-    /// Orientation proportional gain
-    kp_theta: f32,
-    /// Orientation derivative gain
-    kd_theta: f32,
-    /// Orientation integral gain
-    ki_theta: f32,
-    /// Distance between the wheels
-    wheel_distance: f32,
+    config: PIDConfig,
     /// Time of the last command
     last_command_time: f32,
-    /// Current integral of the velocity
-    v_integral: f32,
-    /// Current integral of the orientation
-    theta_integral: f32,
-    /// Previous velocity error to compute the derivative
-    previous_velocity_error: f32,
-    /// Previous orientation error to compute the derivative
-    previous_theta_error: f32,
+    /// Integrator for longitudinal error
+    longitudinal_integrator: Integrator,
+    /// Integrator for lateral error
+    lateral_integrator: Integrator,
+    /// Integrator for angular error
+    angular_integrator: Integrator,
+    /// Derivator for longitudinal error
+    longitudinal_derivator: Derivator,
+    /// Derivator for lateral error
+    lateral_derivator: Derivator,
+    /// Derivator for angular error
+    angular_derivator: Derivator,
     /// Current velocity
     velocity: f32,
+    /// Integrator for velocity error
+    velocity_integrator: Integrator,
+    /// Derivator for velocity error
+    velocity_derivator: Derivator,
     /// Current record
     current_record: PIDRecord,
 }
@@ -233,25 +459,39 @@ pub struct PID {
 impl PID {
     /// Makes a new default PID.
     pub fn new() -> Self {
-        Self::from_config(&PIDConfig::default())
+        Self::from_config(
+            &PIDConfig::default(),
+            &PhysicsConfig::Internal(InternalPhysicConfig::default()),
+        )
     }
 
     /// Makes a new [`PID`] from the given `config`.
-    pub fn from_config(config: &PIDConfig) -> Self {
+    pub fn from_config(config: &PIDConfig, physics_config: &PhysicsConfig) -> Self {
+        let mut config_clone = config.clone();
+        if config.robot_model.is_none() {
+            if let PhysicsConfig::Internal(InternalPhysicConfig { model, faults: _, initial_state: _}) =  physics_config {
+                config_clone.robot_model = Some(model.clone());
+                if config_clone.check().is_err() {
+                    config_clone = PIDConfig::default_from_model(&model);
+                    warn!("No model given in PID Config and gains given mismatch physics model ({}) => resetting gains", model.to_string());
+                }
+            } else {
+                config_clone = PIDConfig::default();
+                warn!("No model given in PID Config... using default one and resetting gains");
+            }
+        }
         PID {
-            kp_v: config.kp_v,
-            kd_v: config.kd_v,
-            ki_v: config.ki_v,
-            kp_theta: config.kp_theta,
-            kd_theta: config.kd_theta,
-            ki_theta: config.ki_theta,
-            wheel_distance: config.wheel_distance,
+            config: config_clone,
             last_command_time: 0.,
-            v_integral: 0.,
-            theta_integral: 0.,
-            previous_velocity_error: 0.,
-            previous_theta_error: 0.,
+            longitudinal_integrator: Integrator::new(),
+            lateral_integrator: Integrator::new(),
+            angular_integrator: Integrator::new(),
+            longitudinal_derivator: Derivator::new(),
+            lateral_derivator: Derivator::new(),
+            angular_derivator: Derivator::new(),
             velocity: 0.,
+            velocity_integrator: Integrator::new(),
+            velocity_derivator: Derivator::new(),
             current_record: PIDRecord::default(),
         }
     }
@@ -272,38 +512,66 @@ impl Controller for PID {
             dt
         );
 
-        self.v_integral += error.velocity * dt;
-        self.theta_integral += error.theta * dt;
+        let command = match self.config.robot_model.as_ref().expect("Robot model should be set in PID config at least automatically from physics (if physics is internal)") {
+            RobotModelConfig::Unicycle(model) => {
+                self.velocity_integrator.integrate(error.velocity, dt);
+                self.angular_integrator.integrate(error.theta, dt);
+        
+                let v_derivative = self.velocity_derivator.derivate(error.velocity, dt);
+                let theta_derivative = self.angular_derivator.derivate(error.theta, dt);
+        
+                let correction_theta = (self.config.kp_angular().unwrap() * error.theta
+                    + self.config.ki_angular().unwrap() * self.angular_integrator.integral_value()
+                    + self.config.kd_angular().unwrap() * theta_derivative)
+                    * model.wheel_distance;
+                let correction_v =
+                    self.config.kp_longitudinal().unwrap() * error.velocity + self.config.ki_longitudinal().unwrap() * self.velocity_integrator.integral_value() + self.config.kd_longitudinal().unwrap() * v_derivative;
+        
+                self.velocity = self.velocity + correction_v;
+                self.last_command_time = time;
+        
+                Command::Unicycle(UnicycleCommand {
+                        left_wheel_speed: self.velocity - correction_theta / 2.,
+                        right_wheel_speed: self.velocity + correction_theta / 2.,
+                })
+            },
+            RobotModelConfig::Honolomic(_model) => {
+                self.velocity_integrator.integrate(error.velocity, dt);
+                self.lateral_integrator.integrate(error.lateral, dt);
+                self.angular_integrator.integrate(error.theta, dt);
+                self.longitudinal_integrator.integrate(error.longitudinal, dt);
 
-        let v_derivative = (error.velocity - self.previous_velocity_error) / dt;
-        let theta_derivative = (error.theta - self.previous_theta_error) / dt;
+                let v_derivative = self.velocity_derivator.derivate(error.velocity, dt);
+                let lateral_derivative = self.lateral_derivator.derivate(error.lateral, dt);
+                let theta_derivative = self.angular_derivator.derivate(error.theta, dt);
+                let longitudinal_derivative = self.longitudinal_derivator.derivate(error.longitudinal, dt);
+                let correction_v =
+                    self.config.kp_longitudinal().unwrap() * error.velocity + self.config.ki_longitudinal().unwrap() * self.velocity_integrator.integral_value() + self.config.kd_longitudinal().unwrap() * v_derivative;
+                
+                let correction_theta = (self.config.kp_angular().unwrap() * error.theta
+                    + self.config.ki_angular().unwrap() * self.angular_integrator.integral_value()
+                    + self.config.kd_angular().unwrap() * theta_derivative);
 
-        let correction_theta = (self.kp_theta * error.theta
-            + self.ki_theta * self.theta_integral
-            + self.kd_theta * theta_derivative)
-            * self.wheel_distance;
-        let correction_v =
-            self.kp_v * error.velocity + self.ki_v * self.v_integral + self.kd_v * v_derivative;
+                self.velocity = self.velocity + correction_v;
+                self.last_command_time = time;
 
-        self.velocity = self.velocity + correction_v;
-        self.previous_theta_error = error.theta;
-        self.previous_velocity_error = error.velocity;
-        self.last_command_time = time;
-
-        let command = Command {
-            unicycle: Some(UnicycleCommand {
-                left_wheel_speed: self.velocity - correction_theta / 2.,
-                right_wheel_speed: self.velocity + correction_theta / 2.,
-            }),
+                let correction_lateral =
+                    (self.config.kp_lateral().unwrap() * error.lateral + self.config.ki_lateral().unwrap() * self.lateral_integrator.integral_value() + self.config.kd_lateral().unwrap() * lateral_derivative) * self.velocity;
+                let correction_longitudinal =
+                    (self.config.kp_longitudinal().unwrap() * error.longitudinal + self.config.ki_longitudinal().unwrap() * self.longitudinal_integrator.integral_value() + self.config.kd_longitudinal().unwrap() * longitudinal_derivative) * self.velocity;
+                Command::Honolomic(HolonomicCommand {
+                    longitudinal_velocity: correction_longitudinal,
+                    lateral_velocity: correction_lateral,
+                    angular_velocity: correction_theta,
+                })
+            }
         };
+
         self.current_record = PIDRecord {
-            v_integral: self.v_integral,
-            theta_integral: self.theta_integral,
+            config: self.config.clone(),
             velocity: self.velocity,
             command: command.clone(),
             last_command_time: self.last_command_time,
-            previous_theta_error: self.previous_theta_error,
-            previous_velocity_error: self.previous_velocity_error,
         };
         command
     }

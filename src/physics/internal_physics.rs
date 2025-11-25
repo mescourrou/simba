@@ -86,7 +86,7 @@ impl UIComponent for InternalPhysicConfig {
     }
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
-        egui::CollapsingHeader::new("Perfect Physics")
+        egui::CollapsingHeader::new("Internal Physics")
             .id_salt(format!("internal-physics-{}", unique_id))
             .show(ui, |ui| {
                 self.model.show(ui, ctx, unique_id);

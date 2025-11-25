@@ -17,13 +17,12 @@ use crate::{
     logger::is_enabled,
     navigators::pybinds::PythonNavigator,
     networking::{
-        network::{Envelope, MessageFlag},
-        MessageTypes,
+        MessageTypes, network::{Envelope, MessageFlag}
     },
     node::Node,
     physics::{
         pybinds::PythonPhysics,
-        robot_models::{unicycle::UnicycleCommand, Command},
+        robot_models::{Command, honolomic::HolonomicCommand, unicycle::UnicycleCommand},
     },
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
@@ -48,6 +47,8 @@ use crate::{
 pub struct ControllerErrorWrapper {
     /// Lateral error.
     pub lateral: f32,
+    /// Longitudinal error.
+    pub longitudinal: f32,
     /// Orientation error.
     pub theta: f32,
     /// Velocity error.
@@ -60,6 +61,7 @@ impl ControllerErrorWrapper {
     pub fn new() -> Self {
         Self {
             lateral: 0.,
+            longitudinal: 0.,
             theta: 0.,
             velocity: 0.,
         }
@@ -71,12 +73,14 @@ impl ControllerErrorWrapper {
             lateral: ce.lateral,
             theta: ce.theta,
             velocity: ce.velocity,
+            longitudinal: ce.longitudinal,
         }
     }
 
     pub fn to_rust(&self) -> ControllerError {
         ControllerError {
             lateral: self.lateral,
+            longitudinal: self.longitudinal,
             theta: self.theta,
             velocity: self.velocity,
         }
@@ -582,33 +586,69 @@ impl ObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, EnumToString)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Command")]
-pub struct CommandWrapper {
-    unicycle: Option<UnicycleCommandWrapper>,
+pub enum CommandWrapper {
+    Unicycle(UnicycleCommandWrapper),
+    Honolomic(HonolomicCommandWrapper)
 }
 
 #[pymethods]
 impl CommandWrapper {
     #[new]
     pub fn new() -> CommandWrapper {
-        Self { unicycle: None }
+        Self::Unicycle(UnicycleCommandWrapper::new())
     }
+
+    pub fn as_unicycle_command(&self) -> PyResult<UnicycleCommandWrapper> {
+        if let Self::Unicycle(o) = self {
+            Ok(o.clone())
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this command to a UnicycleCommand",
+            ))
+        }
+    }
+
+    pub fn as_honolomic_command(&self) -> PyResult<HonolomicCommandWrapper> {
+        if let Self::Honolomic(o) = self {
+            Ok(o.clone())
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this command to a HonolomicCommand",
+            ))
+        }
+    }
+
+    #[getter]
+    pub fn kind(&self) -> String {
+        self.to_string()
+    }
+
+    #[staticmethod]
+    pub fn from_unicycle_command(cmd: UnicycleCommandWrapper) -> CommandWrapper {
+        Self::Unicycle(cmd)
+    }
+
+    #[staticmethod]
+    pub fn from_honolomic_command(cmd: HonolomicCommandWrapper) -> CommandWrapper {
+        Self::Honolomic(cmd)
+    }
+    
 }
 
 impl CommandWrapper {
     pub fn from_rust(s: &Command) -> Self {
-        Self {
-            unicycle: s
-                .unicycle
-                .clone()
-                .map(|s| UnicycleCommandWrapper::from_rust(&s)),
+        match s {
+            Command::Unicycle(cmd) => CommandWrapper::Unicycle(UnicycleCommandWrapper::from_rust(cmd)),
+            Command::Honolomic(cmd) => CommandWrapper::Honolomic(HonolomicCommandWrapper::from_rust(cmd)),
         }
     }
     pub fn to_rust(&self) -> Command {
-        Command {
-            unicycle: self.unicycle.clone().map(|s| s.to_rust()),
+        match self {
+            CommandWrapper::Unicycle(cmd) => Command::Unicycle(UnicycleCommandWrapper::to_rust(cmd)),
+            CommandWrapper::Honolomic(cmd) => Command::Honolomic(HonolomicCommandWrapper::to_rust(cmd)),
         }
     }
 }
@@ -645,6 +685,44 @@ impl UnicycleCommandWrapper {
         UnicycleCommand {
             left_wheel_speed: self.left_wheel_speed,
             right_wheel_speed: self.right_wheel_speed,
+        }
+    }
+}
+
+#[derive(Clone)]
+#[pyclass(get_all, set_all)]
+#[pyo3(name = "HonolomicCommand")]
+pub struct HonolomicCommandWrapper {
+    pub longitudinal_velocity: f32,
+    pub lateral_velocity: f32,
+    pub angular_velocity: f32,
+}
+
+#[pymethods]
+impl HonolomicCommandWrapper {
+    #[new]
+    pub fn new() -> HonolomicCommandWrapper {
+        Self {
+            longitudinal_velocity: 0.,
+            lateral_velocity: 0.,
+            angular_velocity: 0.,
+        }
+    }
+}
+
+impl HonolomicCommandWrapper {
+    pub fn from_rust(s: &HolonomicCommand) -> Self {
+        Self {
+            longitudinal_velocity: s.longitudinal_velocity,
+            lateral_velocity: s.lateral_velocity,
+            angular_velocity: s.angular_velocity,
+        }
+    }
+    pub fn to_rust(&self) -> HolonomicCommand {
+        HolonomicCommand {
+            longitudinal_velocity: self.longitudinal_velocity,
+            lateral_velocity: self.lateral_velocity,
+            angular_velocity: self.angular_velocity,
         }
     }
 }
@@ -821,7 +899,7 @@ pub struct SimulatorWrapper {
 impl SimulatorWrapper {
     #[staticmethod]
     #[pyo3(signature = (config_path, plugin_api=None))]
-    pub fn from_config(config_path: String, plugin_api: Option<Py<PyAny>>) -> SimulatorWrapper {
+    pub fn from_config(config_path: String, plugin_api: Option<Py<PyAny>>) -> PyResult<SimulatorWrapper> {
         Simulator::init_environment();
 
         let python_api = match plugin_api {
@@ -829,11 +907,19 @@ impl SimulatorWrapper {
             None => None,
         };
 
-        let simulator = AsyncSimulator::from_config(config_path, &python_api);
-        SimulatorWrapper {
+        let simulator = match AsyncSimulator::from_config(config_path, &python_api) {
+            Ok(sim) => sim,
+            Err(e) => {
+                return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to create simulator from config: {}",
+                    e.detailed_error()
+                )))
+            }
+        };
+        Ok(SimulatorWrapper {
             simulator,
             python_api,
-        }
+        })
     }
 
     pub fn run(&mut self) {

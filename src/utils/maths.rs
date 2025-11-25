@@ -26,3 +26,45 @@ pub fn round_precision(number: f32, precision: f32) -> SimbaResult<f32> {
     }
     Ok((number / precision).round_ties_even() * precision)
 }
+
+#[derive(Debug, Clone)]
+pub struct Integrator {
+    cum_integral: f32,
+}
+
+impl Integrator {
+    pub fn new() -> Self {
+        Self { cum_integral: 0. }
+    }
+
+    pub fn integral_value(&self) -> f32 {
+        self.cum_integral
+    }
+
+    pub fn integrate(&mut self, value: f32, dt: f32) {
+        self.cum_integral += value * dt;
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Derivator {
+    previous_value: f32,
+}
+
+impl Derivator {
+    pub fn new() -> Self {
+        Self { previous_value: 0. }
+    }
+
+    pub fn init(initial_value: f32) -> Self {
+        Self {
+            previous_value: initial_value,
+        }
+    }
+
+    pub fn derivate(&mut self, next_value: f32, dt: f32) -> f32 {
+        let deriv = (next_value - self.previous_value) / dt;
+        self.previous_value = next_value;
+        deriv
+    }
+}

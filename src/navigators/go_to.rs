@@ -277,6 +277,7 @@ impl Navigator for GoTo {
 
         if self.current_point.is_none() {
             return ControllerError {
+                longitudinal: 0.,
                 lateral: 0.,
                 theta: 0.,
                 velocity: state.velocity,

@@ -19,11 +19,12 @@ robots:
       target_speed: 0.5
       forward_distance: 0.2
     controller: !PID
-      kp_v: 1.0
-      kp_theta: 6.0
+      robot_model: !Unicycle
+        wheel_distance: 0.25
+      proportional_gains: [1.0, 6.0]
     physics: !External
       config:
-        wheel_distance: 25
+        wheel_distance: 0.25
   # - name: "robot2"
   #   navigator: !TrajectoryFollower
       # trajectory_path: "paths/path1.yaml"

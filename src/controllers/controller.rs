@@ -4,7 +4,7 @@ Module defining the [Controller]
 
 use crate::{
     controllers::python_controller, networking::message_handler::MessageHandler,
-    physics::robot_models::Command, recordable::Recordable,
+    physics::{physics::PhysicsConfig, robot_models::Command}, recordable::Recordable,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 #[cfg(feature = "gui")]
@@ -25,6 +25,8 @@ use simba_macros::{EnumToString, ToVec};
 pub struct ControllerError {
     /// Lateral error.
     pub lateral: f32,
+    /// Longitudinal error.
+    pub longitudinal: f32,
     /// Orientation error.
     pub theta: f32,
     /// Velocity error.
@@ -35,6 +37,7 @@ impl ControllerError {
     pub fn default() -> Self {
         Self {
             lateral: 0.,
+            longitudinal: 0.,
             theta: 0.,
             velocity: 0.,
         }
@@ -45,6 +48,7 @@ impl ControllerError {
 impl UIComponent for ControllerError {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
         ui.vertical(|ui| {
+            ui.label(format!("longitudinal: {}", self.longitudinal));
             ui.label(format!("lateral: {}", self.lateral));
             ui.label(format!("theta: {}", self.theta));
             ui.label(format!("velocity: {}", self.velocity));
@@ -211,9 +215,10 @@ pub fn make_controller_from_config(
     plugin_api: &Option<Box<&dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    physics_config: &PhysicsConfig,
 ) -> Arc<RwLock<Box<dyn Controller>>> {
     Arc::new(RwLock::new(match config {
-        ControllerConfig::PID(c) => Box::new(pid::PID::from_config(c)) as Box<dyn Controller>,
+        ControllerConfig::PID(c) => Box::new(pid::PID::from_config(c, physics_config)) as Box<dyn Controller>,
         ControllerConfig::External(c) => {
             Box::new(external_controller::ExternalController::from_config(
                 c,

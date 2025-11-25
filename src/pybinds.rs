@@ -8,11 +8,14 @@ use crate::{
     controllers::{controller::Controller, pybinds::PythonController},
     logger::is_enabled,
     navigators::{go_to::GoToMessage, navigator::Navigator, pybinds::PythonNavigator},
-    networking::{MessageTypes, network::MessageFlag},
+    networking::{network::MessageFlag, MessageTypes},
     physics::{physics::Physics, pybinds::PythonPhysics},
     plugin_api::PluginAPI,
     pywrappers::{
-        CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper, SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, WorldStateWrapper, run_gui
+        run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper,
+        ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
+        OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
+        SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, WorldStateWrapper,
     },
     simulator::SimulatorConfig,
     state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},

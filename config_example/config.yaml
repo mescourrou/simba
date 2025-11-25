@@ -21,13 +21,6 @@ robots:
     stop_distance: 0.2
     stop_ramp_coefficient: 0.5
   controller: !PID
-    kp_v: 1.0
-    kd_v: 0.0
-    ki_v: 0.0
-    kp_theta: 3.0
-    kd_theta: 0.1
-    ki_theta: 0.0
-    wheel_distance: 0.25
   physics: !Internal
     model: !Unicycle
       wheel_distance: 0.25
@@ -111,13 +104,6 @@ robots:
     stop_distance: 0.2
     stop_ramp_coefficient: 0.5
   controller: !PID
-    kp_v: 1.0
-    kd_v: 0.0
-    ki_v: 0.0
-    kp_theta: 3.0
-    kd_theta: 0.1
-    ki_theta: 0.0
-    wheel_distance: 0.25
   physics: !Internal
     model: !Unicycle
       wheel_distance: 0.25
@@ -151,6 +137,16 @@ robots:
     range: 0.0
     reception_delay: 0.0
   state_estimator_bench: []
+- name: drone1
+  navigator: !TrajectoryFollower
+    trajectory_path: paths/path1.yaml
+    forward_distance: 0.2
+    target_speed: 1.
+    stop_distance: 0.2
+    stop_ramp_coefficient: 0.5
+  controller: !PID
+  physics: !Internal
+    model: !Honolomic
 computation_units:
 - name: Central Unit
   network:

@@ -19,6 +19,12 @@ pub struct UnicycleCommand {
     pub right_wheel_speed: f32,
 }
 
+impl Default for UnicycleCommand {
+    fn default() -> Self {
+        Self { left_wheel_speed: 0., right_wheel_speed: 0. }
+    }
+}
+
 #[cfg(feature = "gui")]
 impl UIComponent for UnicycleCommand {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
@@ -29,7 +35,6 @@ impl UIComponent for UnicycleCommand {
     }
 }
 
-/// Config for the [`InternalPhysics`].
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
@@ -97,10 +102,10 @@ impl Unicycle {
 
 impl RobotModel for Unicycle {
     fn update_state(&mut self, state: &mut State, command: &Command, dt: f32) {
-        let command = command
-            .unicycle
-            .as_ref()
-            .expect("Unicycle robot model needs a Unicycle command");
+        let command = match command {
+            Command::Unicycle(cmd) => cmd,
+            _ => panic!("Unicycle robot model needs a Unicycle command"),
+        };
         let theta = state.pose.z;
 
         let displacement_wheel_left = command.left_wheel_speed * dt;
@@ -142,11 +147,9 @@ impl RobotModel for Unicycle {
     }
 
     fn default_command(&self) -> Command {
-        Command {
-            unicycle: Some(UnicycleCommand {
-                left_wheel_speed: 0.,
-                right_wheel_speed: 0.,
-            }),
-        }
+        Command::Unicycle(UnicycleCommand {
+            left_wheel_speed: 0.,
+            right_wheel_speed: 0.,
+        })
     }
 }

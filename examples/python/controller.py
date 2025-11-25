@@ -18,11 +18,10 @@ class Controller(simba.Controller):
 
     def make_command(self, node: simba.Node, error: simba.ControllerError, time: float) -> simba.Command:
         self.last_time = time
-        command = simba.Command()
-        command.unicycle = simba.UnicycleCommand()
-        command.unicycle.left_wheel_speed = self.speed
-        command.unicycle.right_wheel_speed = self.speed
-        return command
+        command = simba.UnicycleCommand()
+        command.left_wheel_speed = self.speed
+        command.right_wheel_speed = self.speed
+        return simba.Command.from_unicycle_command(command)
 
     def pre_loop_hook(self, node: simba.Node, time: float):
         pass

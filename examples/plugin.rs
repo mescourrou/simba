@@ -57,12 +57,10 @@ impl Controller for MyWonderfulController {
         _error: &simba::controllers::controller::ControllerError,
         _time: f32,
     ) -> Command {
-        Command {
-            unicycle: Some(UnicycleCommand {
+        Command::Unicycle(UnicycleCommand {
                 left_wheel_speed: 0.,
                 right_wheel_speed: 0.,
-            }),
-        }
+            })
     }
 
     fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
@@ -122,6 +120,7 @@ impl Navigator for MyWonderfulNavigator {
             lateral: 0.,
             theta: 0.,
             velocity: 0.,
+            longitudinal: 0.,
         }
     }
 

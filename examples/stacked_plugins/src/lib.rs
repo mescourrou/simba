@@ -54,6 +54,7 @@ impl Navigator for MyWonderfulNavigator {
         println!("---Compute error with Rust");
         ControllerError {
             lateral: 0.,
+            longitudinal: 0.,
             theta: 0.,
             velocity: 0.,
         }
@@ -133,11 +134,16 @@ fn start(python_api: Py<PyAny>) {
 
     let my_plugin = Some(Box::new(my_plugin) as Box<dyn PluginAPI>);
 
-    let mut simulator = AsyncSimulator::from_config("config_plugin.yaml".to_string(), &my_plugin);
+    let mut simulator = match AsyncSimulator::from_config("config_plugin.yaml".to_string(), &my_plugin) {
+        Ok(simulator) => simulator,
+        Err(e) => {
+            panic!("Failed to create simulator: {}", e);
+        }
+    };
     simulator.run(&my_plugin, Some(20.), false);
-    simulator.get_records(false);
+    let _ = simulator.get_records(false);
     simulator.run(&my_plugin, Some(40.), false);
-    simulator.get_records(false);
+    let _ = simulator.get_records(false);
     simulator.compute_results();
     simulator.stop();
 }

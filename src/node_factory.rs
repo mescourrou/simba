@@ -595,6 +595,7 @@ impl NodeFactory {
                 plugin_api,
                 global_config,
                 va_factory,
+                &config.physics,
             )),
             physics: Some(physics::make_physics_from_config(
                 &config.physics,
