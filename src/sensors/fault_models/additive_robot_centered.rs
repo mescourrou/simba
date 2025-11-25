@@ -61,7 +61,7 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
@@ -84,7 +84,7 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = vec![
+            let possible_variables = [
                 "x",
                 "y",
                 "orientation",
@@ -102,7 +102,7 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                     let unique_var_id = format!("variable-{i}-{unique_id}");
                     string_combobox(ui, &possible_variables, var, unique_var_id);
                 }
-                if self.variable_order.len() > 0 && ui.button("-").clicked() {
+                if !self.variable_order.is_empty() && ui.button("-").clicked() {
                     self.variable_order.pop();
                 }
                 if ui.button("+").clicked() {
@@ -117,7 +117,7 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Apparition probability: ");
@@ -154,7 +154,7 @@ impl AdditiveRobotCenteredFault {
                 .map(|conf| va_factory.make_variable(conf.clone()))
                 .collect::<Vec<Box<dyn DeterministRandomVariable>>>(),
         ));
-        if config.variable_order.len() != 0 {
+        if !config.variable_order.is_empty() {
             assert!(
                 config.variable_order.len()
                     == distributions
@@ -199,13 +199,13 @@ impl FaultModel for AdditiveRobotCenteredFault {
             }
             match obs {
                 SensorObservation::OrientedRobot(o) => {
-                    if self.variable_order.len() > 0 {
-                        for i in 0..self.variable_order.len() {
-                            match self.variable_order[i].as_str() {
+                    if !self.variable_order.is_empty() {
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
                                 "x" => o.pose.x += random_sample[i],
                                 "y" => o.pose.y += random_sample[i],
                                 "z" | "orientation" => o.pose.z += random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]", self.variable_order[i])
+                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]", variable)
                             }
                         }
                     } else {
@@ -219,14 +219,14 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
                 SensorObservation::GNSS(o) => {
-                    if self.variable_order.len() > 0 {
-                        for i in 0..self.variable_order.len() {
-                            match self.variable_order[i].as_str() {
+                    if !self.variable_order.is_empty() {
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
                                 "position_x" | "x" => o.position.x += random_sample[i],
                                 "position_y" | "y" => o.position.y += random_sample[i],
                                 "velocity_x" => o.velocity.x += random_sample[i],
                                 "velocity_y" => o.velocity.y += random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y]", self.variable_order[i])
+                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y]", variable)
                             }
                         }
                     } else {
@@ -244,12 +244,12 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
                 SensorObservation::Odometry(o) => {
-                    if self.variable_order.len() > 0 {
-                        for i in 0..self.variable_order.len() {
-                            match self.variable_order[i].as_str() {
+                    if !self.variable_order.is_empty() {
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
                                 "w" | "angular" | "angular_velocity" => o.angular_velocity += random_sample[i],
                                 "v" | "linear" | "linear_velocity" => o.linear_velocity += random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]", self.variable_order[i])
+                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]", variable)
                             }
                         }
                     } else {
@@ -261,13 +261,13 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
                 SensorObservation::OrientedLandmark(o) => {
-                    if self.variable_order.len() > 0 {
-                        for i in 0..self.variable_order.len() {
-                            match self.variable_order[i].as_str() {
+                    if !self.variable_order.is_empty() {
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
                                 "x" => o.pose.x += random_sample[i],
                                 "y" => o.pose.y += random_sample[i],
                                 "z" | "orientation" => o.pose.z += random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]", self.variable_order[i])
+                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]", variable)
                             }
                         }
                     } else {

@@ -46,9 +46,8 @@ fn main() {
 use std::sync::Arc;
 
 use crate::{
-    controllers::controller::Controller, navigators::navigator::Navigator,
-    physics::physics::Physics, simulator::SimulatorConfig,
-    state_estimators::state_estimator::StateEstimator,
+    controllers::controller::Controller, navigators::navigator::Navigator, physics::Physics,
+    simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
@@ -61,8 +60,8 @@ pub trait PluginAPI: Send + Sync {
     ///
     /// # Arguments
     /// * `config` - Config for the external state estimator. The configuration
-    /// is given using [`serde_json::Value`]. It should be converted by the
-    /// external plugin to the specific configuration.
+    ///   is given using [`serde_json::Value`]. It should be converted by the
+    ///   external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
     ///
     /// # Return
@@ -82,8 +81,8 @@ pub trait PluginAPI: Send + Sync {
     ///
     /// # Arguments
     /// * `config` - Config for the external controller. The configuration
-    /// is given using [`serde_json::Value`]. It should be converted by the
-    /// external plugin to the specific configuration.
+    ///   is given using [`serde_json::Value`]. It should be converted by the
+    ///   external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
     ///
     /// # Return
@@ -103,8 +102,8 @@ pub trait PluginAPI: Send + Sync {
     ///
     /// # Arguments
     /// * `config` - Config for the external navigator. The configuration
-    /// is given using [`serde_json::Value`]. It should be converted by the
-    /// external plugin to the specific configuration.
+    ///   is given using [`serde_json::Value`]. It should be converted by the
+    ///   external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
     ///
     /// # Return
@@ -124,8 +123,8 @@ pub trait PluginAPI: Send + Sync {
     ///
     /// # Arguments
     /// * `config` - Config for the external physics. The configuration
-    /// is given using [`serde_json::Value`]. It should be converted by the
-    /// external plugin to the specific configuration.
+    ///   is given using [`serde_json::Value`]. It should be converted by the
+    ///   external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
     ///
     /// # Return

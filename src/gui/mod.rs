@@ -1,8 +1,6 @@
-#![warn(clippy::all)]
-
 mod app;
 
-use std::{collections::BTreeMap, path::Path};
+use std::{collections::BTreeMap, path::Path, sync::Arc};
 
 pub use app::SimbaApp;
 mod configurator;
@@ -15,8 +13,8 @@ use crate::{
 };
 
 pub fn run_gui(
-    default_config_path: Option<Box<&'static Path>>,
-    plugin_api: Option<Box<&dyn PluginAPI>>,
+    default_config_path: Option<&'static Path>,
+    plugin_api: Option<Arc<dyn PluginAPI>>,
     load_results: bool,
 ) {
     // Initialize the environment, essentially the logging part
@@ -29,10 +27,6 @@ pub fn run_gui(
         ..Default::default()
     };
 
-    // UNSAFE !! But relatively safe as run_native does not exit while GUI is running.
-    // When GUI is leaving, the simulator which uses plugin_api is expected to be closed.
-    let static_plugin_api: Option<Box<&'static dyn PluginAPI>> =
-        unsafe { std::mem::transmute(plugin_api) };
     eframe::run_native(
         "SiMBA",
         native_options,
@@ -40,7 +34,7 @@ pub fn run_gui(
             Ok(Box::new(SimbaApp::new(
                 cc,
                 default_config_path,
-                static_plugin_api,
+                plugin_api,
                 load_results,
             )))
         }),
@@ -55,11 +49,10 @@ pub trait UIComponent {
         _buffer_stack: &mut BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        _unique_id: &String,
+        _unique_id: &str,
     ) {
         unimplemented!("Mutable UIComponent not implemented.");
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String);
-    //  {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str);
 }

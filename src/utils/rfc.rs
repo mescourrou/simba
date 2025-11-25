@@ -1,12 +1,12 @@
 use std::sync::{mpsc, Arc, Mutex, RwLock};
 
-#[derive(Clone)]
-pub struct RemoteFunctionCall<ParamType: Clone, ReturnType: Clone> {
+#[derive(Debug, Clone)]
+pub struct RemoteFunctionCall<ParamType, ReturnType> {
     sender: mpsc::Sender<ParamType>,
     receiver: Arc<Mutex<mpsc::Receiver<ReturnType>>>,
 }
 
-impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCall<ParamType, ReturnType> {
+impl<ParamType, ReturnType> RemoteFunctionCall<ParamType, ReturnType> {
     pub fn call(&self, param: ParamType) -> Option<ReturnType> {
         self.sender.send(param).unwrap();
         let result = self.receiver.lock().unwrap().recv().unwrap();
@@ -25,23 +25,19 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCall<ParamType, ReturnTy
 
     /// Non Blocking
     pub fn try_get_result(&self) -> Option<ReturnType> {
-        if let Ok(result) = self.receiver.lock().unwrap().try_recv() {
-            Some(result)
-        } else {
-            None
-        }
+        self.receiver.lock().unwrap().try_recv().ok()
     }
 }
 
-#[derive(Clone)]
-pub struct RemoteFunctionCallHost<ParamType: Clone, ReturnType: Clone> {
+#[derive(Debug, Clone)]
+pub struct RemoteFunctionCallHost<ParamType, ReturnType> {
     receiver: Arc<Mutex<mpsc::Receiver<ParamType>>>,
     stop_sender: mpsc::Sender<ParamType>,
     sender: mpsc::Sender<ReturnType>,
     stopping: Arc<RwLock<bool>>,
 }
 
-impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, ReturnType> {
+impl<ParamType, ReturnType> RemoteFunctionCallHost<ParamType, ReturnType> {
     pub fn try_recv_fn(&self, exe: fn(ParamType) -> ReturnType) {
         if let Ok(param) = self.receiver.lock().unwrap().try_recv() {
             if *self.stopping.read().unwrap() {
@@ -103,14 +99,14 @@ impl<ParamType: Clone, ReturnType: Clone> RemoteFunctionCallHost<ParamType, Retu
     }
 }
 
-impl<ParamType: Clone + Default, ReturnType: Clone> RemoteFunctionCallHost<ParamType, ReturnType> {
+impl<ParamType: Default, ReturnType> RemoteFunctionCallHost<ParamType, ReturnType> {
     pub fn stop_recv(&self) {
         *self.stopping.write().unwrap() = true;
         self.stop_sender.send(ParamType::default()).unwrap();
     }
 }
 
-pub fn make_pair<ParamType: Clone, ReturnType: Clone>() -> (
+pub fn make_pair<ParamType, ReturnType>() -> (
     RemoteFunctionCall<ParamType, ReturnType>,
     RemoteFunctionCallHost<ParamType, ReturnType>,
 ) {

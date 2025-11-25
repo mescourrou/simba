@@ -43,7 +43,7 @@ impl UIComponent for ExternalObservation {
             &self,
             ui: &mut egui::Ui,
             ctx: &egui::Context,
-            unique_id: &String,
+            unique_id: &str,
         ) {
         egui::CollapsingHeader::new("External Observation").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -100,7 +100,7 @@ impl UIComponent for ExternalSensorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("External Sensor").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -120,7 +120,7 @@ impl UIComponent for ExternalSensorConfig {
         &self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("External Sensor").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -161,7 +161,7 @@ impl UIComponent for ExternalSensorRecord {
             &self,
             ui: &mut egui::Ui,
             ctx: &egui::Context,
-            unique_id: &String,
+            unique_id: &str,
         ) {
         ui.label(self.record.to_string());
     }
@@ -205,7 +205,7 @@ impl ExternalSensor {
     /// * `_va_factory` -- Factory for Determinists random variables.
     pub fn from_config(
         config: &ExternalSensorConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
     ) -> Self {

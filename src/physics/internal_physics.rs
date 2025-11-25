@@ -47,7 +47,7 @@ impl UIComponent for InternalPhysicConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Internal Physics")
             .id_salt(format!("internal-physics-{}", unique_id))
@@ -85,7 +85,7 @@ impl UIComponent for InternalPhysicConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Internal Physics")
             .id_salt(format!("internal-physics-{}", unique_id))
             .show(ui, |ui| {
@@ -124,7 +124,7 @@ pub struct InternalPhysicsRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for InternalPhysicsRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             egui::CollapsingHeader::new("State").show(ui, |ui| {
                 self.state.show(ui, ctx, unique_id);
@@ -203,8 +203,8 @@ impl InternalPhysics {
     }
 }
 
-use super::physics::{GetRealStateReq, GetRealStateResp};
-use super::physics::{Physics, PhysicsRecord};
+use super::{GetRealStateReq, GetRealStateResp};
+use super::{Physics, PhysicsRecord};
 
 impl Physics for InternalPhysics {
     /// Apply the given `command` perfectly.

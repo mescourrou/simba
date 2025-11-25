@@ -6,5 +6,5 @@ pub trait FromString
 where
     Self: Sized,
 {
-    fn from_string(str: &String) -> Option<Self>;
+    fn from_string(str: &str) -> Option<Self>;
 }

@@ -12,11 +12,14 @@ use crate::{
     controllers::controller::Controller,
     errors::SimbaResult,
     navigators::navigator::Navigator,
-    physics::physics::Physics,
+    physics::Physics,
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::state_estimator::StateEstimator,
-    utils::{determinist_random_variable::DeterministRandomVariableFactory, rfc},
+    utils::{
+        determinist_random_variable::DeterministRandomVariableFactory,
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+    },
 };
 
 // Run by client
@@ -24,9 +27,10 @@ use crate::{
 pub struct AsyncApi {
     pub simulator_api: Arc<SimulatorAsyncApi>,
     // Channels
-    pub load_config: rfc::RemoteFunctionCall<(String, bool), SimbaResult<SimulatorConfig>>,
+    pub load_config:
+        rfc::RemoteFunctionCall<AsyncApiLoadConfigRequest, SimbaResult<SimulatorConfig>>,
     pub load_results: rfc::RemoteFunctionCall<(), SimbaResult<f32>>,
-    pub run: rfc::RemoteFunctionCall<(Option<f32>, bool), SimbaResult<()>>,
+    pub run: rfc::RemoteFunctionCall<AsyncApiRunRequest, SimbaResult<()>>,
     pub get_records: rfc::RemoteFunctionCall<bool, SimbaResult<Vec<Record>>>,
     pub compute_results: rfc::RemoteFunctionCall<(), SimbaResult<()>>,
 }
@@ -34,9 +38,10 @@ pub struct AsyncApi {
 // Run by the simulator
 #[derive(Clone)]
 pub struct AsyncApiServer {
-    pub load_config: Arc<rfc::RemoteFunctionCallHost<(String, bool), SimbaResult<SimulatorConfig>>>,
+    pub load_config:
+        Arc<rfc::RemoteFunctionCallHost<AsyncApiLoadConfigRequest, SimbaResult<SimulatorConfig>>>,
     pub load_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<f32>>>,
-    pub run: Arc<rfc::RemoteFunctionCallHost<(Option<f32>, bool), SimbaResult<()>>>,
+    pub run: Arc<rfc::RemoteFunctionCallHost<AsyncApiRunRequest, SimbaResult<()>>>,
     pub compute_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<()>>>,
     pub get_records: Arc<rfc::RemoteFunctionCallHost<bool, SimbaResult<Vec<Record>>>>,
 }
@@ -107,6 +112,8 @@ impl AsyncApiRunner {
         if let Some(handle) = self.thread_handle.take() {
             sleep(Duration::new(0, 200000000));
             if !handle.is_finished() {
+                // Need to find a generic way to stop threads
+                log::warn!("Force stopping AsyncApiRunner thread...");
                 unsafe {
                     libc::pthread_cancel(handle.as_pthread_t());
                 }
@@ -118,15 +125,14 @@ impl AsyncApiRunner {
         self.running = false;
     }
 
-    pub fn run(&mut self, plugin_api: Option<Box<&'static dyn PluginAPI>>) {
+    pub fn run(&mut self, plugin_api: Option<Arc<dyn PluginAPI>>) {
         let private_api = self.private_api.clone();
         let keep_alive_rx = self.keep_alive_rx.clone();
         let simulator_cloned = self.simulator.clone();
-        let plugin_api = plugin_api.clone();
+        let plugin_api = Arc::new(plugin_api);
         self.running = true;
         self.thread_handle = Some(thread::spawn(move || {
             println!("AsyncApiRunner thread started");
-            let plugin_api = plugin_api.clone();
             let mut need_reset = false;
 
             let load_config = private_api.load_config.clone();
@@ -137,14 +143,14 @@ impl AsyncApiRunner {
             let stopping = stopping_root.clone();
             thread::spawn(move || {
                 while !*stopping.read().unwrap() {
-                    load_config.recv_closure_mut(|(config_path, force_send_results)| {
+                    load_config.recv_closure_mut(|request| {
                         let mut simulator = simulator_arc.lock().unwrap();
-                        println!("Loading config: {}", config_path);
-                        let path = Path::new(&config_path);
+                        println!("Loading config: {}", request.config_path);
+                        let path = Path::new(&request.config_path);
                         simulator.load_config_path_full(
                             path,
                             &plugin_api_threaded,
-                            force_send_results,
+                            request.force_send_results,
                         )?;
                         println!("End loading");
                         Ok(simulator.config())
@@ -170,12 +176,12 @@ impl AsyncApiRunner {
             let plugin_api_threaded = plugin_api.clone();
             thread::spawn(move || {
                 while !*stopping.read().unwrap() {
-                    run.recv_closure_mut(|(max_time, reset)| {
+                    run.recv_closure_mut(|request| {
                         let mut simulator = simulator_arc.lock().unwrap();
-                        if reset {
+                        if request.reset {
                             simulator.reset(&plugin_api_threaded)?;
                         }
-                        if let Some(max_time) = max_time {
+                        if let Some(max_time) = request.max_time {
                             simulator.set_max_time(max_time);
                         }
                         log::info!("Run...");
@@ -223,6 +229,12 @@ impl AsyncApiRunner {
     }
 }
 
+impl Default for AsyncApiRunner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for AsyncApiRunner {
     fn drop(&mut self) {
         self.stop();
@@ -231,64 +243,44 @@ impl Drop for AsyncApiRunner {
 
 #[derive(Clone)]
 pub struct PluginAsyncAPI {
-    pub client: PluginAsyncAPIClient,
-    pub get_state_estimator_request: mpsc::Sender<(
-        Value,
-        SimulatorConfig,
-        Arc<DeterministRandomVariableFactory>,
-    )>,
-    pub get_state_estimator_response: Arc<Mutex<mpsc::Receiver<Box<dyn StateEstimator>>>>,
-    pub get_controller_request: mpsc::Sender<(
-        Value,
-        SimulatorConfig,
-        Arc<DeterministRandomVariableFactory>,
-    )>,
-    pub get_controller_response: Arc<Mutex<mpsc::Receiver<Box<dyn Controller>>>>,
-    pub get_navigator_request: mpsc::Sender<(
-        Value,
-        SimulatorConfig,
-        Arc<DeterministRandomVariableFactory>,
-    )>,
-    pub get_navigator_response: Arc<Mutex<mpsc::Receiver<Box<dyn Navigator>>>>,
-    pub get_physic_request: mpsc::Sender<(
-        Value,
-        SimulatorConfig,
-        Arc<DeterministRandomVariableFactory>,
-    )>,
-    pub get_physic_response: Arc<Mutex<mpsc::Receiver<Box<dyn Physics>>>>,
+    client: PluginAsyncAPIClient,
+    get_state_estimator:
+        Arc<RemoteFunctionCall<PluginAsyncAPIGetStateEstimatorRequest, Box<dyn StateEstimator>>>,
+    get_controller:
+        Arc<RemoteFunctionCall<PluginAsyncAPIGetControllerRequest, Box<dyn Controller>>>,
+    get_navigator: Arc<RemoteFunctionCall<PluginAsyncAPIGetNavigatorRequest, Box<dyn Navigator>>>,
+    get_physics: Arc<RemoteFunctionCall<PluginAsyncAPIGetPhysicsRequest, Box<dyn Physics>>>,
 }
 
 impl PluginAsyncAPI {
     pub fn new() -> PluginAsyncAPI {
-        let (get_state_estimator_request_tx, get_state_estimator_request_rx) = mpsc::channel();
-        let (get_state_estimator_response_tx, get_state_estimator_response_rx) = mpsc::channel();
-        let (get_controller_request_tx, get_controller_request_rx) = mpsc::channel();
-        let (get_controller_response_tx, get_controller_response_rx) = mpsc::channel();
-        let (get_navigator_request_tx, get_navigator_request_rx) = mpsc::channel();
-        let (get_navigator_response_tx, get_navigator_response_rx) = mpsc::channel();
-        let (get_physic_request_tx, get_physic_request_rx) = mpsc::channel();
-        let (get_physic_response_tx, get_physic_response_rx) = mpsc::channel();
+        let (get_state_estimator_client, get_state_estimator_host) = rfc::make_pair();
+        let (get_controller_client, get_controller_host) = rfc::make_pair();
+        let (get_navigator_client, get_navigator_host) = rfc::make_pair();
+        let (get_physics_client, get_physics_host) = rfc::make_pair();
 
         PluginAsyncAPI {
             client: PluginAsyncAPIClient {
-                get_state_estimator_request: Arc::new(Mutex::new(get_state_estimator_request_rx)),
-                get_state_estimator_response: get_state_estimator_response_tx,
-                get_controller_request: Arc::new(Mutex::new(get_controller_request_rx)),
-                get_controller_response: get_controller_response_tx,
-                get_navigator_request: Arc::new(Mutex::new(get_navigator_request_rx)),
-                get_navigator_response: get_navigator_response_tx,
-                get_physics_request: Arc::new(Mutex::new(get_physic_request_rx)),
-                get_physics_response: get_physic_response_tx,
+                get_state_estimator: Arc::new(get_state_estimator_host),
+                get_controller: Arc::new(get_controller_host),
+                get_navigator: Arc::new(get_navigator_host),
+                get_physics: Arc::new(get_physics_host),
             },
-            get_state_estimator_request: get_state_estimator_request_tx,
-            get_state_estimator_response: Arc::new(Mutex::new(get_state_estimator_response_rx)),
-            get_controller_request: get_controller_request_tx,
-            get_controller_response: Arc::new(Mutex::new(get_controller_response_rx)),
-            get_navigator_request: get_navigator_request_tx,
-            get_navigator_response: Arc::new(Mutex::new(get_navigator_response_rx)),
-            get_physic_request: get_physic_request_tx,
-            get_physic_response: Arc::new(Mutex::new(get_physic_response_rx)),
+            get_state_estimator: Arc::new(get_state_estimator_client),
+            get_controller: Arc::new(get_controller_client),
+            get_navigator: Arc::new(get_navigator_client),
+            get_physics: Arc::new(get_physics_client),
         }
+    }
+
+    pub fn get_client(&self) -> PluginAsyncAPIClient {
+        self.client.clone()
+    }
+}
+
+impl Default for PluginAsyncAPI {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -299,14 +291,12 @@ impl PluginAPI for PluginAsyncAPI {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn StateEstimator> {
-        self.get_state_estimator_request
-            .send((config.clone(), global_config.clone(), va_factory.clone()))
-            .unwrap();
-
-        self.get_state_estimator_response
-            .lock()
-            .unwrap()
-            .recv()
+        self.get_state_estimator
+            .call(PluginAsyncAPIGetStateEstimatorRequest {
+                config: config.clone(),
+                global_config: global_config.clone(),
+                va_factory: va_factory.clone(),
+            })
             .unwrap()
     }
 
@@ -316,11 +306,13 @@ impl PluginAPI for PluginAsyncAPI {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Controller> {
-        self.get_controller_request
-            .send((config.clone(), global_config.clone(), va_factory.clone()))
-            .unwrap();
-
-        self.get_controller_response.lock().unwrap().recv().unwrap()
+        self.get_controller
+            .call(PluginAsyncAPIGetControllerRequest {
+                config: config.clone(),
+                global_config: global_config.clone(),
+                va_factory: va_factory.clone(),
+            })
+            .unwrap()
     }
 
     fn get_navigator(
@@ -329,11 +321,13 @@ impl PluginAPI for PluginAsyncAPI {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Navigator> {
-        self.get_navigator_request
-            .send((config.clone(), global_config.clone(), va_factory.clone()))
-            .unwrap();
-
-        self.get_navigator_response.lock().unwrap().recv().unwrap()
+        self.get_navigator
+            .call(PluginAsyncAPIGetNavigatorRequest {
+                config: config.clone(),
+                global_config: global_config.clone(),
+                va_factory: va_factory.clone(),
+            })
+            .unwrap()
     }
 
     fn get_physics(
@@ -342,54 +336,46 @@ impl PluginAPI for PluginAsyncAPI {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Physics> {
-        self.get_physic_request
-            .send((config.clone(), global_config.clone(), va_factory.clone()))
-            .unwrap();
-
-        self.get_physic_response.lock().unwrap().recv().unwrap()
+        self.get_physics
+            .call(PluginAsyncAPIGetPhysicsRequest {
+                config: config.clone(),
+                global_config: global_config.clone(),
+                va_factory: va_factory.clone(),
+            })
+            .unwrap()
     }
 }
 
 #[derive(Clone)]
 pub struct PluginAsyncAPIClient {
-    pub get_state_estimator_request: Arc<
-        Mutex<
-            mpsc::Receiver<(
-                Value,
-                SimulatorConfig,
-                Arc<DeterministRandomVariableFactory>,
-            )>,
-        >,
+    pub get_state_estimator: Arc<
+        RemoteFunctionCallHost<PluginAsyncAPIGetStateEstimatorRequest, Box<dyn StateEstimator>>,
     >,
-    pub get_state_estimator_response: mpsc::Sender<Box<dyn StateEstimator>>,
-    pub get_controller_request: Arc<
-        Mutex<
-            mpsc::Receiver<(
-                Value,
-                SimulatorConfig,
-                Arc<DeterministRandomVariableFactory>,
-            )>,
-        >,
-    >,
-    pub get_controller_response: mpsc::Sender<Box<dyn Controller>>,
-    pub get_navigator_request: Arc<
-        Mutex<
-            mpsc::Receiver<(
-                Value,
-                SimulatorConfig,
-                Arc<DeterministRandomVariableFactory>,
-            )>,
-        >,
-    >,
-    pub get_navigator_response: mpsc::Sender<Box<dyn Navigator>>,
-    pub get_physics_request: Arc<
-        Mutex<
-            mpsc::Receiver<(
-                Value,
-                SimulatorConfig,
-                Arc<DeterministRandomVariableFactory>,
-            )>,
-        >,
-    >,
-    pub get_physics_response: mpsc::Sender<Box<dyn Physics>>,
+    pub get_controller:
+        Arc<RemoteFunctionCallHost<PluginAsyncAPIGetControllerRequest, Box<dyn Controller>>>,
+    pub get_navigator:
+        Arc<RemoteFunctionCallHost<PluginAsyncAPIGetNavigatorRequest, Box<dyn Navigator>>>,
+    pub get_physics: Arc<RemoteFunctionCallHost<PluginAsyncAPIGetPhysicsRequest, Box<dyn Physics>>>,
+}
+
+pub struct PluginAsyncAPIGetStateEstimatorRequest {
+    pub config: Value,
+    pub global_config: SimulatorConfig,
+    pub va_factory: Arc<DeterministRandomVariableFactory>,
+}
+
+pub type PluginAsyncAPIGetControllerRequest = PluginAsyncAPIGetStateEstimatorRequest;
+pub type PluginAsyncAPIGetNavigatorRequest = PluginAsyncAPIGetStateEstimatorRequest;
+pub type PluginAsyncAPIGetPhysicsRequest = PluginAsyncAPIGetStateEstimatorRequest;
+
+#[derive(Clone, Debug, Default)]
+pub struct AsyncApiLoadConfigRequest {
+    pub config_path: String,
+    pub force_send_results: bool,
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct AsyncApiRunRequest {
+    pub max_time: Option<f32>,
+    pub reset: bool,
 }

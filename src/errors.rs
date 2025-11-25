@@ -9,7 +9,7 @@ use crate::networking::{service_manager::ServiceError, NetworkError};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, EnumToString)]
 pub enum SimbaErrorTypes {
-    UnknwonError,
+    UnknownError,
     MathError,
     ImplementationError,
     ConfigError,
@@ -27,16 +27,11 @@ pub struct SimbaError {
 
 impl SimbaError {
     pub fn new(error_type: SimbaErrorTypes, what: String) -> Self {
-        // log::error!("{}: {what}", error_type.to_string());
         Self { error_type, what }
     }
 
     pub fn detailed_error(&self) -> String {
-        format!(
-            "Simba Error of type {}: {}",
-            self.error_type.to_string(),
-            self.what
-        )
+        format!("Simba Error of type {}: {}", self.error_type, self.what)
     }
 
     pub fn error_type(&self) -> SimbaErrorTypes {
@@ -53,18 +48,13 @@ impl SimbaError {
 
 impl Display for SimbaError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Simba Error: {}", self.error_type.to_string())
+        write!(f, "Simba Error: {}", self.error_type)
     }
 }
 
 impl Debug for SimbaError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "Simba Error of type {}: {}",
-            self.error_type.to_string(),
-            self.what
-        )
+        write!(f, "Simba Error of type {}: {}", self.error_type, self.what)
     }
 }
 

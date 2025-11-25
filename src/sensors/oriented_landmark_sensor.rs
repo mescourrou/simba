@@ -21,7 +21,6 @@ use crate::state_estimators::state_estimator::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
-use rand_chacha::rand_core::le;
 use serde_derive::{Deserialize, Serialize};
 
 use log::{debug, error};
@@ -73,7 +72,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Oriented Landmark sensor")
             .id_salt(format!("oriented-landmark-sensor-{}", unique_id))
@@ -124,7 +123,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Oriented Landmark sensor")
             .id_salt(format!("oriented-landmark-sensor-{}", unique_id))
             .show(ui, |ui| {
@@ -161,7 +160,7 @@ impl Default for OrientedLandmarkSensorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OrientedLandmarkSensorRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.label(format!("Last time: {}", self.last_time));
     }
 }
@@ -268,7 +267,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
                 Ok(OrientedLandmark {
-                    id: id,
+                    id,
                     pose: Vector3::from_vec(vec![x, y, theta]),
                 })
             }
@@ -316,13 +315,13 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                 let y = y.ok_or_else(|| de::Error::missing_field("y"))?;
                 let theta = theta.ok_or_else(|| de::Error::missing_field("theta"))?;
                 Ok(OrientedLandmark {
-                    id: id,
+                    id,
                     pose: Vector3::from_vec(vec![x, y, theta]),
                 })
             }
         }
 
-        const FIELDS: &'static [&'static str] = &["id", "x", "y", "theta"];
+        const FIELDS: &[&str] = &["id", "x", "y", "theta"];
         deserializer.deserialize_struct("OrientedLandmark", FIELDS, OrientedLandmarkVisitor)
     }
 }
@@ -356,7 +355,7 @@ pub struct OrientedLandmarkObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OrientedLandmarkObservationRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Id: {}", self.id));
             ui.label(format!(
@@ -405,7 +404,7 @@ impl OrientedLandmarkSensor {
     /// The map path is relative to the config path of the simulator.
     pub fn from_config(
         config: &OrientedLandmarkSensorConfig,
-        _plugin_api: &Option<Box<&dyn PluginAPI>>,
+        _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
@@ -439,21 +438,21 @@ impl OrientedLandmarkSensor {
             filters,
         };
 
-        if config.map_path == "" {
+        if config.map_path.is_empty() {
             return sensor;
         }
         let joined_path = global_config.base_path.join(&config.map_path);
         if path.is_relative() {
             path = joined_path.as_path();
         }
-        sensor.landmarks = Self::load_map_from_path(&path);
+        sensor.landmarks = Self::load_map_from_path(path);
 
         sensor
     }
 
     /// Load the map from the given `path`.
     pub fn load_map_from_path(path: &Path) -> Vec<OrientedLandmark> {
-        let map: Map = match confy::load_path(&path) {
+        let map: Map = match confy::load_path(path) {
             Ok(config) => config,
             Err(error) => {
                 error!(
@@ -465,6 +464,12 @@ impl OrientedLandmarkSensor {
             }
         };
         map.landmarks
+    }
+}
+
+impl Default for OrientedLandmarkSensor {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -506,7 +511,7 @@ impl Sensor for OrientedLandmarkSensor {
                     .lock()
                     .unwrap()
                     .iter()
-                    .fold(Some(obs), |obs, filter| obs.and_then(|o| filter.filter(o, &state, None)))
+                    .try_fold(obs, |obs, filter| filter.filter(obs, &state, None))
                 {
                     new_obs.push(observation);
                     for fault_model in self.faults.lock().unwrap().iter() {
@@ -520,10 +525,8 @@ impl Sensor for OrientedLandmarkSensor {
                         );
                     }
                     observation_list.extend(new_obs);
-                } else {
-                    if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-                        debug!("Observation of landmark {} was filtered out", landmark.id);
-                    }
+                } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                    debug!("Observation of landmark {} was filtered out", landmark.id);
                 }
             }
         }

@@ -7,7 +7,7 @@ use std::{
 use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     node::Node,
-    physics::physics::{GetRealStateReq, GetRealStateResp, Physics},
+    physics::{GetRealStateReq, GetRealStateResp, Physics},
     simulator::TimeCv,
     state_estimators::state_estimator::State,
 };
@@ -23,6 +23,7 @@ pub enum ServiceError {
 }
 
 #[derive(Debug, Clone)]
+#[allow(clippy::type_complexity)]
 pub struct ServiceManager {
     get_real_state: Option<Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physics>>>>,
     get_real_state_clients: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
@@ -51,7 +52,7 @@ impl ServiceManager {
         } else {
             Err(SimbaError::new(
                 SimbaErrorTypes::ServiceError(ServiceError::Unavailable),
-                format!("No service `get_real_state` available."),
+                "No service `get_real_state` available.".to_string(),
             ))
         }
     }
@@ -76,10 +77,11 @@ impl ServiceManager {
                     resp = r;
                     break;
                 }
-                Err(e) => match e.error_type() {
-                    SimbaErrorTypes::ServiceError(ServiceError::Closed) => return Err(e),
-                    _ => {}
-                },
+                Err(e) => {
+                    if let SimbaErrorTypes::ServiceError(ServiceError::Closed) = e.error_type() {
+                        return Err(e);
+                    }
+                }
             }
             if self.process_requests() > 0 {
                 self.handle_requests(time);

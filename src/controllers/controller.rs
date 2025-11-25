@@ -3,8 +3,10 @@ Module defining the [Controller]
 */
 
 use crate::{
-    controllers::python_controller, networking::message_handler::MessageHandler,
-    physics::{physics::PhysicsConfig, robot_models::Command}, recordable::Recordable,
+    controllers::python_controller,
+    networking::message_handler::MessageHandler,
+    physics::{robot_models::Command, PhysicsConfig},
+    recordable::Recordable,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 #[cfg(feature = "gui")]
@@ -21,7 +23,7 @@ use serde_derive::{Deserialize, Serialize};
 use simba_macros::{EnumToString, ToVec};
 
 /// Errors used by the controllers: lateral, orientation and velocity.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControllerError {
     /// Lateral error.
     pub lateral: f32,
@@ -33,20 +35,9 @@ pub struct ControllerError {
     pub velocity: f32,
 }
 
-impl ControllerError {
-    pub fn default() -> Self {
-        Self {
-            lateral: 0.,
-            longitudinal: 0.,
-            theta: 0.,
-            velocity: 0.,
-        }
-    }
-}
-
 #[cfg(feature = "gui")]
 impl UIComponent for ControllerError {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("longitudinal: {}", self.longitudinal));
             ui.label(format!("lateral: {}", self.lateral));
@@ -76,7 +67,7 @@ impl UIComponent for ControllerConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let mut current_str = self.to_string();
         ui.horizontal(|ui| {
@@ -135,9 +126,9 @@ impl UIComponent for ControllerConfig {
         }
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.horizontal(|ui| {
-            ui.label(format!("Controller: {}", self.to_string()));
+            ui.label(format!("Controller: {}", self));
         });
         match self {
             ControllerConfig::PID(c) => c.show(ui, ctx, unique_id),
@@ -157,7 +148,7 @@ pub enum ControllerRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ControllerRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| match self {
             Self::PID(r) => {
                 egui::CollapsingHeader::new("PID").show(ui, |ui| {
@@ -212,13 +203,15 @@ pub trait Controller:
 /// * `va_factory` - Random variables factory for determinist behavior.
 pub fn make_controller_from_config(
     config: &ControllerConfig,
-    plugin_api: &Option<Box<&dyn PluginAPI>>,
+    plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
     physics_config: &PhysicsConfig,
 ) -> Arc<RwLock<Box<dyn Controller>>> {
     Arc::new(RwLock::new(match config {
-        ControllerConfig::PID(c) => Box::new(pid::PID::from_config(c, physics_config)) as Box<dyn Controller>,
+        ControllerConfig::PID(c) => {
+            Box::new(pid::PID::from_config(c, physics_config)) as Box<dyn Controller>
+        }
         ControllerConfig::External(c) => {
             Box::new(external_controller::ExternalController::from_config(
                 c,

@@ -8,21 +8,21 @@ The [`NetworkManager`](network_manager::NetworkManager) makes the link between t
 There are two main ways to communicate between nodes.
 
 1) One-way communication: A node sends a message to another node. This is done using the
-[`Network::send_to`](network::Network::send_to) and
-[`Network::broadcast`](network::Network::broadcast) methods. The message is sent to the
-receiver [`Network`](network::Network) and is stored in a time ordered buffer. The receiver
-unwraps the message when it reaches the time of the message. If the message is sent in the
-past, the receiver will go back in time to unwrap the message. The message treatment is done
-in [`run_time_step`](crate::node::Node::run_time_step), at the end. The message is
-then passed from one [`MessageHandler`](message_handler::MessageHandler) to the next until
-one of them handles the message.
+   [`Network::send_to`](network::Network::send_to) and
+   [`Network::broadcast`](network::Network::broadcast) methods. The message is sent to the
+   receiver [`Network`](network::Network) and is stored in a time ordered buffer. The receiver
+   unwraps the message when it reaches the time of the message. If the message is sent in the
+   past, the receiver will go back in time to unwrap the message. The message treatment is done
+   in [`run_time_step`](crate::node::Node::run_time_step), at the end. The message is
+   then passed from one [`MessageHandler`](message_handler::MessageHandler) to the next until
+   one of them handles the message.
 
 2) Two-way communication: A node sends a request to another node and waits for the response.
-This is done using the [`Service`](service::Service) and [`ServiceClient`](service::ServiceClient).
-The server node proposes a service, and then a client node need to get a
-[`ServiceClient`](service::ServiceClient) instance to be able to make a request. The client
-sends a request to the server, and is blocked until the server sends a response. The server
-node should handle the requests in [`run_time_step`](crate::node::Node::run_time_step).
+   This is done using the [`Service`](service::Service) and [`ServiceClient`](service::ServiceClient).
+   The server node proposes a service, and then a client node need to get a
+   [`ServiceClient`](service::ServiceClient) instance to be able to make a request. The client
+   sends a request to the server, and is blocked until the server sends a response. The server
+   node should handle the requests in [`run_time_step`](crate::node::Node::run_time_step).
 */
 
 use pyo3::pyclass;
@@ -112,7 +112,7 @@ mod tests {
         fn correction_step(
             &mut self,
             _node: &mut crate::node::Node,
-            _observations: &Vec<Observation>,
+            _observations: &[Observation],
             _time: f32,
         ) {
         }
@@ -255,7 +255,8 @@ mod tests {
             last_message: Arc::new(Mutex::new(None)),
         };
 
-        let mut simulator = Simulator::from_config(&config, &Some(Box::new(&plugin_api))).unwrap();
+        let plugin_api = Arc::new(plugin_api);
+        let mut simulator = Simulator::from_config(&config, &Some(plugin_api.clone())).unwrap();
 
         simulator.run().unwrap();
 

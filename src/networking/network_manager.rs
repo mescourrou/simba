@@ -164,12 +164,10 @@ impl NetworkManager {
                                 }
                             }
                             message_sent = true;
-                        } else {
-                            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                                debug!(
-                                    "Receiving message from `{node_name}` for `{r}`... Out of range"
-                                );
-                            }
+                        } else if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                            debug!(
+                                "Receiving message from `{node_name}` for `{r}`... Out of range"
+                            );
                         }
                     }
                     MessageSendMethod::Broadcast => {
@@ -197,11 +195,8 @@ impl NetworkManager {
                             debug!("Receiving message from `{node_name}` for Manager");
                         }
                         for flag in msg.message_flags {
-                            match flag {
-                                MessageFlag::Unsubscribe => {
-                                    nodes_to_remove.push(node_name.clone());
-                                }
-                                _ => (),
+                            if let MessageFlag::Unsubscribe = flag {
+                                nodes_to_remove.push(node_name.clone());
                             }
                         }
                     }
@@ -209,10 +204,8 @@ impl NetworkManager {
             }
         }
         self.time_cv.condvar.notify_all();
-        if message_sent {
-            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                debug!("Notify CV");
-            }
+        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+            debug!("Notify CV");
         }
         for node_name in nodes_to_remove {
             self.unsubscribe_node(&node_name);

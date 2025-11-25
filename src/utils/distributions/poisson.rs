@@ -40,7 +40,7 @@ impl UIComponent for PoissonRandomVariableConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &crate::simulator::SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.horizontal_top(|ui| {
             use crate::utils::determinist_random_variable::seed_generation_component;
@@ -68,7 +68,7 @@ impl UIComponent for PoissonRandomVariableConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 for (i, p) in self.lambda.iter().enumerate() {

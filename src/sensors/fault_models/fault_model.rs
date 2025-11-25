@@ -46,7 +46,7 @@ impl UIComponent for FaultModelConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let self_str = self.to_string();
         egui::CollapsingHeader::new(self_str)
@@ -105,7 +105,7 @@ impl UIComponent for FaultModelConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         let self_str = self.to_string();
         egui::CollapsingHeader::new(self_str)
             .id_salt(format!("fault-model-{}", unique_id))
@@ -131,7 +131,7 @@ impl FaultModelConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         use crate::{gui::utils::string_combobox, utils::enum_tools::ToVec};
 
@@ -206,10 +206,10 @@ impl FaultModelConfig {
     }
 
     pub fn show_faults(
-        faults: &Vec<FaultModelConfig>,
+        faults: &[FaultModelConfig],
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.label("Faults:");
         for (i, fault) in faults.iter().enumerate() {
@@ -229,23 +229,23 @@ pub fn make_fault_model_from_config(
 ) -> Box<dyn FaultModel> {
     match &config {
         FaultModelConfig::AdditiveRobotCentered(cfg) => {
-            Box::new(AdditiveRobotCenteredFault::from_config(&cfg, va_factory))
+            Box::new(AdditiveRobotCenteredFault::from_config(cfg, va_factory))
                 as Box<dyn FaultModel>
         }
         FaultModelConfig::AdditiveRobotCenteredPolar(cfg) => Box::new(
-            AdditiveRobotCenteredPolarFault::from_config(&cfg, va_factory),
+            AdditiveRobotCenteredPolarFault::from_config(cfg, va_factory),
         ) as Box<dyn FaultModel>,
         FaultModelConfig::AdditiveObservationCenteredPolar(cfg) => Box::new(
-            AdditiveObservationCenteredPolarFault::from_config(&cfg, va_factory),
+            AdditiveObservationCenteredPolarFault::from_config(cfg, va_factory),
         ) as Box<dyn FaultModel>,
         FaultModelConfig::Clutter(cfg) => {
-            Box::new(ClutterFault::from_config(&cfg, va_factory)) as Box<dyn FaultModel>
+            Box::new(ClutterFault::from_config(cfg, va_factory)) as Box<dyn FaultModel>
         }
         FaultModelConfig::Misdetection(cfg) => {
-            Box::new(MisdetectionFault::from_config(&cfg, va_factory)) as Box<dyn FaultModel>
+            Box::new(MisdetectionFault::from_config(cfg, va_factory)) as Box<dyn FaultModel>
         }
         FaultModelConfig::Misassociation(cfg) => Box::new(MisassociationFault::from_config(
-            &cfg,
+            cfg,
             global_config,
             robot_name,
             va_factory,

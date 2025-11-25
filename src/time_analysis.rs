@@ -63,7 +63,7 @@ impl UIComponent for TimeAnalysisConfig {
         _buffer_stack: &mut BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         _current_node_name: Option<&String>,
-        _unique_id: &String,
+        _unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Time Analysis").show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -93,10 +93,10 @@ impl UIComponent for TimeAnalysisConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("Time Analysis").show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.label(format!("Exporter: {}", self.exporter.to_string()));
+                ui.label(format!("Exporter: {}", self.exporter));
             });
 
             ui.horizontal(|ui| {
@@ -137,7 +137,7 @@ impl ExecutionNode {
 
 #[derive(Debug)]
 struct ExecutionTree {
-    top_time_nodes: Vec<Box<ExecutionNode>>,
+    top_time_nodes: Vec<ExecutionNode>,
     keep_last: bool,
 }
 
@@ -161,17 +161,17 @@ impl ExecutionTree {
         if let Some(mut current) = current {
             if coordinates[0] == 0 {
                 if self.keep_last {
-                    *current = Box::new(ExecutionNode::from(name, time_int, depth));
+                    *current = ExecutionNode::from(name, time_int, depth);
                     return;
                 } else {
                     panic!("Keep_last = false not implemented yet for Execution Tree");
                 }
             }
-            for i in 0..depth - 1 {
-                for _j in 0..coordinates[i] {
+            for coord in coordinates.iter().take(depth - 1) {
+                for _j in 0..*coord {
                     current = current.next.as_mut().unwrap();
                 }
-                if current.as_mut().subdepth_child.is_none() {
+                if current.subdepth_child.is_none() {
                     let time_int = current.begin;
                     current.subdepth_child =
                         Some(Box::new(ExecutionNode::from(name.clone(), time_int, depth)));
@@ -187,7 +187,7 @@ impl ExecutionTree {
             current.next = Some(Box::new(ExecutionNode::from(name, time_int, depth)));
         } else {
             self.top_time_nodes
-                .push(Box::new(ExecutionNode::from(name, time_int, depth)));
+                .push(ExecutionNode::from(name, time_int, depth));
         }
     }
 
@@ -207,11 +207,11 @@ impl ExecutionTree {
 
         if let Some(mut current) = current {
             if depth >= 2 {
-                for i in 0..depth - 1 {
-                    for _j in 0..coordinates[i] {
+                for coord in coordinates.iter().take(depth - 1) {
+                    for _j in 0..*coord {
                         current = current.next.as_mut().unwrap();
                     }
-                    if current.as_mut().subdepth_child.is_none() {
+                    if current.subdepth_child.is_none() {
                         return None;
                     } else {
                         current = current.subdepth_child.as_mut().unwrap();
@@ -224,29 +224,29 @@ impl ExecutionTree {
             for _j in 0..*coordinates.last().unwrap() {
                 current = current.next.as_mut().unwrap();
             }
-            return Some(current);
+            Some(current)
         } else {
-            return None;
+            None
         }
     }
 
-    fn recusive_iter(&self, node: &Box<ExecutionNode>) -> Vec<Box<ExecutionNode>> {
+    fn recusive_iter(node: &ExecutionNode) -> Vec<ExecutionNode> {
         let mut nodes = Vec::new();
         let mut current = Some(node.clone());
         while current.is_some() {
             nodes.push(current.clone().unwrap());
-            if let Some(child) = current.clone().unwrap().subdepth_child.as_ref() {
-                nodes.append(&mut self.recusive_iter(child));
+            if let Some(child) = current.clone().unwrap().subdepth_child.as_deref() {
+                nodes.append(&mut ExecutionTree::recusive_iter(child));
             }
-            current = current.unwrap().next.clone();
+            current = current.unwrap().next.as_deref().cloned();
         }
         nodes
     }
 
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = Box<ExecutionNode>> + 'a {
+    pub fn iter<'a>(&'a self) -> impl Iterator<Item = ExecutionNode> + 'a {
         self.top_time_nodes
             .iter()
-            .flat_map(move |node| self.recusive_iter(node).into_iter())
+            .flat_map(move |node| ExecutionTree::recusive_iter(node).into_iter())
     }
 }
 
@@ -414,21 +414,19 @@ impl TimeAnalysisStatistics {
         let nf32 = n as f32;
         TimeAnalysisStatistics {
             mean: sum / nf32,
-            median: if n % 2 == 0 {
+            median: if n.is_multiple_of(2) {
                 (v[n / 2] + v[n / 2 - 1]) / 2.
             } else {
                 v[(n - 1) / 2]
             },
-            max: v
+            max: *v
                 .iter()
                 .max_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap_or(&f32::INFINITY)
-                .clone(),
-            min: v
+                .unwrap_or(&f32::INFINITY),
+            min: *v
                 .iter()
                 .min_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap_or(&0.)
-                .clone(),
+                .unwrap_or(&0.),
             n: (n as u32),
             q1: v[(ceilf(nf32 / 4.) as usize).min(n - 1)],
             q3: v[(ceilf(nf32 * 0.75) as usize).min(n - 1)],
@@ -695,7 +693,7 @@ impl ProfilerExporter for TraceEventExporter {
             }
         }
         let json = serde_json::to_string(&TraceEventRoot {
-            trace_events: trace_events,
+            trace_events,
             display_time_unit: "us".to_string(),
             other_data: serde_json::Value::Null,
         })

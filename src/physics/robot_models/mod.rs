@@ -32,7 +32,7 @@ impl Default for Command {
 
 #[cfg(feature = "gui")]
 impl UIComponent for Command {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         match &self {
             Command::Unicycle(cmd) => cmd.show(ui, ctx, unique_id),
             Command::Honolomic(cmd) => cmd.show(ui, ctx, unique_id),
@@ -61,7 +61,7 @@ impl UIComponent for RobotModelConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let mut current_str = self.to_string();
         ui.horizontal(|ui| {
@@ -82,7 +82,7 @@ impl UIComponent for RobotModelConfig {
             match current_str.as_str() {
                 "Unicycle" => {
                     *self = RobotModelConfig::Unicycle(UnicycleConfig::default());
-                },
+                }
                 "Honolomic" => {
                     *self = RobotModelConfig::Honolomic(HonolomicConfig::default());
                 }
@@ -109,9 +109,9 @@ impl UIComponent for RobotModelConfig {
         }
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.horizontal(|ui| {
-            ui.label(format!("Robot model: {}", self.to_string()));
+            ui.label(format!("Robot model: {}", self));
         });
         match self {
             RobotModelConfig::Unicycle(c) => c.show(ui, ctx, unique_id),
@@ -129,7 +129,7 @@ pub fn make_model_from_config(config: &RobotModelConfig) -> Box<dyn RobotModel> 
     match config {
         RobotModelConfig::Unicycle(cfg) => {
             Box::new(Unicycle::from_config(cfg)) as Box<dyn RobotModel>
-        },
+        }
         RobotModelConfig::Honolomic(cfg) => {
             Box::new(Honolomic::from_config(cfg)) as Box<dyn RobotModel>
         }

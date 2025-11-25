@@ -95,7 +95,7 @@ impl UIComponent for MisassociationFaultConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
@@ -145,7 +145,7 @@ impl UIComponent for MisassociationFaultConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Apparition probability: ");
@@ -157,11 +157,11 @@ impl UIComponent for MisassociationFaultConfig {
             });
 
             ui.horizontal(|ui| {
-                ui.label(format!("Sort: {}", self.sort.to_string()));
+                ui.label(format!("Sort: {}", self.sort));
             });
 
             ui.horizontal(|ui| {
-                ui.label(format!("Source: {}", self.source.to_string()));
+                ui.label(format!("Source: {}", self.source));
 
                 if let Source::Map(path) = &self.source {
                     ui.label(format!("({})", path));
@@ -218,7 +218,7 @@ impl MisassociationFault {
                     }
                 })
                 .filter(|x| x.is_some())
-                .map(|x| x.unwrap())
+                .flatten()
                 .collect(),
         };
         Self {
@@ -283,13 +283,10 @@ impl FaultModel for MisassociationFault {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
                 SensorObservation::OrientedLandmark(o) => {
-                    match self.sort {
-                        Sort::Distance => {
-                            id_list.sort_by_key(|i| {
-                                ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
-                            });
-                        }
-                        _ => {}
+                    if let Sort::Distance = self.sort {
+                        id_list.sort_by_key(|i| {
+                            ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
+                        });
                     }
                     let new_id = id_list
                         [(random_sample[0].abs().floor() as usize).rem(id_list.len())]

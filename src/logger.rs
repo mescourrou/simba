@@ -28,21 +28,35 @@ pub enum LogLevel {
     Internal(Vec<InternalLog>),
 }
 
-impl Into<log::LevelFilter> for LogLevel {
-    fn into(self) -> log::LevelFilter {
-        match self {
-            LogLevel::Off => log::LevelFilter::Off,
-            LogLevel::Error => log::LevelFilter::Error,
-            LogLevel::Warn => log::LevelFilter::Warn,
-            LogLevel::Info => log::LevelFilter::Info,
-            LogLevel::Debug | LogLevel::Internal(_) => log::LevelFilter::Debug,
+impl From<log::LevelFilter> for LogLevel {
+    fn from(level: log::LevelFilter) -> Self {
+        match level {
+            log::LevelFilter::Off => LogLevel::Off,
+            log::LevelFilter::Error => LogLevel::Error,
+            log::LevelFilter::Warn => LogLevel::Warn,
+            log::LevelFilter::Info => LogLevel::Info,
+            log::LevelFilter::Debug => LogLevel::Debug,
+            log::LevelFilter::Trace => LogLevel::Debug,
         }
     }
 }
 
-impl Into<String> for LogLevel {
-    fn into(self) -> String {
-        match self {
+impl From<LogLevel> for log::LevelFilter {
+    fn from(level: LogLevel) -> Self {
+        match level {
+            LogLevel::Off => log::LevelFilter::Off,
+            LogLevel::Error => log::LevelFilter::Error,
+            LogLevel::Warn => log::LevelFilter::Warn,
+            LogLevel::Info => log::LevelFilter::Info,
+            LogLevel::Debug => log::LevelFilter::Debug,
+            LogLevel::Internal(_) => log::LevelFilter::Debug,
+        }
+    }
+}
+
+impl From<LogLevel> for String {
+    fn from(level: LogLevel) -> Self {
+        match level {
             LogLevel::Off => "Off".to_string(),
             LogLevel::Error => "Error".to_string(),
             LogLevel::Warn => "Warn".to_string(),
@@ -111,7 +125,7 @@ impl UIComponent for LoggerConfig {
         _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        _unique_id: &String,
+        _unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Logger").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -122,10 +136,8 @@ impl UIComponent for LoggerConfig {
                     if let LogLevel::Internal(_) = &self.log_level {
                         internal = true;
                     }
-                    if ui.radio(internal, "Internal").clicked() {
-                        if !internal {
-                            self.log_level = LogLevel::Internal(Vec::new());
-                        }
+                    if ui.radio(internal, "Internal").clicked() && !internal {
+                        self.log_level = LogLevel::Internal(Vec::new());
                     }
                 });
 
@@ -157,15 +169,15 @@ impl UIComponent for LoggerConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("Logger").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
-                    ui.label(format!("Log level: {}", self.log_level.to_string()));
+                    ui.label(format!("Log level: {}", self.log_level));
                     if let LogLevel::Internal(v) = &self.log_level {
                         ui.label("(");
                         for iv in v {
-                            ui.label(format!("{}, ", iv.to_string()));
+                            ui.label(format!("{}, ", iv));
                         }
                         ui.label(")");
                     }

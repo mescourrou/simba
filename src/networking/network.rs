@@ -57,7 +57,7 @@ impl UIComponent for NetworkConfig {
         _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        _unique_id: &String,
+        _unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Network").show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -81,7 +81,7 @@ impl UIComponent for NetworkConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("Network").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("Range (0 for no limit): {}", self.range));
@@ -316,15 +316,12 @@ impl Network {
             }
             let mut throw_message = false;
             for flag in &message_flags {
-                match flag {
-                    MessageFlag::Kill => {
-                        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                            debug!("Receive message from {from} to be killed");
-                        }
-                        node.pre_kill();
-                        throw_message = true;
+                if let MessageFlag::Kill = flag {
+                    if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                        debug!("Receive message from {from} to be killed");
                     }
-                    _ => (),
+                    node.pre_kill();
+                    throw_message = true;
                 }
             }
             if throw_message {

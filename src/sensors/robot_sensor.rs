@@ -69,7 +69,7 @@ impl UIComponent for RobotSensorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Robot sensor")
             .id_salt(format!("robot-sensor-{}", unique_id))
@@ -115,7 +115,7 @@ impl UIComponent for RobotSensorConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Robot sensor")
             .id_salt(format!("robot-sensor-{}", unique_id))
             .show(ui, |ui| {
@@ -148,7 +148,7 @@ impl Default for RobotSensorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for RobotSensorRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.label(format!("Last time: {}", self.last_time));
     }
 }
@@ -309,7 +309,7 @@ impl<'de> Deserialize<'de> for OrientedRobot {
             }
         }
 
-        const FIELDS: &'static [&'static str] = &["name", "x", "y", "theta"];
+        const FIELDS: &[&str] = &["name", "x", "y", "theta"];
         deserializer.deserialize_struct("OrientedRobot", FIELDS, OrientedRobotVisitor)
     }
 }
@@ -343,7 +343,7 @@ pub struct OrientedRobotObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OrientedRobotObservationRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Name: {}", self.name));
             ui.label(format!(
@@ -384,7 +384,7 @@ impl RobotSensor {
     /// The map path is relative to the config path of the simulator.
     pub fn from_config(
         config: &RobotSensorConfig,
-        _plugin_api: &Option<Box<&dyn PluginAPI>>,
+        _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
@@ -416,6 +416,12 @@ impl RobotSensor {
             faults: fault_models,
             filters,
         }
+    }
+}
+
+impl Default for RobotSensor {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -479,7 +485,9 @@ impl Sensor for RobotSensor {
                             .lock()
                             .unwrap()
                             .iter()
-                            .fold(Some(obs), |obs, filter| obs.and_then(|o| filter.filter(o, &state, Some(&other_state))))
+                            .try_fold(obs, |obs, filter| {
+                                filter.filter(obs, &state, Some(&other_state))
+                            })
                         {
                             new_obs.push(observation);
                             for fault_model in self.faults.lock().unwrap().iter() {
@@ -493,13 +501,11 @@ impl Sensor for RobotSensor {
                                 );
                             }
                             observation_list.extend(new_obs);
-                        } else {
-                            if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-                                debug!(
-                                    "Observation of node {} was filtered out",
-                                    &other_node_name.to_string()
-                                );
-                            }
+                        } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                            debug!(
+                                "Observation of node {} was filtered out",
+                                &other_node_name.to_string()
+                            );
                         }
                     };
                 }

@@ -98,11 +98,10 @@ pub fn derive_enum_to_string(item: TokenStream) -> TokenStream {
 
     quote! {
         #[automatically_derived]
-        impl ToString for #struct_identifier {
+        impl std::fmt::Display for #struct_identifier {
             #[allow(unreachable_patterns)]
-            fn to_string(&self) -> String {
-                String::from(
-                    match &self {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "{}", match &self {
                         #match_impl
                         _ => unimplemented!()
                     })

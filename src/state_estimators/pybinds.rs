@@ -18,7 +18,10 @@ use crate::{
     pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
     recordable::Recordable,
     sensors::sensor::Observation,
-    utils::maths::round_precision,
+    utils::{
+        maths::round_precision,
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+    },
 };
 
 use super::{
@@ -28,18 +31,12 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct PythonStateEstimatorAsyncClient {
-    pub prediction_step_request: mpsc::Sender<(NodeWrapper, f32)>,
-    pub prediction_step_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    pub correction_step_request: mpsc::Sender<(NodeWrapper, Vec<Observation>, f32)>,
-    pub correction_step_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    pub state_request: mpsc::Sender<()>,
-    pub state_response: Arc<Mutex<mpsc::Receiver<WorldState>>>,
-    pub next_time_step_request: mpsc::Sender<()>,
-    pub next_time_step_response: Arc<Mutex<mpsc::Receiver<f32>>>,
-    pub record_request: mpsc::Sender<()>,
-    pub record_response: Arc<Mutex<mpsc::Receiver<StateEstimatorRecord>>>,
-    pub pre_loop_hook_request: mpsc::Sender<(NodeWrapper, f32)>,
-    pub pre_loop_hook_response: Arc<Mutex<mpsc::Receiver<()>>>,
+    pub prediction_step: RemoteFunctionCall<PythonStateEstimatorPredictionStepRequest, ()>,
+    pub correction_step: RemoteFunctionCall<PythonStateEstimatorCorrectionStepRequest, ()>,
+    pub state: RemoteFunctionCall<(), WorldState>,
+    pub next_time_step: RemoteFunctionCall<(), f32>,
+    pub record: RemoteFunctionCall<(), StateEstimatorRecord>,
+    pub pre_loop_hook: RemoteFunctionCall<PythonStateEstimatorPreLoopHookRequest, ()>,
     letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
     letter_box_sender: Sender<Envelope>,
 }
@@ -49,87 +46,60 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start prediction step from async client");
         }
-        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
-        self.prediction_step_request.send((node_py, time)).unwrap();
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Start prediction step from async client: Request sent");
-        }
-        self.prediction_step_response
-            .lock()
+        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        self.prediction_step
+            .call(PythonStateEstimatorPredictionStepRequest {
+                node: node_py,
+                time,
+            })
             .unwrap()
-            .recv()
-            .unwrap();
     }
 
-    fn correction_step(&mut self, node: &mut Node, observations: &Vec<Observation>, time: f32) {
+    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start correction step from async client");
         }
-        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
-        self.correction_step_request
-            .send((node_py, observations.clone(), time))
-            .unwrap();
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Start correction step from async client: Request sent");
-        }
-        self.correction_step_response
-            .lock()
+        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        self.correction_step
+            .call(PythonStateEstimatorCorrectionStepRequest {
+                node: node_py,
+                observations: observations.to_vec(),
+                time,
+            })
             .unwrap()
-            .recv()
-            .unwrap();
     }
 
     fn next_time_step(&self) -> f32 {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Get next time step from async client");
         }
-        self.next_time_step_request.send(()).unwrap();
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Get next time step from async client: Request sent");
-        }
-        self.next_time_step_response
-            .lock()
-            .unwrap()
-            .recv()
-            .expect("Error during call of next_time_step")
+        self.next_time_step.call(()).unwrap()
     }
 
     fn world_state(&self) -> WorldState {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Get state from async client");
         }
-        self.state_request.send(()).unwrap();
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Get state from async client: Request sent");
-        }
-        self.state_response
-            .lock()
-            .unwrap()
-            .recv()
-            .expect("Error during call of state")
+        self.state.call(()).unwrap()
     }
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start pre loop hook from async client");
         }
-        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
-        self.pre_loop_hook_request.send((node_py, time)).unwrap();
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Start prediction step from async client: Request sent");
-        }
-        self.pre_loop_hook_response.lock().unwrap().recv().unwrap();
+        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        self.pre_loop_hook
+            .call(PythonStateEstimatorPreLoopHookRequest {
+                node: node_py,
+                time,
+            })
+            .unwrap()
     }
 }
 
 impl Recordable<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
     fn record(&self) -> StateEstimatorRecord {
-        self.record_request.send(()).unwrap();
-        self.record_response
-            .lock()
-            .unwrap()
-            .recv()
-            .expect("Error during call of record")
+        self.record.call(()).unwrap()
     }
 }
 
@@ -145,18 +115,31 @@ impl MessageHandler for PythonStateEstimatorAsyncClient {
 pub struct PythonStateEstimator {
     model: Py<PyAny>,
     client: PythonStateEstimatorAsyncClient,
-    prediction_step_request: Arc<Mutex<mpsc::Receiver<(NodeWrapper, f32)>>>,
-    prediction_step_response: mpsc::Sender<()>,
-    correction_step_request: Arc<Mutex<mpsc::Receiver<(NodeWrapper, Vec<Observation>, f32)>>>,
-    correction_step_response: mpsc::Sender<()>,
-    state_request: Arc<Mutex<mpsc::Receiver<()>>>,
-    state_response: mpsc::Sender<WorldState>,
-    next_time_step_request: Arc<Mutex<mpsc::Receiver<()>>>,
-    next_time_step_response: mpsc::Sender<f32>,
-    record_request: Arc<Mutex<mpsc::Receiver<()>>>,
-    record_response: mpsc::Sender<StateEstimatorRecord>,
-    pre_loop_hook_request: Arc<Mutex<Receiver<(NodeWrapper, f32)>>>,
-    pre_loop_hook_response: Sender<()>,
+    prediction_step: Arc<RemoteFunctionCallHost<PythonStateEstimatorPredictionStepRequest, ()>>,
+    correction_step: Arc<RemoteFunctionCallHost<PythonStateEstimatorCorrectionStepRequest, ()>>,
+    state: Arc<RemoteFunctionCallHost<(), WorldState>>,
+    next_time_step: Arc<RemoteFunctionCallHost<(), f32>>,
+    record: Arc<RemoteFunctionCallHost<(), StateEstimatorRecord>>,
+    pre_loop_hook: Arc<RemoteFunctionCallHost<PythonStateEstimatorPreLoopHookRequest, ()>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PythonStateEstimatorPredictionStepRequest {
+    pub node: NodeWrapper,
+    pub time: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct PythonStateEstimatorCorrectionStepRequest {
+    pub node: NodeWrapper,
+    pub observations: Vec<Observation>,
+    pub time: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct PythonStateEstimatorPreLoopHookRequest {
+    pub node: NodeWrapper,
+    pub time: f32,
 }
 
 #[pymethods]
@@ -164,54 +147,36 @@ impl PythonStateEstimator {
     #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 debug!("Model got: {}", py_model.bind(py).dir().unwrap());
             });
         }
-        let (prediction_request_tx, prediction_request_rx) = mpsc::channel();
-        let (prediction_response_tx, prediction_response_rx) = mpsc::channel();
-        let (correction_request_tx, correction_request_rx) = mpsc::channel();
-        let (correction_response_tx, correction_response_rx) = mpsc::channel();
-        let (state_request_tx, state_request_rx) = mpsc::channel();
-        let (state_response_tx, state_response_rx) = mpsc::channel();
-        let (next_time_step_request_tx, next_time_step_request_rx) = mpsc::channel();
-        let (next_time_step_response_tx, next_time_step_response_rx) = mpsc::channel();
-        let (record_request_tx, record_request_rx) = mpsc::channel();
-        let (record_response_tx, record_response_rx) = mpsc::channel();
-        let (pre_loop_hook_request_tx, pre_loop_hook_request_rx) = mpsc::channel();
-        let (pre_loop_hook_response_tx, pre_loop_hook_response_rx) = mpsc::channel();
+        let (prediction_step_client, prediction_step_host) = rfc::make_pair();
+        let (correction_step_client, correction_step_host) = rfc::make_pair();
+        let (state_client, state_host) = rfc::make_pair();
+        let (next_time_step_client, next_time_step_host) = rfc::make_pair();
+        let (record_client, record_host) = rfc::make_pair();
+        let (pre_loop_hook_client, pre_loop_hook_host) = rfc::make_pair();
         let (letter_box_tx, letter_box_rx) = mpsc::channel();
 
         PythonStateEstimator {
             model: py_model,
             client: PythonStateEstimatorAsyncClient {
-                prediction_step_request: prediction_request_tx,
-                prediction_step_response: Arc::new(Mutex::new(prediction_response_rx)),
-                correction_step_request: correction_request_tx,
-                correction_step_response: Arc::new(Mutex::new(correction_response_rx)),
-                state_request: state_request_tx,
-                state_response: Arc::new(Mutex::new(state_response_rx)),
-                next_time_step_request: next_time_step_request_tx,
-                next_time_step_response: Arc::new(Mutex::new(next_time_step_response_rx)),
-                record_request: record_request_tx,
-                record_response: Arc::new(Mutex::new(record_response_rx)),
-                pre_loop_hook_request: pre_loop_hook_request_tx,
-                pre_loop_hook_response: Arc::new(Mutex::new(pre_loop_hook_response_rx)),
+                prediction_step: prediction_step_client,
+                correction_step: correction_step_client,
+                state: state_client,
+                next_time_step: next_time_step_client,
+                record: record_client,
+                pre_loop_hook: pre_loop_hook_client,
                 letter_box_receiver: Arc::new(Mutex::new(letter_box_rx)),
                 letter_box_sender: letter_box_tx,
             },
-            prediction_step_request: Arc::new(Mutex::new(prediction_request_rx)),
-            prediction_step_response: prediction_response_tx,
-            correction_step_request: Arc::new(Mutex::new(correction_request_rx)),
-            correction_step_response: correction_response_tx,
-            state_request: Arc::new(Mutex::new(state_request_rx)),
-            state_response: state_response_tx,
-            next_time_step_request: Arc::new(Mutex::new(next_time_step_request_rx)),
-            next_time_step_response: next_time_step_response_tx,
-            record_request: Arc::new(Mutex::new(record_request_rx)),
-            record_response: record_response_tx,
-            pre_loop_hook_request: Arc::new(Mutex::new(pre_loop_hook_request_rx)),
-            pre_loop_hook_response: pre_loop_hook_response_tx,
+            prediction_step: Arc::new(prediction_step_host),
+            correction_step: Arc::new(correction_step_host),
+            state: Arc::new(state_host),
+            next_time_step: Arc::new(next_time_step_host),
+            record: Arc::new(record_host),
+            pre_loop_hook: Arc::new(pre_loop_hook_host),
         }
     }
 }
@@ -222,78 +187,24 @@ impl PythonStateEstimator {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((node, time)) = self
-            .prediction_step_request
+        self.prediction_step
             .clone()
-            .lock()
-            .unwrap()
-            .try_recv()
-        {
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Request for prediction step received");
-            }
-            self.prediction_step(node, time);
-            self.prediction_step_response.send(()).unwrap();
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Response for prediction step sent");
-            }
-        }
-        if let Ok((node, obs, time)) = self
-            .correction_step_request
+            .try_recv_closure_mut(|request| self.prediction_step(request.node, request.time));
+        self.correction_step
             .clone()
-            .lock()
-            .unwrap()
-            .try_recv()
-        {
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Request for correction step received");
-            }
-            self.correction_step(node, &obs, time);
-            self.correction_step_response.send(()).unwrap();
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Response for correction step sent");
-            }
-        }
-        if let Ok(()) = self.state_request.clone().lock().unwrap().try_recv() {
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Request for state received");
-            }
-            self.state_response.send(self.world_state()).unwrap();
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Response for state sent");
-            }
-        }
-        if let Ok(()) = self
-            .next_time_step_request
+            .try_recv_closure_mut(|request| {
+                self.correction_step(request.node, &request.observations, request.time)
+            });
+        self.state
             .clone()
-            .lock()
-            .unwrap()
-            .try_recv()
-        {
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Request for next time step received");
-            }
-            self.next_time_step_response
-                .send(self.next_time_step())
-                .unwrap();
-
-            if is_enabled(crate::logger::InternalLog::API) {
-                debug!("Response for next time step sent");
-            }
-        }
-        if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
-            self.record_response.send(self.record()).unwrap();
-        }
-        if let Ok((node, time)) = self
-            .pre_loop_hook_request
+            .try_recv_closure_mut(|()| self.world_state());
+        self.next_time_step
             .clone()
-            .lock()
-            .unwrap()
-            .try_recv()
-        {
-            self.pre_loop_hook(node, time);
-            self.pre_loop_hook_response.send(()).unwrap();
-        }
+            .try_recv_closure_mut(|()| self.next_time_step());
+        self.record.clone().try_recv_closure_mut(|()| self.record());
+        self.pre_loop_hook
+            .clone()
+            .try_recv_closure_mut(|request| self.pre_loop_hook(request.node, request.time));
     }
 
     fn prediction_step(&mut self, node: NodeWrapper, time: f32) {
@@ -301,7 +212,7 @@ impl PythonStateEstimator {
             debug!("Calling python implementation of prediction_step");
         }
         // let node_record = node.record();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             if let Err(e) = self
                 .model
                 .bind(py)
@@ -321,7 +232,7 @@ impl PythonStateEstimator {
         for obs in observations {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             if let Err(e) = self.model.bind(py).call_method(
                 "correction_step",
                 (node, observation_py, time),
@@ -337,7 +248,7 @@ impl PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of state");
         }
-        let state = Python::with_gil(|py| -> WorldStateWrapper {
+        let state = Python::attach(|py| -> WorldStateWrapper {
             match self.model
                 .bind(py)
                 .call_method("state", (), None) {
@@ -359,7 +270,7 @@ impl PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of next_time_step");
         }
-        let time = Python::with_gil(|py| {
+        let time = Python::attach(|py| {
             match self.model
                 .bind(py)
                 .call_method("next_time_step", (), None) {
@@ -380,7 +291,7 @@ impl PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::with_gil(|py| {
+        let record_str: String = Python::attach(|py| {
             match self.model
                 .bind(py)
                 .call_method("record", (), None) {
@@ -408,17 +319,14 @@ impl PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        Python::with_gil(|py: Python<'_>| {
-            match self
+        Python::attach(|py: Python<'_>| {
+            if let Err(e) = self
                 .model
                 .bind(py)
                 .call_method("pre_loop_hook", (node, time), None)
             {
-                Err(e) => {
-                    e.display(py);
-                    panic!("Error while calling 'next_time_step' method of PythonEstimator.");
-                }
-                Ok(_) => {}
+                e.display(py);
+                panic!("Error while calling 'pre_loop_hook' method of PythonEstimator.");
             }
         });
     }

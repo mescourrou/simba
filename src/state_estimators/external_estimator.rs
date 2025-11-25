@@ -74,7 +74,7 @@ impl UIComponent for ExternalEstimatorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("External State Estimator").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -90,7 +90,7 @@ impl UIComponent for ExternalEstimatorConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("External State Estimator").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.label("Config (JSON):");
@@ -125,7 +125,7 @@ impl Default for ExternalEstimatorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ExternalEstimatorRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.label(self.record.to_string());
     }
 }
@@ -168,7 +168,7 @@ impl ExternalEstimator {
     /// * `_va_factory` -- Factory for Determinists random variables.
     pub fn from_config(
         config: &ExternalEstimatorConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Self {
@@ -181,6 +181,12 @@ impl ExternalEstimator {
                 .expect("Plugin API not set!")
                 .get_state_estimator(&config.config, global_config, va_factory),
         }
+    }
+}
+
+impl Default for ExternalEstimator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -199,7 +205,7 @@ impl StateEstimator for ExternalEstimator {
         self.state_estimator.prediction_step(node, time);
     }
 
-    fn correction_step(&mut self, node: &mut Node, observations: &Vec<Observation>, time: f32) {
+    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32) {
         self.state_estimator
             .correction_step(node, observations, time);
     }

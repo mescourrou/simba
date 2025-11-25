@@ -63,7 +63,7 @@ impl UIComponent for OdometrySensorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Odometry sensor")
             .id_salt(format!("odometry-sensor-{}", unique_id))
@@ -98,7 +98,7 @@ impl UIComponent for OdometrySensorConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Odometry sensor")
             .id_salt(format!("odometry-sensor-{}", unique_id))
             .show(ui, |ui| {
@@ -131,7 +131,7 @@ impl Default for OdometrySensorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OdometrySensorRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.label(format!("Last time: {}", self.last_time));
         ui.label("Last state: ");
         self.last_state.show(ui, ctx, unique_id);
@@ -163,7 +163,7 @@ pub struct OdometryObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for OdometryObservationRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Linear velocity: {}", self.linear_velocity));
             ui.label(format!("Angular velocity: {}", self.angular_velocity));
@@ -199,7 +199,7 @@ impl OdometrySensor {
     /// Makes a new [`OdometrySensor`] from the given config.
     pub fn from_config(
         config: &OdometrySensorConfig,
-        _plugin_api: &Option<Box<&dyn PluginAPI>>,
+        _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
@@ -230,6 +230,12 @@ impl OdometrySensor {
             faults: fault_models,
             filters,
         }
+    }
+}
+
+impl Default for OdometrySensor {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -270,7 +276,7 @@ impl Sensor for OdometrySensor {
             .lock()
             .unwrap()
             .iter()
-            .fold(Some(obs), |obs, filter| obs.and_then(|o| filter.filter(o, &state, None)))
+            .try_fold(obs, |obs, filter| filter.filter(obs, &state, None))
         {
             observation_list.push(obs);
             for fault_model in self.faults.lock().unwrap().iter() {
@@ -281,10 +287,8 @@ impl Sensor for OdometrySensor {
                     SensorObservation::Odometry(OdometryObservation::default()),
                 );
             }
-        } else {
-            if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-                debug!("Odometry observation was filtered out");
-            }
+        } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+            debug!("Odometry observation was filtered out");
         }
 
         self.last_time = time;

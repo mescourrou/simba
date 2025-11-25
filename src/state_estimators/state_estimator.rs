@@ -44,7 +44,7 @@ impl UIComponent for StateConfig {
         _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        _unique_id: &String,
+        _unique_id: &str,
     ) {
         ui.horizontal(|ui| {
             ui.label("x: ");
@@ -64,9 +64,9 @@ impl UIComponent for StateConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.horizontal(|ui| {
-            ui.label(format!("x: {}", self.pose.get(0).unwrap()));
+            ui.label(format!("x: {}", self.pose.first().unwrap()));
         });
         ui.horizontal(|ui| {
             ui.label(format!("y: {}", self.pose.get(1).unwrap()));
@@ -100,7 +100,7 @@ impl Default for StateRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for StateRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!(
                 "pose: ({}, {}, {})",
@@ -131,7 +131,7 @@ impl State {
 
     pub fn from_vector(vec: Vec<f32>) -> Self {
         let mut state = State::new();
-        if vec.len() >= 1 {
+        if !vec.is_empty() {
             state.pose.x = vec[0];
         }
         if vec.len() >= 2 {
@@ -147,13 +147,11 @@ impl State {
     pub fn from_config(config: &StateConfig) -> Self {
         let mut state = Self::new();
 
-        let mut i: usize = 0;
-        for coord in &config.pose {
+        for (i, coord) in config.pose.iter().enumerate() {
             if i >= 3 {
                 break;
             }
             state.pose[i] = *coord;
-            i += 1;
         }
         state.velocity = config.velocity;
         state
@@ -162,6 +160,12 @@ impl State {
     pub fn theta_modulo(mut self) -> Self {
         self.pose.z = mod2pi(self.pose.z);
         self
+    }
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -197,7 +201,7 @@ impl fmt::Display for State {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct WorldStateRecord {
     pub ego: Option<StateRecord>,
     pub objects: BTreeMap<String, StateRecord>,
@@ -205,20 +209,9 @@ pub struct WorldStateRecord {
     pub occupancy_grid: Option<OccupancyGrid>,
 }
 
-impl Default for WorldStateRecord {
-    fn default() -> Self {
-        Self {
-            ego: None,
-            landmarks: BTreeMap::new(),
-            objects: BTreeMap::new(),
-            occupancy_grid: None,
-        }
-    }
-}
-
 #[cfg(feature = "gui")]
 impl UIComponent for WorldStateRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             if let Some(s) = &self.ego {
                 egui::CollapsingHeader::new("Ego").show(ui, |ui| {
@@ -250,7 +243,7 @@ impl UIComponent for WorldStateRecord {
 }
 
 /// Full State to be estimated.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct WorldState {
     pub ego: Option<State>,
     pub objects: BTreeMap<String, State>,
@@ -272,15 +265,8 @@ impl WorldState {
 impl Recordable<WorldStateRecord> for WorldState {
     fn record(&self) -> WorldStateRecord {
         WorldStateRecord {
-            ego: match &self.ego {
-                Some(s) => Some(s.record()),
-                None => None,
-            },
-            landmarks: BTreeMap::from_iter(
-                self.landmarks
-                    .iter()
-                    .map(|(id, s)| (id.clone(), s.record())),
-            ),
+            ego: self.ego.as_ref().map(|s| s.record()),
+            landmarks: BTreeMap::from_iter(self.landmarks.iter().map(|(id, s)| (*id, s.record()))),
             objects: BTreeMap::from_iter(
                 self.objects.iter().map(|(id, s)| (id.clone(), s.record())),
             ),
@@ -289,7 +275,6 @@ impl Recordable<WorldStateRecord> for WorldState {
     }
 }
 
-use super::perfect_estimator::PerfectEstimatorConfig;
 use super::{external_estimator, perfect_estimator};
 
 #[cfg(feature = "gui")]
@@ -337,7 +322,7 @@ impl UIComponent for StateEstimatorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let mut current_str = self.to_string();
         ui.horizontal(|ui| {
@@ -400,9 +385,9 @@ impl UIComponent for StateEstimatorConfig {
         }
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.horizontal(|ui| {
-            ui.label(format!("State Estimator: {}", self.to_string()));
+            ui.label(format!("State Estimator: {}", self));
         });
         match self {
             StateEstimatorConfig::Perfect(c) => c.show(ui, ctx, unique_id),
@@ -422,7 +407,7 @@ pub enum StateEstimatorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for StateEstimatorRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| match self {
             Self::Perfect(r) => {
                 egui::CollapsingHeader::new("Perfect").show(ui, |ui| {
@@ -448,11 +433,11 @@ impl UIComponent for StateEstimatorRecord {
  */
 pub fn make_state_estimator_from_config(
     config: &StateEstimatorConfig,
-    plugin_api: &Option<Box<&dyn PluginAPI>>,
+    plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
 ) -> Box<dyn StateEstimator> {
-    return match config {
+    match config {
         StateEstimatorConfig::Perfect(c) => Box::new(
             perfect_estimator::PerfectEstimator::from_config(c, global_config),
         ) as Box<dyn StateEstimator>,
@@ -468,7 +453,7 @@ pub fn make_state_estimator_from_config(
             Box::new(python_estimator::PythonEstimator::from_config(c, global_config).unwrap())
                 as Box<dyn StateEstimator>
         }
-    };
+    }
 }
 
 use crate::sensors::sensor::Observation;
@@ -486,7 +471,7 @@ pub trait StateEstimator:
     ///
     /// ## Arguments
     /// * `node` -- mutable reference on the current [`Node`] to be able to interact with
-    /// other modules.
+    ///   other modules.
     /// * `time` -- Time to reach.
     fn prediction_step(&mut self, node: &mut Node, time: f32);
 
@@ -497,10 +482,10 @@ pub trait StateEstimator:
     ///
     /// ## Arguments
     /// * `node` -- mutable reference on the current [`Node`] to be able to interact with
-    /// other modules.
+    ///   other modules.
     /// * `observations` -- Observation vector.
     /// * `time` -- Current time.
-    fn correction_step(&mut self, node: &mut Node, observations: &Vec<Observation>, time: f32);
+    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32);
 
     /// Return the current estimated state.
     fn world_state(&self) -> WorldState;
@@ -541,7 +526,7 @@ impl UIComponent for BenchStateEstimatorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -565,7 +550,7 @@ impl UIComponent for BenchStateEstimatorConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("Name: {}", self.name));

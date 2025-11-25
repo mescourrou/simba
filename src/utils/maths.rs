@@ -46,6 +46,12 @@ impl Integrator {
     }
 }
 
+impl Default for Integrator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Derivator {
     previous_value: f32,
@@ -66,5 +72,11 @@ impl Derivator {
         let deriv = (next_value - self.previous_value) / dt;
         self.previous_value = next_value;
         deriv
+    }
+}
+
+impl Default for Derivator {
+    fn default() -> Self {
+        Self::new()
     }
 }

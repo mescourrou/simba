@@ -21,13 +21,16 @@ pub struct UnicycleCommand {
 
 impl Default for UnicycleCommand {
     fn default() -> Self {
-        Self { left_wheel_speed: 0., right_wheel_speed: 0. }
+        Self {
+            left_wheel_speed: 0.,
+            right_wheel_speed: 0.,
+        }
     }
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for UnicycleCommand {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Left wheel speed: {}", self.left_wheel_speed));
             ui.label(format!("Right wheel speed: {}", self.right_wheel_speed));
@@ -53,7 +56,7 @@ impl UIComponent for UnicycleConfig {
         _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Unicycle model")
             .id_salt(format!("unicycle-model-{}", unique_id))
@@ -68,7 +71,7 @@ impl UIComponent for UnicycleConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Unicycle model")
             .id_salt(format!("unicycle-model-{}", unique_id))
             .show(ui, |ui| {
@@ -120,7 +123,7 @@ impl RobotModel for Unicycle {
         let lie_action =
             SMatrix::<f32, 3, 3>::new(0., -rotation, translation, rotation, 0., 0., 0., 0., 0.);
 
-        let rot_mat = nalgebra::Rotation2::new(theta).matrix().clone();
+        let rot_mat = *nalgebra::Rotation2::new(theta).matrix();
 
         let mut se2_mat = SMatrix::<f32, 3, 3>::new(
             rot_mat[(0, 0)],
@@ -134,7 +137,7 @@ impl RobotModel for Unicycle {
             1.,
         );
 
-        se2_mat = se2_mat * lie_action.exp();
+        se2_mat *= lie_action.exp();
 
         // let rot = nalgebra::Rotation2::from_matrix(&se2_mat.fixed_view::<2, 2>(0, 0).into());
         // self.state.pose.z = rot.angle();

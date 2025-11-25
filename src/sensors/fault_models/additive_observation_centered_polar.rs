@@ -62,7 +62,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
@@ -85,7 +85,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = vec!["r", "theta", "orientation"]
+            let possible_variables = ["r", "theta", "orientation"]
                 .iter()
                 .map(|x| String::from(*x))
                 .collect();
@@ -95,7 +95,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                     let unique_var_id = format!("variable-{i}-{unique_id}");
                     string_combobox(ui, &possible_variables, var, unique_var_id);
                 }
-                if self.variable_order.len() > 0 && ui.button("-").clicked() {
+                if !self.variable_order.is_empty() && ui.button("-").clicked() {
                     self.variable_order.pop();
                 }
                 if ui.button("+").clicked() {
@@ -110,7 +110,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label("Apparition probability: ");
@@ -147,7 +147,7 @@ impl AdditiveObservationCenteredPolarFault {
                 .map(|conf| va_factory.make_variable(conf.clone()))
                 .collect::<Vec<Box<dyn DeterministRandomVariable>>>(),
         ));
-        if config.variable_order.len() != 0 {
+        if !config.variable_order.is_empty() {
             assert!(
                 config.variable_order.len()
                     == distributions
@@ -195,13 +195,13 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     let mut r_add = 0.;
                     let mut z_add = 0.;
                     let mut theta_add = 0.;
-                    if self.variable_order.len() > 0 {
-                        for i in 0..self.variable_order.len() {
-                            match self.variable_order[i].as_str() {
+                    if !self.variable_order.is_empty() {
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
                                 "z" | "orientation" => z_add = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", self.variable_order[i])
+                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", variable)
                             }
                         }
                     } else {
@@ -214,7 +214,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     let theta = atan2f(o.pose.y, o.pose.x) + theta_add; // 0 of polar angle is the direction of the robot
                     o.pose.x += r_add * theta.cos();
                     o.pose.y += r_add * theta.sin();
-                    o.pose.z = o.pose.z + z_add;
+                    o.pose.z += z_add;
                     o.pose.z = mod2pi(o.pose.z);
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveObservationCenteredPolar(
@@ -224,12 +224,12 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                 SensorObservation::GNSS(o) => {
                     let mut r_add = 0.;
                     let mut theta_add = 0.;
-                    if self.variable_order.len() > 0 {
-                        for i in 0..self.variable_order.len() {
-                            match self.variable_order[i].as_str() {
+                    if !self.variable_order.is_empty() {
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta]", self.variable_order[i])
+                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta]", variable)
                             }
                         }
                     } else {
@@ -252,13 +252,13 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     let mut r_add = 0.;
                     let mut z_add = 0.;
                     let mut theta_add = 0.;
-                    if self.variable_order.len() > 0 {
-                        for i in 0..self.variable_order.len() {
-                            match self.variable_order[i].as_str() {
+                    if !self.variable_order.is_empty() {
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
                                 "z" | "orientation" => z_add = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", self.variable_order[i])
+                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", variable)
                             }
                         }
                     } else {
@@ -270,7 +270,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     let theta = atan2f(o.pose.y, o.pose.x) + theta_add; // 0 of polar angle is the direction of the landmark
                     o.pose.x += r_add * theta.cos();
                     o.pose.y += r_add * theta.sin();
-                    o.pose.z = o.pose.z + z_add;
+                    o.pose.z += z_add;
                     o.pose.z = mod2pi(o.pose.z);
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveObservationCenteredPolar(

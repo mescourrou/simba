@@ -23,8 +23,7 @@ use crate::{
     },
     node::Node,
     physics::{
-        internal_physics,
-        physics::{self, PhysicsConfig, PhysicsRecord},
+        internal_physics, {self, PhysicsConfig, PhysicsRecord},
     },
     plugin_api::PluginAPI,
     sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
@@ -37,10 +36,7 @@ use crate::{
         },
     },
     time_analysis::TimeAnalysisFactory,
-    utils::{
-        determinist_random_variable::DeterministRandomVariableFactory,
-        time_ordered_data::TimeOrderedData,
-    },
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -112,7 +108,8 @@ impl NodeType {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum NodeRecord {
-    Robot(RobotRecord),
+    // Box RobotRecord to reduce size of NodeRecord
+    Robot(Box<RobotRecord>),
     ComputationUnit(ComputationUnitRecord),
 }
 
@@ -177,7 +174,7 @@ impl NodeRecord {
 }
 
 ////////////////////////
-//// ROBOT
+/*        ROBOT       */
 ////////////////////////
 
 /// Configuration of the [`NodeType::Robot`].
@@ -247,7 +244,7 @@ impl UIComponent for RobotConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let name_copy = self.name.clone();
         let current_node_name = Some(&name_copy);
@@ -339,7 +336,7 @@ impl UIComponent for RobotConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("Name: {}", self.name));
@@ -387,7 +384,7 @@ pub struct RobotRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for RobotRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Name: {}", self.name));
 
@@ -422,7 +419,7 @@ impl UIComponent for RobotRecord {
 }
 
 ////////////////////////
-//// ComputationUnit
+/* ComputationUnit    */
 ////////////////////////
 
 /// Configuration of the [`NodeType::ComputationUnit`].
@@ -462,7 +459,7 @@ impl UIComponent for ComputationUnitConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let name_copy = self.name.clone();
         let current_node_name = Some(&name_copy);
@@ -514,7 +511,7 @@ impl UIComponent for ComputationUnitConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label(format!("Name: {}", self.name));
@@ -546,7 +543,7 @@ pub struct ComputationUnitRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ComputationUnitRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Name: {}", self.name));
 
@@ -565,7 +562,7 @@ impl UIComponent for ComputationUnitRecord {
 }
 
 ////////////////////////
-//// Factory
+/*      Factory       */
 ////////////////////////
 
 pub struct NodeFactory {}
@@ -573,7 +570,7 @@ pub struct NodeFactory {}
 impl NodeFactory {
     pub fn make_robot(
         config: &RobotConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         time_analysis_factory: &mut TimeAnalysisFactory,
@@ -671,7 +668,7 @@ impl NodeFactory {
 
     pub fn make_computation_unit(
         config: &ComputationUnitConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         time_analysis_factory: &mut TimeAnalysisFactory,

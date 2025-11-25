@@ -2,11 +2,13 @@
 Module providing the interface to use external Python [`Physics`].
 */
 
+use std::ffi::CString;
 use std::fs;
 use std::str::FromStr;
 
 use config_checker::macros::Check;
 use log::{debug, info};
+use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use pyo3::{pyclass, pymethods, PyResult, Python};
@@ -19,7 +21,7 @@ use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
     networking::service::HasService,
-    physics::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord},
+    physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord},
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
     simulator::SimulatorConfig,
@@ -72,7 +74,7 @@ impl UIComponent for PythonPhysicsConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("External Python Physics").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -98,7 +100,7 @@ impl UIComponent for PythonPhysicsConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("External Python Physics").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
@@ -141,7 +143,7 @@ impl Default for PythonPhysicsRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PythonPhysicsRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.label(self.record.to_string());
     }
 }
@@ -181,12 +183,10 @@ impl PythonPhysics {
             debug!("Config given: {:?}", config);
         }
 
-        // prepare_freethreaded_python();
-
         let json_config = serde_json::to_string(&config)
             .expect("Error during converting Python Physics config to json");
 
-        let convert_to_dict = r#"
+        let convert_to_dict = cr#"
 import json
 class NoneDict(dict):
     """ dict subclass that returns a value of None for missing keys instead
@@ -216,18 +216,18 @@ def convert(records):
                     ),
                 ))
             }
-            Ok(s) => s,
+            Ok(s) => CString::new(s).unwrap(),
         };
-        let res = Python::with_gil(|py| -> PyResult<Py<PyAny>> {
-            let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
+        let res = Python::attach(|py| -> PyResult<Py<PyAny>> {
+            let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
-            let config_dict = convert_fn.call_bound(py, (json_config,), None)?;
+            let config_dict = convert_fn.call(py, (json_config,), None)?;
 
-            let script = PyModule::from_code_bound(py, &python_script, "", "")?;
+            let script = PyModule::from_code(py, &python_script, c_str!(""), c_str!(""))?;
             let physics_class: Py<PyAny> = script.getattr(config.class_name.as_str())?.into();
             info!("Load Physics class {} ...", config.class_name);
 
-            let res = physics_class.call_bound(py, (config_dict,), None);
+            let res = physics_class.call(py, (config_dict,), None);
             let physics_instance = match res {
                 Err(err) => {
                     err.display(py);
@@ -264,7 +264,7 @@ impl Physics for PythonPhysics {
             debug!("Calling python implementation of apply_command");
         }
         // let robot_record = robot.record();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             if let Err(e) = self.physics.bind(py).call_method(
                 "apply_command",
                 (CommandWrapper::from_rust(command), time),
@@ -281,7 +281,7 @@ impl Physics for PythonPhysics {
             debug!("Calling python implementation of update_state");
         }
         // let robot_record = robot.record();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             if let Err(e) = self
                 .physics
                 .bind(py)
@@ -298,7 +298,7 @@ impl Physics for PythonPhysics {
             debug!("Calling python implementation of state");
         }
         // let robot_record = robot.record();
-        let state = Python::with_gil(|py| -> StateWrapper {
+        let state = Python::attach(|py| -> StateWrapper {
             match self.physics.bind(py).call_method("state", (time,), None) {
                 Err(e) => {
                     e.display(py);
@@ -318,7 +318,7 @@ impl Recordable<PhysicsRecord> for PythonPhysics {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::with_gil(|py| {
+        let record_str: String = Python::attach(|py| {
             match self.physics
                 .bind(py)
                 .call_method("record", (), None) {

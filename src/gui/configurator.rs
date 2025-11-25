@@ -41,7 +41,7 @@ impl Configurator {
             }
             ui.horizontal(|ui| {
                 ui.label("Save to: ");
-                path_finder(ui, &mut self.save_path, &Path::new("."));
+                path_finder(ui, &mut self.save_path, Path::new("."));
                 if ui.button("Save").clicked() {
                     confy::store_path(&self.save_path, &self.current_config).unwrap();
                 }

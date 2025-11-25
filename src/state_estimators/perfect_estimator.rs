@@ -60,7 +60,7 @@ impl UIComponent for PerfectEstimatorConfig {
         _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Perfect Estimator")
             .id_salt(format!("perfect-estimator-{}", unique_id))
@@ -108,7 +108,7 @@ impl UIComponent for PerfectEstimatorConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Perfect Estimator")
             .id_salt(format!("perfect-estimator-{}", unique_id))
             .show(ui, |ui| {
@@ -146,7 +146,7 @@ pub struct PerfectEstimatorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PerfectEstimatorRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             egui::CollapsingHeader::new("World state").show(ui, |ui| {
                 self.world_state.show(ui, ctx, unique_id);
@@ -191,11 +191,11 @@ impl PerfectEstimator {
         }
         if let Some(map_path) = &config.map_path {
             let mut map_path = Path::new(map_path);
-            let joined_path = global_config.base_path.join(&map_path);
+            let joined_path = global_config.base_path.join(map_path);
             if map_path.is_relative() {
                 map_path = joined_path.as_path();
             }
-            let landmarks = OrientedLandmarkSensor::load_map_from_path(&map_path);
+            let landmarks = OrientedLandmarkSensor::load_map_from_path(map_path);
             for landmark in landmarks {
                 world_state.landmarks.insert(
                     landmark.id,
@@ -212,6 +212,12 @@ impl PerfectEstimator {
             world_state,
             last_time_prediction: 0.,
         }
+    }
+}
+
+impl Default for PerfectEstimator {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -264,7 +270,7 @@ impl StateEstimator for PerfectEstimator {
         self.last_time_prediction = time;
     }
 
-    fn correction_step(&mut self, _node: &mut Node, _observations: &Vec<Observation>, _time: f32) {
+    fn correction_step(&mut self, _node: &mut Node, _observations: &[Observation], _time: f32) {
         info!("Got observations at time {_time}: {:?}", _observations);
     }
 

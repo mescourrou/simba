@@ -1,21 +1,17 @@
-#[allow(unused_variables)]
 use serde::{Deserialize, Serialize};
-use simba::api::async_api::{AsyncApiRunner, PluginAsyncAPI};
 use simba::controllers::controller::ControllerError;
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::navigator::{Navigator, NavigatorRecord};
 use simba::networking::message_handler::MessageHandler;
 use simba::networking::network::Envelope;
 use simba::plugin_api::PluginAPI;
+use simba::pybinds::PythonAPI;
 use simba::recordable::Recordable;
 use simba::simulator::{AsyncSimulator, Simulator, SimulatorConfig};
-use simba::state_estimators::state_estimator::{
-    StateEstimator, WorldState,
-};
+use simba::state_estimators::state_estimator::{StateEstimator, WorldState};
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
-use simba::pybinds::PythonAPI;
 
 use pyo3::prelude::*;
 
@@ -86,7 +82,6 @@ struct MyWonderfulPlugin {
 }
 
 impl PluginAPI for MyWonderfulPlugin {
-    
     // Rust Navigator
     fn get_navigator(
         &self,
@@ -106,7 +101,8 @@ impl PluginAPI for MyWonderfulPlugin {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn StateEstimator> {
-        self.python_api.get_state_estimator(config, global_config, va_factory)
+        self.python_api
+            .get_state_estimator(config, global_config, va_factory)
     }
 
     fn check_requests(&self) {
@@ -117,10 +113,9 @@ impl PluginAPI for MyWonderfulPlugin {
 #[pymodule]
 mod my_rust_plugin {
     #[pymodule_export]
-    use simba::simba;
-    #[pymodule_export]
     use super::start;
-    
+    #[pymodule_export]
+    use simba::simba;
 }
 
 #[pyfunction]
@@ -132,14 +127,15 @@ fn start(python_api: Py<PyAny>) {
         python_api: PythonAPI::new(python_api),
     };
 
-    let my_plugin = Some(Box::new(my_plugin) as Box<dyn PluginAPI>);
+    let my_plugin = Some(Arc::new(my_plugin) as Arc<dyn PluginAPI>);
 
-    let mut simulator = match AsyncSimulator::from_config("config_plugin.yaml".to_string(), &my_plugin) {
-        Ok(simulator) => simulator,
-        Err(e) => {
-            panic!("Failed to create simulator: {}", e);
-        }
-    };
+    let mut simulator =
+        match AsyncSimulator::from_config("config_plugin.yaml".to_string(), &my_plugin) {
+            Ok(simulator) => simulator,
+            Err(e) => {
+                panic!("Failed to create simulator: {}", e);
+            }
+        };
     simulator.run(&my_plugin, Some(20.), false);
     let _ = simulator.get_records(false);
     simulator.run(&my_plugin, Some(40.), false);

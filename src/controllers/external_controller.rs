@@ -72,7 +72,7 @@ impl UIComponent for ExternalControllerConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("External Controller").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -88,7 +88,7 @@ impl UIComponent for ExternalControllerConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("External Controller").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.label("Config (JSON):");
@@ -123,7 +123,7 @@ impl Default for ExternalControllerRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ExternalControllerRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.label(self.record.to_string());
     }
 }
@@ -166,7 +166,7 @@ impl ExternalController {
     /// * `_va_factory` -- Factory for Determinists random variables
     pub fn from_config(
         config: &ExternalControllerConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Self {
@@ -179,6 +179,12 @@ impl ExternalController {
                 .expect("Plugin API not set!")
                 .get_controller(&config.config, global_config, va_factory),
         }
+    }
+}
+
+impl Default for ExternalController {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

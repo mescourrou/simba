@@ -52,10 +52,10 @@ impl UIComponent for RangeFilterConfig {
         _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &crate::simulator::SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.vertical(|ui| {
-            let possible_variables = vec![
+            let possible_variables = [
                 "x",
                 "y",
                 "orientation",
@@ -78,7 +78,7 @@ impl UIComponent for RangeFilterConfig {
                     let unique_var_id = format!("variable-{i}-{unique_id}");
                     string_combobox(ui, &possible_variables, var, unique_var_id);
                 }
-                if self.variables.len() > 0 && ui.button("-").clicked() {
+                if !self.variables.is_empty() && ui.button("-").clicked() {
                     self.variables.pop();
                     self.max_range.pop();
                     self.min_range.pop();
@@ -95,9 +95,9 @@ impl UIComponent for RangeFilterConfig {
                 }
             });
 
-            for i in 0..self.variables.len() {
+            for (i, variable) in self.variables.iter().enumerate() {
                 ui.horizontal(|ui| {
-                    ui.label(format!("Range for {}:", self.variables[i]));
+                    ui.label(format!("Range for {}:", variable));
                     ui.add(egui::DragValue::new(&mut self.min_range[i]));
                     ui.label("-");
                     ui.add(egui::DragValue::new(&mut self.max_range[i]));
@@ -111,7 +111,7 @@ impl UIComponent for RangeFilterConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label("Variable order:");
             for (i, var) in self.variables.iter().enumerate() {
@@ -165,11 +165,9 @@ impl SensorFilter for RangeFilter {
                             keep = false;
                             break;
                         }
-                    } else {
-                        if in_range {
-                            keep = false;
-                            break;
-                        }
+                    } else if in_range {
+                        keep = false;
+                        break;
                     }
                 }
             }
@@ -187,11 +185,9 @@ impl SensorFilter for RangeFilter {
                             keep = false;
                             break;
                         }
-                    } else {
-                        if in_range {
-                            keep = false;
-                            break;
-                        }
+                    } else if in_range {
+                        keep = false;
+                        break;
                     }
                 }
             }
@@ -225,11 +221,9 @@ impl SensorFilter for RangeFilter {
                             keep = false;
                             break;
                         }
-                    } else {
-                        if in_range {
-                            keep = false;
-                            break;
-                        }
+                    } else if in_range {
+                        keep = false;
+                        break;
                     }
                 }
             }
@@ -270,11 +264,9 @@ impl SensorFilter for RangeFilter {
                             keep = false;
                             break;
                         }
-                    } else {
-                        if in_range {
-                            keep = false;
-                            break;
-                        }
+                    } else if in_range {
+                        keep = false;
+                        break;
                     }
                 }
             }

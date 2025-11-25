@@ -39,7 +39,7 @@ impl UIComponent for NavigatorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let mut current_str = self.to_string();
         ui.horizontal(|ui| {
@@ -110,9 +110,9 @@ impl UIComponent for NavigatorConfig {
         }
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.horizontal(|ui| {
-            ui.label(format!("Navigator: {}", self.to_string()));
+            ui.label(format!("Navigator: {}", self));
         });
 
         match self {
@@ -135,7 +135,7 @@ pub enum NavigatorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for NavigatorRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| match self {
             Self::TrajectoryFollower(r) => {
                 egui::CollapsingHeader::new("TrajectoryFollower").show(ui, |ui| {
@@ -190,7 +190,7 @@ pub trait Navigator:
 /// - `va_factory`: Random variables factory for determinist behavior.
 pub fn make_navigator_from_config(
     config: &NavigatorConfig,
-    plugin_api: &Option<Box<&dyn PluginAPI>>,
+    plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
 ) -> Arc<RwLock<Box<dyn Navigator>>> {

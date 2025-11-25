@@ -56,9 +56,9 @@ fn doit(args: Cli) -> SimbaResult<()> {
     }
 
     let config_path = if let Some(p) = &args.config_path {
-        Some(Box::new(Path::new(unsafe {
+        Some(Path::new(unsafe {
             std::mem::transmute::<&String, &'static String>(p)
-        })))
+        }))
     } else {
         None
     };

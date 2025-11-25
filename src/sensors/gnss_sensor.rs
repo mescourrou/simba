@@ -22,7 +22,6 @@ use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
-use libc::RTEXT_FILTER_SKIP_STATS;
 use log::debug;
 use nalgebra::Vector2;
 use serde_derive::{Deserialize, Serialize};
@@ -63,7 +62,7 @@ impl UIComponent for GNSSSensorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("GNSS sensor")
             .id_salt(format!("gnss-sensor-{}", unique_id))
@@ -101,7 +100,7 @@ impl UIComponent for GNSSSensorConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("GNSS sensor")
             .id_salt(format!("gnss-sensor-{}", unique_id))
             .show(ui, |ui| {
@@ -130,7 +129,7 @@ impl Default for GNSSSensorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for GNSSSensorRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.label(format!("Last time: {}", self.last_time));
     }
 }
@@ -151,7 +150,7 @@ pub struct GNSSObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for GNSSObservationRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!(
                 "Position: ({}, {})",
@@ -201,7 +200,7 @@ impl GNSSSensor {
     /// Makes a new [`GNSSSensor`] from the given config.
     pub fn from_config(
         config: &GNSSSensorConfig,
-        _plugin_api: &Option<Box<&dyn PluginAPI>>,
+        _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
@@ -230,6 +229,12 @@ impl GNSSSensor {
             faults: fault_models,
             filters,
         }
+    }
+}
+
+impl Default for GNSSSensor {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -265,7 +270,7 @@ impl Sensor for GNSSSensor {
             .lock()
             .unwrap()
             .iter()
-            .fold(Some(obs), |obs, filter| obs.and_then(|o| filter.filter(o, &state, None)))
+            .try_fold(obs, |obs, filter| filter.filter(obs, &state, None))
         {
             observation_list.push(observation);
             for fault_model in self.faults.lock().unwrap().iter() {
@@ -276,10 +281,8 @@ impl Sensor for GNSSSensor {
                     SensorObservation::GNSS(GNSSObservation::default()),
                 );
             }
-        } else {
-            if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-                debug!("GNSS Observation was filtered out");
-            }
+        } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+            debug!("GNSS Observation was filtered out");
         }
 
         self.last_time = time;

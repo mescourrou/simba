@@ -44,6 +44,12 @@ impl Observation {
     }
 }
 
+impl Default for Observation {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Recordable<ObservationRecord> for Observation {
     fn record(&self) -> ObservationRecord {
         ObservationRecord {
@@ -65,7 +71,7 @@ pub struct ObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ObservationRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.label(format!("Sensor name: {}", self.sensor_name));
         ui.label(format!("Observer: {}", self.observer));
         ui.label(format!("Time: {}", self.time));
@@ -106,7 +112,7 @@ pub enum SensorObservationRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for SensorObservationRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| match self {
             Self::OrientedLandmark(r) => r.show(ui, ctx, unique_id),
             Self::Odometry(r) => r.show(ui, ctx, unique_id),
@@ -135,7 +141,7 @@ impl UIComponent for SensorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let mut current_str = self.to_string();
         ui.horizontal(|ui| {
@@ -207,9 +213,9 @@ impl UIComponent for SensorConfig {
         }
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.horizontal(|ui| {
-            ui.label(format!("Sensor: {}", self.to_string()));
+            ui.label(format!("Sensor: {}", self));
         });
         match self {
             SensorConfig::OrientedLandmarkSensor(c) => c.show(ui, ctx, unique_id),
@@ -231,7 +237,7 @@ pub enum SensorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for SensorRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| match self {
             Self::OrientedLandmarkSensor(r) => {
                 egui::CollapsingHeader::new("OrientedLandmark").show(ui, |ui| {

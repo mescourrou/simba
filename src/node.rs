@@ -20,7 +20,7 @@ use crate::{
     networking::network::Network,
     networking::service_manager::ServiceManager,
     node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord},
-    physics::physics::Physics,
+    physics::Physics,
     recordable::Recordable,
     sensors::sensor_manager::SensorManager,
     simulator::TimeCv,
@@ -28,7 +28,6 @@ use crate::{
         BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator,
     },
     utils::maths::round_precision,
-    utils::time_ordered_data::TimeOrderedData,
 };
 
 // Node itself
@@ -37,18 +36,18 @@ use crate::{
 ///
 /// It is composed of modules to manage different aspects:
 /// * `navigator` is of [`Navigator`] trait, and defines the error to be sent
-/// to the [`Controller`] to follow the required trajectory.
+///   to the [`Controller`] to follow the required trajectory.
 /// * `controller` is of [`Controller`] trait, it defines the command to be sent
-/// to the [`Physics`] module.
+///   to the [`Physics`] module.
 /// * `physics` is of [`Physics`] trait. It simulates the node behaviour, its real
-/// state. It contains a ground truth to evaluate the [`StateEstimator`].
+///   state. It contains a ground truth to evaluate the [`StateEstimator`].
 /// * `state_estimator` is of [`StateEstimator`] trait. It estimates the node
-/// state, and send it to the [`Navigator`].
+///   state, and send it to the [`Navigator`].
 ///
 /// * `sensor_manager`, of type [`SensorManager`], manages the [`Sensor`](crate::sensors::sensor::Sensor)s. The
-/// observations of the sensors are sent to the [`StateEstimator`].
+///   observations of the sensors are sent to the [`StateEstimator`].
 /// * `network` is the node [`Network`] interface. It manages the reception and
-/// the send of messages to other nodes.
+///   the send of messages to other nodes.
 ///
 /// The [`Node`] internally manages a history of its states, using [`TimeOrderedData`].
 /// In this way, it can get back to a past state, in order to treat a message sent
@@ -327,7 +326,7 @@ impl Node {
             if is_enabled(crate::logger::InternalLog::SensorManager) {
                 debug!("Got {} observations", observations.len());
             }
-            if observations.len() > 0 {
+            if !observations.is_empty() {
                 // Treat the observations
                 if let Some(state_estimator) = &self.state_estimator() {
                     let ta = self.time_analysis.lock().unwrap().time_analysis(
@@ -529,10 +528,7 @@ impl Node {
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                 debug!(
                     "In node: message_next_time: {}",
-                    match message_next_time {
-                        Some(time) => time,
-                        None => -1.,
-                    }
+                    message_next_time.unwrap_or(-1.)
                 );
             }
             if let Some(msg_next_time) = message_next_time {
@@ -740,7 +736,7 @@ impl Recordable<NodeRecord> for Node {
     /// Generate the current state record.
     fn record(&self) -> NodeRecord {
         match &self.node_type {
-            NodeType::Robot => NodeRecord::Robot(self.robot_record()),
+            NodeType::Robot => NodeRecord::Robot(Box::new(self.robot_record())),
             NodeType::ComputationUnit => {
                 NodeRecord::ComputationUnit(self.computation_unit_record())
             }

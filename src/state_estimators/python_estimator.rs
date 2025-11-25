@@ -2,6 +2,7 @@
 Module providing the interface to use external Python [`StateEstimator`].
 */
 
+use std::ffi::CString;
 use std::fs;
 use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -9,6 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use log::{debug, info};
+use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use pyo3::{pyclass, pymethods, PyResult, Python};
@@ -75,7 +77,7 @@ impl UIComponent for PythonEstimatorConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("External Python State Estimator").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -101,7 +103,7 @@ impl UIComponent for PythonEstimatorConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("External Python State Estimator").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
@@ -144,7 +146,7 @@ impl Default for PythonEstimatorRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PythonEstimatorRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.label(self.record.to_string());
     }
 }
@@ -192,12 +194,10 @@ impl PythonEstimator {
             debug!("Config given: {:?}", config);
         }
 
-        // prepare_freethreaded_python();
-
         let json_config = serde_json::to_string(&config)
             .expect("Error during converting Python State Estimator config to json");
 
-        let convert_to_dict = r#"
+        let convert_to_dict = cr#"
 import json
 class NoneDict(dict):
     """ dict subclass that returns a value of None for missing keys instead
@@ -227,19 +227,19 @@ def convert(records):
                     ),
                 ))
             }
-            Ok(s) => s,
+            Ok(s) => CString::new(s).unwrap(),
         };
-        let res = Python::with_gil(|py| -> PyResult<Py<PyAny>> {
-            let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
+        let res = Python::attach(|py| -> PyResult<Py<PyAny>> {
+            let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
-            let config_dict = convert_fn.call_bound(py, (json_config,), None)?;
+            let config_dict = convert_fn.call(py, (json_config,), None)?;
 
-            let script = PyModule::from_code_bound(py, &python_script, "", "")?;
+            let script = PyModule::from_code(py, &python_script, c_str!(""), c_str!(""))?;
             let state_estimator_class: Py<PyAny> =
                 script.getattr(config.class_name.as_str())?.into();
             info!("Load State Estimator class {} ...", config.class_name);
 
-            let res = state_estimator_class.call_bound(py, (config_dict,), None);
+            let res = state_estimator_class.call(py, (config_dict,), None);
             let state_estimator_instance = match res {
                 Err(err) => {
                     err.display(py);
@@ -278,8 +278,8 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
-        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
-        Python::with_gil(|py| {
+        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        Python::attach(|py| {
             if let Err(e) =
                 self.state_estimator
                     .bind(py)
@@ -291,7 +291,7 @@ impl StateEstimator for PythonEstimator {
         });
     }
 
-    fn correction_step(&mut self, node: &mut Node, observations: &Vec<Observation>, time: f32) {
+    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of correction_step");
         }
@@ -299,8 +299,8 @@ impl StateEstimator for PythonEstimator {
         for obs in observations {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
-        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
-        Python::with_gil(|py| {
+        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        Python::attach(|py| {
             if let Err(e) = self.state_estimator.bind(py).call_method(
                 "correction_step",
                 (node_py, observation_py, time),
@@ -316,7 +316,7 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of state");
         }
-        let state = Python::with_gil(|py| -> WorldStateWrapper {
+        let state = Python::attach(|py| -> WorldStateWrapper {
             match self.state_estimator.bind(py).call_method("state", (), None) {
                 Err(e) => {
                     e.display(py);
@@ -335,7 +335,7 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of next_time_step");
         }
-        let time = Python::with_gil(|py| {
+        let time = Python::attach(|py| {
             match self.state_estimator
                 .bind(py)
                 .call_method("next_time_step", (), None) {
@@ -356,18 +356,15 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
-        Python::with_gil(|py| {
-            match self
-                .state_estimator
-                .bind(py)
-                .call_method("pre_loop_hook", (node_py, time), None)
+        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        Python::attach(|py| {
+            if let Err(e) =
+                self.state_estimator
+                    .bind(py)
+                    .call_method("pre_loop_hook", (node_py, time), None)
             {
-                Err(e) => {
-                    e.display(py);
-                    panic!("Error while calling 'next_time_step' method of PythonEstimator.");
-                }
-                Ok(_) => {}
+                e.display(py);
+                panic!("Error while calling 'pre_loop_hook' method of PythonEstimator.");
             }
         });
     }
@@ -378,7 +375,7 @@ impl Recordable<StateEstimatorRecord> for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::with_gil(|py| {
+        let record_str: String = Python::attach(|py| {
             match self.state_estimator
                 .bind(py)
                 .call_method("record", (), None) {

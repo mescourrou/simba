@@ -70,7 +70,7 @@ impl UIComponent for ExternalPhysicsConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("External Physics").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -86,7 +86,7 @@ impl UIComponent for ExternalPhysicsConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("External Physics").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.label("Config (JSON):");
@@ -121,7 +121,7 @@ impl Default for ExternalPhysicsRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ExternalPhysicsRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.label(self.record.to_string());
     }
 }
@@ -134,7 +134,7 @@ impl ExternalPhysicsRecord {
     }
 }
 
-use super::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
+use super::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 
 /// External physics strategy, which does the bridge with your own strategy.
 pub struct ExternalPhysics {
@@ -164,7 +164,7 @@ impl ExternalPhysics {
     /// * `_va_factory` -- Factory for Determinists random variables
     pub fn from_config(
         config: &ExternalPhysicsConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Self {
@@ -177,6 +177,12 @@ impl ExternalPhysics {
                 .expect("Plugin API not set!")
                 .get_physics(&config.config, global_config, va_factory),
         }
+    }
+}
+
+impl Default for ExternalPhysics {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

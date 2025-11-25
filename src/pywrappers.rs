@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use std::{
     collections::BTreeMap,
     sync::{mpsc::Receiver, Arc, Mutex},
@@ -11,18 +12,20 @@ use simba_macros::EnumToString;
 #[cfg(feature = "gui")]
 use std::path::Path;
 
+#[cfg(feature = "gui")]
+use crate::api::async_api::PluginAsyncAPI;
+
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
     controllers::{controller::ControllerError, pybinds::PythonController},
-    logger::is_enabled,
     navigators::pybinds::PythonNavigator,
     networking::{
-        MessageTypes, network::{Envelope, MessageFlag}
+        network::{Envelope, MessageFlag},
+        MessageTypes,
     },
     node::Node,
     physics::{
         pybinds::PythonPhysics,
-        robot_models::{Command, honolomic::HolonomicCommand, unicycle::UnicycleCommand},
+        robot_models::{honolomic::HolonomicCommand, unicycle::UnicycleCommand, Command},
     },
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
@@ -87,6 +90,12 @@ impl ControllerErrorWrapper {
     }
 }
 
+impl Default for ControllerErrorWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Pose")]
 #[derive(Clone)]
@@ -140,6 +149,12 @@ impl StateWrapper {
     }
 }
 
+impl Default for StateWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "WorldState")]
@@ -166,47 +181,47 @@ impl WorldStateWrapper {
 impl WorldStateWrapper {
     pub fn from_rust(s: &WorldState) -> Self {
         Self {
-            ego: match &s.ego {
-                Some(st) => Some(StateWrapper::from_rust(st)),
-                None => None,
-            },
+            ego: s.ego.as_ref().map(StateWrapper::from_rust),
             landmarks: BTreeMap::from_iter(
                 s.landmarks
                     .iter()
-                    .map(|(id, s)| (id.clone(), StateWrapper::from_rust(s))),
+                    .map(|(id, s)| (*id, StateWrapper::from_rust(s))),
             ),
             objects: BTreeMap::from_iter(
                 s.objects
                     .iter()
                     .map(|(id, s)| (id.clone(), StateWrapper::from_rust(s))),
             ),
-            occupancy_grid: match &s.occupancy_grid {
-                Some(og) => Some(OccupancyGridWrapper::from_rust(og)),
-                None => None,
-            },
+            occupancy_grid: s
+                .occupancy_grid
+                .as_ref()
+                .map(OccupancyGridWrapper::from_rust),
         }
     }
     pub fn to_rust(&self) -> WorldState {
         WorldState {
-            ego: match &self.ego {
-                Some(st) => Some(StateWrapper::to_rust(st)),
-                None => None,
-            },
+            ego: self.ego.as_ref().map(StateWrapper::to_rust),
             landmarks: BTreeMap::from_iter(
                 self.landmarks
                     .iter()
-                    .map(|(id, s)| (id.clone(), StateWrapper::to_rust(s))),
+                    .map(|(id, s)| (*id, StateWrapper::to_rust(s))),
             ),
             objects: BTreeMap::from_iter(
                 self.objects
                     .iter()
                     .map(|(id, s)| (id.clone(), StateWrapper::to_rust(s))),
             ),
-            occupancy_grid: match &self.occupancy_grid {
-                Some(og) => Some(OccupancyGridWrapper::to_rust(og)),
-                None => None,
-            },
+            occupancy_grid: self
+                .occupancy_grid
+                .as_ref()
+                .map(OccupancyGridWrapper::to_rust),
         }
+    }
+}
+
+impl Default for WorldStateWrapper {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -323,6 +338,12 @@ impl OrientedLandmarkObservationWrapper {
     }
 }
 
+impl Default for OrientedLandmarkObservationWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OdometryObservation")]
@@ -362,6 +383,12 @@ impl OdometryObservationWrapper {
     }
 }
 
+impl Default for OdometryObservationWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone)]
 #[pyclass(get_all)]
 #[pyo3(name = "GNSSObservation")]
@@ -398,6 +425,12 @@ impl GNSSObservationWrapper {
             velocity: Vector2::from(self.velocity),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
+    }
+}
+
+impl Default for GNSSObservationWrapper {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -447,6 +480,12 @@ impl OrientedRobotObservationWrapper {
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
+    }
+}
+
+impl Default for OrientedRobotObservationWrapper {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -544,6 +583,12 @@ impl SensorObservationWrapper {
     }
 }
 
+impl Default for SensorObservationWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Observation")]
@@ -586,12 +631,18 @@ impl ObservationWrapper {
     }
 }
 
+impl Default for ObservationWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone, EnumToString)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Command")]
 pub enum CommandWrapper {
     Unicycle(UnicycleCommandWrapper),
-    Honolomic(HonolomicCommandWrapper)
+    Honolomic(HonolomicCommandWrapper),
 }
 
 #[pymethods]
@@ -635,20 +686,33 @@ impl CommandWrapper {
     pub fn from_honolomic_command(cmd: HonolomicCommandWrapper) -> CommandWrapper {
         Self::Honolomic(cmd)
     }
-    
+}
+
+impl Default for CommandWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl CommandWrapper {
     pub fn from_rust(s: &Command) -> Self {
         match s {
-            Command::Unicycle(cmd) => CommandWrapper::Unicycle(UnicycleCommandWrapper::from_rust(cmd)),
-            Command::Honolomic(cmd) => CommandWrapper::Honolomic(HonolomicCommandWrapper::from_rust(cmd)),
+            Command::Unicycle(cmd) => {
+                CommandWrapper::Unicycle(UnicycleCommandWrapper::from_rust(cmd))
+            }
+            Command::Honolomic(cmd) => {
+                CommandWrapper::Honolomic(HonolomicCommandWrapper::from_rust(cmd))
+            }
         }
     }
     pub fn to_rust(&self) -> Command {
         match self {
-            CommandWrapper::Unicycle(cmd) => Command::Unicycle(UnicycleCommandWrapper::to_rust(cmd)),
-            CommandWrapper::Honolomic(cmd) => Command::Honolomic(HonolomicCommandWrapper::to_rust(cmd)),
+            CommandWrapper::Unicycle(cmd) => {
+                Command::Unicycle(UnicycleCommandWrapper::to_rust(cmd))
+            }
+            CommandWrapper::Honolomic(cmd) => {
+                Command::Honolomic(HonolomicCommandWrapper::to_rust(cmd))
+            }
         }
     }
 }
@@ -671,6 +735,12 @@ impl UnicycleCommandWrapper {
             left_wheel_speed: 0.,
             right_wheel_speed: 0.,
         }
+    }
+}
+
+impl Default for UnicycleCommandWrapper {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -710,6 +780,12 @@ impl HonolomicCommandWrapper {
     }
 }
 
+impl Default for HonolomicCommandWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl HonolomicCommandWrapper {
     pub fn from_rust(s: &HolonomicCommand) -> Self {
         Self {
@@ -736,7 +812,7 @@ pub struct EnvelopeWrapper {
     pub timestamp: f32,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 #[pyclass]
 #[pyo3(name = "Node")]
 pub struct NodeWrapper {
@@ -751,6 +827,7 @@ impl NodeWrapper {
     }
 
     #[pyo3(signature = (to, message, time, flags=Vec::new()))]
+    #[warn(clippy::useless_conversion)]
     pub fn send_message(
         &self,
         to: String,
@@ -799,6 +876,7 @@ impl NodeWrapper {
             // I did not find another solution.
             // Relatively safe as Nodes lives very long, almost all the time
             // For API usage
+            #[allow(clippy::borrow_deref_ref)]
             node: unsafe { Arc::from_raw(&*n) },
             messages_receiver,
         }
@@ -888,34 +966,37 @@ impl PluginAPIWrapper {
     }
 }
 
+impl Default for PluginAPIWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[pyclass]
 #[pyo3(name = "Simulator")]
 pub struct SimulatorWrapper {
     simulator: AsyncSimulator,
-    python_api: Option<Box<dyn PluginAPI>>,
+    python_api: Option<Arc<dyn PluginAPI>>,
 }
 
 #[pymethods]
 impl SimulatorWrapper {
     #[staticmethod]
     #[pyo3(signature = (config_path, plugin_api=None))]
-    pub fn from_config(config_path: String, plugin_api: Option<Py<PyAny>>) -> PyResult<SimulatorWrapper> {
+    pub fn from_config(
+        config_path: String,
+        plugin_api: Option<Py<PyAny>>,
+    ) -> PyResult<SimulatorWrapper> {
         Simulator::init_environment();
 
-        let python_api = match plugin_api {
-            Some(api) => Some(Box::new(PythonAPI::new(api)) as Box<dyn PluginAPI>),
-            None => None,
-        };
+        let python_api = plugin_api.map(|api| Arc::new(PythonAPI::new(api)) as Arc<dyn PluginAPI>);
 
-        let simulator = match AsyncSimulator::from_config(config_path, &python_api) {
-            Ok(sim) => sim,
-            Err(e) => {
-                return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                    "Failed to create simulator from config: {}",
-                    e.detailed_error()
-                )))
-            }
-        };
+        let simulator = AsyncSimulator::from_config(config_path, &python_api).map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                "Failed to create simulator from config: {}",
+                e.detailed_error()
+            ))
+        })?;
         Ok(SimulatorWrapper {
             simulator,
             python_api,
@@ -941,19 +1022,10 @@ pub fn run_gui(
     use std::{sync::RwLock, thread};
 
     use crate::gui;
-    let async_plugin_api = match &plugin_api {
-        Some(_) => Some(PluginAsyncAPI::new()),
-        None => None,
-    };
-    let mut python_api = match plugin_api {
-        Some(a) => Some(PythonAPI::new(a)),
-        None => None,
-    };
+    let async_plugin_api = plugin_api.as_ref().map(|_| Arc::new(PluginAsyncAPI::new()));
+    let mut python_api = plugin_api.map(PythonAPI::new);
 
-    let api_client = match &async_plugin_api {
-        Some(api) => Some(api.client.clone()),
-        None => None,
-    };
+    let api_client = async_plugin_api.as_ref().map(|api| api.get_client());
 
     let running = Arc::new(RwLock::new(true));
     let local_running = running.clone();
@@ -963,39 +1035,34 @@ pub fn run_gui(
             if let Some(api_client) = &api_client {
                 let python_api = python_api.as_mut().unwrap();
                 // TODO: Multiple wait can be optimized the same way than AsyncAPI runner (or maybe not as it's Python)
-                if let Ok((config, simulator_config, va_factory)) = api_client
-                    .get_state_estimator_request
-                    .lock()
-                    .unwrap()
-                    .try_recv()
-                {
-                    let state_estimator =
-                        python_api.get_state_estimator(&config, &simulator_config, &va_factory);
-                    api_client
-                        .get_state_estimator_response
-                        .send(state_estimator)
-                        .unwrap();
-                }
-                if let Ok((config, simulator_config, va_factory)) =
-                    api_client.get_controller_request.lock().unwrap().try_recv()
-                {
-                    let controller =
-                        python_api.get_controller(&config, &simulator_config, &va_factory);
-                    api_client.get_controller_response.send(controller).unwrap();
-                }
-                if let Ok((config, simulator_config, va_factory)) =
-                    api_client.get_navigator_request.lock().unwrap().try_recv()
-                {
-                    let navigator =
-                        python_api.get_navigator(&config, &simulator_config, &va_factory);
-                    api_client.get_navigator_response.send(navigator).unwrap();
-                }
-                if let Ok((config, simulator_config, va_factory)) =
-                    api_client.get_physics_request.lock().unwrap().try_recv()
-                {
-                    let physic = python_api.get_physics(&config, &simulator_config, &va_factory);
-                    api_client.get_physics_response.send(physic).unwrap();
-                }
+                api_client.get_state_estimator.try_recv_closure(|request| {
+                    python_api.get_state_estimator(
+                        &request.config,
+                        &request.global_config,
+                        &request.va_factory,
+                    )
+                });
+                api_client.get_controller.try_recv_closure(|request| {
+                    python_api.get_controller(
+                        &request.config,
+                        &request.global_config,
+                        &request.va_factory,
+                    )
+                });
+                api_client.get_navigator.try_recv_closure(|request| {
+                    python_api.get_navigator(
+                        &request.config,
+                        &request.global_config,
+                        &request.va_factory,
+                    )
+                });
+                api_client.get_physics.try_recv_closure(|request| {
+                    python_api.get_physics(
+                        &request.config,
+                        &request.global_config,
+                        &request.va_factory,
+                    )
+                });
                 python_api.check_requests();
             }
         }
@@ -1003,23 +1070,16 @@ pub fn run_gui(
 
     // egui needs to be run in the main thread. However, Python get the GIL. So we need to free the GIL so that the thread spawn before can call Python functions.
     // allow_threads reacquire the GIL when it exits the function. At this point, we are sure that the other thread is finished.
-    py.allow_threads(|| {
+    py.detach(|| {
         gui::run_gui(
             match &default_config_path {
                 Some(path_str) => {
                     let p = Path::new(path_str);
-                    Some(Box::<&'static Path>::new(unsafe {
-                        std::mem::transmute::<&Path, &'static Path>(p)
-                    }))
+                    Some(unsafe { std::mem::transmute::<&Path, &'static Path>(p) })
                 }
                 None => None,
             },
-            match &async_plugin_api {
-                Some(api) => Some(Box::<&dyn PluginAPI>::new(unsafe {
-                    std::mem::transmute::<&dyn PluginAPI, &'static dyn PluginAPI>(api)
-                })),
-                None => None,
-            },
+            async_plugin_api.map(|api| api as Arc<dyn PluginAPI>),
             load_results,
         );
         *local_running.write().unwrap() = false;

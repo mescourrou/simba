@@ -9,7 +9,7 @@ use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    api::async_api::{AsyncApi, AsyncApiRunner},
+    api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
     constants::TIME_ROUND_DECIMALS,
     errors::SimbaError,
     gui::{drawables::popup::Popup, UIComponent},
@@ -114,7 +114,7 @@ impl PainterInfo {
                 return true;
             }
         }
-        return false;
+        false
     }
 }
 
@@ -189,8 +189,8 @@ impl SimbaApp {
     /// Called once before the first frame.
     pub fn new(
         cc: &eframe::CreationContext<'_>,
-        default_config_path: Option<Box<&'static Path>>,
-        plugin_api: Option<Box<&'static dyn PluginAPI>>,
+        default_config_path: Option<&'static Path>,
+        plugin_api: Option<Arc<dyn PluginAPI>>,
         load_results: bool,
     ) -> Self {
         // This is also where you can customize the look and feel of egui using
@@ -210,8 +210,8 @@ impl SimbaApp {
     }
 
     fn new_full(
-        default_config_path: Option<Box<&'static Path>>,
-        plugin_api: Option<Box<&'static dyn PluginAPI>>,
+        default_config_path: Option<&'static Path>,
+        plugin_api: Option<Arc<dyn PluginAPI>>,
         load_results: bool,
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
@@ -228,9 +228,10 @@ impl SimbaApp {
         if let Some(config) = default_config_path {
             n.config_path = config.to_str().unwrap().to_string();
             n.p.config = None;
-            n.p.api
-                .load_config
-                .async_call((n.config_path.clone(), true));
+            n.p.api.load_config.async_call(AsyncApiLoadConfigRequest {
+                config_path: n.config_path.clone(),
+                force_send_results: true,
+            });
         }
         if load_results {
             n.p.api.load_results.async_call(());
@@ -241,8 +242,8 @@ impl SimbaApp {
 
     fn update_api(
         mut self,
-        default_config_path: Option<Box<&'static Path>>,
-        plugin_api: Option<Box<&'static dyn PluginAPI>>,
+        default_config_path: Option<&'static Path>,
+        plugin_api: Option<Arc<dyn PluginAPI>>,
         load_results: bool,
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
@@ -256,7 +257,10 @@ impl SimbaApp {
             self.p
                 .api
                 .load_config
-                .async_call((self.config_path.clone(), true));
+                .async_call(AsyncApiLoadConfigRequest {
+                    config_path: self.config_path.clone(),
+                    force_send_results: true,
+                });
         }
         if load_results {
             self.p.api.load_results.async_call(());
@@ -284,7 +288,7 @@ impl SimbaApp {
 
     fn draw(&mut self, ui: &mut egui::Ui, viewport: Rect) -> Result<Vec<Shape>, Vec2> {
         let mut shapes = Vec::new();
-        for (_, robot) in &self.p.robots {
+        for robot in self.p.robots.values() {
             shapes.extend(robot.draw(
                 ui,
                 &viewport,
@@ -303,7 +307,7 @@ impl SimbaApp {
         _viewport: Rect,
         response: &Response,
     ) {
-        for (_, robot) in &mut self.p.robots {
+        for robot in self.p.robots.values_mut() {
             robot.react(
                 ui,
                 ctx,
@@ -325,11 +329,11 @@ impl eframe::App for SimbaApp {
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         for Record { time, node } in self.p.api.simulator_api.records.lock().unwrap().try_iter() {
-            match &node {
+            match node {
                 NodeRecord::ComputationUnit(_) => {}
                 NodeRecord::Robot(n) => {
                     if let Some(r) = self.p.robots.get_mut(&n.name) {
-                        r.add_record(time, n.clone());
+                        r.add_record(time, *n);
                     }
                 }
             }
@@ -386,7 +390,10 @@ impl eframe::App for SimbaApp {
                     self.p
                         .api
                         .load_config
-                        .async_call((self.config_path.clone(), true));
+                        .async_call(AsyncApiLoadConfigRequest {
+                            config_path: self.config_path.clone(),
+                            force_send_results: true,
+                        });
                 }
                 if self.p.config.is_none() {
                     if let Some(res) = self.p.api.load_config.try_get_result() {
@@ -444,16 +451,14 @@ impl eframe::App for SimbaApp {
                         .clicked()
                     {
                         log::info!("Run simulation");
-                        self.p
-                            .api
-                            .run
-                            .async_call((Some(self.duration), self.p.simulation_run));
+                        self.p.api.run.async_call(AsyncApiRunRequest {
+                            max_time: Some(self.duration),
+                            reset: self.p.simulation_run,
+                        });
                         self.p.simulation_run = true;
                     }
-                    if let Some(r) = self.p.api.run.try_get_result() {
-                        if let Err(e) = r {
-                            self.p.error_buffer.push((time::Instant::now(), e));
-                        }
+                    if let Some(Err(e)) = self.p.api.run.try_get_result() {
+                        self.p.error_buffer.push((time::Instant::now(), e));
                     }
                     let max_simulated_time = *self.p.api.simulator_api.current_time.read().unwrap();
                     let play_pause_btn = if self.p.playing.is_none() {
@@ -495,10 +500,8 @@ impl eframe::App for SimbaApp {
                         log::info!("Analysing results");
                         self.p.api.compute_results.async_call(());
                     }
-                    if let Some(r) = self.p.api.compute_results.try_get_result() {
-                        if let Err(e) = r {
-                            self.p.error_buffer.push((time::Instant::now(), e));
-                        }
+                    if let Some(Err(e)) = self.p.api.compute_results.try_get_result() {
+                        self.p.error_buffer.push((time::Instant::now(), e));
                     }
                 });
 

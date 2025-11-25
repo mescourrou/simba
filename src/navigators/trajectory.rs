@@ -39,20 +39,14 @@ impl Default for TrajectoryConfig {
 
 /// Record for [`Stateful`] trait. The only dynamic element
 /// is the current segment.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TrajectoryRecord {
     pub current_segment: usize,
 }
 
-impl TrajectoryRecord {
-    pub fn default() -> Self {
-        Self { current_segment: 0 }
-    }
-}
-
 #[cfg(feature = "gui")]
 impl UIComponent for TrajectoryRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.label(format!("Current segment: {}", self.current_segment));
     }
 }
@@ -93,47 +87,8 @@ impl Trajectory {
             i += 1;
         }
         trajectory.do_loop = config.do_loop;
-        return trajectory;
+        trajectory
     }
-
-    // Map matching anywhere on trajectory, but not what is expected
-    // pub fn map_matching(&self, point: SVector<f32, 2>) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>) {
-    //     println!("point: {:?}", point);
-    //     let mut pt1: SVector<f32, 2> = self.point_list.fixed_view::<1, 2>(0, 0).transpose();
-    //     let mut best_distance = 0.;
-    //     let mut best_segment = (pt1, pt1);
-    //     let mut best_projected = pt1;
-    //     let mut first = true;
-    //     let first_point = pt1;
-    //     for row in self.point_list.row_iter() {
-    //         if first {
-    //             first = false;
-    //             continue;
-    //         }
-    //         let pt2: SVector<f32, 2> = row.fixed_view::<1, 2>(0, 0).transpose();
-    //         let projected_point = project_point(point, pt1, pt2);
-    //         let d = ((point.x - projected_point.x).powf(2.) + (point.y - projected_point.y).powf(2.)).sqrt();
-    //         println!("pt1: {:?}, pt2: {:?}, projected: {:?}, d: {:?}", pt1, pt2, projected_point, d);
-    //         if best_distance == 0. || d < best_distance {
-    //             best_distance = d;
-    //             best_segment.0 = pt1;
-    //             best_segment.1 = pt2;
-    //             best_projected = projected_point;
-    //         }
-    //         pt1 = pt2;
-    //     }
-    //     if self.do_loop {
-    //         let projected_point = project_point(point, pt1, first_point);
-    //         let d = ((point.x - projected_point.x).powf(2.) + (point.y - projected_point.y).powf(2.)).sqrt();
-    //         println!("pt1: {:?}, pt2: {:?}, projected: {:?}, d: {:?}", pt1, first_point, projected_point, d);
-    //         if d < best_distance {
-    //             best_segment.0 = pt1;
-    //             best_segment.1 = first_point;
-    //             best_projected = projected_point;
-    //         }
-    //     }
-    //     return (best_segment, best_projected);
-    // }
 
     /// Match a point on the polyline, and returns the projected point and the segment.
     ///
@@ -207,9 +162,9 @@ impl Trajectory {
             + forward_distance * Vector2::new(segment_direction.cos(), segment_direction.sin());
 
         if !self.do_loop && self.current_segment + 1 == self.point_list.nrows() - 1 {
-            return ((pt1, pt2), projected_point, true);
+            ((pt1, pt2), projected_point, true)
         } else {
-            return ((pt1, pt2), projected_point, false);
+            ((pt1, pt2), projected_point, false)
         }
     }
 
@@ -241,8 +196,14 @@ impl Trajectory {
                 .fixed_view::<1, 2>(self.current_segment + 1, 0)
                 .transpose()
         };
-        let projected_point = project_point(point.clone(), pt1, pt2);
+        let projected_point = project_point(*point, pt1, pt2);
         (pt1, pt2, projected_point)
+    }
+}
+
+impl Default for Trajectory {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

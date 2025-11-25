@@ -34,7 +34,7 @@ impl UIComponent for PhysicsConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let mut current_str = self.to_string();
         ui.horizontal(|ui| {
@@ -93,7 +93,7 @@ impl UIComponent for PhysicsConfig {
         }
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.horizontal(|ui| {
             ui.label(format!("Physics: {}", self.to_string()));
         });
@@ -118,14 +118,14 @@ impl PhysicsRecord {
         match self {
             Self::External(_) => [0., 0., 0.], // TODO: Find a way to get info from external record
             Self::Python(_) => [0., 0., 0.],   // TODO: Find a way to get info from external record
-            Self::Internal(p) => p.state.pose.into(),
+            Self::Internal(p) => p.state.pose,
         }
     }
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for PhysicsRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| match self {
             Self::Internal(r) => {
                 egui::CollapsingHeader::new("Internal").show(ui, |ui| {
@@ -205,7 +205,7 @@ pub trait Physics:
 /// - `time_cv`: Simulator time condition variable, used by services.
 pub fn make_physics_from_config(
     config: &PhysicsConfig,
-    plugin_api: &Option<Box<&dyn PluginAPI>>,
+    plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     robot_name: &String,
     va_factory: &Arc<DeterministRandomVariableFactory>,

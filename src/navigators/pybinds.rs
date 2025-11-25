@@ -19,46 +19,35 @@ use crate::{
     pywrappers::{ControllerErrorWrapper, NodeWrapper, WorldStateWrapper},
     recordable::Recordable,
     state_estimators::state_estimator::WorldState,
+    utils::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
 };
 
 use super::navigator::{Navigator, NavigatorRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonNavigatorAsyncClient {
-    pub compute_error_request: mpsc::Sender<(NodeWrapper, WorldState)>,
-    pub compute_error_response: Arc<Mutex<mpsc::Receiver<ControllerError>>>,
-    pub record_request: mpsc::Sender<()>,
-    pub record_response: Arc<Mutex<mpsc::Receiver<NavigatorRecord>>>,
-    pub pre_loop_hook_request: mpsc::Sender<(NodeWrapper, f32)>,
-    pub pre_loop_hook_response: Arc<Mutex<mpsc::Receiver<()>>>,
+    pub compute_error: RemoteFunctionCall<(NodeWrapper, WorldState), ControllerError>,
+    pub record: RemoteFunctionCall<(), NavigatorRecord>,
+    pub pre_loop_hook: RemoteFunctionCall<(NodeWrapper, f32), ()>,
     letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
     letter_box_sender: Sender<Envelope>,
 }
 
 impl Navigator for PythonNavigatorAsyncClient {
     fn compute_error(&mut self, node: &mut Node, world_state: WorldState) -> ControllerError {
-        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
-        self.compute_error_request
-            .send((node_py, world_state.clone()))
-            .unwrap();
-        self.compute_error_response.lock().unwrap().recv().unwrap()
+        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        self.compute_error.call((node_py, world_state)).unwrap()
     }
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
-        self.pre_loop_hook_request.send((node_py, time)).unwrap();
-        self.pre_loop_hook_response.lock().unwrap().recv().unwrap()
+        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        self.pre_loop_hook.call((node_py, time)).unwrap()
     }
 }
 
 impl Recordable<NavigatorRecord> for PythonNavigatorAsyncClient {
     fn record(&self) -> NavigatorRecord {
-        self.record_request.send(()).unwrap();
-        self.record_response
-            .lock()
-            .unwrap()
-            .recv()
-            .expect("Error during call of record")
+        self.record.call(()).unwrap()
     }
 }
 
@@ -74,12 +63,9 @@ impl MessageHandler for PythonNavigatorAsyncClient {
 pub struct PythonNavigator {
     model: Py<PyAny>,
     client: PythonNavigatorAsyncClient,
-    compute_error_request: Arc<Mutex<mpsc::Receiver<(NodeWrapper, WorldState)>>>,
-    compute_error_response: mpsc::Sender<ControllerError>,
-    record_request: Arc<Mutex<mpsc::Receiver<()>>>,
-    record_response: mpsc::Sender<NavigatorRecord>,
-    pre_loop_hook_request: Arc<Mutex<Receiver<(NodeWrapper, f32)>>>,
-    pre_loop_hook_response: Sender<()>,
+    compute_error: Arc<RemoteFunctionCallHost<(NodeWrapper, WorldState), ControllerError>>,
+    record: Arc<RemoteFunctionCallHost<(), NavigatorRecord>>,
+    pre_loop_hook: Arc<RemoteFunctionCallHost<(NodeWrapper, f32), ()>>,
 }
 
 #[pymethods]
@@ -87,36 +73,28 @@ impl PythonNavigator {
     #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 debug!("Model got: {}", py_model.bind(py).dir().unwrap());
             });
         }
-        let (compute_error_request_tx, compute_error_request_rx) = mpsc::channel();
-        let (compute_error_response_tx, compute_error_response_rx) = mpsc::channel();
-        let (record_request_tx, record_request_rx) = mpsc::channel();
-        let (record_response_tx, record_response_rx) = mpsc::channel();
-        let (pre_loop_hook_request_tx, pre_loop_hook_request_rx) = mpsc::channel();
-        let (pre_loop_hook_response_tx, pre_loop_hook_response_rx) = mpsc::channel();
         let (letter_box_sender, letter_box_receiver) = mpsc::channel();
+
+        let (compute_error_client, compute_error_host) = rfc::make_pair();
+        let (record_client, record_host) = rfc::make_pair();
+        let (pre_loop_hook_client, pre_loop_hook_host) = rfc::make_pair();
 
         PythonNavigator {
             model: py_model,
             client: PythonNavigatorAsyncClient {
-                compute_error_request: compute_error_request_tx,
-                compute_error_response: Arc::new(Mutex::new(compute_error_response_rx)),
-                record_request: record_request_tx,
-                record_response: Arc::new(Mutex::new(record_response_rx)),
-                pre_loop_hook_request: pre_loop_hook_request_tx,
-                pre_loop_hook_response: Arc::new(Mutex::new(pre_loop_hook_response_rx)),
+                compute_error: compute_error_client,
+                record: record_client,
+                pre_loop_hook: pre_loop_hook_client,
                 letter_box_receiver: Arc::new(Mutex::new(letter_box_receiver)),
-                letter_box_sender: letter_box_sender,
+                letter_box_sender,
             },
-            compute_error_request: Arc::new(Mutex::new(compute_error_request_rx)),
-            compute_error_response: compute_error_response_tx,
-            record_request: Arc::new(Mutex::new(record_request_rx)),
-            record_response: record_response_tx,
-            pre_loop_hook_request: Arc::new(Mutex::new(pre_loop_hook_request_rx)),
-            pre_loop_hook_response: pre_loop_hook_response_tx,
+            compute_error: Arc::new(compute_error_host),
+            record: Arc::new(record_host),
+            pre_loop_hook: Arc::new(pre_loop_hook_host),
         }
     }
 }
@@ -127,29 +105,13 @@ impl PythonNavigator {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((node, state)) = self
-            .compute_error_request
+        self.compute_error
             .clone()
-            .lock()
-            .unwrap()
-            .try_recv()
-        {
-            let error = self.compute_error(node, &state);
-            self.compute_error_response.send(error).unwrap();
-        }
-        if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
-            self.record_response.send(self.record()).unwrap();
-        }
-        if let Ok((node, time)) = self
-            .pre_loop_hook_request
+            .try_recv_closure_mut(|(node, state)| self.compute_error(node, &state));
+        self.record.try_recv_closure(|()| self.record());
+        self.pre_loop_hook
             .clone()
-            .lock()
-            .unwrap()
-            .try_recv()
-        {
-            self.pre_loop_hook(node, time);
-            self.pre_loop_hook_response.send(()).unwrap();
-        }
+            .try_recv_closure_mut(|(node, time)| self.pre_loop_hook(node, time));
     }
 
     fn compute_error(&mut self, node: NodeWrapper, state: &WorldState) -> ControllerError {
@@ -157,7 +119,7 @@ impl PythonNavigator {
             debug!("Calling python implementation of compute_error");
         }
         // let node_record = node.record();
-        let result = Python::with_gil(|py| -> ControllerErrorWrapper {
+        let result = Python::attach(|py| -> ControllerErrorWrapper {
             match self.model.bind(py).call_method(
                 "compute_error",
                 (node, WorldStateWrapper::from_rust(state)),
@@ -179,7 +141,7 @@ impl PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::with_gil(|py| {
+        let record_str: String = Python::attach(|py| {
             match self.model
                 .bind(py)
                 .call_method("record", (), None) {
@@ -207,17 +169,14 @@ impl PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        Python::with_gil(|py: Python<'_>| {
-            match self
+        Python::attach(|py: Python<'_>| {
+            if let Err(e) = self
                 .model
                 .bind(py)
                 .call_method("pre_loop_hook", (node, time), None)
             {
-                Err(e) => {
-                    e.display(py);
-                    panic!("Error while calling 'next_time_step' method of PythonNavigator.");
-                }
-                Ok(_) => {}
+                e.display(py);
+                panic!("Error while calling 'pre_loop_hook' method of PythonNavigator.");
             }
         });
     }

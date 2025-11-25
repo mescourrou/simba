@@ -1,7 +1,4 @@
-use std::{
-    str::FromStr,
-    sync::{mpsc, Arc, Mutex},
-};
+use std::{str::FromStr, sync::Arc};
 
 use log::debug;
 use pyo3::prelude::*;
@@ -14,29 +11,23 @@ use crate::{
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
     state_estimators::state_estimator::State,
+    utils::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
 };
 
-use super::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
+use super::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonPhysicAsyncClient {
-    apply_command_request: mpsc::Sender<(Command, f32)>,
-    apply_command_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    state_request: mpsc::Sender<f32>,
-    state_response: Arc<Mutex<mpsc::Receiver<State>>>,
-    update_state_request: mpsc::Sender<f32>,
-    update_state_response: Arc<Mutex<mpsc::Receiver<()>>>,
-    record_request: mpsc::Sender<()>,
-    record_response: Arc<Mutex<mpsc::Receiver<PhysicsRecord>>>,
+    apply_command: RemoteFunctionCall<(Command, f32), ()>,
+    state: RemoteFunctionCall<f32, State>,
+    update_state: RemoteFunctionCall<f32, ()>,
+    record: RemoteFunctionCall<(), PhysicsRecord>,
     last_state: State,
 }
 
 impl Physics for PythonPhysicAsyncClient {
     fn apply_command(&mut self, command: &Command, time: f32) {
-        self.apply_command_request
-            .send((command.clone(), time))
-            .unwrap();
-        self.apply_command_response.lock().unwrap().recv().unwrap()
+        self.apply_command.call((command.clone(), time)).unwrap()
     }
 
     fn state(&self, _time: f32) -> State {
@@ -44,21 +35,14 @@ impl Physics for PythonPhysicAsyncClient {
     }
 
     fn update_state(&mut self, time: f32) {
-        self.update_state_request.send(time).unwrap();
-        self.update_state_response.lock().unwrap().recv().unwrap();
-        self.state_request.send(time).unwrap();
-        self.last_state = self.state_response.lock().unwrap().recv().unwrap().clone()
+        self.update_state.call(time).unwrap();
+        self.last_state = self.state.call(time).unwrap();
     }
 }
 
 impl Recordable<PhysicsRecord> for PythonPhysicAsyncClient {
     fn record(&self) -> PhysicsRecord {
-        self.record_request.send(()).unwrap();
-        self.record_response
-            .lock()
-            .unwrap()
-            .recv()
-            .expect("Error during call of record")
+        self.record.call(()).unwrap()
     }
 }
 
@@ -80,14 +64,10 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysicAsyncClient {
 pub struct PythonPhysics {
     model: Py<PyAny>,
     client: PythonPhysicAsyncClient,
-    apply_command_request: Arc<Mutex<mpsc::Receiver<(Command, f32)>>>,
-    apply_command_response: mpsc::Sender<()>,
-    state_request: Arc<Mutex<mpsc::Receiver<f32>>>,
-    state_response: mpsc::Sender<State>,
-    update_state_request: Arc<Mutex<mpsc::Receiver<f32>>>,
-    update_state_response: mpsc::Sender<()>,
-    record_request: Arc<Mutex<mpsc::Receiver<()>>>,
-    record_response: mpsc::Sender<PhysicsRecord>,
+    apply_command: Arc<RemoteFunctionCallHost<(Command, f32), ()>>,
+    state: Arc<RemoteFunctionCallHost<f32, State>>,
+    update_state: Arc<RemoteFunctionCallHost<f32, ()>>,
+    record: Arc<RemoteFunctionCallHost<(), PhysicsRecord>>,
 }
 
 #[pymethods]
@@ -95,40 +75,29 @@ impl PythonPhysics {
     #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonPhysics {
         if is_enabled(crate::logger::InternalLog::API) {
-            Python::with_gil(|py| {
+            Python::attach(|py| {
                 debug!("Model got: {}", py_model.bind(py).dir().unwrap());
             });
         }
-        let (apply_command_request_tx, apply_command_request_rx) = mpsc::channel();
-        let (apply_command_response_tx, apply_command_response_rx) = mpsc::channel();
-        let (state_request_tx, state_request_rx) = mpsc::channel();
-        let (state_response_tx, state_response_rx) = mpsc::channel();
-        let (update_state_request_tx, update_state_request_rx) = mpsc::channel();
-        let (update_state_response_tx, update_state_response_rx) = mpsc::channel();
-        let (record_request_tx, record_request_rx) = mpsc::channel();
-        let (record_response_tx, record_response_rx) = mpsc::channel();
+
+        let (apply_command_client, apply_command_host) = rfc::make_pair();
+        let (state_client, state_host) = rfc::make_pair();
+        let (update_state_client, update_state_host) = rfc::make_pair();
+        let (record_client, record_host) = rfc::make_pair();
 
         PythonPhysics {
             model: py_model,
             client: PythonPhysicAsyncClient {
-                apply_command_request: apply_command_request_tx,
-                apply_command_response: Arc::new(Mutex::new(apply_command_response_rx)),
-                state_request: state_request_tx,
-                state_response: Arc::new(Mutex::new(state_response_rx)),
-                update_state_request: update_state_request_tx,
-                update_state_response: Arc::new(Mutex::new(update_state_response_rx)),
-                record_request: record_request_tx,
-                record_response: Arc::new(Mutex::new(record_response_rx)),
+                apply_command: apply_command_client,
+                state: state_client,
+                update_state: update_state_client,
+                record: record_client,
                 last_state: State::new(),
             },
-            apply_command_request: Arc::new(Mutex::new(apply_command_request_rx)),
-            apply_command_response: apply_command_response_tx,
-            state_request: Arc::new(Mutex::new(state_request_rx)),
-            state_response: state_response_tx,
-            update_state_request: Arc::new(Mutex::new(update_state_request_rx)),
-            update_state_response: update_state_response_tx,
-            record_request: Arc::new(Mutex::new(record_request_rx)),
-            record_response: record_response_tx,
+            apply_command: Arc::new(apply_command_host),
+            state: Arc::new(state_host),
+            update_state: Arc::new(update_state_host),
+            record: Arc::new(record_host),
         }
     }
 }
@@ -139,27 +108,16 @@ impl PythonPhysics {
     }
 
     pub fn check_requests(&mut self) {
-        if let Ok((command, time)) = self
-            .apply_command_request
+        self.apply_command
             .clone()
-            .lock()
-            .unwrap()
-            .try_recv()
-        {
-            self.apply_command(&command, time);
-            self.apply_command_response.send(()).unwrap();
-        }
-        if let Ok(time) = self.state_request.clone().lock().unwrap().try_recv() {
-            let state = self.state(time);
-            self.state_response.send(state).unwrap();
-        }
-        if let Ok(time) = self.update_state_request.clone().lock().unwrap().try_recv() {
-            self.update_state(time);
-            self.update_state_response.send(()).unwrap();
-        }
-        if let Ok(()) = self.record_request.clone().lock().unwrap().try_recv() {
-            self.record_response.send(self.record()).unwrap();
-        }
+            .try_recv_closure_mut(|(command, time)| self.apply_command(&command, time));
+        self.state
+            .clone()
+            .try_recv_closure_mut(|time| self.state(time));
+        self.update_state
+            .clone()
+            .try_recv_closure_mut(|time| self.update_state(time));
+        self.record.try_recv_closure(|()| self.record());
     }
 
     fn apply_command(&mut self, command: &Command, time: f32) {
@@ -167,7 +125,7 @@ impl PythonPhysics {
             debug!("Calling python implementation of apply_command");
         }
         // let robot_record = robot.record();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             if let Err(e) = self.model.bind(py).call_method(
                 "apply_command",
                 (CommandWrapper::from_rust(command), time),
@@ -184,7 +142,7 @@ impl PythonPhysics {
             debug!("Calling python implementation of update_state");
         }
         // let robot_record = robot.record();
-        Python::with_gil(|py| {
+        Python::attach(|py| {
             if let Err(e) = self
                 .model
                 .bind(py)
@@ -201,7 +159,7 @@ impl PythonPhysics {
             debug!("Calling python implementation of state");
         }
         // let robot_record = robot.record();
-        let state = Python::with_gil(|py| -> StateWrapper {
+        let state = Python::attach(|py| -> StateWrapper {
             match self.model.bind(py).call_method("state", (time,), None) {
                 Err(e) => {
                     e.display(py);
@@ -219,7 +177,7 @@ impl PythonPhysics {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::with_gil(|py| {
+        let record_str: String = Python::attach(|py| {
             match self.model
                 .bind(py)
                 .call_method("record", (), None) {

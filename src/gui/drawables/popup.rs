@@ -3,7 +3,7 @@ pub struct Popup {
     description: String,
     buttons: Vec<String>,
     clicked_button: Option<usize>,
-    action_on_click: Box<dyn FnMut(usize) -> ()>,
+    action_on_click: Box<dyn FnMut(usize)>,
 }
 
 impl Popup {
@@ -11,7 +11,7 @@ impl Popup {
         title: String,
         description: String,
         buttons: Vec<String>,
-        action_on_click: fn(usize) -> (),
+        action_on_click: fn(usize),
     ) -> Self {
         Self {
             title,
@@ -22,7 +22,7 @@ impl Popup {
         }
     }
 
-    pub fn new_ok(title: String, description: String, action_on_click: fn(usize) -> ()) -> Self {
+    pub fn new_ok(title: String, description: String, action_on_click: fn(usize)) -> Self {
         Self::new(
             title,
             description,
@@ -34,7 +34,7 @@ impl Popup {
     // pub fn new_ok_cancel(
     //     title: String,
     //     description: String,
-    //     action_on_click: fn(usize) -> (),
+    //     action_on_click: fn(usize),
     // ) -> Self {
     //     Self::new(title, description, Vec::from(["OK".to_string(), "Cancel".to_string()]), action_on_click)
     // }

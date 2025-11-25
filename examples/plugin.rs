@@ -9,11 +9,12 @@ use simba::networking::message_handler::MessageHandler;
 use simba::networking::network::Envelope;
 use simba::networking::service::HasService;
 use simba::physics::external_physics::ExternalPhysicsRecord;
-use simba::physics::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 use simba::physics::robot_models::unicycle::UnicycleCommand;
 use simba::physics::robot_models::Command;
+use simba::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 use simba::plugin_api::PluginAPI;
 use simba::recordable::Recordable;
+use simba::sensors::sensor::Observation;
 use simba::simulator::{Simulator, SimulatorConfig};
 use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
 use simba::state_estimators::state_estimator::{
@@ -58,9 +59,9 @@ impl Controller for MyWonderfulController {
         _time: f32,
     ) -> Command {
         Command::Unicycle(UnicycleCommand {
-                left_wheel_speed: 0.,
-                right_wheel_speed: 0.,
-            })
+            left_wheel_speed: 0.,
+            right_wheel_speed: 0.,
+        })
     }
 
     fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
@@ -237,7 +238,7 @@ impl StateEstimator for MyWonderfulStateEstimator {
     fn correction_step(
         &mut self,
         _robot: &mut simba::node::Node,
-        _observations: &Vec<simba::sensors::sensor::Observation>,
+        _observations: &[Observation],
         _time: f32,
     ) {
     }
@@ -335,7 +336,7 @@ fn main() {
     println!("Load configuration...");
     let mut simulator = Simulator::from_config_path(
         Path::new("config_example/config_plugin.yaml"),
-        &Some(Box::new(&my_plugin)), //<- plugin API, to load external modules
+        &Some(Arc::new(my_plugin)), //<- plugin API, to load external modules
     )
     .unwrap();
 

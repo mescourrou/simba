@@ -22,7 +22,7 @@ pub struct HolonomicCommand {
 
 #[cfg(feature = "gui")]
 impl UIComponent for HolonomicCommand {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!(
                 "Longitudinal speed: {}",
@@ -34,7 +34,7 @@ impl UIComponent for HolonomicCommand {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check, Default)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct HonolomicConfig {}
@@ -48,23 +48,17 @@ impl UIComponent for HonolomicConfig {
         _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Honolomic model")
             .id_salt(format!("honolomic-model-{}", unique_id))
-            .show(ui, |ui| {});
+            .show(ui, |_ui| {});
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Honolomic model")
             .id_salt(format!("honolomic-model-{}", unique_id))
-            .show(ui, |ui| {});
-    }
-}
-
-impl Default for HonolomicConfig {
-    fn default() -> Self {
-        Self {}
+            .show(ui, |_ui| {});
     }
 }
 
@@ -72,7 +66,7 @@ impl Default for HonolomicConfig {
 pub struct Honolomic {}
 
 impl Honolomic {
-    pub fn from_config(config: &HonolomicConfig) -> Self {
+    pub fn from_config(_config: &HonolomicConfig) -> Self {
         Self {}
     }
 }
@@ -104,7 +98,7 @@ impl RobotModel for Honolomic {
             0.,
         );
 
-        let rot_mat = nalgebra::Rotation2::new(theta).matrix().clone();
+        let rot_mat = *nalgebra::Rotation2::new(theta).matrix();
 
         let mut se2_mat = SMatrix::<f32, 3, 3>::new(
             rot_mat[(0, 0)],
@@ -118,7 +112,7 @@ impl RobotModel for Honolomic {
             1.,
         );
 
-        se2_mat = se2_mat * lie_action.exp();
+        se2_mat *= lie_action.exp();
 
         // let rot = nalgebra::Rotation2::from_matrix(&se2_mat.fixed_view::<2, 2>(0, 0).into());
         // self.state.pose.z = rot.angle();
@@ -133,9 +127,9 @@ impl RobotModel for Honolomic {
 
     fn default_command(&self) -> Command {
         Command::Honolomic(HolonomicCommand {
-                angular_velocity: 0.,
-                lateral_velocity: 0.,
-                longitudinal_velocity: 0.,
-            })
+            angular_velocity: 0.,
+            lateral_velocity: 0.,
+            longitudinal_velocity: 0.,
+        })
     }
 }

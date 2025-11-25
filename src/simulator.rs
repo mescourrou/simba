@@ -7,24 +7,22 @@ the simulator can be used as follows:
 use std::path::Path;
 use simba::simulator::Simulator;
 
-fn main() {
-    // Initialize the environment
-    Simulator::init_environment();
-    println!("Load configuration...");
-    let mut simulator = Simulator::from_config_path(
-        Path::new("config_example/config.yaml"),
-        &None, //<- plugin API, to load external modules
-    ).unwrap();
+// Initialize the environment
+Simulator::init_environment();
+println!("Load configuration...");
+let mut simulator = Simulator::from_config_path(
+    Path::new("config_example/config.yaml"),
+    &None, //<- plugin API, to load external modules
+).unwrap();
 
-    // Show the simulator loaded configuration
-    simulator.show();
+// Show the simulator loaded configuration
+simulator.show();
 
-    // Run the simulator for the time given in the configuration
-    // It also save the results to json
-    simulator.run().unwrap();
+// Run the simulator for the time given in the configuration
+// It also save the results to json
+simulator.run().unwrap();
 
-    simulator.compute_results().unwrap();
-}
+simulator.compute_results().unwrap();
 
 ```
 
@@ -35,6 +33,7 @@ fn main() {
 extern crate confy;
 #[cfg(feature = "gui")]
 use crate::{
+    constants::TIME_ROUND_DECIMALS,
     gui::{
         utils::{json_config, path_finder},
         UIComponent,
@@ -45,24 +44,25 @@ use config_checker::macros::Check;
 use config_checker::ConfigCheckable;
 #[cfg(feature = "gui")]
 use egui::CollapsingHeader;
-use pyo3::prelude::*;
+use pyo3::{ffi::c_str, prelude::*};
 use serde_derive::{Deserialize, Serialize};
 #[cfg(feature = "gui")]
 use simba_macros::EnumToString;
 
 use crate::{
     api::{
-        async_api::{AsyncApi, AsyncApiRunner, PluginAsyncAPI},
+        async_api::{
+            AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner, PluginAsyncAPI,
+        },
         internal_api::NodeClient,
     },
-    constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
+    constants::TIME_ROUND,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::{init_log, is_enabled, LoggerConfig},
     networking::network_manager::NetworkManager,
     node::Node,
     node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig},
     plugin_api::PluginAPI,
-    pybinds::PythonAPI,
     recordable::Recordable,
     state_estimators::state_estimator::State,
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
@@ -74,11 +74,11 @@ use crate::{
     VERSION,
 };
 use core::f32;
-use std::collections::BTreeMap;
 use std::{
     cmp::Ordering,
     path::{Path, PathBuf},
 };
+use std::{collections::BTreeMap, ffi::CString};
 
 use colored::Colorize;
 use serde_json::{self, Value};
@@ -90,12 +90,11 @@ use std::thread::{self, ThreadId};
 
 use log::{debug, info, warn};
 
-use pyo3::prepare_freethreaded_python;
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[cfg_attr(feature = "gui", derive(EnumToString))]
 #[serde(deny_unknown_fields)]
 pub enum ResultSaveMode {
+    #[default]
     AtTheEnd,
     Continuous,
     Batch(usize),
@@ -105,12 +104,6 @@ pub enum ResultSaveMode {
 impl ToVec<&'static str> for ResultSaveMode {
     fn to_vec() -> Vec<&'static str> {
         vec!["AtTheEnd", "Continuous", "Batch", "Periodic"]
-    }
-}
-
-impl Default for ResultSaveMode {
-    fn default() -> Self {
-        ResultSaveMode::AtTheEnd
     }
 }
 
@@ -156,7 +149,7 @@ impl UIComponent for ResultConfig {
         buffer_stack: &mut BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let python_param_key = format!("result-config-python-params-{}", unique_id);
         let python_param_error_key = format!("result-config-python-params-error-{}", unique_id);
@@ -253,7 +246,7 @@ impl UIComponent for ResultConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         CollapsingHeader::new("Results").show(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.label("Result Path: ");
@@ -380,20 +373,14 @@ impl SimulatorConfig {
             }
         };
         config.apply_merge().map_err(|e| {
-            let what = format!(
-                "Error from SerdeYAML while merging YAML tags: {}",
-                e.to_string()
-            );
+            let what = format!("Error from SerdeYAML while merging YAML tags: {}", e);
             println!("ERROR: {what}");
             SimbaError::new(SimbaErrorTypes::ConfigError, what)
         })?;
         let mut config: SimulatorConfig = match serde_yaml::from_value(config) {
             Ok(c) => c,
             Err(e) => {
-                let what = format!(
-                    "Error from SerdeYAML while loading SimulatorConfig : {}",
-                    e.to_string()
-                );
+                let what = format!("Error from SerdeYAML while loading SimulatorConfig : {}", e);
                 println!("ERROR: {what}");
                 return Err(SimbaError::new(SimbaErrorTypes::ConfigError, what));
             }
@@ -421,7 +408,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
         buffer_stack: &mut BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         CollapsingHeader::new("Simulator").show(ui, |ui| {
             ui.horizontal(|ui| {
@@ -463,19 +450,14 @@ impl crate::gui::UIComponent for SimulatorConfig {
                     if ui.button("X").clicked() {
                         self.random_seed = None;
                     }
-                } else {
-                    if ui.button("+").clicked() {
-                        self.random_seed = Some(rand::random());
-                    }
+                } else if ui.button("+").clicked() {
+                    self.random_seed = Some(rand::random());
                 }
             });
 
             ui.horizontal(|ui| {
                 ui.label("Max time: ");
-                ui.add(
-                    egui::DragValue::new(&mut self.max_time)
-                        .max_decimals((TIME_ROUND_DECIMALS) as usize),
-                );
+                ui.add(egui::DragValue::new(&mut self.max_time).max_decimals(TIME_ROUND_DECIMALS));
             });
 
             ui.horizontal(|ui| {
@@ -532,7 +514,7 @@ impl crate::gui::UIComponent for SimulatorConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         CollapsingHeader::new("Simulator").show(ui, |ui| {
             ui.horizontal(|ui| {
                 self.log.show(ui, ctx, unique_id);
@@ -607,11 +589,7 @@ impl Ord for Record {
 
 impl PartialOrd for Record {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if (self.time - other.time).abs() < TIME_ROUND {
-            Some(self.node.name().cmp(other.node.name()))
-        } else {
-            self.time.partial_cmp(&other.time)
-        }
+        Some(self.cmp(other))
     }
 }
 
@@ -699,6 +677,12 @@ impl TimeCv {
     }
 }
 
+impl Default for TimeCv {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Clone)]
 struct ResultSavingData {
     save_mode: ResultSaveMode,
@@ -718,9 +702,9 @@ impl Default for ResultSavingData {
 ///
 /// To run the scenario, there are two mandatory steps:
 /// * Load the config using [`Simulator::from_config_path`] (from a file), or using
-/// [`Simulator::from_config`] with the [`SimulatorConfig`] structs directly.
+///   [`Simulator::from_config`] with the [`SimulatorConfig`] structs directly.
 /// * Run the scenario, once the config is loaded, the scenario can be run using
-/// [`Simulator::run`].
+///   [`Simulator::run`].
 ///
 /// Optionnal steps are the following:
 /// * Initialize the environment with [`Simulator::init_environment`]. It initialize the logging environment.
@@ -734,26 +718,22 @@ impl Default for ResultSavingData {
 /// use simba::simulator::Simulator;
 /// use std::path::Path;
 ///
-/// fn main() {
+/// // Initialize the environment, essentially the logging part
+/// Simulator::init_environment();
+/// info!("Load configuration...");
+/// let mut simulator = Simulator::from_config_path(
+///     Path::new("config_example/config.yaml"), //<- configuration path
+///     &None,                                      //<- plugin API, to load external modules
+/// ).unwrap();
 ///
-///     // Initialize the environment, essentially the logging part
-///     Simulator::init_environment();
-///     info!("Load configuration...");
-///     let mut simulator = Simulator::from_config_path(
-///         Path::new("config_example/config.yaml"), //<- configuration path
-///         &None,                                      //<- plugin API, to load external modules
-///     ).unwrap();
+/// // Show the simulator loaded configuration
+/// simulator.show();
 ///
-///     // Show the simulator loaded configuration
-///     simulator.show();
+/// // It also save the results to "result.json",
+/// simulator.run().unwrap();
 ///
-///     // It also save the results to "result.json",
-///     simulator.run().unwrap();
-///
-///     // compute the results and show the figures.
-///     simulator.compute_results().unwrap();
-///
-/// }
+/// // compute the results and show the figures.
+/// simulator.compute_results().unwrap();
 ///
 /// ```
 pub struct Simulator {
@@ -818,7 +798,7 @@ impl Simulator {
     /// Returns a [`Simulator`] ready to be run.
     pub fn from_config_path(
         config_path: &Path,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
     ) -> SimbaResult<Simulator> {
         let mut sim = Simulator::new();
         sim.load_config_path(config_path, plugin_api)?;
@@ -835,14 +815,14 @@ impl Simulator {
     /// Returns a [`Simulator`] ready to be run.
     pub fn from_config(
         config: &SimulatorConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
     ) -> SimbaResult<Simulator> {
         let mut simulator = Simulator::new();
         simulator.load_config(config, plugin_api)?;
         Ok(simulator)
     }
 
-    pub fn reset(&mut self, plugin_api: &Option<Box<&dyn PluginAPI>>) -> SimbaResult<()> {
+    pub fn reset(&mut self, plugin_api: &Option<Arc<dyn PluginAPI>>) -> SimbaResult<()> {
         info!("Reset node");
         self.nodes = Vec::new();
         self.time_cv = Arc::new(TimeCv::new());
@@ -856,13 +836,10 @@ impl Simulator {
             self.async_api = Some(self.get_async_api());
         }
 
-        self.result_saving_data = match &self.config.results {
-            Some(cfg) => Some(ResultSavingData {
-                save_mode: cfg.save_mode.clone(),
-                ..Default::default()
-            }),
-            None => None,
-        };
+        self.result_saving_data = self.config.results.as_ref().map(|cfg| ResultSavingData {
+            save_mode: cfg.save_mode.clone(),
+            ..Default::default()
+        });
 
         let mut service_managers = BTreeMap::new();
         // Create robots
@@ -894,7 +871,7 @@ impl Simulator {
     pub(crate) fn load_config_path(
         &mut self,
         config_path: &Path,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
     ) -> SimbaResult<()> {
         self.load_config_path_full(config_path, plugin_api, false)
     }
@@ -902,7 +879,7 @@ impl Simulator {
     pub(crate) fn load_config_path_full(
         &mut self,
         config_path: &Path,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         force_send_results: bool,
     ) -> SimbaResult<()> {
         println!("Load configuration from {:?}", config_path);
@@ -913,7 +890,7 @@ impl Simulator {
     pub fn load_config(
         &mut self,
         config: &SimulatorConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
     ) -> SimbaResult<()> {
         self.load_config_full(config, plugin_api, false)
     }
@@ -921,7 +898,7 @@ impl Simulator {
     pub(crate) fn load_config_full(
         &mut self,
         config: &SimulatorConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         force_send_results: bool,
     ) -> SimbaResult<()> {
         println!("Checking configuration...");
@@ -931,7 +908,8 @@ impl Simulator {
             Err(e) => {
                 let e = SimbaError::new(
                     SimbaErrorTypes::ConfigError,
-                    format!("Error in config:\n{e}"));
+                    format!("Error in config:\n{e}"),
+                );
                 log::error!("{}", e.detailed_error());
                 return Err(e);
             }
@@ -977,7 +955,7 @@ impl Simulator {
     pub fn init_environment() {
         // env_logger::init();
 
-        prepare_freethreaded_python();
+        Python::initialize();
     }
 
     fn init_log(log_config: &LoggerConfig) -> SimbaResult<()> {
@@ -993,7 +971,7 @@ impl Simulator {
             .write()
             .unwrap()
             .clone_from(&log_config.included_nodes);
-        if log_config.included_nodes.len() > 0 {
+        if !log_config.included_nodes.is_empty() {
             INCLUDE_NODES.write().unwrap().push("simulator".to_string());
         }
 
@@ -1012,7 +990,7 @@ impl Simulator {
                 }
 
                 let included_nodes = INCLUDE_NODES.read().unwrap();
-                if included_nodes.len() > 0 && !included_nodes.contains(&thread_name) {
+                if !included_nodes.is_empty() && !included_nodes.contains(&thread_name) {
                     return Ok(());
                 }
                 drop(included_nodes);
@@ -1059,14 +1037,14 @@ impl Simulator {
     fn add_robot(
         &mut self,
         robot_config: &RobotConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         force_send_results: bool,
     ) {
         let mut new_node = NodeFactory::make_robot(
             robot_config,
             plugin_api,
-            &global_config,
+            global_config,
             &self.determinist_va_factory,
             &mut self.time_analysis_factory,
             self.time_cv.clone(),
@@ -1079,14 +1057,14 @@ impl Simulator {
     fn add_computation_unit(
         &mut self,
         computation_unit_config: &ComputationUnitConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         force_send_results: bool,
     ) {
         let mut new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
             plugin_api,
-            &global_config,
+            global_config,
             &self.determinist_va_factory,
             &mut self.time_analysis_factory,
             self.time_cv.clone(),
@@ -1121,16 +1099,13 @@ impl Simulator {
         let barrier = Arc::new(Barrier::new(self.nodes.len()));
         let finishing_cv = Arc::new((Mutex::new(0usize), Condvar::new()));
 
-        match &self.result_saving_data {
-            Some(data) => match data.save_mode {
+        if let Some(data) = &self.result_saving_data {
+            match data.save_mode {
                 ResultSaveMode::AtTheEnd => {}
                 _ => self.prepare_save_results()?,
-            },
-            None => {}
-        };
+            }
+        }
         while let Some(node) = self.nodes.pop() {
-            let i = self.nodes.len();
-            let new_max_time = max_time.clone();
             let time_cv = self.time_cv.clone();
             let async_api_server = self.async_api_server.clone();
             let common_time_clone = self.common_time.clone();
@@ -1140,9 +1115,8 @@ impl Simulator {
             let handle = thread::spawn(move || -> SimbaResult<Option<Node>> {
                 let ret = Self::run_one_node(
                     node,
-                    new_max_time,
+                    max_time,
                     nb_nodes,
-                    i,
                     time_cv.clone(),
                     async_api_server,
                     common_time_clone,
@@ -1228,14 +1202,14 @@ impl Simulator {
             Ok(f) => f,
         };
 
-        recording_file.write(b"{\"config\": ").unwrap();
+        recording_file.write_all(b"{\"config\": ").unwrap();
         if let Err(e) = serde_json::to_writer(&recording_file, &self.config) {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
                 format!("Error during json serialization of config: {e}"),
             ));
         }
-        recording_file.write(b",\n\"records\": [\n").unwrap();
+        recording_file.write_all(b",\n\"records\": [\n").unwrap();
         Ok(())
     }
 
@@ -1247,14 +1221,11 @@ impl Simulator {
             return Ok(());
         }
         let result_saving_data = self.result_saving_data.as_ref().unwrap().clone();
-        match result_saving_data.save_mode {
-            ResultSaveMode::AtTheEnd => {
-                if time.is_some() {
-                    return Ok(());
-                }
-                self.prepare_save_results()?;
+        if let ResultSaveMode::AtTheEnd = result_saving_data.save_mode {
+            if time.is_some() {
+                return Ok(());
             }
-            _ => {}
+            self.prepare_save_results()?;
         }
         let result_saving_data = self.result_saving_data.as_mut().unwrap();
         match &mut result_saving_data.save_mode {
@@ -1278,8 +1249,8 @@ impl Simulator {
                 // If no time is given, force save (for end)
             }
             ResultSaveMode::Periodic(next_save) => {
-                if time.is_some() {
-                    if *next_save <= time.unwrap() {
+                if let Some(time) = time {
+                    if *next_save <= time {
                         *next_save = match self.config.results.as_ref().unwrap().save_mode {
                             ResultSaveMode::Periodic(t) => {
                                 round_precision(*next_save + t, TIME_ROUND).unwrap()
@@ -1315,8 +1286,8 @@ impl Simulator {
 
         let result_config = self.config.results.clone().unwrap();
         let filename = result_config.result_path;
-        if filename.is_some() {
-            let filename = self.config.base_path.as_ref().join(filename.unwrap());
+        if let Some(filename) = filename {
+            let filename = self.config.base_path.as_ref().join(filename);
 
             info!(
                 "Saving results to {}",
@@ -1340,7 +1311,7 @@ impl Simulator {
                 if result_saving_data.first_row {
                     result_saving_data.first_row = false;
                 } else {
-                    recording_file.write(b",\n").unwrap();
+                    recording_file.write_all(b",\n").unwrap();
                 }
                 if let Err(e) = serde_json::to_writer(&recording_file, &record) {
                     return Err(SimbaError::new(
@@ -1354,7 +1325,7 @@ impl Simulator {
             }
             if time.is_none() {
                 // Only at the end. If crashes in between, the user need to close the json array+object manually
-                recording_file.write(b"\n]}").unwrap();
+                recording_file.write_all(b"\n]}").unwrap();
             }
         }
         self.records.extend(new_records);
@@ -1407,7 +1378,6 @@ impl Simulator {
         mut node: Node,
         max_time: f32,
         nb_nodes: Arc<RwLock<usize>>,
-        _node_idx: usize,
         time_cv: Arc<TimeCv>,
         async_api_server: Option<SimulatorAsyncApiServer>,
         common_time: Arc<RwLock<f32>>,
@@ -1506,7 +1476,7 @@ impl Simulator {
                     if let Ok((time, state)) = state_update.try_recv() {
                         node_states
                             .get_mut(node_name)
-                            .expect(format!("Unknown node {node_name}").as_str())
+                            .unwrap_or_else(|| panic!("Unknown node {node_name}"))
                             .insert(time, state, true);
                     }
                 }
@@ -1551,21 +1521,19 @@ impl Simulator {
         info!("Starting result analyse...");
         let show_figures = result_config.show_figures;
 
-        // prepare_freethreaded_python();
-
         let json_results =
             serde_json::to_string(&results).expect("Error during converting results to json");
         let json_config =
             serde_json::to_string(&config).expect("Error during converting results to json");
 
-        let show_figure_py = r#"
+        let show_figure_py = cr#"
 import matplotlib.pyplot as plt
 
 def show():
     plt.show()
 "#;
 
-        let convert_to_dict = r#"
+        let convert_to_dict = cr#"
 import json
 class NoneDict(dict):
     """ dict subclass that returns a value of None for missing keys instead
@@ -1587,7 +1555,7 @@ def convert(records):
             .config
             .base_path
             .as_ref()
-            .join(&result_config.analyse_script.unwrap());
+            .join(result_config.analyse_script.unwrap());
         let python_script = match fs::read_to_string(script_path.clone()) {
             Err(e) => {
                 return Err(SimbaError::new(
@@ -1599,33 +1567,32 @@ def convert(records):
                     ),
                 ))
             }
-            Ok(s) => s,
+            Ok(s) => CString::new(s).unwrap(),
         };
-        let res = Python::with_gil(|py| -> PyResult<()> {
-            let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
+        let res = Python::attach(|py| -> PyResult<()> {
+            let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
-            let result_dict = convert_fn.call_bound(py, (json_results,), None)?;
-            let config_dict = convert_fn.call_bound(py, (json_config,), None)?;
+            let result_dict = convert_fn.call(py, (json_results,), None)?;
+            let config_dict = convert_fn.call(py, (json_config,), None)?;
             let param_dict =
-                convert_fn.call_bound(py, (&result_config.python_params.to_string(),), None)?;
+                convert_fn.call(py, (&result_config.python_params.to_string(),), None)?;
 
-            let script = PyModule::from_code_bound(py, &python_script, "", "")?;
+            let script = PyModule::from_code(py, &python_script, c_str!(""), c_str!(""))?;
             let analyse_fn: Py<PyAny> = script.getattr("analyse")?.into();
             info!("Analyse the results...");
             let figure_path;
             if let Some(p) = &result_config.figures_path {
                 figure_path = self.config.base_path.as_ref().join(p);
-                fs::create_dir_all(&figure_path).expect(
-                    format!(
+                fs::create_dir_all(&figure_path).unwrap_or_else(|_| {
+                    panic!(
                         "Impossible to create figure directory ({:#?})",
                         &figure_path
                     )
-                    .as_str(),
-                );
+                });
             } else {
                 figure_path = PathBuf::new();
             }
-            let res = analyse_fn.call_bound(
+            let res = analyse_fn.call(
                 py,
                 (result_dict, config_dict, figure_path, ".pdf", param_dict),
                 None,
@@ -1636,9 +1603,9 @@ def convert(records):
             }
             if show_figures {
                 info!("Showing figures...");
-                let show_script = PyModule::from_code_bound(py, &show_figure_py, "", "")?;
+                let show_script = PyModule::from_code(py, show_figure_py, c_str!(""), c_str!(""))?;
                 let show_fn: Py<PyAny> = show_script.getattr("show")?.into();
-                show_fn.call_bound(py, (), None)?;
+                show_fn.call(py, (), None)?;
             }
             Ok(())
         });
@@ -1660,17 +1627,23 @@ def convert(records):
     }
 }
 
+impl Default for Simulator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct AsyncSimulator {
     server: Arc<Mutex<AsyncApiRunner>>,
     api: AsyncApi,
-    async_plugin_api: Option<PluginAsyncAPI>,
+    async_plugin_api: Option<Arc<PluginAsyncAPI>>,
     // python_api: Option<PythonAPI>,
 }
 
 impl AsyncSimulator {
     pub fn from_config(
         config_path: String,
-        plugin_api: &Option<Box<dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
     ) -> SimbaResult<AsyncSimulator> {
         Simulator::init_environment();
 
@@ -1679,76 +1652,58 @@ impl AsyncSimulator {
         let sim = Self {
             server,
             api,
-            async_plugin_api: match &plugin_api {
-                Some(_) => Some(PluginAsyncAPI::new()),
-                None => None,
-            },
+            async_plugin_api: plugin_api.as_ref().map(|_| Arc::new(PluginAsyncAPI::new())),
         };
 
-        // Unsafe use because wrapper is a python object, which should be used until the end. But PyO3 does not support lifetimes to force the behaviour
-        sim.server.lock().unwrap().run(match &sim.async_plugin_api {
-            Some(api) => Some(Box::<&dyn PluginAPI>::new(unsafe {
-                std::mem::transmute::<&dyn PluginAPI, &'static dyn PluginAPI>(api)
-            })),
-            None => None,
+        sim.server.lock().unwrap().run(
+            sim.async_plugin_api
+                .clone()
+                .map(|api| api as Arc<dyn PluginAPI>),
+        );
+        sim.api.load_config.async_call(AsyncApiLoadConfigRequest {
+            config_path,
+            force_send_results: false,
         });
-        sim.api.load_config.async_call((config_path, false));
 
         if let Some(unwrapped_async_api) = &sim.async_plugin_api {
-            let api_client = &unwrapped_async_api.client;
+            let api_client = &unwrapped_async_api.get_client();
             let plugin_api_unwrapped = plugin_api.as_ref().unwrap();
             let mut res = sim.api.load_config.try_get_result();
             while res.is_none() {
-                if let Ok((config, simulator_config, va_factory)) = api_client
-                    .get_state_estimator_request
-                    .lock()
-                    .unwrap()
-                    .try_recv()
-                {
-                    let state_estimator = plugin_api_unwrapped.get_state_estimator(
-                        &config,
-                        &simulator_config,
-                        &va_factory,
-                    );
-                    api_client
-                        .get_state_estimator_response
-                        .send(state_estimator)
-                        .unwrap();
-                }
-                if let Ok((config, simulator_config, va_factory)) =
-                    api_client.get_controller_request.lock().unwrap().try_recv()
-                {
-                    let controller = plugin_api_unwrapped.get_controller(
-                        &config,
-                        &simulator_config,
-                        &va_factory,
-                    );
-                    api_client.get_controller_response.send(controller).unwrap();
-                }
-                if let Ok((config, simulator_config, va_factory)) =
-                    api_client.get_navigator_request.lock().unwrap().try_recv()
-                {
-                    let navigator =
-                        plugin_api_unwrapped.get_navigator(&config, &simulator_config, &va_factory);
-                    api_client.get_navigator_response.send(navigator).unwrap();
-                }
-                if let Ok((config, simulator_config, va_factory)) =
-                    api_client.get_physics_request.lock().unwrap().try_recv()
-                {
-                    let physic =
-                        plugin_api_unwrapped.get_physics(&config, &simulator_config, &va_factory);
-                    api_client.get_physics_response.send(physic).unwrap();
-                }
+                api_client.get_state_estimator.try_recv_closure(|request| {
+                    plugin_api_unwrapped.get_state_estimator(
+                        &request.config,
+                        &request.global_config,
+                        &request.va_factory,
+                    )
+                });
+                api_client.get_controller.try_recv_closure(|request| {
+                    plugin_api_unwrapped.get_controller(
+                        &request.config,
+                        &request.global_config,
+                        &request.va_factory,
+                    )
+                });
+                api_client.get_navigator.try_recv_closure(|request| {
+                    plugin_api_unwrapped.get_navigator(
+                        &request.config,
+                        &request.global_config,
+                        &request.va_factory,
+                    )
+                });
+                api_client.get_physics.try_recv_closure(|request| {
+                    plugin_api_unwrapped.get_physics(
+                        &request.config,
+                        &request.global_config,
+                        &request.va_factory,
+                    )
+                });
                 plugin_api_unwrapped.check_requests();
                 res = sim.api.load_config.try_get_result();
             }
-            if let Err(e) = res.unwrap() {
-                return Err(e);
-            }
+            res.unwrap()?;
         } else {
-            if let Err(e) = sim.api.load_config.wait_result().unwrap() {
-                return Err(e);
-            }
+            sim.api.load_config.wait_result().unwrap()?;
         }
 
         Ok(sim)
@@ -1756,21 +1711,23 @@ impl AsyncSimulator {
 
     pub fn run(
         &mut self,
-        plugin_api: &Option<Box<dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         max_time: Option<f32>,
         reset: bool,
     ) {
-        self.api.run.async_call((max_time, reset));
-        if let Some(plugin_api) = &plugin_api {
+        self.api
+            .run
+            .async_call(AsyncApiRunRequest { max_time, reset });
+        if let Some(plugin_api) = plugin_api {
             while self.api.run.try_get_result().is_none() {
                 plugin_api.check_requests();
-                if Python::with_gil(|py| py.check_signals()).is_err() {
+                if Python::attach(|py| py.check_signals()).is_err() {
                     break;
                 }
             }
         } else {
             while self.api.run.try_get_result().is_none() {
-                if Python::with_gil(|py| py.check_signals()).is_err() {
+                if Python::attach(|py| py.check_signals()).is_err() {
                     break;
                 }
             }
@@ -1868,7 +1825,7 @@ mod tests {
         fn correction_step(
             &mut self,
             _node: &mut crate::node::Node,
-            _observations: &Vec<Observation>,
+            _observations: &[Observation],
             _time: f32,
         ) {
         }
@@ -1974,7 +1931,7 @@ mod tests {
 
         let plugin_api = PluginAPITest {};
 
-        let mut simulator = Simulator::from_config(&config, &Some(Box::new(&plugin_api))).unwrap();
+        let mut simulator = Simulator::from_config(&config, &Some(Arc::new(plugin_api))).unwrap();
 
         simulator.run().unwrap();
 

@@ -67,7 +67,7 @@ impl UIComponent for TrajectoryFollowerConfig {
         _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Trajectory Follower")
             .id_salt(format!("trajectory-follower-{}", unique_id))
@@ -111,7 +111,7 @@ impl UIComponent for TrajectoryFollowerConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Trajectory Follower")
             .id_salt(format!("trajectory-follower-{}", unique_id))
             .show(ui, |ui| {
@@ -163,7 +163,7 @@ impl Default for TrajectoryFollowerRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for TrajectoryFollowerRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             egui::CollapsingHeader::new("Error").show(ui, |ui| {
                 self.error.show(ui, ctx, unique_id);
@@ -226,10 +226,10 @@ impl TrajectoryFollower {
     /// * `config` - Trajectory configuration
     /// * `plugin_api` - Not used there.
     /// * `global_config` - Global configuration of the simulator. Used there to get the
-    /// path of the config, used as relative reference for the trajectory path.
+    ///   path of the config, used as relative reference for the trajectory path.
     pub fn from_config(config: &TrajectoryFollowerConfig, global_config: &SimulatorConfig) -> Self {
         let mut path = Path::new(&config.trajectory_path);
-        if config.trajectory_path == "" {
+        if config.trajectory_path.is_empty() {
             return Self::new();
         }
         let joined_path = global_config.base_path.join(&config.trajectory_path);
@@ -237,7 +237,7 @@ impl TrajectoryFollower {
             path = joined_path.as_path();
         }
         TrajectoryFollower {
-            trajectory: Self::load_trajectory_from_path(&path),
+            trajectory: Self::load_trajectory_from_path(path),
             forward_distance: config.forward_distance,
             target_speed: config.target_speed,
             error: ControllerError::default(),
@@ -250,7 +250,7 @@ impl TrajectoryFollower {
     /// Load the trajectory from the given `path`. This file should be compatible
     /// with [`TrajectoryConfig`].
     fn load_trajectory_from_path(path: &Path) -> Trajectory {
-        let trajectory: TrajectoryConfig = match confy::load_path(&path) {
+        let trajectory: TrajectoryConfig = match confy::load_path(path) {
             Ok(config) => config,
             Err(error) => {
                 println!(
@@ -265,6 +265,12 @@ impl TrajectoryFollower {
     }
 }
 
+impl Default for TrajectoryFollower {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 use crate::controllers::controller::ControllerError;
 use crate::node::Node;
 use crate::state_estimators::state_estimator::WorldState;
@@ -275,7 +281,7 @@ impl Navigator for TrajectoryFollower {
     /// This error is computed through the following steps:
     /// 1. Compute the foward pose, using the `forward_distance`.
     /// 2. Use [`Trajectory::map_matching`] to get the matching segment and the projected
-    /// point (no orientation).
+    ///    point (no orientation).
     /// 3. Compute the orientation of the point to orient the robot to the projected point.
     /// 4. Compute the lateral error
     /// 5. Compute the velocity error
@@ -309,13 +315,11 @@ impl Navigator for TrajectoryFollower {
             (segment.1.x - segment.0.x).into(),
         ) as f32;
         let projected_point = Vector3::new(projected_point.x, projected_point.y, segment_angle);
-        let projection_vector = projected_point.fixed_view::<2, 1>(0, 0)
-            - state.pose.fixed_view::<2, 1>(0, 0);
+        let projection_vector =
+            projected_point.fixed_view::<2, 1>(0, 0) - state.pose.fixed_view::<2, 1>(0, 0);
         // Compute the orientation error
-        let mut projected_point_direction = atan2(
-            projection_vector.y.into(),
-            projection_vector.x.into(),
-        ) as f32;
+        let mut projected_point_direction =
+            atan2(projection_vector.y.into(), projection_vector.x.into()) as f32;
 
         self.projected_point = [projected_point.x, projected_point.y];
 
@@ -325,7 +329,6 @@ impl Navigator for TrajectoryFollower {
 
         let theta_error = mod2pi(theta_error);
         self.error.theta = theta_error;
-
 
         let rot = na::Rotation2::new(-state.pose.z);
         let local_projection = rot * projection_vector.fixed_view::<2, 1>(0, 0);

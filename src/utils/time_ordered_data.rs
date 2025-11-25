@@ -67,13 +67,13 @@ impl<T> TimeOrderedData<T> {
                 // Return.1 is if the time is exact (not here)
                 return (pos, false);
             } else if (pos_time - time).abs() < TIME_ROUND / 2. {
-                pos = pos - 1;
+                pos -= 1;
                 // Return.1 is if the time is exact
                 return (pos, true);
             }
-            pos = pos - 1;
+            pos -= 1;
         }
-        return (pos, false);
+        (pos, false)
     }
 
     /// Insert an element at the given time.
@@ -82,7 +82,7 @@ impl<T> TimeOrderedData<T> {
     /// * `time` -- Time where to insert the new element.
     /// * `data` -- Element to insert.
     /// * `do_erase` -- Erase or not if an element is already at the same timestamp.
-    /// If it does not erase, multiple elements will have the same timestamp.
+    ///   If it does not erase, multiple elements will have the same timestamp.
     ///
     /// TODO: test without erase, if all elements come out by iter.
     pub fn insert(&mut self, time: f32, data: T, do_erase: bool) {
@@ -227,7 +227,7 @@ impl<T> TimeOrderedData<T> {
     /// * `None` if no data was found at this `time`.
     pub fn get_data_at_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
-            if (data_time - &time).abs() < TIME_ROUND / 2. {
+            if (*data_time - time).abs() < TIME_ROUND / 2. {
                 return Some((time, data));
             }
         }
@@ -290,9 +290,13 @@ impl<T> TimeOrderedData<T> {
         self.data.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+
     /// Minimal time in the data structure.
     pub fn min_time(&self) -> Option<(f32, &T)> {
-        if self.len() == 0 {
+        if self.is_empty() {
             None
         } else {
             Some((self.data[0].0, &self.data[0].1))
@@ -301,11 +305,17 @@ impl<T> TimeOrderedData<T> {
 
     /// Maximal time in the data structure.
     pub fn max_time(&self) -> Option<(f32, &T)> {
-        if self.len() == 0 {
+        if self.is_empty() {
             None
         } else {
             Some((self.data[self.len() - 1].0, &self.data[self.len() - 1].1))
         }
+    }
+}
+
+impl<T> Default for TimeOrderedData<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

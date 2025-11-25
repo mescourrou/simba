@@ -2,6 +2,7 @@
 Module providing the interface to use external Python [`Controller`].
 */
 
+use std::ffi::CString;
 use std::fs;
 use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -9,6 +10,7 @@ use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use log::{debug, info};
+use pyo3::ffi::c_str;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
 use pyo3::{pyclass, pymethods, PyResult, Python};
@@ -76,7 +78,7 @@ impl UIComponent for PythonControllerConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("External Python Controller").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -102,7 +104,7 @@ impl UIComponent for PythonControllerConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("External Python Controller").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.horizontal(|ui| {
@@ -145,7 +147,7 @@ impl Default for PythonControllerRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for PythonControllerRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.label(self.record.to_string());
     }
 }
@@ -192,12 +194,10 @@ impl PythonController {
             debug!("Config given: {:?}", config);
         }
 
-        // prepare_freethreaded_python();
-
         let json_config = serde_json::to_string(&config)
             .expect("Error during converting Python Controller config to json");
 
-        let convert_to_dict = r#"
+        let convert_to_dict = cr#"
 import json
 class NoneDict(dict):
     """ dict subclass that returns a value of None for missing keys instead
@@ -227,18 +227,18 @@ def convert(records):
                     ),
                 ))
             }
-            Ok(s) => s,
+            Ok(s) => CString::new(s).unwrap(),
         };
-        let res = Python::with_gil(|py| -> PyResult<Py<PyAny>> {
-            let script = PyModule::from_code_bound(py, &convert_to_dict, "", "")?;
+        let res = Python::attach(|py| -> PyResult<Py<PyAny>> {
+            let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
-            let config_dict = convert_fn.call_bound(py, (json_config,), None)?;
+            let config_dict = convert_fn.call(py, (json_config,), None)?;
 
-            let script = PyModule::from_code_bound(py, &python_script, "", "")?;
+            let script = PyModule::from_code(py, &python_script, c_str!(""), c_str!(""))?;
             let controller_class: Py<PyAny> = script.getattr(config.class_name.as_str())?.into();
             info!("Load Controller class {} ...", config.class_name);
 
-            let res = controller_class.call_bound(py, (config_dict,), None);
+            let res = controller_class.call(py, (config_dict,), None);
             let controller_instance = match res {
                 Err(err) => {
                     err.display(py);
@@ -277,8 +277,8 @@ impl Controller for PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of make_command");
         }
-        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
-        let result = Python::with_gil(|py| -> CommandWrapper {
+        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let result = Python::attach(|py| -> CommandWrapper {
             match self.controller.bind(py).call_method(
                 "make_command",
                 (node_py, ControllerErrorWrapper::from_rust(error), time),
@@ -300,8 +300,8 @@ impl Controller for PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        let node_py = NodeWrapper::from_rust(&node, self.letter_box_receiver.clone());
-        Python::with_gil(|py| {
+        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        Python::attach(|py| {
             if let Err(e) =
                 self.controller
                     .bind(py)
@@ -319,7 +319,7 @@ impl Recordable<ControllerRecord> for PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::with_gil(|py| {
+        let record_str: String = Python::attach(|py| {
             match self.controller
                 .bind(py)
                 .call_method("record", (), None) {

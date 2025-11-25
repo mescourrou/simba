@@ -9,7 +9,7 @@ use crate::{
     logger::is_enabled,
     navigators::{go_to::GoToMessage, navigator::Navigator, pybinds::PythonNavigator},
     networking::{network::MessageFlag, MessageTypes},
-    physics::{physics::Physics, pybinds::PythonPhysics},
+    physics::{pybinds::PythonPhysics, Physics},
     plugin_api::PluginAPI,
     pywrappers::{
         run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper,
@@ -97,10 +97,8 @@ impl PluginAPI for PythonAPI {
         self.state_estimators
             .lock()
             .unwrap()
-            .push(PythonStateEstimator::new(Python::with_gil(|py| match self
-                .api
-                .bind(py)
-                .call_method(
+            .push(PythonStateEstimator::new(Python::attach(|py| {
+                match self.api.bind(py).call_method(
                     "get_state_estimator",
                     (
                         config.to_string(),
@@ -109,13 +107,14 @@ impl PluginAPI for PythonAPI {
                     ),
                     None,
                 ) {
-                Err(e) => {
-                    e.display(py);
-                    panic!("Error during execution of python method 'get_state_estimator'.");
+                    Err(e) => {
+                        e.display(py);
+                        panic!("Error during execution of python method 'get_state_estimator'.");
+                    }
+                    Ok(r) => r
+                        .extract()
+                        .expect("Expecting function return of PythonStateEstimator but failed"),
                 }
-                Ok(r) => r
-                    .extract()
-                    .expect("Expecting function return of PythonStateEstimator but failed"),
             })));
         let st = Box::new(
             self.state_estimators
@@ -143,7 +142,7 @@ impl PluginAPI for PythonAPI {
         self.controllers
             .lock()
             .unwrap()
-            .push(PythonController::new(Python::with_gil(|py| {
+            .push(PythonController::new(Python::attach(|py| {
                 match self.api.bind(py).call_method(
                     "get_controller",
                     (
@@ -188,7 +187,7 @@ impl PluginAPI for PythonAPI {
         self.navigators
             .lock()
             .unwrap()
-            .push(PythonNavigator::new(Python::with_gil(|py| {
+            .push(PythonNavigator::new(Python::attach(|py| {
                 match self.api.bind(py).call_method(
                     "get_navigator",
                     (
@@ -226,7 +225,7 @@ impl PluginAPI for PythonAPI {
         self.physics
             .lock()
             .unwrap()
-            .push(PythonPhysics::new(Python::with_gil(|py| {
+            .push(PythonPhysics::new(Python::attach(|py| {
                 match self.api.bind(py).call_method(
                     "get_physics",
                     (

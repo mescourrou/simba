@@ -31,7 +31,7 @@ impl UIComponent for PhysicsFaultModelConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let self_str = self.to_string();
         egui::CollapsingHeader::new(self_str)
@@ -50,7 +50,7 @@ impl UIComponent for PhysicsFaultModelConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         let self_str = self.to_string();
         egui::CollapsingHeader::new(self_str)
             .id_salt(format!("physics-fault-model-{}", unique_id))
@@ -71,7 +71,7 @@ impl PhysicsFaultModelConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         use crate::{gui::utils::string_combobox, utils::enum_tools::ToVec};
 
@@ -129,10 +129,10 @@ impl PhysicsFaultModelConfig {
     }
 
     pub fn show_faults(
-        faults: &Vec<PhysicsFaultModelConfig>,
+        faults: &[PhysicsFaultModelConfig],
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.label("Faults:");
         for (i, fault) in faults.iter().enumerate() {
@@ -151,7 +151,7 @@ pub fn make_physics_fault_model_from_config(
 ) -> Box<dyn PhysicsFaultModel> {
     match &config {
         PhysicsFaultModelConfig::AdditiveRobotCentered(cfg) => Box::new(
-            AdditiveRobotCenteredPhysicsFault::from_config(&cfg, va_factory),
+            AdditiveRobotCenteredPhysicsFault::from_config(cfg, va_factory),
         )
             as Box<dyn PhysicsFaultModel>,
     }

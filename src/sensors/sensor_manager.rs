@@ -62,7 +62,7 @@ impl UIComponent for ManagedSensorConfig {
         buffer_stack: &mut BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new(&self.name)
             .id_salt(format!("managed-sensor-{}", unique_id).as_str())
@@ -107,7 +107,7 @@ impl UIComponent for ManagedSensorConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new(&self.name)
             .id_salt(format!("managed-sensor-{}", unique_id).as_str())
             .show(ui, |ui| {
@@ -128,20 +128,12 @@ impl UIComponent for ManagedSensorConfig {
 }
 
 /// Configuration listing all the [`SensorConfig`]s.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[derive(Serialize, Deserialize, Debug, Clone, Check, Default)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
 pub struct SensorManagerConfig {
     #[check]
     pub sensors: Vec<ManagedSensorConfig>,
-}
-
-impl Default for SensorManagerConfig {
-    fn default() -> Self {
-        Self {
-            sensors: Vec::new(),
-        }
-    }
 }
 
 #[cfg(feature = "gui")]
@@ -153,7 +145,7 @@ impl UIComponent for SensorManagerConfig {
         buffer_stack: &mut BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Sensor Manager")
             .id_salt(format!("sensor-manager-{}", unique_id))
@@ -184,7 +176,7 @@ impl UIComponent for SensorManagerConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Sensor Manager")
             .id_salt(format!("sensor-manager-{}", unique_id))
             .show(ui, |ui| {
@@ -208,7 +200,7 @@ pub struct SensorManagerRecord {
 
 #[cfg(feature = "gui")]
 impl UIComponent for SensorManagerRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Sensors").show(ui, |ui| {
             for s in &self.sensors {
                 egui::CollapsingHeader::new(&s.name).show(ui, |ui| {
@@ -273,7 +265,7 @@ impl SensorManager {
     /// * `meta_config` - Simulator meta config.
     pub fn from_config(
         config: &SensorManagerConfig,
-        plugin_api: &Option<Box<&dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
@@ -392,7 +384,7 @@ impl SensorManager {
                     sensor_observation: obs,
                 })
                 .collect();
-            if sensor_observations.len() > 0 {
+            if !sensor_observations.is_empty() {
                 for to in &sensor.send_to {
                     if !obs_to_send.contains_key(to) {
                         obs_to_send.insert(to, Vec::new());
@@ -410,9 +402,9 @@ impl SensorManager {
                     .min(sensor.sensor.read().unwrap().next_time_step()),
             );
         }
-        if obs_to_send.len() > 0 {
+        if !obs_to_send.is_empty() {
             for (to, observations) in obs_to_send {
-                if observations.len() > 0 {
+                if !observations.is_empty() {
                     let obs_serialized = serde_json::to_value(observations).unwrap();
                     node.network()
                         .expect(
@@ -433,6 +425,12 @@ impl SensorManager {
     /// Get the time of the next observation.
     pub fn next_time_step(&self) -> Option<f32> {
         self.next_time
+    }
+}
+
+impl Default for SensorManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

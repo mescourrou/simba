@@ -51,10 +51,8 @@ pub fn string_checkbox(
             if !mut_list.contains(&e) {
                 mut_list.push(e.clone());
             }
-        } else {
-            if let Some(i) = mut_list.iter().rposition(|x| x == &e) {
-                mut_list.remove(i);
-            }
+        } else if let Some(i) = mut_list.iter().rposition(|x| x == &e) {
+            mut_list.remove(i);
         }
     }
 }
@@ -88,10 +86,8 @@ where
             if !values.contains(&e) {
                 values.push(e.clone());
             }
-        } else {
-            if let Some(i) = values.iter().rposition(|x| x == &e) {
-                values.remove(i);
-            }
+        } else if let Some(i) = values.iter().rposition(|x| x == &e) {
+            values.remove(i);
         }
     }
 }

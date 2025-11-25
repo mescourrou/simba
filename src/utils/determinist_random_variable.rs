@@ -12,6 +12,7 @@ The random variables can be of different types:
 - Fixed: always return the same value
 - Uniform: return a random value between a min and a max, with a uniform distribution
 - Normal: return a random value following a normal distribution
+
 Other types can be added in the future.
 
  */
@@ -131,10 +132,10 @@ impl UIComponent for RandomVariableTypeConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let mut current_str = self.to_string();
-        let possible_types = vec![
+        let possible_types = [
             "None",
             "Fixed",
             "Uniform",
@@ -227,9 +228,9 @@ impl UIComponent for RandomVariableTypeConfig {
         };
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.horizontal(|ui| {
-            ui.label(format!("Type: {}", self.to_string()));
+            ui.label(format!("Type: {}", self));
         });
 
         match self {
@@ -254,7 +255,7 @@ impl RandomVariableTypeConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.vertical(|ui| {
             ui.label("Distributions: ");
@@ -285,10 +286,10 @@ impl RandomVariableTypeConfig {
     }
 
     pub fn show_vector(
-        vec: &Vec<RandomVariableTypeConfig>,
+        vec: &[RandomVariableTypeConfig],
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.vertical(|ui| {
             ui.label("Distributions: ");
@@ -307,7 +308,7 @@ pub fn seed_generation_component(
     seed: &mut f32,
     ui: &mut egui::Ui,
     _buffer_stack: &mut std::collections::BTreeMap<String, String>,
-    _unique_id: &String,
+    _unique_id: &str,
 ) {
     use rand::random;
 

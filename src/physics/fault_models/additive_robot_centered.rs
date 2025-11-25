@@ -14,9 +14,7 @@ use crate::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
         },
-        distributions::{
-            bernouilli::BernouilliRandomVariableConfig, normal::NormalRandomVariableConfig,
-        },
+        distributions::normal::NormalRandomVariableConfig,
         geometry::mod2pi,
     },
 };
@@ -50,7 +48,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &crate::simulator::SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.vertical(|ui| {
             RandomVariableTypeConfig::show_vector_mut(
@@ -62,7 +60,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = vec!["x", "y", "orientation", "velocity"]
+            let possible_variables = ["x", "y", "orientation", "velocity"]
                 .iter()
                 .map(|x| String::from(*x))
                 .collect();
@@ -72,7 +70,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
                     let unique_var_id = format!("variable-{i}-{unique_id}");
                     string_combobox(ui, &possible_variables, var, unique_var_id);
                 }
-                if self.variable_order.len() > 0 && ui.button("-").clicked() {
+                if !self.variable_order.is_empty() && ui.button("-").clicked() {
                     self.variable_order.pop();
                 }
                 if ui.button("+").clicked() {
@@ -87,7 +85,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             use crate::utils::determinist_random_variable::RandomVariableTypeConfig;
 
@@ -121,7 +119,7 @@ impl AdditiveRobotCenteredPhysicsFault {
                 .map(|conf| va_factory.make_variable(conf.clone()))
                 .collect::<Vec<Box<dyn DeterministRandomVariable>>>(),
         ));
-        if config.variable_order.len() != 0 {
+        if !config.variable_order.is_empty() {
             assert!(
                 config.variable_order.len()
                     == distributions
@@ -150,14 +148,14 @@ impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
             random_sample.extend_from_slice(&d.gen(time));
         }
 
-        if self.variable_order.len() > 0 {
-            for i in 0..self.variable_order.len() {
-                match self.variable_order[i].as_str() {
+        if !self.variable_order.is_empty() {
+            for (i, variable) in self.variable_order.iter().enumerate() {
+                match variable.as_str() {
                     "x" => state.pose.x += random_sample[i] * delta_time,
                     "y" => state.pose.y += random_sample[i] * delta_time,
                     "z" | "orientation" => state.pose.z += random_sample[i] * delta_time,
                     "v" | "velocity" => state.velocity += random_sample[i] * delta_time,
-                    &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation, v | velocity]", self.variable_order[i])
+                    &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation, v | velocity]", variable)
                 }
             }
         } else {

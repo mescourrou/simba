@@ -36,12 +36,7 @@ impl GoToMessage {
     #[new]
     #[pyo3(signature = (list=None))]
     pub fn new(list: Option<[f32; 2]>) -> Self {
-        Self {
-            target_point: match list {
-                Some(l) => Some(l),
-                None => None,
-            },
-        }
+        Self { target_point: list }
     }
 }
 
@@ -81,7 +76,7 @@ impl UIComponent for GoToConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         egui::CollapsingHeader::new("Go To")
             .id_salt(format!("go-to-{}", unique_id))
@@ -139,7 +134,7 @@ impl UIComponent for GoToConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Go To")
             .id_salt(format!("go-to-{}", unique_id))
             .show(ui, |ui| {
@@ -171,25 +166,16 @@ impl UIComponent for GoToConfig {
 }
 
 /// Record of the [`GoTo`].
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GoToRecord {
     /// Current error
     pub error: ControllerError,
     pub current_point: Option<[f32; 2]>,
 }
 
-impl Default for GoToRecord {
-    fn default() -> Self {
-        Self {
-            error: ControllerError::default(),
-            current_point: None,
-        }
-    }
-}
-
 #[cfg(feature = "gui")]
 impl UIComponent for GoToRecord {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             egui::CollapsingHeader::new("Error").show(ui, |ui| {
                 self.error.show(ui, ctx, unique_id);
@@ -261,6 +247,12 @@ impl GoTo {
     }
 }
 
+impl Default for GoTo {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 use crate::controllers::controller::ControllerError;
 use crate::node::Node;
 use crate::state_estimators::state_estimator::WorldState;
@@ -326,7 +318,7 @@ impl Recordable<NavigatorRecord> for GoTo {
     fn record(&self) -> NavigatorRecord {
         NavigatorRecord::GoTo(GoToRecord {
             error: self.error.clone(),
-            current_point: self.current_point.clone(),
+            current_point: self.current_point,
         })
     }
 }

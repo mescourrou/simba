@@ -2,9 +2,8 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 use simba_macros::{EnumToString, ToVec};
 
-use crate::utils::enum_tools::ToVec;
 #[cfg(feature = "gui")]
-use crate::{gui::UIComponent, simulator::SimulatorConfig};
+use crate::{gui::UIComponent, simulator::SimulatorConfig, utils::enum_tools::ToVec};
 use crate::{
     sensors::{
         sensor::SensorObservation,
@@ -38,7 +37,7 @@ impl UIComponent for SensorFilterConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         let self_str = self.to_string();
         egui::CollapsingHeader::new(self_str)
@@ -57,7 +56,7 @@ impl UIComponent for SensorFilterConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         let self_str = self.to_string();
         egui::CollapsingHeader::new(self_str)
             .id_salt(format!("sensor-filter-{}", unique_id))
@@ -78,7 +77,7 @@ impl SensorFilterConfig {
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
         global_config: &SimulatorConfig,
         current_node_name: Option<&String>,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         use crate::gui::utils::string_combobox;
 
@@ -132,10 +131,10 @@ impl SensorFilterConfig {
     }
 
     pub fn show_filters(
-        filters: &Vec<SensorFilterConfig>,
+        filters: &[SensorFilterConfig],
         ui: &mut egui::Ui,
         ctx: &egui::Context,
-        unique_id: &String,
+        unique_id: &str,
     ) {
         ui.label("Filters:");
         for (i, filter) in filters.iter().enumerate() {
@@ -150,7 +149,7 @@ impl SensorFilterConfig {
 pub fn make_sensor_filter_from_config(config: &SensorFilterConfig) -> Box<dyn SensorFilter> {
     match &config {
         SensorFilterConfig::RangeFilter(cfg) => {
-            Box::new(RangeFilter::from_config(&cfg)) as Box<dyn SensorFilter>
+            Box::new(RangeFilter::from_config(cfg)) as Box<dyn SensorFilter>
         }
     }
 }

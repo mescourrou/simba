@@ -29,7 +29,7 @@ impl UIComponent for FixedRandomVariableConfig {
         _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &crate::simulator::SimulatorConfig,
         _current_node_name: Option<&String>,
-        _unique_id: &String,
+        _unique_id: &str,
     ) {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
@@ -53,7 +53,7 @@ impl UIComponent for FixedRandomVariableConfig {
         });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &String) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 for (i, p) in self.values.iter().enumerate() {
