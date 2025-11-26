@@ -28,7 +28,7 @@ List of parameters:
 			- `!NodeSyncDetailed` 
 			- `!API` 
 			- `!NavigatorDetailed` 
-- `results`: [ResultConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/simulator/struct.ResultConfig.html), Optional
+- `results`: [ResultConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/simulator/results/struct.ResultConfig.html), Optional
 	- `result_path`: String, Optional
 	- `show_figures`: Boolean
 	- `analyse_script`: String, Optional
@@ -37,16 +37,16 @@ List of parameters:
 	- `save_mode`: ResultSaveMode
 - `base_path`: String
 - `max_time`: Float
-- `time_analysis`: [TimeAnalysisConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/time_analysis/struct.TimeAnalysisConfig.html)
-	- `exporter`: [ProfileExporterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/time_analysis/enum.ProfileExporterConfig.html), Enum
+- `time_analysis`: [TimeAnalysisConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/time_analysis/time_analysis_config/struct.TimeAnalysisConfig.html)
+	- `exporter`: [ProfileExporterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/time_analysis/exporter/enum.ProfileExporterConfig.html), Enum
 		- `!TraceEventExporter` 
 	- `keep_last`: Boolean
 	- `output_path`: String
 	- `analysis_unit`: String
 - `random_seed`: Float, Optional
-- `robots`: [RobotConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/node_factory/struct.RobotConfig.html), List
+- `robots`: [RobotConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/node/node_factory/struct.RobotConfig.html), List
 	- `name`: String
-	- `navigator`: [NavigatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/navigators/navigator/enum.NavigatorConfig.html), Enum
+	- `navigator`: [NavigatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/navigators/mod/enum.NavigatorConfig.html), Enum
 		- `!TrajectoryFollower`: [TrajectoryFollowerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/navigators/trajectory_follower/struct.TrajectoryFollowerConfig.html)
 			- `trajectory_path`: String
 			- `forward_distance`: Float
@@ -60,11 +60,11 @@ List of parameters:
 			- `class_name`: String
 			- `config`: User-specific struct
 		- `!GoTo`: [GoToConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/navigators/go_to/struct.GoToConfig.html)
-			- `target_point`: ], Optional
+			- `target_point`: f32, Optional, Array[2]
 			- `target_speed`: Float
 			- `stop_distance`: Float
 			- `stop_ramp_coefficient`: Float
-	- `controller`: [ControllerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/controllers/controller/enum.ControllerConfig.html), Enum
+	- `controller`: [ControllerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/controllers/mod/enum.ControllerConfig.html), Enum
 		- `!PID`: [PIDConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/controllers/pid/struct.PIDConfig.html)
 			- `robot_model`: [RobotModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/robot_models/mod/enum.RobotModelConfig.html), Optional, Enum
 				- `!Unicycle`: [UnicycleConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/robot_models/unicycle/struct.UnicycleConfig.html)
@@ -79,10 +79,10 @@ List of parameters:
 			- `file`: String
 			- `class_name`: String
 			- `config`: User-specific struct
-	- `physics`: [PhysicsConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/physics/enum.PhysicsConfig.html), Enum
+	- `physics`: [PhysicsConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/mod/enum.PhysicsConfig.html), Enum
 		- `!Internal`: [InternalPhysicConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/internal_physics/struct.InternalPhysicConfig.html)
 			- `model`: [RobotModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/robot_models/mod/enum.RobotModelConfig.html), See above
-			- `initial_state`: [StateConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/state_estimator/struct.StateConfig.html)
+			- `initial_state`: [StateConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/mod/struct.StateConfig.html)
 				- `pose`: Float, List
 				- `velocity`: Float
 			- `faults`: [PhysicsFaultModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/physics/fault_models/fault_model/enum.PhysicsFaultModelConfig.html), List, Enum
@@ -112,7 +112,7 @@ List of parameters:
 			- `file`: String
 			- `class_name`: String
 			- `config`: User-specific struct
-	- `state_estimator`: [StateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/state_estimator/enum.StateEstimatorConfig.html), Enum
+	- `state_estimator`: [StateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/mod/enum.StateEstimatorConfig.html), Enum
 		- `!Perfect`: [PerfectEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/perfect_estimator/struct.PerfectEstimatorConfig.html)
 			- `prediction_period`: Float
 			- `targets`: String, List
@@ -127,7 +127,7 @@ List of parameters:
 		- `sensors`: [ManagedSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_manager/struct.ManagedSensorConfig.html), List
 			- `name`: String
 			- `send_to`: String, List
-			- `config`: [SensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor/enum.SensorConfig.html), Enum
+			- `config`: [SensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/mod/enum.SensorConfig.html), Enum
 				- `!OrientedLandmarkSensor`: [OrientedLandmarkSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/oriented_landmark_sensor/struct.OrientedLandmarkSensorConfig.html)
 					- `detection_distance`: Float
 					- `map_path`: String
@@ -186,10 +186,10 @@ List of parameters:
 	- `network`: [NetworkConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/networking/network/struct.NetworkConfig.html)
 		- `range`: Float
 		- `reception_delay`: Float
-	- `state_estimator_bench`: [BenchStateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/state_estimator/struct.BenchStateEstimatorConfig.html), List
+	- `state_estimator_bench`: [BenchStateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/mod/struct.BenchStateEstimatorConfig.html), List
 		- `name`: String
-		- `config`: [StateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/state_estimator/enum.StateEstimatorConfig.html), See above
-- `computation_units`: [ComputationUnitConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/node_factory/struct.ComputationUnitConfig.html), List
+		- `config`: [StateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/mod/enum.StateEstimatorConfig.html), See above
+- `computation_units`: [ComputationUnitConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/node/node_factory/struct.ComputationUnitConfig.html), List
 	- `name`: String
 	- `network`: [NetworkConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/networking/network/struct.NetworkConfig.html), See above
-	- `state_estimators`: [BenchStateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/state_estimator/struct.BenchStateEstimatorConfig.html), See above, List
+	- `state_estimators`: [BenchStateEstimatorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/state_estimators/mod/struct.BenchStateEstimatorConfig.html), See above, List
