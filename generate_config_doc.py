@@ -72,9 +72,7 @@ def convert_rust_type_to_yaml(type:str) -> str|None:
     
 def type_from_node(type_node, comments, configs) -> Tuple[List[str], str | None]:
     if type_node is None:
-        print("No type node")
         return (comments, None)
-    print(f"Type node: {type_node.type} => {type_node.children}", f" => {type_node.children[1].text.decode('utf-8')}, {type_node.children[3].text.decode('utf-8')}" if len(type_node.children) >= 4 else "")
     if type_node.type == "array_type":
         element_type = type_node.children[1].text.decode('utf-8')
         length = type_node.children[3].text.decode('utf-8')
@@ -88,7 +86,6 @@ def type_from_node(type_node, comments, configs) -> Tuple[List[str], str | None]
             return (comments, type)
         converted_type = convert_rust_type_to_yaml(type)
         if not converted_type is None:
-            print(f"Converted {type} => {converted_type}")
             return (comments, converted_type)
     type_field = type_node.child_by_field_name("type")
     if type_field is None:
@@ -106,7 +103,6 @@ def type_from_node(type_node, comments, configs) -> Tuple[List[str], str | None]
     if type == "Vec":
         comments.append(LIST)
     type_args = type_node.child_by_field_name("type_arguments")
-    print(f"Type args for {type}: {type_args}")
     if type_args is None:
         return (comments, type)
     if len(type_args.children) > 3:
@@ -142,7 +138,6 @@ def document_config(node, docfile, configs, depth=0):
                     non_type_enum = True
                 else:
                     type_field = type_field.child_by_field_name("type") 
-            print(f"Type field for {name}: {type_field}")
             comments, config_name = type_from_node(type_field, [], configs)
             next_node = None
             if not config_name is None:

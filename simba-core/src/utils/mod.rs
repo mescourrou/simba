@@ -10,6 +10,7 @@ pub mod enum_tools;
 pub mod geometry;
 pub mod maths;
 pub mod occupancy_grid;
+pub mod python;
 pub mod rfc;
 pub mod time_ordered_data;
 

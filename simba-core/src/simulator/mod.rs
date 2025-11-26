@@ -1136,11 +1136,11 @@ mod tests {
 
         let reference_result = &results[0];
         assert!(!reference_result.is_empty());
-        for i in 1..nb_replications {
-            assert_eq!(results[i].len(), reference_result.len());
-            for j in 0..reference_result.len() {
-                let result_as_str = format!("{:?}", results[i][j]);
-                let reference_result_as_str = format!("{:?}", reference_result[j]);
+        for result in results.iter().skip(1) {
+            assert_eq!(result.len(), reference_result.len());
+            for (j, ref_result) in reference_result.iter().enumerate() {
+                let result_as_str = format!("{:?}", result[j]);
+                let reference_result_as_str = format!("{:?}", ref_result);
                 assert_eq!(
                     result_as_str, reference_result_as_str,
                     "{result_as_str} != {reference_result_as_str}"

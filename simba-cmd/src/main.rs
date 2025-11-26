@@ -1,9 +1,7 @@
-use std::path::Path;
 use clap::Parser;
+use std::path::Path;
 
-use simba::{
-    gui, simulator::Simulator, errors::SimbaResult,
-};
+use simba::{errors::SimbaResult, gui, simulator::Simulator};
 
 #[derive(Parser)]
 #[command(version, about)]
@@ -20,13 +18,10 @@ struct Cli {
 
 fn doit(args: Cli) -> SimbaResult<()> {
     if args.no_gui {
-        let config_path = if let Some(p) = &args.config_path {
-            Some(Path::new(unsafe {
-                std::mem::transmute::<&String, &'static String>(p)
-            }))
-        } else {
-            None
-        };
+        let config_path = args
+            .config_path
+            .as_ref()
+            .map(|p| Path::new(unsafe { std::mem::transmute::<&String, &'static String>(p) }));
         if config_path.is_none() {
             println!("If no gui is used, provide a config path!");
             return Ok(());
@@ -51,17 +46,13 @@ fn doit(args: Cli) -> SimbaResult<()> {
         }
         simulator.compute_results()?;
 
-
         return Ok(());
     }
 
-    let config_path = if let Some(p) = &args.config_path {
-        Some(Path::new(unsafe {
-            std::mem::transmute::<&String, &'static String>(p)
-        }))
-    } else {
-        None
-    };
+    let config_path = args
+        .config_path
+        .as_ref()
+        .map(|p| Path::new(unsafe { std::mem::transmute::<&String, &'static String>(p) }));
 
     gui::run_gui(config_path, None, args.load_results);
     Ok(())
@@ -74,6 +65,4 @@ fn main() {
     if let Err(e) = res {
         println!("{}", e.detailed_error());
     }
-
-
 }

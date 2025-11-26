@@ -17,7 +17,9 @@ use simba::recordable::Recordable;
 use simba::sensors::Observation;
 use simba::simulator::{Simulator, SimulatorConfig};
 use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
-use simba::state_estimators::{State, StateEstimator, StateEstimatorRecord, StateRecord, WorldState};
+use simba::state_estimators::{
+    State, StateEstimator, StateEstimatorRecord, StateRecord, WorldState,
+};
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -197,7 +199,8 @@ impl Recordable<PhysicsRecord> for MyWonderfulPhysics {
         PhysicsRecord::External(ExternalPhysicsRecord {
             record: serde_json::to_value(MyWonderfulPhysicsRecord {
                 state: self.state.record(),
-            }).unwrap(),
+            })
+            .unwrap(),
         })
     }
 }

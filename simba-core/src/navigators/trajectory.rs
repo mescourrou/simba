@@ -244,11 +244,9 @@ pub mod tests {
 
         let trajectory = Trajectory::from_config(&config);
         assert_eq!(trajectory.do_loop, config.do_loop);
-        let mut i: usize = 0;
-        for row in trajectory.point_list.row_iter() {
+        for (i, row) in trajectory.point_list.row_iter().enumerate() {
             assert_eq!(row[0], config.point_list[i][0]);
             assert_eq!(row[1], config.point_list[i][1]);
-            i += 1;
         }
     }
 

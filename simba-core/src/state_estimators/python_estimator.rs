@@ -28,6 +28,7 @@ use crate::pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::utils::maths::round_precision;
+use crate::utils::python::ensure_venv_pyo3;
 
 use super::StateEstimatorRecord;
 use crate::sensors::Observation;
@@ -230,6 +231,8 @@ def convert(records):
             Ok(s) => CString::new(s).unwrap(),
         };
         let res = Python::attach(|py| -> PyResult<Py<PyAny>> {
+            ensure_venv_pyo3(py)?;
+
             let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
             let config_dict = convert_fn.call(py, (json_config,), None)?;

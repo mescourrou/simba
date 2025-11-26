@@ -17,6 +17,7 @@ use serde_json::Value;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::physics::robot_models::Command;
+use crate::utils::python::ensure_venv_pyo3;
 use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
@@ -219,6 +220,8 @@ def convert(records):
             Ok(s) => CString::new(s).unwrap(),
         };
         let res = Python::attach(|py| -> PyResult<Py<PyAny>> {
+            ensure_venv_pyo3(py)?;
+
             let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
             let config_dict = convert_fn.call(py, (json_config,), None)?;

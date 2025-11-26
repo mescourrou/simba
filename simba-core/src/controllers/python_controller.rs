@@ -23,6 +23,7 @@ use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::physics::robot_models::Command;
 use crate::pywrappers::NodeWrapper;
+use crate::utils::python::ensure_venv_pyo3;
 use crate::{
     controllers::{Controller, ControllerError, ControllerRecord},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
@@ -230,6 +231,7 @@ def convert(records):
             Ok(s) => CString::new(s).unwrap(),
         };
         let res = Python::attach(|py| -> PyResult<Py<PyAny>> {
+            ensure_venv_pyo3(py)?;
             let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
             let config_dict = convert_fn.call(py, (json_config,), None)?;
