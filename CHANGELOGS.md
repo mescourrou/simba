@@ -1,5 +1,18 @@
 # Changelogs
 
+## v1.3.0
+- [breaking rust] Huge refactoring
+- [breaking] Choice on robot model, impacts PID configuration and controller implementations
+- Sensor observation filters: Acceptable range on multiple variables (x, y, orientation, theta,
+  position_x, position_y, velocity_x, velocity_y, w, v, self_velocity, target_velocity)
+- [breaking] Tracking config checker commit tag (previous was `623bde9`)
+- Physics fault models
+- Optimize record collection when no results are saved
+- Possible step-by-step (ie 10 secs then 20 secs) run
+- [breaking] Plugin into plugin possibility (see stacked_plugin example)
+- [breaking] Message passing for plugins (rust and python). Careful, no filter on messages for now
+- [minor break] Loading previous results to only analyse them using command line executable
+
 ## v1.2.0
 - GoTo Navigator: send a location and the robot goes.
 - Option for saving: At the end, continuously, by batch or periodically.
