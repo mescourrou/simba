@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::gui::UIComponent;
 use crate::{
     logger::is_enabled,
-    sensors::sensor::SensorObservation,
+    sensors::SensorObservation,
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory,

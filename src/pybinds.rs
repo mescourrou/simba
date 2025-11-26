@@ -5,9 +5,9 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    controllers::{controller::Controller, pybinds::PythonController},
+    controllers::{pybinds::PythonController, Controller},
     logger::is_enabled,
-    navigators::{go_to::GoToMessage, navigator::Navigator, pybinds::PythonNavigator},
+    navigators::{go_to::GoToMessage, pybinds::PythonNavigator, Navigator},
     networking::{network::MessageFlag, MessageTypes},
     physics::{pybinds::PythonPhysics, Physics},
     plugin_api::PluginAPI,
@@ -18,7 +18,7 @@ use crate::{
         SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, WorldStateWrapper,
     },
     simulator::SimulatorConfig,
-    state_estimators::{pybinds::PythonStateEstimator, state_estimator::StateEstimator},
+    state_estimators::{pybinds::PythonStateEstimator, StateEstimator},
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 

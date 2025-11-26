@@ -11,7 +11,7 @@ use crate::{
         honolomic::{HolonomicCommand, Honolomic, HonolomicConfig},
         unicycle::{Unicycle, UnicycleCommand, UnicycleConfig},
     },
-    state_estimators::state_estimator::State,
+    state_estimators::State,
 };
 
 pub mod honolomic;

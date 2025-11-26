@@ -46,8 +46,8 @@ fn main() {
 use std::sync::Arc;
 
 use crate::{
-    controllers::controller::Controller, navigators::navigator::Navigator, physics::Physics,
-    simulator::SimulatorConfig, state_estimators::state_estimator::StateEstimator,
+    controllers::Controller, navigators::Navigator, physics::Physics, simulator::SimulatorConfig,
+    state_estimators::StateEstimator,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 

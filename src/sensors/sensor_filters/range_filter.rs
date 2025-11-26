@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
 use crate::{
-    sensors::{sensor::SensorObservation, sensor_filters::SensorFilter},
-    state_estimators::state_estimator::State,
+    sensors::{sensor_filters::SensorFilter, SensorObservation},
+    state_estimators::State,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, Check)]

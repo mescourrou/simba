@@ -26,12 +26,9 @@ use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
 use super::gnss_sensor::GNSSSensor;
 use super::odometry_sensor::{OdometrySensor, OdometrySensorConfig};
+use super::oriented_landmark_sensor::OrientedLandmarkSensor;
 use super::robot_sensor::RobotSensor;
-use super::sensor::{Observation, ObservationRecord};
-use super::{
-    oriented_landmark_sensor::OrientedLandmarkSensor,
-    sensor::{Sensor, SensorConfig, SensorRecord},
-};
+use super::{Observation, ObservationRecord, Sensor, SensorConfig, SensorRecord};
 use crate::plugin_api::PluginAPI;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Check)]

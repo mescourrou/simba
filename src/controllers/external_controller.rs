@@ -33,7 +33,7 @@ use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use super::controller::{Controller, ControllerError, ControllerRecord};
+use super::{Controller, ControllerError, ControllerRecord};
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external controller (generic).

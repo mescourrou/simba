@@ -27,7 +27,7 @@ use crate::networking::service::HasService;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::State;
+use crate::state_estimators::State;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };

@@ -12,7 +12,7 @@ use crate::{
     physics::fault_models::additive_robot_centered::{
         AdditiveRobotCenteredPhysicsFault, AdditiveRobotCenteredPhysicsFaultConfig,
     },
-    state_estimators::state_estimator::State,
+    state_estimators::State,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 

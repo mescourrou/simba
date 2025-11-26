@@ -3,7 +3,7 @@ Provides a [`Sensor`] which can observe the other nodes in the frame of the ego 
 */
 
 use super::fault_models::fault_model::{FaultModel, FaultModelConfig};
-use super::sensor::{Sensor, SensorObservation, SensorRecord};
+use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
@@ -19,7 +19,7 @@ use crate::sensors::sensor_filters::{
     make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
 };
 use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::State;
+use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
@@ -451,7 +451,7 @@ impl Sensor for RobotSensor {
             debug!("Rotation matrix: {}", rotation_matrix);
         }
 
-        for (i, other_node_name) in node.other_node_names.iter().enumerate() {
+        for (i, other_node_name) in node.other_node_names().iter().enumerate() {
             if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
                 debug!("Sensing node {}", other_node_name);
             }

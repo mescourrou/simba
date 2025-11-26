@@ -25,7 +25,7 @@ use crate::gui::{
 use crate::{
     sensors::{
         fault_models::fault_model::FaultModelConfig,
-        oriented_landmark_sensor::OrientedLandmarkSensor, sensor::SensorObservation,
+        oriented_landmark_sensor::OrientedLandmarkSensor, SensorObservation,
     },
     simulator::SimulatorConfig,
     utils::{

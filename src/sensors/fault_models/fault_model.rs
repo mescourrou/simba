@@ -9,7 +9,7 @@ use simba_macros::{EnumToString, ToVec};
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::{
-    sensors::sensor::SensorObservation, simulator::SimulatorConfig,
+    sensors::SensorObservation, simulator::SimulatorConfig,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 

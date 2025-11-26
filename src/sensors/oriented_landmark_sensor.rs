@@ -5,7 +5,7 @@ Provides a [`Sensor`] which can observe oriented landmarks in the frame of the r
 use super::fault_models::fault_model::{
     make_fault_model_from_config, FaultModel, FaultModelConfig,
 };
-use super::sensor::{Sensor, SensorObservation, SensorRecord};
+use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
@@ -17,7 +17,7 @@ use crate::sensors::sensor_filters::{
     make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
 };
 use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::State;
+use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;

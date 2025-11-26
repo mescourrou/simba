@@ -16,7 +16,7 @@ use std::path::Path;
 use crate::api::async_api::PluginAsyncAPI;
 
 use crate::{
-    controllers::{controller::ControllerError, pybinds::PythonController},
+    controllers::{pybinds::PythonController, ControllerError},
     navigators::pybinds::PythonNavigator,
     networking::{
         network::{Envelope, MessageFlag},
@@ -30,17 +30,12 @@ use crate::{
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
-        gnss_sensor::GNSSObservation,
-        odometry_sensor::OdometryObservation,
+        gnss_sensor::GNSSObservation, odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
-        robot_sensor::OrientedRobotObservation,
-        sensor::{Observation, SensorObservation},
+        robot_sensor::OrientedRobotObservation, Observation, SensorObservation,
     },
     simulator::{AsyncSimulator, Simulator},
-    state_estimators::{
-        pybinds::PythonStateEstimator,
-        state_estimator::{State, WorldState},
-    },
+    state_estimators::{pybinds::PythonStateEstimator, State, WorldState},
     utils::occupancy_grid::OccupancyGrid,
 };
 
@@ -823,7 +818,7 @@ pub struct NodeWrapper {
 #[pymethods]
 impl NodeWrapper {
     pub fn name(&self) -> String {
-        self.node.name.clone()
+        self.node.name()
     }
 
     #[pyo3(signature = (to, message, time, flags=Vec::new()))]
@@ -836,7 +831,7 @@ impl NodeWrapper {
         flags: Vec<MessageFlag>,
     ) -> PyResult<()> {
         debug!("Wait for network");
-        if let Some(network) = &self.node.network {
+        if let Some(network) = &self.node.network() {
             debug!("Got network");
             let msg = match message {
                 MessageTypes::String(s) => serde_json::to_value(s),
@@ -913,7 +908,7 @@ impl PluginAPIWrapper {
         panic!("The given PluginAPI does not provide a state estimator");
     }
 
-    /// Return the [`Controller`](crate::controllers::controller::Controller) to be used by the
+    /// Return the [`Controller`](crate::controllers::Controller) to be used by the
     /// [`ExternalController`](crate::controllers::external_controller::ExternalController).
     ///
     /// # Arguments
@@ -924,7 +919,7 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`Controller`](crate::controllers::controller::Controller) to use.
+    /// Returns the [`Controller`](crate::controllers::Controller) to use.
     pub fn get_controller(
         &self,
         _config: Py<PyAny>,
@@ -933,7 +928,7 @@ impl PluginAPIWrapper {
         panic!("The given PluginAPI does not provide a controller");
     }
 
-    /// Return the [`Navigator`](crate::navigators::navigator::Navigator) to be used by the
+    /// Return the [`Navigator`](crate::navigators::Navigator) to be used by the
     /// [`ExternalNavigator`](crate::navigators::external_navigator::ExternalNavigator).
     ///
     /// # Arguments
@@ -944,7 +939,7 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`Navigator`](crate::navigators::navigator::Navigator) to use.
+    /// Returns the [`Navigator`](crate::navigators::Navigator) to use.
     pub fn get_navigator(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonNavigator {
         panic!("The given PluginAPI does not provide a navigator");
     }

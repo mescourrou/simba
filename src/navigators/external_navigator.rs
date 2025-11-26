@@ -21,7 +21,7 @@ use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
-use crate::controllers::controller::ControllerError;
+use crate::controllers::ControllerError;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
@@ -29,12 +29,12 @@ use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::state_estimators::state_estimator::WorldState;
+use crate::state_estimators::WorldState;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use super::navigator::{Navigator, NavigatorRecord};
+use super::{Navigator, NavigatorRecord};
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external navigator (generic).

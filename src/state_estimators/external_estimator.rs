@@ -20,7 +20,7 @@ use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 
-use super::state_estimator::{StateEstimator, WorldState};
+use super::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
@@ -34,8 +34,8 @@ use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use super::state_estimator::StateEstimatorRecord;
-use crate::sensors::sensor::Observation;
+use super::StateEstimatorRecord;
+use crate::sensors::Observation;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config for the external state estimation (generic).

@@ -7,7 +7,7 @@ use std::sync::{Arc, Mutex};
 use super::fault_models::fault_model::{
     make_fault_model_from_config, FaultModel, FaultModelConfig,
 };
-use super::sensor::{Sensor, SensorObservation, SensorRecord};
+use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]

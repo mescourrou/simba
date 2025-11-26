@@ -11,18 +11,18 @@ use pyo3::prelude::*;
 use serde_json::Value;
 
 use crate::{
-    controllers::controller::ControllerError,
+    controllers::ControllerError,
     logger::is_enabled,
     navigators::external_navigator::ExternalNavigatorRecord,
     networking::{message_handler::MessageHandler, network::Envelope},
     node::Node,
     pywrappers::{ControllerErrorWrapper, NodeWrapper, WorldStateWrapper},
     recordable::Recordable,
-    state_estimators::state_estimator::WorldState,
+    state_estimators::WorldState,
     utils::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
 };
 
-use super::navigator::{Navigator, NavigatorRecord};
+use super::{Navigator, NavigatorRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonNavigatorAsyncClient {

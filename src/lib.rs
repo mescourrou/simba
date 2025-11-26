@@ -53,7 +53,6 @@ pub mod logger;
 pub mod navigators;
 pub mod networking;
 pub mod node;
-pub mod node_factory;
 pub mod physics;
 pub mod recordable;
 pub mod sensors;

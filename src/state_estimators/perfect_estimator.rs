@@ -6,7 +6,7 @@ by the controller should be perfect.
 
 use std::{path::Path, sync::mpsc::Sender};
 
-use super::state_estimator::{State, WorldState, WorldStateRecord};
+use super::{State, WorldState, WorldStateRecord};
 use crate::{
     constants::TIME_ROUND,
     errors::SimbaErrorTypes,
@@ -22,7 +22,7 @@ use crate::gui::{
 };
 use crate::recordable::Recordable;
 use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
-use crate::sensors::sensor::Observation;
+use crate::sensors::Observation;
 use crate::simulator::SimulatorConfig;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
@@ -221,7 +221,7 @@ impl Default for PerfectEstimator {
     }
 }
 
-use super::state_estimator::{StateEstimator, StateEstimatorRecord};
+use super::{StateEstimator, StateEstimatorRecord};
 use crate::node::Node;
 
 impl StateEstimator for PerfectEstimator {

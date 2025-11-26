@@ -22,14 +22,14 @@ use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::pywrappers::NodeWrapper;
 use crate::{
-    controllers::controller::ControllerError,
+    controllers::ControllerError,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
-    navigators::navigator::{Navigator, NavigatorRecord},
+    navigators::{Navigator, NavigatorRecord},
     pywrappers::{ControllerErrorWrapper, WorldStateWrapper},
     recordable::Recordable,
     simulator::SimulatorConfig,
-    state_estimators::state_estimator::WorldState,
+    state_estimators::WorldState,
 };
 use serde_derive::{Deserialize, Serialize};
 

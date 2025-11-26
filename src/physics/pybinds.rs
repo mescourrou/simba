@@ -10,7 +10,7 @@ use crate::{
     physics::{external_physics::ExternalPhysicsRecord, robot_models::Command},
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
-    state_estimators::state_estimator::State,
+    state_estimators::State,
     utils::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
 };
 

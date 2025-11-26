@@ -9,7 +9,7 @@ use crate::{
     node::Node,
     physics::{GetRealStateReq, GetRealStateResp, Physics},
     simulator::TimeCv,
-    state_estimators::state_estimator::State,
+    state_estimators::State,
 };
 
 use super::service::{Service, ServiceClient, ServiceInterface};
@@ -32,7 +32,7 @@ pub struct ServiceManager {
 impl ServiceManager {
     pub fn initialize(node: &Node, time_cv: Arc<TimeCv>) -> Self {
         Self {
-            get_real_state: match node.node_type.has_physics() {
+            get_real_state: match node.node_type().has_physics() {
                 true => Some(Arc::new(RwLock::new(Service::new(
                     time_cv.clone(),
                     node.physics().unwrap(),

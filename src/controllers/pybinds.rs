@@ -21,7 +21,7 @@ use crate::{
     utils::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
 };
 
-use super::controller::{Controller, ControllerError, ControllerRecord};
+use super::{Controller, ControllerError, ControllerRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonControllerAsyncClient {

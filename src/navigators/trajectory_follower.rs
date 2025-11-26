@@ -8,8 +8,8 @@ use crate::gui::{utils::path_finder, UIComponent};
 
 use crate::{
     navigators::{
-        navigator::{Navigator, NavigatorRecord},
         trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
+        Navigator, NavigatorRecord,
     },
     networking::{message_handler::MessageHandler, network::Envelope},
     simulator::SimulatorConfig,
@@ -271,9 +271,9 @@ impl Default for TrajectoryFollower {
     }
 }
 
-use crate::controllers::controller::ControllerError;
+use crate::controllers::ControllerError;
 use crate::node::Node;
-use crate::state_estimators::state_estimator::WorldState;
+use crate::state_estimators::WorldState;
 
 impl Navigator for TrajectoryFollower {
     /// Compute the error between the given `state` and the current trajectory.

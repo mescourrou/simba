@@ -13,7 +13,7 @@ use crate::{
     constants::TIME_ROUND_DECIMALS,
     errors::SimbaError,
     gui::{drawables::popup::Popup, UIComponent},
-    node_factory::NodeRecord,
+    node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
     simulator::{Record, SimulatorConfig},
     AUTHORS, VERSION,

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use crate::gui::{utils::string_combobox, UIComponent};
 use crate::{
     physics::fault_models::fault_model::PhysicsFaultModel,
-    state_estimators::state_estimator::State,
+    state_estimators::State,
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,

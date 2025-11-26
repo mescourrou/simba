@@ -9,13 +9,13 @@ use std::{
 use serde_json::Value;
 
 use crate::{
-    controllers::controller::Controller,
+    controllers::Controller,
     errors::SimbaResult,
-    navigators::navigator::Navigator,
+    navigators::Navigator,
     physics::Physics,
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
-    state_estimators::state_estimator::StateEstimator,
+    state_estimators::StateEstimator,
     utils::{
         determinist_random_variable::DeterministRandomVariableFactory,
         rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},

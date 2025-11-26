@@ -9,7 +9,7 @@ use crate::gui::{
     UIComponent,
 };
 use crate::{
-    sensors::{fault_models::fault_model::FaultModelConfig, sensor::SensorObservation},
+    sensors::{fault_models::fault_model::FaultModelConfig, SensorObservation},
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,

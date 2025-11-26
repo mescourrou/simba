@@ -1,6 +1,6 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use crate::{node_factory::NodeType, state_estimators::state_estimator::State};
+use crate::{node::node_factory::NodeType, state_estimators::State};
 
 // The server is on Node side
 #[derive(Debug)]

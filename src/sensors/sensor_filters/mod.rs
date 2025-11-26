@@ -6,10 +6,10 @@ use simba_macros::{EnumToString, ToVec};
 use crate::{gui::UIComponent, simulator::SimulatorConfig, utils::enum_tools::ToVec};
 use crate::{
     sensors::{
-        sensor::SensorObservation,
         sensor_filters::range_filter::{RangeFilter, RangeFilterConfig},
+        SensorObservation,
     },
-    state_estimators::state_estimator::State,
+    state_estimators::State,
 };
 
 pub mod range_filter;

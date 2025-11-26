@@ -8,32 +8,21 @@ use serde::{Deserialize, Serialize};
 use crate::gui::{utils::text_singleline_with_apply, UIComponent};
 
 use crate::{
-    controllers::{
-        controller::{self, ControllerConfig, ControllerRecord},
-        pid,
-    },
+    controllers::{self, pid, ControllerConfig, ControllerRecord},
     logger::is_enabled,
-    navigators::{
-        navigator::{self, NavigatorConfig, NavigatorRecord},
-        trajectory_follower,
-    },
+    navigators::{self, trajectory_follower, NavigatorConfig, NavigatorRecord},
     networking::{
         network::{Network, NetworkConfig},
         service_manager::ServiceManager,
     },
     node::Node,
-    physics::{
-        internal_physics, {self, PhysicsConfig, PhysicsRecord},
-    },
+    physics::{self, internal_physics, PhysicsConfig, PhysicsRecord},
     plugin_api::PluginAPI,
     sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
     simulator::{SimulatorConfig, TimeCv},
     state_estimators::{
-        perfect_estimator,
-        state_estimator::{
-            self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord,
-            StateEstimatorConfig, StateEstimatorRecord,
-        },
+        self, perfect_estimator, BenchStateEstimator, BenchStateEstimatorConfig,
+        BenchStateEstimatorRecord, StateEstimatorConfig, StateEstimatorRecord,
     },
     time_analysis::TimeAnalysisFactory,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -187,7 +176,7 @@ pub struct RobotConfig {
     /// [`Navigator`](crate::navigators::navigator::Navigator) to use, and its configuration.
     #[check]
     pub navigator: NavigatorConfig,
-    /// [`Controller`](crate::controllers::controller::Controller) to use, and its configuration.
+    /// [`Controller`](crate::controllers::Controller) to use, and its configuration.
     #[check]
     pub controller: ControllerConfig,
     /// [`Physics`](crate::physics::physics::Physics) to use, and its configuration.
@@ -370,7 +359,7 @@ pub struct RobotRecord {
     pub name: String,
     /// Record of the [`Navigator`](crate::navigators::navigator::Navigator) module.
     pub navigator: NavigatorRecord,
-    /// Record of the [`Controller`](crate::controllers::controller::Controller) module.
+    /// Record of the [`Controller`](crate::controllers::Controller) module.
     pub controller: ControllerRecord,
     /// Record of the [`Physics`](crate::physics::physics::Physics) module.
     pub physics: PhysicsRecord,
@@ -581,13 +570,13 @@ impl NodeFactory {
         let mut node = Node {
             node_type,
             name: config.name.clone(),
-            navigator: Some(navigator::make_navigator_from_config(
+            navigator: Some(navigators::make_navigator_from_config(
                 &config.navigator,
                 plugin_api,
                 global_config,
                 va_factory,
             )),
-            controller: Some(controller::make_controller_from_config(
+            controller: Some(controllers::make_controller_from_config(
                 &config.controller,
                 plugin_api,
                 global_config,
@@ -602,7 +591,7 @@ impl NodeFactory {
                 va_factory,
             )),
             state_estimator: Some(Arc::new(RwLock::new(
-                state_estimator::make_state_estimator_from_config(
+                state_estimators::make_state_estimator_from_config(
                     &config.state_estimator,
                     plugin_api,
                     global_config,
@@ -644,7 +633,7 @@ impl NodeFactory {
                 .push(BenchStateEstimator {
                     name: state_estimator_config.name.clone(),
                     state_estimator: Arc::new(RwLock::new(
-                        state_estimator::make_state_estimator_from_config(
+                        state_estimators::make_state_estimator_from_config(
                             &state_estimator_config.config,
                             plugin_api,
                             global_config,
@@ -717,7 +706,7 @@ impl NodeFactory {
                 .push(BenchStateEstimator {
                     name: state_estimator_config.name.clone(),
                     state_estimator: Arc::new(RwLock::new(
-                        state_estimator::make_state_estimator_from_config(
+                        state_estimators::make_state_estimator_from_config(
                             &state_estimator_config.config,
                             plugin_api,
                             global_config,
@@ -744,7 +733,7 @@ impl NodeFactory {
 mod tests {
 
     mod node_type_rules {
-        use crate::node_factory::NodeType;
+        use super::super::NodeType;
 
         // The chain state_estimator -> navigator -> controller works together
         // The controller has no purpose if there is nothing to control => needs physics

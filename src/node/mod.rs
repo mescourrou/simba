@@ -2,6 +2,10 @@
 Module providing the main node manager, [`Node`]. The building of the Nodes is done by [`NodeFactory`](crate::node_factory::NodeFactory).
 */
 
+pub mod node_factory;
+
+use node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord};
+
 use core::f32;
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, RwLock};
@@ -13,20 +17,17 @@ use crate::time_analysis::TimeAnalysisNode;
 use crate::{
     api::internal_api::{self, NodeClient, NodeServer},
     constants::TIME_ROUND,
-    controllers::controller::Controller,
+    controllers::Controller,
     errors::SimbaResult,
     logger::is_enabled,
-    navigators::navigator::Navigator,
+    navigators::Navigator,
     networking::network::Network,
     networking::service_manager::ServiceManager,
-    node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord},
     physics::Physics,
     recordable::Recordable,
     sensors::sensor_manager::SensorManager,
     simulator::TimeCv,
-    state_estimators::state_estimator::{
-        BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator,
-    },
+    state_estimators::{BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator},
     utils::maths::round_precision,
 };
 
@@ -55,35 +56,35 @@ use crate::{
 /// so that the required time is reached taking into account all past messages.
 #[derive(Debug)]
 pub struct Node {
-    pub(crate) node_type: NodeType,
+    pub(self) node_type: NodeType,
     /// Name of the node. Should be unique among all [`Simulator`](crate::simulator::Simulator)
     /// nodes.
-    pub(crate) name: String,
+    pub(self) name: String,
     /// [`Navigator`] module, implementing the navigation strategy.
-    pub(crate) navigator: Option<Arc<RwLock<Box<dyn Navigator>>>>,
+    pub(self) navigator: Option<Arc<RwLock<Box<dyn Navigator>>>>,
     /// [`Controller`] module, implementing the control strategy.
-    pub(crate) controller: Option<Arc<RwLock<Box<dyn Controller>>>>,
+    pub(self) controller: Option<Arc<RwLock<Box<dyn Controller>>>>,
     /// [`Physics`] module, implementing the physics strategy.
-    pub(crate) physics: Option<Arc<RwLock<Box<dyn Physics>>>>,
+    pub(self) physics: Option<Arc<RwLock<Box<dyn Physics>>>>,
     /// [`StateEstimator`] module, implementing the state estimation strategy.
-    pub(crate) state_estimator: Option<Arc<RwLock<Box<dyn StateEstimator>>>>,
+    pub(self) state_estimator: Option<Arc<RwLock<Box<dyn StateEstimator>>>>,
     /// Manages all the [`Sensor`](crate::sensors::sensor::Sensor)s and send the observations to `state_estimator`.
-    pub(crate) sensor_manager: Option<Arc<RwLock<SensorManager>>>,
+    pub(self) sensor_manager: Option<Arc<RwLock<SensorManager>>>,
     /// [`Network`] interface to receive and send messages with other nodes.
-    pub(crate) network: Option<Arc<RwLock<Network>>>,
+    pub(self) network: Option<Arc<RwLock<Network>>>,
     /// Additional [`StateEstimator`] to be evaluated.
-    pub(crate) state_estimator_bench: Option<Arc<RwLock<Vec<BenchStateEstimator>>>>,
+    pub(self) state_estimator_bench: Option<Arc<RwLock<Vec<BenchStateEstimator>>>>,
 
     // services: Vec<Arc<RwLock<Box<dyn ServiceInterface>>>>,
     /// Not really an option, but for delayed initialization
-    pub(crate) service_manager: Option<Arc<RwLock<ServiceManager>>>,
+    pub(self) service_manager: Option<Arc<RwLock<ServiceManager>>>,
 
-    pub(crate) node_server: Option<NodeServer>,
+    pub(self) node_server: Option<NodeServer>,
 
-    pub(crate) other_node_names: Vec<String>,
-    pub(crate) zombie: bool,
-    pub(crate) time_analysis: Arc<Mutex<TimeAnalysisNode>>,
-    pub(crate) send_records: bool,
+    pub(self) other_node_names: Vec<String>,
+    pub(self) zombie: bool,
+    pub(self) time_analysis: Arc<Mutex<TimeAnalysisNode>>,
+    pub(self) send_records: bool,
 }
 
 impl Node {
@@ -577,10 +578,29 @@ impl Node {
         }
         Ok(next_time_step)
     }
+}
 
+// Getters
+impl Node {
     /// Get the name of the node.
     pub fn name(&self) -> String {
         self.name.clone()
+    }
+
+    pub fn zombie(&self) -> bool {
+        self.zombie
+    }
+
+    pub fn send_records(&self) -> bool {
+        self.send_records
+    }
+
+    pub fn other_node_names(&self) -> &[String] {
+        &self.other_node_names
+    }
+
+    pub fn node_type(&self) -> &NodeType {
+        &self.node_type
     }
 
     /// Get a Arc clone of network module.

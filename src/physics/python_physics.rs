@@ -25,7 +25,7 @@ use crate::{
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
     simulator::SimulatorConfig,
-    state_estimators::state_estimator::State,
+    state_estimators::State,
 };
 
 use serde_derive::{Deserialize, Serialize};

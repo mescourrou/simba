@@ -3,8 +3,8 @@ use nalgebra::Vector3;
 
 use crate::{
     gui::{app::PainterInfo, UIComponent},
-    node_factory::{RobotConfig, RobotRecord},
-    sensors::sensor::{SensorConfig, SensorObservationRecord},
+    node::node_factory::{RobotConfig, RobotRecord},
+    sensors::{SensorConfig, SensorObservationRecord},
     simulator::SimulatorConfig,
     utils::time_ordered_data::TimeOrderedData,
 };

@@ -18,7 +18,7 @@ use crate::{
         },
     },
     recordable::Recordable,
-    state_estimators::state_estimator::{State, StateConfig, StateRecord},
+    state_estimators::{State, StateConfig, StateRecord},
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use config_checker::macros::Check;

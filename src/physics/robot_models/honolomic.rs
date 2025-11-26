@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use crate::{
     physics::robot_models::{Command, RobotModel},
-    state_estimators::state_estimator::State,
+    state_estimators::State,
 };
 
 /// Command struct, to control the robot using velocity in both directions.

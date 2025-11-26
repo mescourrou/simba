@@ -1,10 +1,10 @@
 #[allow(unused_variables)]
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
-use simba::controllers::controller::{Controller, ControllerError, ControllerRecord};
 use simba::controllers::external_controller::ExternalControllerRecord;
+use simba::controllers::{Controller, ControllerError, ControllerRecord};
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
-use simba::navigators::navigator::{Navigator, NavigatorRecord};
+use simba::navigators::{Navigator, NavigatorRecord};
 use simba::networking::message_handler::MessageHandler;
 use simba::networking::network::Envelope;
 use simba::networking::service::HasService;
@@ -14,19 +14,17 @@ use simba::physics::robot_models::Command;
 use simba::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 use simba::plugin_api::PluginAPI;
 use simba::recordable::Recordable;
-use simba::sensors::sensor::Observation;
+use simba::sensors::Observation;
 use simba::simulator::{Simulator, SimulatorConfig};
 use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
-use simba::state_estimators::state_estimator::{
-    State, StateEstimator, StateEstimatorRecord, WorldState,
-};
+use simba::state_estimators::{State, StateEstimator, StateEstimatorRecord, WorldState};
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
 ///////////////////////////////////
-/// CONTROLLER TEMPLATE
+/*     CONTROLLER TEMPLATE       */
 ///////////////////////////////////
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -55,7 +53,7 @@ impl Controller for MyWonderfulController {
     fn make_command(
         &mut self,
         _robot: &mut simba::node::Node,
-        _error: &simba::controllers::controller::ControllerError,
+        _error: &simba::controllers::ControllerError,
         _time: f32,
     ) -> Command {
         Command::Unicycle(UnicycleCommand {

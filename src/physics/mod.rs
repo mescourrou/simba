@@ -162,7 +162,7 @@ use crate::{
 };
 use crate::{
     networking::service::HasService, physics::robot_models::Command, plugin_api::PluginAPI,
-    recordable::Recordable, simulator::SimulatorConfig, state_estimators::state_estimator::State,
+    recordable::Recordable, simulator::SimulatorConfig, state_estimators::State,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 

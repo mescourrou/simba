@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
 use crate::{
-    sensors::{fault_models::fault_model::FaultModelConfig, sensor::SensorObservation},
+    sensors::{fault_models::fault_model::FaultModelConfig, SensorObservation},
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,

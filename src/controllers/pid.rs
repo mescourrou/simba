@@ -519,8 +519,8 @@ impl Default for PID {
     }
 }
 
-use super::controller::{Controller, ControllerRecord};
-use crate::controllers::controller::ControllerError;
+use super::{Controller, ControllerRecord};
+use crate::controllers::ControllerError;
 use crate::node::Node;
 
 impl Controller for PID {

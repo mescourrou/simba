@@ -12,7 +12,7 @@ use std::sync::{
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
-    navigators::navigator::{Navigator, NavigatorRecord},
+    navigators::{Navigator, NavigatorRecord},
     networking::{message_handler::MessageHandler, network::Envelope},
     utils::geometry::smallest_theta_diff,
 };
@@ -253,9 +253,9 @@ impl Default for GoTo {
     }
 }
 
-use crate::controllers::controller::ControllerError;
+use crate::controllers::ControllerError;
 use crate::node::Node;
-use crate::state_estimators::state_estimator::WorldState;
+use crate::state_estimators::WorldState;
 
 impl Navigator for GoTo {
     /// Compute the error between the given `state` and the target point.

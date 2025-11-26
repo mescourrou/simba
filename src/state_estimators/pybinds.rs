@@ -17,7 +17,7 @@ use crate::{
     node::Node,
     pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
     recordable::Recordable,
-    sensors::sensor::Observation,
+    sensors::Observation,
     utils::{
         maths::round_precision,
         rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
@@ -26,7 +26,7 @@ use crate::{
 
 use super::{
     external_estimator::ExternalEstimatorRecord,
-    state_estimator::{StateEstimator, StateEstimatorRecord, WorldState},
+    {StateEstimator, StateEstimatorRecord, WorldState},
 };
 
 #[derive(Debug, Clone)]

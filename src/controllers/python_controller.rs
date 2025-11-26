@@ -24,7 +24,7 @@ use crate::networking::network::Envelope;
 use crate::physics::robot_models::Command;
 use crate::pywrappers::NodeWrapper;
 use crate::{
-    controllers::controller::{Controller, ControllerError, ControllerRecord},
+    controllers::{Controller, ControllerError, ControllerRecord},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
     pywrappers::{CommandWrapper, ControllerErrorWrapper},

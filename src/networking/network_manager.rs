@@ -11,7 +11,7 @@ use crate::logger::is_enabled;
 use crate::networking::NetworkError;
 use crate::node::Node;
 use crate::simulator::TimeCv;
-use crate::state_estimators::state_estimator::State;
+use crate::state_estimators::State;
 use crate::utils::time_ordered_data::TimeOrderedData;
 
 use super::network::MessageFlag;
