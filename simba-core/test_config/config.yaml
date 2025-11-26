@@ -5,6 +5,7 @@ time_analysis:
   exporter: TraceEventExporter
   output_path: "time_performance"
   keep_last: true
+results: !ResultConfig #default results
 max_time: 60.
 random_seed: 85646513.6849618
 robots:

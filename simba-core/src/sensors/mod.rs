@@ -86,6 +86,34 @@ pub struct ObservationRecord {
     pub sensor_observation: SensorObservationRecord,
 }
 
+// Implementation of traits needed for sorting observations, first by time, then by sensor name, then by observer.
+impl PartialEq for ObservationRecord {
+    fn eq(&self, other: &Self) -> bool {
+        self.time == other.time
+            && self.sensor_name == other.sensor_name
+            && self.observer == other.observer
+    }
+}
+
+impl Eq for ObservationRecord {}
+
+impl PartialOrd for ObservationRecord {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for ObservationRecord {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.time.partial_cmp(&other.time) {
+            Some(std::cmp::Ordering::Equal) => match self.sensor_name.cmp(&other.sensor_name) {
+                std::cmp::Ordering::Equal => self.observer.cmp(&other.observer),
+                other => other,
+            },
+            other => other.unwrap_or(std::cmp::Ordering::Equal),
+        }
+    }
+}
+
 #[cfg(feature = "gui")]
 impl UIComponent for ObservationRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {

@@ -438,6 +438,7 @@ impl Recordable<SensorManagerRecord> for SensorManager {
             sensors: Vec::new(),
             last_observations: self.last_observations.clone(),
         };
+        record.last_observations.sort();
         for sensor in &self.sensors {
             record.sensors.push(ManagedSensorRecord {
                 name: sensor.name.clone(),

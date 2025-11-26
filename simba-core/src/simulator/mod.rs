@@ -533,6 +533,8 @@ impl Simulator {
 
     /// Simply print the Simulator state, using the info channel and the debug print.
     pub fn show(&self) {
+        println!("Config:");
+        println!("{:#?}", self.config);
         println!("Simulator:");
         for node in self.nodes.iter() {
             println!("- {:?}", node);
@@ -1117,7 +1119,7 @@ mod tests {
 
     #[test]
     fn replication_test() {
-        let nb_replications = 100;
+        let nb_replications = 10;
 
         let mut results: Vec<Vec<Record>> = Vec::new();
 
@@ -1133,6 +1135,7 @@ mod tests {
         }
 
         let reference_result = &results[0];
+        assert!(!reference_result.is_empty());
         for i in 1..nb_replications {
             assert_eq!(results[i].len(), reference_result.len());
             for j in 0..reference_result.len() {

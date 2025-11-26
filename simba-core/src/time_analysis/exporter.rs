@@ -82,6 +82,6 @@ impl ProfilerExporter for TraceEventExporter {
         })
         .unwrap();
         let json_path = path.with_extension("json");
-        std::fs::write(json_path, json).unwrap();
+        std::fs::write(json_path, json).unwrap_or_else(|_| panic!("Failed to write time analysis results to {:?}", path));
     }
 }

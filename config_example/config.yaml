@@ -1,15 +1,14 @@
-version: 1.2.0
+version: 1.3.0
 log:
   included_nodes: []
   excluded_nodes: []
   log_level: Info
-results: null
-base_path: config_example/config.yaml
-max_time: 100.0
+results: !ResultConfig
+max_time: 20.0
 time_analysis:
   exporter: TraceEventExporter
   keep_last: true
-  output_path: config_example/time_performance
+  output_path: time_performance
   analysis_unit: s
 random_seed: null
 robots:

@@ -17,7 +17,7 @@ use simba::recordable::Recordable;
 use simba::sensors::Observation;
 use simba::simulator::{Simulator, SimulatorConfig};
 use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
-use simba::state_estimators::{State, StateEstimator, StateEstimatorRecord, WorldState};
+use simba::state_estimators::{State, StateEstimator, StateEstimatorRecord, StateRecord, WorldState};
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -149,7 +149,9 @@ impl MessageHandler for MyWonderfulNavigator {
 ///////////////////////////////////
 
 #[derive(Debug, Serialize, Deserialize)]
-struct MyWonderfulPhysicsRecord {}
+struct MyWonderfulPhysicsRecord {
+    state: StateRecord,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyWonderfulPhysicsConfig {}
@@ -193,7 +195,9 @@ impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
 impl Recordable<PhysicsRecord> for MyWonderfulPhysics {
     fn record(&self) -> PhysicsRecord {
         PhysicsRecord::External(ExternalPhysicsRecord {
-            record: serde_json::to_value(MyWonderfulPhysicsRecord {}).unwrap(),
+            record: serde_json::to_value(MyWonderfulPhysicsRecord {
+                state: self.state.record(),
+            }).unwrap(),
         })
     }
 }

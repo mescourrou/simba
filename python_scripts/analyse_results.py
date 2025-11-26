@@ -40,8 +40,11 @@ def analyse(records: dict, config: dict, figure_path: str, figure_type: str, add
                 if real_pose is None:
                     raise Exception()
             except: # For external Physics (in python example)
-                print(record["node"][node_type]["physics"])
-                real_pose = record["node"][node_type]["physics"]["External"]["state"][0:3]
+                state = record["node"][node_type]["physics"]["External"]["state"]
+                if "pose" in state:
+                    real_pose = state["pose"][0:3]
+                else:
+                    real_pose = state[0:3]
             turtle_data.positions.append(real_pose)
         
     f, ax = plt.subplots()

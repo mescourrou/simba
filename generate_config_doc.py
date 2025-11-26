@@ -7,7 +7,7 @@ from typing import List, Tuple
 
 import IPython
 
-SOURCE_DIR = "src"
+SOURCE_DIR = "simba-core/src"
 DOC_FILE = "doc/user_manual/docs/config_documentation.md"
 CONFIG_SUFFIX = "Config"
 ENTRY_CONFIG = "SimulatorConfig"

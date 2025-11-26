@@ -1,71 +1,21 @@
-[package]
-name = "simba"
+# Workspace
+[workspace]
+members = [
+    "simba-cmd",
+    "simba-macros",
+    "simba-core",
+    "examples/stacked_plugins",
+    "examples/plugin",
+]
+default-members = ["simba-core", "simba-cmd", "simba-macros"]  # Skip root for tests
+
+resolver = "2"
+
+[workspace.package]
 version = "1.3.0"
 edition = "2021"
 authors = ["Maxime Escourrou <maxime.escourrou@laas.fr>"]
 license = "GPLv3"
-
-crate-type = ["cdylib"]
-doctest = false
-
-[features]
-gui = ["egui", "eframe"] # Enable GUI features
-
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-nalgebra = { version = "^0.34", features = ["serde-serialize"] }
-serde_derive = "^1.0"
-serde = { version = "^1.0", features = ["derive"] }
-serde_path_to_error = "0.1"
-libm = "^0.2.15"
-# plotters = "^0.3.2"
-# plotters-canvas = "^0.3.0"
-# csv = "1.3.0"
-serde_json = { version = "1.0.145", features = ["float_roundtrip"] }
-lazy_static = "1.5.0"
-colored = "^3.0.0"
-
-egui = { version = "0.33.0", optional = true}
-eframe = { version = "0.33.0" , default-features = false, optional = true, features = [
-    "accesskit",     # Make egui comptaible with screen readers. NOTE: adds a lot of dependencies.
-    "default_fonts", # Embed the default egui fonts.
-    "glow",          # Use the glow rendering backend. Alternative: "wgpu".
-    "persistence",   # Enable restoring app state when restarting the app.
-    "wayland",       # Enables wayland support and fixes clipboard issue.
-]}
-log = "^0.4.28"
-
-# Major changes in rand, which need further look in the distributions implementations
-rand = "0.8.5"
-rand_chacha = "0.3.1"
-statrs = "0.17.1"
-
-config-checker = { git = "https://github.com/mescourrou/rust_config_checker", rev = "fdfcd15"}
-
-simba-macros ={ path = "./macros" , version = "*"}
-
-csv ={ version = "^1.3.1"}
-
-pyo3 ={ version = "^0.27"} # 0.23 breaking (overflow on evaluating IntoPyObject)
-libc ={ version = "*" }
-rsdoc = "0.3.0"
-serde_yaml = "0.9.34"
-
-[dependencies.confy]
-version = "^1.0"
-features = ["yaml_conf"]
-default-features = false
-
-# native:
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-env_logger = "0.11"
-
-# web:
-[target.'cfg(target_arch = "wasm32")'.dependencies]
-wasm-bindgen-futures = "0.4"
-
 
 [profile.release]
 opt-level = 2 # fast and small wasm
@@ -74,32 +24,7 @@ opt-level = 2 # fast and small wasm
 [profile.dev.package."*"]
 opt-level = 2
 
-
 [patch.crates-io]
 
 
 
-[target.x86_64-apple-darwin]
-rustflags = [
-  "-C", "link-arg=-undefined",
-  "-C", "link-arg=dynamic_lookup",
-]
-
-[target.aarch64-apple-darwin]
-rustflags = [
-  "-C", "link-arg=-undefined",
-  "-C", "link-arg=dynamic_lookup",
-]
-
-[[example]]
-name = "basic"
-
-[[example]]
-name = "plugin"
-
-[[example]]
-name = "python_external"
-
-[[example]]
-name = "gui"
-required-features = ["gui"]

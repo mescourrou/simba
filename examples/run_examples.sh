@@ -4,7 +4,7 @@
 set -e
 
 cd .. && cargo run --example basic && cd -
-cd .. && cargo run --example plugin && cd -
+cd .. && cargo run -p plugin_example && cd -
 cd .. && cargo run --example python_external && cd -
 
 cd python
