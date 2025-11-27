@@ -17,12 +17,12 @@ build_rust:
   script:
     # - cargo build --verbose
     # - cargo build --all-features --verbose --release
-    - cargo build --release --manifest-path cmdline/Cargo.toml
+    - cargo build -p simba-cmd --release
     # - cargo test --verbose
   artifacts:
     when: on_success
     paths:
-      - cmdline/target/release/simba_cmd
+      - target/release/simba-cmd
   
 build_python:
   rules:
