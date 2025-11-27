@@ -37,7 +37,7 @@ impl Controller for MyWonderfulController {
     fn make_command(
         &mut self,
         robot: &mut simba::node::Node,
-        error: &simba::controllers::controller::ControllerError,
+        error: &simba::controllers::ControllerError,
         time: f32,
     ) -> Command {
         Command {

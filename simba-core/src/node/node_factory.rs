@@ -1,0 +1,767 @@
+use std::sync::{Arc, RwLock};
+
+use config_checker::macros::Check;
+use log::debug;
+use serde::{Deserialize, Serialize};
+
+#[cfg(feature = "gui")]
+use crate::gui::{utils::text_singleline_with_apply, UIComponent};
+
+use crate::{
+    controllers::{self, pid, ControllerConfig, ControllerRecord},
+    logger::is_enabled,
+    navigators::{self, trajectory_follower, NavigatorConfig, NavigatorRecord},
+    networking::{
+        network::{Network, NetworkConfig},
+        service_manager::ServiceManager,
+    },
+    node::Node,
+    physics::{self, internal_physics, PhysicsConfig, PhysicsRecord},
+    plugin_api::PluginAPI,
+    sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
+    simulator::{SimulatorConfig, TimeCv},
+    state_estimators::{
+        self, perfect_estimator, BenchStateEstimator, BenchStateEstimatorConfig,
+        BenchStateEstimatorRecord, StateEstimatorConfig, StateEstimatorRecord,
+    },
+    time_analysis::TimeAnalysisFactory,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum NodeType {
+    Robot,
+    Sensor,
+    Object,
+    ComputationUnit,
+}
+
+impl NodeType {
+    #[cfg(test)]
+    const VALUES: [Self; 4] = [
+        Self::Robot,
+        Self::Sensor,
+        Self::Object,
+        Self::ComputationUnit,
+    ];
+
+    pub fn has_physics(&self) -> bool {
+        match self {
+            Self::Robot | Self::Object => true,
+            Self::Sensor | Self::ComputationUnit => false,
+        }
+    }
+
+    pub fn has_controller(&self) -> bool {
+        match self {
+            Self::Robot => true,
+            Self::Object | Self::Sensor | Self::ComputationUnit => false,
+        }
+    }
+
+    pub fn has_navigator(&self) -> bool {
+        match self {
+            Self::Robot => true,
+            Self::Object | Self::Sensor | Self::ComputationUnit => false,
+        }
+    }
+
+    pub fn has_state_estimator(&self) -> bool {
+        match self {
+            Self::Robot => true,
+            Self::Object | Self::Sensor | Self::ComputationUnit => false,
+        }
+    }
+
+    pub fn has_state_estimator_bench(&self) -> bool {
+        match self {
+            Self::Robot | Self::Sensor | Self::ComputationUnit => true,
+            Self::Object => false,
+        }
+    }
+
+    pub fn has_sensors(&self) -> bool {
+        match self {
+            Self::Robot | Self::Sensor | Self::ComputationUnit => true,
+            Self::Object => false,
+        }
+    }
+
+    pub fn has_network(&self) -> bool {
+        match self {
+            Self::Robot | Self::Sensor | Self::ComputationUnit => true,
+            Self::Object => false,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum NodeRecord {
+    // Box RobotRecord to reduce size of NodeRecord
+    Robot(Box<RobotRecord>),
+    ComputationUnit(ComputationUnitRecord),
+}
+
+impl NodeRecord {
+    pub fn as_node_type(&self) -> NodeType {
+        match &self {
+            Self::Robot(_) => NodeType::Robot,
+            Self::ComputationUnit(_) => NodeType::ComputationUnit,
+        }
+    }
+
+    pub fn navigator(&self) -> Option<&NavigatorRecord> {
+        match &self {
+            Self::Robot(robot_record) => Some(&robot_record.navigator),
+            Self::ComputationUnit(_) => None,
+        }
+    }
+
+    pub fn controller(&self) -> Option<&ControllerRecord> {
+        match &self {
+            Self::Robot(robot_record) => Some(&robot_record.controller),
+            Self::ComputationUnit(_) => None,
+        }
+    }
+
+    pub fn physics(&self) -> Option<&PhysicsRecord> {
+        match &self {
+            Self::Robot(robot_record) => Some(&robot_record.physics),
+            Self::ComputationUnit(_) => None,
+        }
+    }
+
+    pub fn state_estimator(&self) -> Option<&StateEstimatorRecord> {
+        match &self {
+            Self::Robot(robot_record) => Some(&robot_record.state_estimator),
+            Self::ComputationUnit(_) => None,
+        }
+    }
+
+    pub fn state_estimator_bench(&self) -> Option<&Vec<BenchStateEstimatorRecord>> {
+        match &self {
+            Self::Robot(robot_record) => Some(&robot_record.state_estimator_bench),
+            Self::ComputationUnit(computation_unit_record) => {
+                Some(&computation_unit_record.state_estimators)
+            }
+        }
+    }
+
+    pub fn sensor_manager(&self) -> Option<&SensorManagerRecord> {
+        match &self {
+            Self::Robot(robot_record) => Some(&robot_record.sensors),
+            Self::ComputationUnit(r) => Some(&r.sensor_manager),
+        }
+    }
+
+    pub fn name(&self) -> &String {
+        match &self {
+            Self::Robot(robot_record) => &robot_record.name,
+            Self::ComputationUnit(r) => &r.name,
+        }
+    }
+}
+
+////////////////////////
+/*        ROBOT       */
+////////////////////////
+
+/// Configuration of the [`NodeType::Robot`].
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(default)]
+#[serde(deny_unknown_fields)]
+pub struct RobotConfig {
+    /// Name of the robot.
+    pub name: String,
+    /// [`Navigator`](crate::navigators::navigator::Navigator) to use, and its configuration.
+    #[check]
+    pub navigator: NavigatorConfig,
+    /// [`Controller`](crate::controllers::Controller) to use, and its configuration.
+    #[check]
+    pub controller: ControllerConfig,
+    /// [`Physics`](crate::physics::physics::Physics) to use, and its configuration.
+    #[check]
+    pub physics: PhysicsConfig,
+    /// [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to use, and its configuration.
+    #[check]
+    pub state_estimator: StateEstimatorConfig,
+    /// [`SensorManager`] configuration, which defines the [`Sensor`](crate::sensors::sensor::Sensor)s used.
+    #[check]
+    pub sensor_manager: SensorManagerConfig,
+    /// [`Network`] configuration.
+    #[check]
+    pub network: NetworkConfig,
+
+    /// Additional [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to be evaluated but without a feedback
+    /// loop with the [`Navigator`](crate::navigators::navigator::Navigator)
+    #[check]
+    pub state_estimator_bench: Vec<BenchStateEstimatorConfig>,
+}
+
+impl Default for RobotConfig {
+    /// Default configuration, using:
+    /// * Default [`TrajectoryFollower`](trajectory_follower::TrajectoryFollower) navigator.
+    /// * Default [`PID`](pid::PID) controller.
+    /// * Default [`PerfectPhysics`](perfect_physics::PerfectPhysics) physics.
+    /// * Default [`PerfectEstimator`](perfect_estimator::PerfectEstimator) state estimator.
+    /// * Default [`SensorManager`] config (no sensors).
+    /// * Default [`Network`] config.
+    fn default() -> Self {
+        RobotConfig {
+            name: String::from("NoName"),
+            navigator: NavigatorConfig::TrajectoryFollower(
+                trajectory_follower::TrajectoryFollowerConfig::default(),
+            ),
+            controller: ControllerConfig::PID(pid::PIDConfig::default()),
+            physics: PhysicsConfig::Internal(internal_physics::InternalPhysicConfig::default()),
+            state_estimator: StateEstimatorConfig::Perfect(
+                perfect_estimator::PerfectEstimatorConfig::default(),
+            ),
+            sensor_manager: SensorManagerConfig::default(),
+            network: NetworkConfig::default(),
+            state_estimator_bench: Vec::new(),
+        }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for RobotConfig {
+    fn show_mut(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        unique_id: &str,
+    ) {
+        let name_copy = self.name.clone();
+        let current_node_name = Some(&name_copy);
+        egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Name: ");
+                text_singleline_with_apply(
+                    ui,
+                    format!("robot-name-key-{}", unique_id).as_str(),
+                    buffer_stack,
+                    &mut self.name,
+                );
+            });
+
+            self.network.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+            self.navigator.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+            self.physics.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+            self.controller.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+            self.state_estimator.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+
+            ui.label("State estimator bench:");
+            let mut seb_to_remove = None;
+            for (i, seb) in self.state_estimator_bench.iter_mut().enumerate() {
+                let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
+                ui.horizontal_top(|ui| {
+                    seb.show_mut(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        &seb_unique_id,
+                    );
+                    if ui.button("X").clicked() {
+                        seb_to_remove = Some(i);
+                    }
+                });
+            }
+            if let Some(i) = seb_to_remove {
+                self.state_estimator_bench.remove(i);
+            }
+            if ui.button("Add State Estimator benched").clicked() {
+                self.state_estimator_bench
+                    .push(BenchStateEstimatorConfig::default());
+            }
+            self.sensor_manager.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+        });
+    }
+
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("Name: {}", self.name));
+            });
+
+            self.network.show(ui, ctx, unique_id);
+            self.navigator.show(ui, ctx, unique_id);
+            self.physics.show(ui, ctx, unique_id);
+            self.controller.show(ui, ctx, unique_id);
+            self.state_estimator.show(ui, ctx, unique_id);
+
+            ui.label("State estimator bench:");
+            for seb in &self.state_estimator_bench {
+                let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
+                ui.horizontal_top(|ui| {
+                    seb.show(ui, ctx, &seb_unique_id);
+                });
+            }
+
+            self.sensor_manager.show(ui, ctx, unique_id);
+        });
+    }
+}
+
+/// State record of [`NodeType::Robot`].
+///
+/// It contains the dynamic elements and the elements we want to save.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct RobotRecord {
+    /// Name of the robot.
+    pub name: String,
+    /// Record of the [`Navigator`](crate::navigators::navigator::Navigator) module.
+    pub navigator: NavigatorRecord,
+    /// Record of the [`Controller`](crate::controllers::Controller) module.
+    pub controller: ControllerRecord,
+    /// Record of the [`Physics`](crate::physics::physics::Physics) module.
+    pub physics: PhysicsRecord,
+    /// Record of the [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) module.
+    pub state_estimator: StateEstimatorRecord,
+    /// Record of the additionnal [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator)s, only to evaluate them.
+    pub state_estimator_bench: Vec<BenchStateEstimatorRecord>,
+
+    pub sensors: SensorManagerRecord,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for RobotRecord {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        ui.vertical(|ui| {
+            ui.label(format!("Name: {}", self.name));
+
+            egui::CollapsingHeader::new("Navigator").show(ui, |ui| {
+                self.navigator.show(ui, ctx, unique_id);
+            });
+
+            egui::CollapsingHeader::new("Controller").show(ui, |ui| {
+                self.controller.show(ui, ctx, unique_id);
+            });
+
+            egui::CollapsingHeader::new("Physics").show(ui, |ui| {
+                self.physics.show(ui, ctx, unique_id);
+            });
+
+            egui::CollapsingHeader::new("State Estimator").show(ui, |ui| {
+                self.state_estimator.show(ui, ctx, unique_id);
+            });
+
+            ui.label("State Estimator bench:");
+            for se in &self.state_estimator_bench {
+                egui::CollapsingHeader::new(&se.name).show(ui, |ui| {
+                    se.record.show(ui, ctx, unique_id);
+                });
+            }
+
+            egui::CollapsingHeader::new("Sensors").show(ui, |ui| {
+                self.sensors.show(ui, ctx, unique_id);
+            });
+        });
+    }
+}
+
+////////////////////////
+/* ComputationUnit    */
+////////////////////////
+
+/// Configuration of the [`NodeType::ComputationUnit`].
+#[derive(Serialize, Deserialize, Debug, Clone, Check)]
+#[serde(default)]
+#[serde(deny_unknown_fields)]
+pub struct ComputationUnitConfig {
+    /// Name of the unit.
+    pub name: String,
+    /// [`Network`] configuration.
+    #[check]
+    pub network: NetworkConfig,
+
+    /// [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator)s
+    #[check]
+    pub state_estimators: Vec<BenchStateEstimatorConfig>,
+}
+
+impl Default for ComputationUnitConfig {
+    /// Default configuration, using:
+    /// * Default [`Network`] config.
+    fn default() -> Self {
+        ComputationUnitConfig {
+            name: String::from("NoName"),
+            network: NetworkConfig::default(),
+            state_estimators: Vec::new(),
+        }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ComputationUnitConfig {
+    fn show_mut(
+        &mut self,
+        ui: &mut egui::Ui,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        unique_id: &str,
+    ) {
+        let name_copy = self.name.clone();
+        let current_node_name = Some(&name_copy);
+        egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Name: ");
+                text_singleline_with_apply(
+                    ui,
+                    format!("cu-name-key-{}", unique_id).as_str(),
+                    buffer_stack,
+                    &mut self.name,
+                );
+            });
+
+            self.network.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+
+            ui.label("State estimators:");
+            let mut se_to_remove = None;
+            for (i, seb) in self.state_estimators.iter_mut().enumerate() {
+                let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
+                ui.horizontal_top(|ui| {
+                    seb.show_mut(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        &seb_unique_id,
+                    );
+                    if ui.button("X").clicked() {
+                        se_to_remove = Some(i);
+                    }
+                });
+            }
+            if let Some(i) = se_to_remove {
+                self.state_estimators.remove(i);
+            }
+            if ui.button("Add State Estimator").clicked() {
+                self.state_estimators
+                    .push(BenchStateEstimatorConfig::default());
+            }
+        });
+    }
+
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        egui::CollapsingHeader::new(&self.name).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(format!("Name: {}", self.name));
+            });
+
+            self.network.show(ui, ctx, unique_id);
+
+            ui.label("State estimators:");
+            for seb in &self.state_estimators {
+                let seb_unique_id = format!("{}-{}", unique_id, &seb.name);
+                ui.horizontal_top(|ui| {
+                    seb.show(ui, ctx, &seb_unique_id);
+                });
+            }
+        });
+    }
+}
+
+/// State record of [`NodeType::ComputationUnit`].
+///
+/// It contains the dynamic elements and the elements we want to save.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ComputationUnitRecord {
+    /// Name of the robot.
+    pub name: String,
+    pub state_estimators: Vec<BenchStateEstimatorRecord>,
+    pub sensor_manager: SensorManagerRecord,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for ComputationUnitRecord {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        ui.vertical(|ui| {
+            ui.label(format!("Name: {}", self.name));
+
+            ui.label("State Estimators:");
+            for se in &self.state_estimators {
+                egui::CollapsingHeader::new(&se.name).show(ui, |ui| {
+                    se.record.show(ui, ctx, unique_id);
+                });
+            }
+
+            egui::CollapsingHeader::new("Sensor Manager").show(ui, |ui| {
+                self.sensor_manager.show(ui, ctx, unique_id);
+            });
+        });
+    }
+}
+
+////////////////////////
+/*      Factory       */
+////////////////////////
+
+pub struct NodeFactory {}
+
+impl NodeFactory {
+    pub fn make_robot(
+        config: &RobotConfig,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
+        global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+        time_analysis_factory: &mut TimeAnalysisFactory,
+        time_cv: Arc<TimeCv>,
+        force_send_results: bool,
+    ) -> Node {
+        let node_type = NodeType::Robot;
+        let mut node = Node {
+            node_type,
+            name: config.name.clone(),
+            navigator: Some(navigators::make_navigator_from_config(
+                &config.navigator,
+                plugin_api,
+                global_config,
+                va_factory,
+            )),
+            controller: Some(controllers::make_controller_from_config(
+                &config.controller,
+                plugin_api,
+                global_config,
+                va_factory,
+                &config.physics,
+            )),
+            physics: Some(physics::make_physics_from_config(
+                &config.physics,
+                plugin_api,
+                global_config,
+                &config.name,
+                va_factory,
+            )),
+            state_estimator: Some(Arc::new(RwLock::new(
+                state_estimators::make_state_estimator_from_config(
+                    &config.state_estimator,
+                    plugin_api,
+                    global_config,
+                    va_factory,
+                ),
+            ))),
+            sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
+                &config.sensor_manager,
+                plugin_api,
+                global_config,
+                &config.name,
+                va_factory,
+            )))),
+            network: Some(Arc::new(RwLock::new(Network::from_config(
+                config.name.clone(),
+                &config.network,
+                global_config,
+                va_factory,
+                time_cv.clone(),
+            )))),
+            state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
+                config.state_estimator_bench.len(),
+            )))),
+            // services: Vec::new(),
+            service_manager: None,
+            node_server: None,
+            other_node_names: Vec::new(),
+            zombie: false,
+            time_analysis: time_analysis_factory.new_node(config.name.clone()),
+            send_records: force_send_results || global_config.results.is_some(),
+        };
+
+        for state_estimator_config in &config.state_estimator_bench {
+            node.state_estimator_bench
+                .as_ref()
+                .unwrap()
+                .write()
+                .unwrap()
+                .push(BenchStateEstimator {
+                    name: state_estimator_config.name.clone(),
+                    state_estimator: Arc::new(RwLock::new(
+                        state_estimators::make_state_estimator_from_config(
+                            &state_estimator_config.config,
+                            plugin_api,
+                            global_config,
+                            va_factory,
+                        ),
+                    )),
+                })
+        }
+
+        let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
+            &node, time_cv,
+        ))));
+        // Services
+        if is_enabled(crate::logger::InternalLog::SetupSteps) {
+            debug!("Setup services");
+        }
+        node.service_manager = service_manager;
+
+        node
+    }
+
+    pub fn make_computation_unit(
+        config: &ComputationUnitConfig,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
+        global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+        time_analysis_factory: &mut TimeAnalysisFactory,
+        time_cv: Arc<TimeCv>,
+        force_send_results: bool,
+    ) -> Node {
+        let node_type = NodeType::ComputationUnit;
+        let mut node = Node {
+            node_type,
+            name: config.name.clone(),
+            navigator: None,
+            controller: None,
+            physics: None,
+            state_estimator: None,
+            sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
+                &SensorManagerConfig::default(),
+                plugin_api,
+                global_config,
+                &config.name,
+                va_factory,
+            )))),
+            network: Some(Arc::new(RwLock::new(Network::from_config(
+                config.name.clone(),
+                &config.network,
+                global_config,
+                va_factory,
+                time_cv.clone(),
+            )))),
+            state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
+                config.state_estimators.len(),
+            )))),
+            service_manager: None,
+            node_server: None,
+            other_node_names: Vec::new(),
+            zombie: false,
+            time_analysis: time_analysis_factory.new_node(config.name.clone()),
+            send_records: force_send_results || global_config.results.is_some(),
+        };
+
+        for state_estimator_config in &config.state_estimators {
+            node.state_estimator_bench
+                .as_ref()
+                .unwrap()
+                .write()
+                .unwrap()
+                .push(BenchStateEstimator {
+                    name: state_estimator_config.name.clone(),
+                    state_estimator: Arc::new(RwLock::new(
+                        state_estimators::make_state_estimator_from_config(
+                            &state_estimator_config.config,
+                            plugin_api,
+                            global_config,
+                            va_factory,
+                        ),
+                    )),
+                })
+        }
+
+        let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
+            &node, time_cv,
+        ))));
+        // Services
+        if is_enabled(crate::logger::InternalLog::SetupSteps) {
+            debug!("Setup services");
+        }
+        node.service_manager = service_manager;
+
+        node
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    mod node_type_rules {
+        use super::super::NodeType;
+
+        // The chain state_estimator -> navigator -> controller works together
+        // The controller has no purpose if there is nothing to control => needs physics
+        #[test]
+        fn controller_needs_physics() {
+            for node_type in NodeType::VALUES {
+                if node_type.has_controller() {
+                    assert!(node_type.has_physics());
+                }
+            }
+        }
+
+        #[test]
+        fn controller_needs_navigator() {
+            for node_type in NodeType::VALUES {
+                if node_type.has_controller() {
+                    assert!(node_type.has_navigator());
+                }
+            }
+        }
+
+        #[test]
+        fn navigator_needs_state_estimator() {
+            for node_type in NodeType::VALUES {
+                if node_type.has_navigator() {
+                    assert!(node_type.has_state_estimator());
+                }
+            }
+        }
+    }
+}

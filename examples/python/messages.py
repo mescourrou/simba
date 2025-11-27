@@ -58,13 +58,13 @@ class StateEstimator(simba.StateEstimator):
     def pre_loop_hook(self, node: simba.Node, time: float):
         messages = []
         for m in node.get_messages():
-            match m[1]:
+            match m.message:
                 case simba.MessageTypes.String(s):
                     v = f"String({s})"
                 case simba.MessageTypes.GoTo(g):
                     v = f"GoTo({g})"
 
-            messages.append((m[0], v, m[2]))
+            messages.append((m.msg_from, v, m.timestamp))
         print(f"Received messages: {messages}")
 
 

@@ -1,0 +1,9 @@
+[package]
+name = "simba-cmd"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+simba = { path = "../simba-core", features = ["gui"], version = "*"}
+clap = { version = "4.5.48", features = ["derive"] }

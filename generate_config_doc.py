@@ -7,7 +7,7 @@ from typing import List, Tuple
 
 import IPython
 
-SOURCE_DIR = "src"
+SOURCE_DIR = "simba-core/src"
 DOC_FILE = "doc/user_manual/docs/config_documentation.md"
 CONFIG_SUFFIX = "Config"
 ENTRY_CONFIG = "SimulatorConfig"
@@ -73,6 +73,10 @@ def convert_rust_type_to_yaml(type:str) -> str|None:
 def type_from_node(type_node, comments, configs) -> Tuple[List[str], str | None]:
     if type_node is None:
         return (comments, None)
+    if type_node.type == "array_type":
+        element_type = type_node.children[1].text.decode('utf-8')
+        length = type_node.children[3].text.decode('utf-8')
+        return (comments + [f"Array[{length}]"], element_type)
     if len(type_node.children) > 0:
         type = type_node.children[-1].text.decode("utf-8")
     else:
@@ -152,7 +156,10 @@ def document_config(node, docfile, configs, depth=0):
             comments_str = ""
             if len(comments) > 0:
                 comments_str += ", ".join(comments)
-            docfile.write(f"{indent}- `{name}`{':' if comments_str != '' else ''} {comments_str}\n")
+            if n.type == "enum_variant":
+                docfile.write(f"{indent}- `!{name}`{':' if comments_str != '' else ''} {comments_str}\n")
+            else:
+                docfile.write(f"{indent}- `{name}`{':' if comments_str != '' else ''} {comments_str}\n")
             if not next_node is None:
                 document_config(next_node, docfile, configs, depth+1)
             

@@ -47,7 +47,7 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
     ) -> Box<dyn Navigator> {
-        Box::new(MyWonderfulNavigator::from_config(
+        Box::new(MyWonderfulfrom_config(
             serde_json::from_value(config.clone()).unwrap(),
         ))
     }
