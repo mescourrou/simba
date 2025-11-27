@@ -17,12 +17,12 @@ build_rust:
   script:
     # - cargo build --verbose
     # - cargo build --all-features --verbose --release
-    - cargo build --release --manifest-path cmdline/Cargo.toml
+    - cargo build -p simba-cmd --release
     # - cargo test --verbose
   artifacts:
     when: on_success
     paths:
-      - cmdline/target/release/simba_cmd
+      - target/release/simba-cmd
   
 build_python:
   rules:
@@ -76,7 +76,7 @@ upload:
   script:
       # - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file target/release/*.rlib ${PACKAGE_REGISTRY_URL}/simba-rust-${CI_COMMIT_TAG}.rlib'
       - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file target/wheels/*.whl ${PACKAGE_REGISTRY_URL}/'
-      - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file cmdline/target/release/simba_cmd ${PACKAGE_REGISTRY_URL}/'
+      - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file target/release/simba-cmd ${PACKAGE_REGISTRY_URL}/'
 
 
 release_job:
@@ -94,4 +94,4 @@ release_job:
         - name: Python package
           url: "${PACKAGE_REGISTRY_URL}/simba-${CI_COMMIT_TAG}-cp310-abi3-manylinux_2_39_x86_64.whl"
         - name: Binary
-          url: "${PACKAGE_REGISTRY_URL}/simba_cmd"
+          url: "${PACKAGE_REGISTRY_URL}/simba-cmd"
