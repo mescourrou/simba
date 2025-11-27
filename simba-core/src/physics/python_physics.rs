@@ -17,7 +17,7 @@ use serde_json::Value;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::physics::robot_models::Command;
-use crate::utils::python::ensure_venv_pyo3;
+use crate::utils::python::{CONVERT_TO_DICT, ensure_venv_pyo3, python_class_config};
 use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
@@ -31,6 +31,7 @@ use crate::{
 
 use serde_derive::{Deserialize, Serialize};
 
+python_class_config!(
 /// Config for the external physics (generic).
 ///
 /// The config for [`PythonPhysics`] uses a [`serde_json::Value`] to
@@ -46,78 +47,10 @@ use serde_derive::{Deserialize, Serialize};
 ///         class_name: MyPhysics
 ///         parameter_of_my_own_physics: true
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-pub struct PythonPhysicsConfig {
-    file: String,
-    class_name: String,
-    /// Config serialized.
-    #[serde(flatten)]
-    pub config: Value,
-}
-
-impl Default for PythonPhysicsConfig {
-    fn default() -> Self {
-        Self {
-            file: String::new(),
-            class_name: String::new(),
-            config: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for PythonPhysicsConfig {
-    fn show_mut(
-        &mut self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External Python Physics").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Script path: ");
-                    ui.text_edit_singleline(&mut self.file);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Class name: ");
-                    ui.text_edit_singleline(&mut self.class_name);
-                });
-
-                ui.label("Config (JSON):");
-                json_config(
-                    ui,
-                    &format!("external-python-physics-key-{}", &unique_id),
-                    &format!("external-python-physics-error-key-{}", &unique_id),
-                    buffer_stack,
-                    &mut self.config,
-                );
-            });
-        });
-    }
-
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        egui::CollapsingHeader::new("External Python Physics").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Script path: ");
-                    ui.label(&self.file);
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Class name: ");
-                    ui.label(&self.class_name);
-                });
-                ui.label("Config (JSON):");
-                ui.label(self.config.to_string());
-            });
-        });
-    }
-}
+    PythonPhysicsConfig,
+    "External Python Physics",
+    "external-python-physics"
+);
 
 /// Record for the external physics (generic).
 ///
@@ -187,24 +120,6 @@ impl PythonPhysics {
         let json_config = serde_json::to_string(&config)
             .expect("Error during converting Python Physics config to json");
 
-        let convert_to_dict = cr#"
-import json
-class NoneDict(dict):
-    """ dict subclass that returns a value of None for missing keys instead
-        of raising a KeyError. Note: doesn't add item to dictionary.
-    """
-    def __missing__(self, key):
-        return None
-
-
-def converter(decoded_dict):
-    """ Convert any None values in decoded dict into empty NoneDict's. """
-    return {k: NoneDict() if v is None else v for k,v in decoded_dict.items()}
-
-def convert(records):
-    return json.loads(records, object_hook=converter)
-"#;
-
         let script_path = global_config.base_path.as_ref().join(&config.file);
         let python_script = match fs::read_to_string(script_path.clone()) {
             Err(e) => {
@@ -222,7 +137,7 @@ def convert(records):
         let res = Python::attach(|py| -> PyResult<Py<PyAny>> {
             ensure_venv_pyo3(py)?;
 
-            let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
+            let script = PyModule::from_code(py, CONVERT_TO_DICT, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
             let config_dict = convert_fn.call(py, (json_config,), None)?;
 

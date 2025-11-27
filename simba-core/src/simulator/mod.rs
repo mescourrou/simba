@@ -46,24 +46,11 @@ use pyo3::{ffi::c_str, prelude::*};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::{
-    api::internal_api::NodeClient,
-    constants::TIME_ROUND,
-    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
-    logger::{init_log, is_enabled, LoggerConfig},
-    networking::network_manager::NetworkManager,
-    node::{
-        node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig},
-        Node,
-    },
-    plugin_api::PluginAPI,
-    recordable::Recordable,
-    state_estimators::State,
-    time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
-    utils::{
-        barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory,
-        maths::round_precision, time_ordered_data::TimeOrderedData,
-    },
-    VERSION,
+    VERSION, api::internal_api::NodeClient, constants::TIME_ROUND, errors::{SimbaError, SimbaErrorTypes, SimbaResult}, logger::{LoggerConfig, init_log, is_enabled}, networking::network_manager::NetworkManager, node::{
+        Node, node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig}
+    }, plugin_api::PluginAPI, recordable::Recordable, state_estimators::State, time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory}, utils::{
+        barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision, python::CONVERT_TO_DICT, time_ordered_data::TimeOrderedData
+    }
 };
 use core::f32;
 use std::{
@@ -992,24 +979,6 @@ def show():
     plt.show()
 "#;
 
-        let convert_to_dict = cr#"
-import json
-class NoneDict(dict):
-    """ dict subclass that returns a value of None for missing keys instead
-        of raising a KeyError. Note: doesn't add item to dictionary.
-    """
-    def __missing__(self, key):
-        return None
-
-
-def converter(decoded_dict):
-    """ Convert any None values in decoded dict into empty NoneDict's. """
-    return {k: NoneDict() if v is None else v for k,v in decoded_dict.items()}
-
-def convert(records):
-    return json.loads(records, object_hook=converter)
-"#;
-
         let script_path = self
             .config
             .base_path
@@ -1029,7 +998,7 @@ def convert(records):
             Ok(s) => CString::new(s).unwrap(),
         };
         let res = Python::attach(|py| -> PyResult<()> {
-            let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
+            let script = PyModule::from_code(py, CONVERT_TO_DICT, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
             let result_dict = convert_fn.call(py, (json_results,), None)?;
             let config_dict = convert_fn.call(py, (json_config,), None)?;

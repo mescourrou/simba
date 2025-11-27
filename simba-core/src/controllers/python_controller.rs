@@ -23,7 +23,7 @@ use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::physics::robot_models::Command;
 use crate::pywrappers::NodeWrapper;
-use crate::utils::python::ensure_venv_pyo3;
+use crate::utils::python::{CONVERT_TO_DICT, ensure_venv_pyo3, python_class_config};
 use crate::{
     controllers::{Controller, ControllerError, ControllerRecord},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
@@ -35,6 +35,7 @@ use crate::{
 
 use serde_derive::{Deserialize, Serialize};
 
+python_class_config!(
 /// Config for the external controller (generic).
 ///
 /// The config for [`PythonController`] uses a [`serde_json::Value`] to
@@ -50,78 +51,10 @@ use serde_derive::{Deserialize, Serialize};
 ///         class_name: MyController
 ///         parameter_of_my_own_controller: true
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-pub struct PythonControllerConfig {
-    file: String,
-    class_name: String,
-    /// Config serialized.
-    #[serde(flatten)]
-    pub config: Value,
-}
-
-impl Default for PythonControllerConfig {
-    fn default() -> Self {
-        Self {
-            file: String::new(),
-            class_name: String::new(),
-            config: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for PythonControllerConfig {
-    fn show_mut(
-        &mut self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External Python Controller").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Script path: ");
-                    ui.text_edit_singleline(&mut self.file);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Class name: ");
-                    ui.text_edit_singleline(&mut self.class_name);
-                });
-
-                ui.label("Config (JSON):");
-                json_config(
-                    ui,
-                    &format!("external-python-controller-key-{}", &unique_id),
-                    &format!("external-python-controller-error-key-{}", &unique_id),
-                    buffer_stack,
-                    &mut self.config,
-                );
-            });
-        });
-    }
-
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        egui::CollapsingHeader::new("External Python Controller").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Script path: ");
-                    ui.label(&self.file);
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Class name: ");
-                    ui.label(&self.class_name);
-                });
-                ui.label("Config (JSON):");
-                ui.label(self.config.to_string());
-            });
-        });
-    }
-}
+    PythonControllerConfig,
+    "External Python Controller",
+    "external-python-controller"
+);
 
 /// Record for the external controller (generic).
 ///
@@ -198,23 +131,6 @@ impl PythonController {
         let json_config = serde_json::to_string(&config)
             .expect("Error during converting Python Controller config to json");
 
-        let convert_to_dict = cr#"
-import json
-class NoneDict(dict):
-    """ dict subclass that returns a value of None for missing keys instead
-        of raising a KeyError. Note: doesn't add item to dictionary.
-    """
-    def __missing__(self, key):
-        return None
-
-
-def converter(decoded_dict):
-    """ Convert any None values in decoded dict into empty NoneDict's. """
-    return {k: NoneDict() if v is None else v for k,v in decoded_dict.items()}
-
-def convert(records):
-    return json.loads(records, object_hook=converter)
-"#;
 
         let script_path = global_config.base_path.as_ref().join(&config.file);
         let python_script = match fs::read_to_string(script_path.clone()) {
@@ -232,7 +148,7 @@ def convert(records):
         };
         let res = Python::attach(|py| -> PyResult<Py<PyAny>> {
             ensure_venv_pyo3(py)?;
-            let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
+            let script = PyModule::from_code(py, CONVERT_TO_DICT, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
             let config_dict = convert_fn.call(py, (json_config,), None)?;
 
