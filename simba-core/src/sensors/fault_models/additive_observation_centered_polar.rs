@@ -277,6 +277,9 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                             self.config.clone(),
                         ));
                 }
+                SensorObservation::External(_) => {
+                    panic!("AdditiveObservationCenteredPolarFault cannot fault ExternalObservation");
+                }
             }
         }
     }

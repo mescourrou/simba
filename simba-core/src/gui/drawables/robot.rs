@@ -35,6 +35,7 @@ impl Robot {
                 SensorConfig::RobotSensor(c) => {
                     robot_obs = Some(OrientedRobotObservation::init(c, sim_config))
                 }
+                SensorConfig::External(_) => {}
             }
         }
 

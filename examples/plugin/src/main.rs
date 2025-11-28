@@ -8,13 +8,15 @@ use simba::navigators::{Navigator, NavigatorRecord};
 use simba::networking::message_handler::MessageHandler;
 use simba::networking::network::Envelope;
 use simba::networking::service::HasService;
+use simba::node::Node;
 use simba::physics::external_physics::ExternalPhysicsRecord;
 use simba::physics::robot_models::unicycle::UnicycleCommand;
 use simba::physics::robot_models::Command;
 use simba::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 use simba::plugin_api::PluginAPI;
 use simba::recordable::Recordable;
-use simba::sensors::Observation;
+use simba::sensors::external_sensor::{ExternalObservation, ExternalObservationRecord, ExternalSensorRecord};
+use simba::sensors::{Observation, Sensor, SensorObservation, SensorRecord};
 use simba::simulator::{Simulator, SimulatorConfig};
 use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
 use simba::state_estimators::{
@@ -280,6 +282,64 @@ impl MessageHandler for MyWonderfulStateEstimator {
     }
 }
 
+///////////////////////////////////
+/// SENSOR TEMPLATE
+///////////////////////////////////
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct MyWonderfulSensorObservation {
+    pub data: f32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct MyWonderfulSensorConfig {
+    pub period: f32,
+}
+
+#[derive(Debug)]
+struct MyWonderfulSensor {
+    last_time: f32,
+    period: f32,
+    last_observation: Option<MyWonderfulSensorObservation>,
+}
+
+impl MyWonderfulSensor {
+    pub fn from_config(config: MyWonderfulSensorConfig) -> Self {
+        Self {
+            last_time: 0.,
+            period: config.period,
+            last_observation: None,
+        }
+    }
+}
+
+impl Sensor for MyWonderfulSensor {
+    fn init(&mut self, node: &mut Node) {
+        println!("Initializing MyWonderfulSensor for node {}", node.name());
+    }
+
+    fn get_observations(&mut self, _node: &mut Node, time: f32) -> Vec<SensorObservation> {
+        self.last_observation = Some(MyWonderfulSensorObservation { data: time });
+        self.last_time = time;
+        // Return a custom observation here, but you can return an existing one as well (e.g. OdometryObservation)
+        vec![SensorObservation::External(ExternalObservation {
+            observation: serde_json::to_value(self.last_observation.as_ref().unwrap()).unwrap(),
+        })]
+    }
+
+    fn next_time_step(&self) -> f32 {
+        self.last_time + self.period
+    }
+}
+
+impl Recordable<SensorRecord> for MyWonderfulSensor {
+    fn record(&self) -> SensorRecord {
+        SensorRecord::External(ExternalSensorRecord {
+            record: serde_json::to_value(self.last_observation.clone()).unwrap(),
+        })
+    }
+}
+
 struct MyWonderfulPlugin {}
 
 impl PluginAPI for MyWonderfulPlugin {
@@ -329,6 +389,16 @@ impl PluginAPI for MyWonderfulPlugin {
         // Example: use already existing state estimator (PythonEstimator here)
         // let config = serde_json::from_value(config.clone()).unwrap();
         // Box::new(PythonEstimator::from_config(&config, global_config).unwrap())
+    }
+
+    fn get_sensor(
+        &self,
+        config: &serde_json::Value,
+        _global_config: &SimulatorConfig,
+    ) -> Box<dyn Sensor> {
+        Box::new(MyWonderfulSensor::from_config(
+            serde_json::from_value(config.clone()).unwrap(),
+        ))
     }
 }
 

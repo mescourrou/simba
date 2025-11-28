@@ -13,6 +13,8 @@ type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
+use std::sync::Arc;
+
 use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
@@ -22,15 +24,21 @@ use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
+use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
+use crate::utils::macros::external_record_python_methods;
 use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use crate::sensors::sensor::{Observation, Sensor, SensorObservation, SensorRecord};
+use crate::sensors::{Observation, ObservationRecord, Sensor, SensorObservation, SensorObservationRecord, SensorRecord};
 use serde_derive::{Deserialize, Serialize};
+
+external_record_python_methods!(
+/// Record for the external sensor (generic).
+ExternalObservationRecord,
+);
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct ExternalObservation {
@@ -42,8 +50,8 @@ impl UIComponent for ExternalObservation {
     fn show(
             &self,
             ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &str,
+            _ctx: &egui::Context,
+            _unique_id: &str,
         ) {
         egui::CollapsingHeader::new("External Observation").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -54,13 +62,11 @@ impl UIComponent for ExternalObservation {
     }
 }
 
-impl Stateful<ExternalObservation> for ExternalObservation {
-    fn record(&self) -> ExternalObservation {
-        self.clone()
-    }
-
-    fn from_record(&mut self, record: ExternalObservation) {
-        *self = record;
+impl Recordable<ExternalObservationRecord> for ExternalObservation {
+    fn record(&self) -> ExternalObservationRecord {
+        ExternalObservationRecord {
+            record: self.observation.clone(),
+        }
     }
 }
 
@@ -120,7 +126,7 @@ impl UIComponent for ExternalSensorConfig {
         &self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
-        unique_id: &str,
+        _unique_id: &str,
     ) {
         egui::CollapsingHeader::new("External Sensor").show(ui, |ui| {
             ui.vertical(|ui| {
@@ -131,6 +137,7 @@ impl UIComponent for ExternalSensorConfig {
     }
 }
 
+external_record_python_methods!(
 /// Record for the external sensor (generic).
 ///
 /// Like [`ExternalSensorConfig`], [`ExternalSensor`] uses a [`serde_json::Value`]
@@ -138,42 +145,8 @@ impl UIComponent for ExternalSensorConfig {
 ///
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
-pub struct ExternalSensorRecord {
-    /// Record serialized.
-    #[serde(flatten)]
-    pub record: Value,
-}
-
-impl Default for ExternalSensorRecord {
-    fn default() -> Self {
-        Self {
-            record: Value::Null,
-        }
-    }
-}
-
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalSensorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &str,
-        ) {
-        ui.label(self.record.to_string());
-    }
-}
-
-#[pymethods]
-impl ExternalSensorRecord {
-    #[getter]
-    fn record(&self) -> String {
-        self.record.to_string()
-    }
-}
+ExternalSensorRecord,
+);
 
 use crate::node::Node;
 
@@ -240,18 +213,10 @@ impl Sensor for ExternalSensor {
         round_precision(self.sensor.next_time_step(), TIME_ROUND).expect("Sensor next_time_step rounding returned an error:")
     }
 
-    fn period(&self) -> f32 {
-        self.sensor.period()
-    }
-
 }
 
-impl Stateful<SensorRecord> for ExternalSensor {
+impl Recordable<SensorRecord> for ExternalSensor {
     fn record(&self) -> SensorRecord {
         self.sensor.record()
-    }
-
-    fn from_record(&mut self, record: SensorRecord) {
-        self.sensor.from_record(record);
     }
 }

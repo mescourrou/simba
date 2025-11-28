@@ -17,6 +17,7 @@ pub mod odometry_sensor;
 pub mod oriented_landmark_sensor;
 pub mod robot_sensor;
 pub mod sensor_manager;
+pub mod external_sensor;
 
 pub mod fault_models;
 pub mod sensor_filters;
@@ -40,7 +41,7 @@ use crate::{
     simulator::SimulatorConfig,
     utils::enum_tools::ToVec,
 };
-use crate::{node::Node, recordable::Recordable};
+use crate::{node::Node, recordable::Recordable, sensors::external_sensor::{ExternalObservation, ExternalObservationRecord}};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {
@@ -130,6 +131,7 @@ pub enum SensorObservation {
     Odometry(OdometryObservation),
     GNSS(GNSSObservation),
     OrientedRobot(OrientedRobotObservation),
+    External(ExternalObservation)
 }
 
 impl Recordable<SensorObservationRecord> for SensorObservation {
@@ -143,6 +145,7 @@ impl Recordable<SensorObservationRecord> for SensorObservation {
             SensorObservation::OrientedRobot(o) => {
                 SensorObservationRecord::OrientedRobot(o.record())
             }
+            SensorObservation::External(o) => SensorObservationRecord::External(o.record()),
         }
     }
 }
@@ -153,6 +156,7 @@ pub enum SensorObservationRecord {
     Odometry(OdometryObservationRecord),
     GNSS(GNSSObservationRecord),
     OrientedRobot(OrientedRobotObservationRecord),
+    External(ExternalObservationRecord),
 }
 
 #[cfg(feature = "gui")]
@@ -163,6 +167,7 @@ impl UIComponent for SensorObservationRecord {
             Self::Odometry(r) => r.show(ui, ctx, unique_id),
             Self::GNSS(r) => r.show(ui, ctx, unique_id),
             Self::OrientedRobot(r) => r.show(ui, ctx, unique_id),
+            Self::External(r) => r.show(ui, ctx, unique_id),
         });
     }
 }
@@ -175,6 +180,7 @@ pub enum SensorConfig {
     OdometrySensor(odometry_sensor::OdometrySensorConfig),
     GNSSSensor(gnss_sensor::GNSSSensorConfig),
     RobotSensor(robot_sensor::RobotSensorConfig),
+    External(external_sensor::ExternalSensorConfig),
 }
 
 #[cfg(feature = "gui")]
@@ -219,6 +225,11 @@ impl UIComponent for SensorConfig {
                 "RobotSensor" => {
                     *self = SensorConfig::RobotSensor(robot_sensor::RobotSensorConfig::default())
                 }
+                "External" => {
+                    *self = SensorConfig::External(
+                        external_sensor::ExternalSensorConfig::default(),
+                    )
+                }
                 _ => panic!("Where did you find this value?"),
             };
         }
@@ -255,6 +266,14 @@ impl UIComponent for SensorConfig {
                 current_node_name,
                 unique_id,
             ),
+            SensorConfig::External(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
         }
     }
 
@@ -267,6 +286,7 @@ impl UIComponent for SensorConfig {
             SensorConfig::OdometrySensor(c) => c.show(ui, ctx, unique_id),
             SensorConfig::GNSSSensor(c) => c.show(ui, ctx, unique_id),
             SensorConfig::RobotSensor(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::External(c) => c.show(ui, ctx, unique_id),
         }
     }
 }
@@ -278,6 +298,7 @@ pub enum SensorRecord {
     OdometrySensor(odometry_sensor::OdometrySensorRecord),
     GNSSSensor(gnss_sensor::GNSSSensorRecord),
     RobotSensor(robot_sensor::RobotSensorRecord),
+    External(external_sensor::ExternalSensorRecord),
 }
 
 #[cfg(feature = "gui")]
@@ -301,6 +322,11 @@ impl UIComponent for SensorRecord {
             }
             Self::RobotSensor(r) => {
                 egui::CollapsingHeader::new("RobotSensor").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::External(r) => {
+                egui::CollapsingHeader::new("ExternalSensor").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }
@@ -329,7 +355,4 @@ pub trait Sensor:
 
     /// Get the time of the next observation.
     fn next_time_step(&self) -> f32;
-
-    /// Period of the [`Sensor`].
-    fn period(&self) -> f32;
 }

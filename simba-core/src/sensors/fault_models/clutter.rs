@@ -302,6 +302,9 @@ impl FaultModel for ClutterFault {
                     o.applied_faults
                         .push(FaultModelConfig::Clutter(self.config.clone()));
                 }
+                SensorObservation::External(_) => {
+                    panic!("ClutterFault cannot fault ExternalObservation");
+                }
             }
             obs_list.push(new_obs);
         }

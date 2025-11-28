@@ -298,6 +298,9 @@ impl FaultModel for MisassociationFault {
                     o.applied_faults
                         .push(FaultModelConfig::Misassociation(self.config.clone()));
                 }
+                SensorObservation::External(_) => {
+                    panic!("MisassociationFault cannot fault ExternalObservation");
+                }
             }
         }
     }

@@ -562,6 +562,9 @@ impl SensorObservationWrapper {
             SensorObservation::OrientedRobot(o) => SensorObservationWrapper::OrientedRobot(
                 OrientedRobotObservationWrapper::from_rust(o),
             ),
+            _ => {
+                panic!("ExternalObservation cannot be converted to SensorObservationWrapper yet");
+            }
         }
     }
     pub fn to_rust(&self) -> SensorObservation {

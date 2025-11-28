@@ -299,10 +299,6 @@ impl Sensor for OdometrySensor {
     fn next_time_step(&self) -> f32 {
         round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
     }
-
-    fn period(&self) -> f32 {
-        self.period
-    }
 }
 
 impl Recordable<SensorRecord> for OdometrySensor {

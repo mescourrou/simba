@@ -280,6 +280,9 @@ impl FaultModel for AdditiveRobotCenteredFault {
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
+                SensorObservation::External(_) => {
+                    panic!("AdditiveRobotCenteredFault cannot fault ExternalObservation");
+                }
             }
         }
     }

@@ -3,8 +3,9 @@ use serde::{Deserialize, Serialize};
 use simba_macros::{EnumToString, ToVec};
 
 #[cfg(feature = "gui")]
-use crate::{gui::UIComponent, simulator::SimulatorConfig, utils::enum_tools::ToVec};
+use crate::{gui::UIComponent, utils::enum_tools::ToVec};
 use crate::{
+    simulator::SimulatorConfig,
     sensors::{
         sensor_filters::{
             python_filter::{PythonFilter, PythonFilterConfig},

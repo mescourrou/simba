@@ -46,9 +46,7 @@ fn main() {
 use std::sync::Arc;
 
 use crate::{
-    controllers::Controller, navigators::Navigator, physics::Physics, simulator::SimulatorConfig,
-    state_estimators::StateEstimator,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    controllers::Controller, navigators::Navigator, physics::Physics, sensors::Sensor, simulator::SimulatorConfig, state_estimators::StateEstimator, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 
 use serde_json::Value;
@@ -140,4 +138,12 @@ pub trait PluginAPI: Send + Sync {
     }
 
     fn check_requests(&self) {}
+
+    fn get_sensor(
+        &self,
+        _config: &Value,
+        _global_config: &SimulatorConfig,
+    ) -> Box<dyn Sensor> {
+        panic!("The given PluginAPI does not provide a sensor");
+    }
 }

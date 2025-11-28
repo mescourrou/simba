@@ -21,6 +21,7 @@ use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::node::Node;
+use crate::sensors::external_sensor::ExternalSensor;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
@@ -301,6 +302,12 @@ impl SensorManager {
                         plugin_api,
                         global_config,
                         node_name,
+                        va_factory,
+                    )) as Box<dyn Sensor>,
+                    SensorConfig::External(c) => Box::new(ExternalSensor::from_config(
+                        c,
+                        plugin_api,
+                        global_config,
                         va_factory,
                     )) as Box<dyn Sensor>,
                 })),

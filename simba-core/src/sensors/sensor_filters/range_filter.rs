@@ -271,6 +271,9 @@ impl SensorFilter for RangeFilter {
                     }
                 }
             }
+            SensorObservation::External(_) => {
+                panic!("RangeFilter cannot filter ExternalObservation");
+            }
         }
 
         if keep {
