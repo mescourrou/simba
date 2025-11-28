@@ -141,6 +141,7 @@ impl RangeFilter {
 impl SensorFilter for RangeFilter {
     fn filter(
         &self,
+        _time: f32,
         observation: SensorObservation,
         observer_state: &State,
         observee_state: Option<&State>,

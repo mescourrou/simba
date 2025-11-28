@@ -9,7 +9,11 @@ use simba_macros::{EnumToString, ToVec};
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::{
-    sensors::SensorObservation, simulator::SimulatorConfig,
+    sensors::{
+        fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig},
+        SensorObservation,
+    },
+    simulator::SimulatorConfig,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
@@ -35,6 +39,7 @@ pub enum FaultModelConfig {
     Clutter(ClutterFaultConfig),
     Misdetection(MisdetectionFaultConfig),
     Misassociation(MisassociationFaultConfig),
+    Python(PythonFaultModelConfig),
 }
 
 #[cfg(feature = "gui")]
@@ -101,6 +106,14 @@ impl UIComponent for FaultModelConfig {
                         current_node_name,
                         unique_id,
                     ),
+                    Self::Python(cfg) => cfg.show_mut(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        unique_id,
+                    ),
                 };
             });
     }
@@ -117,6 +130,7 @@ impl UIComponent for FaultModelConfig {
                     Self::Clutter(cfg) => cfg.show(ui, ctx, unique_id),
                     Self::Misdetection(cfg) => cfg.show(ui, ctx, unique_id),
                     Self::Misassociation(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::Python(cfg) => cfg.show(ui, ctx, unique_id),
                 };
             });
     }
@@ -250,6 +264,10 @@ pub fn make_fault_model_from_config(
             robot_name,
             va_factory,
         )) as Box<dyn FaultModel>,
+        FaultModelConfig::Python(cfg) => Box::new(
+            PythonFaultModel::from_config(cfg, global_config)
+                .expect("Failed to create Python Fault Model"),
+        ) as Box<dyn FaultModel>,
     }
 }
 

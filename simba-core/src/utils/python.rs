@@ -1,4 +1,5 @@
 use std::ffi::{CStr, CString};
+use std::fmt::Debug;
 use std::fs;
 
 use log::debug;
@@ -105,9 +106,48 @@ def convert(records):
     return json.loads(records, object_hook=converter)
 "#;
 
-pub trait PythonClassConfig: Serialize {
+pub trait PythonClassConfig: Serialize + for<'a> Deserialize<'a> {
     fn file(&self) -> &String;
     fn class_name(&self) -> &String;
+}
+
+pub trait PythonFunctionConfig: Serialize + for<'a> Deserialize<'a> {
+    fn file(&self) -> &String;
+    fn function_name(&self) -> &String;
+}
+
+pub struct PythonScriptConfig(CString);
+
+impl PythonScriptConfig {
+    pub fn new(script: String) -> Self {
+        PythonScriptConfig(CString::new(script).unwrap())
+    }
+
+    pub fn script(&self) -> &CString {
+        &self.0
+    }
+
+    pub fn call<ReturnType, Args>(&mut self, args: Args) -> SimbaResult<ReturnType>
+    where
+        ReturnType: PyClass + for<'a, 'py> FromPyObject<'a, 'py> + Debug,
+        Args: for<'a> PyCallArgs<'a>,
+    {
+        let res = Python::attach(|py| -> PyResult<ReturnType> {
+            ensure_venv_pyo3(py)?;
+
+            let script = PyModule::from_code(py, &self.0, c_str!(""), c_str!(""))?;
+            let function: Py<PyAny> = script.getattr("main")?.into();
+
+            let ret = function.call(py, args, None)?;
+            Ok(ret.extract(py).map_err(|_| {
+                PyErr::new::<pyo3::exceptions::PyException, _>(
+                    "Error during the call of Python script",
+                )
+            })?)
+        });
+
+        res.map_err(|err| SimbaError::new(SimbaErrorTypes::PythonError, err.to_string()))
+    }
 }
 
 pub fn load_class_from_python_script<T: PythonClassConfig>(

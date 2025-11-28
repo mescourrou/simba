@@ -425,7 +425,7 @@ impl OrientedLandmarkSensor {
         let filters = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_filters = filters.lock().unwrap();
         for filter_config in &config.filters {
-            unlock_filters.push(make_sensor_filter_from_config(filter_config));
+            unlock_filters.push(make_sensor_filter_from_config(filter_config, global_config));
         }
         drop(unlock_filters);
 
@@ -511,7 +511,7 @@ impl Sensor for OrientedLandmarkSensor {
                     .lock()
                     .unwrap()
                     .iter()
-                    .try_fold(obs, |obs, filter| filter.filter(obs, &state, None))
+                    .try_fold(obs, |obs, filter| filter.filter(time, obs, &state, None))
                 {
                     new_obs.push(observation);
                     for fault_model in self.faults.lock().unwrap().iter() {

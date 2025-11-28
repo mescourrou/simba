@@ -279,3 +279,16 @@ class Simulator:
     
 def run_gui(plugin_api: PluginAPI | None):
         raise NotImplementedError()
+
+
+class FaultModel:
+    def add_faults(self, time: float, period: float, obs_list: List[SensorObservation]) -> List[SensorObservation]:
+        raise NotImplementedError()
+
+class PhysicsFaultModel:
+    def add_faults(self, time: float, state: State) -> State:
+        raise NotImplementedError()
+
+class SensorFilter:
+    def filter_observations(self, time: float, observation: SensorObservation, observer_state: State, observee_state: State | None) -> SensorObservation|None:
+        raise NotImplementedError()
