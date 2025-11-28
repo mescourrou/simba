@@ -28,6 +28,7 @@ use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
+use crate::utils::macros::external_record_python_methods;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -96,6 +97,7 @@ impl UIComponent for ExternalPhysicsConfig {
     }
 }
 
+external_record_python_methods!(
 /// Record for the external physics (generic).
 ///
 /// Like [`ExternalPhysicsConfig`], [`ExternalPhysics`] uses a [`serde_json::Value`]
@@ -103,36 +105,8 @@ impl UIComponent for ExternalPhysicsConfig {
 ///
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::record`] implementations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
-pub struct ExternalPhysicsRecord {
-    /// Record serialized.
-    #[serde(flatten)]
-    pub record: Value,
-}
-
-impl Default for ExternalPhysicsRecord {
-    fn default() -> Self {
-        Self {
-            record: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalPhysicsRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(self.record.to_string());
-    }
-}
-
-#[pymethods]
-impl ExternalPhysicsRecord {
-    #[getter]
-    fn record(&self) -> String {
-        self.record.to_string()
-    }
-}
+ExternalPhysicsRecord,
+);
 
 use super::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 

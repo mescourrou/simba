@@ -11,8 +11,8 @@ use std::sync::{Arc, Mutex};
 use config_checker::macros::Check;
 use log::{debug, info};
 use pyo3::ffi::c_str;
-use pyo3::prelude::*;
 use pyo3::types::PyModule;
+use pyo3::{call, prelude::*};
 use pyo3::{pyclass, pymethods, PyResult, Python};
 use serde_json::Value;
 
@@ -21,7 +21,11 @@ use crate::gui::{utils::json_config, UIComponent};
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::pywrappers::NodeWrapper;
-use crate::utils::python::{CONVERT_TO_DICT, ensure_venv_pyo3, python_class_config};
+use crate::utils::macros::{external_record, external_record_python_methods, python_class_config};
+use crate::utils::python::{
+    call_py_method, call_py_method_void, ensure_venv_pyo3, load_class_from_python_script,
+    CONVERT_TO_DICT,
+};
 use crate::{
     controllers::ControllerError,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
@@ -55,6 +59,7 @@ python_class_config!(
     "external-python-navigator"
 );
 
+external_record_python_methods!(
 /// Record for the external navigator (generic).
 ///
 /// Like [`PythonNavigatorConfig`], [`PythonNavigator`] uses a [`serde_json::Value`]
@@ -62,36 +67,8 @@ python_class_config!(
 ///
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::record`] implementations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
-pub struct PythonNavigatorRecord {
-    /// Record serialized.
-    #[serde(flatten)]
-    pub record: Value,
-}
-
-impl Default for PythonNavigatorRecord {
-    fn default() -> Self {
-        Self {
-            record: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for PythonNavigatorRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(self.record.to_string());
-    }
-}
-
-#[pymethods]
-impl PythonNavigatorRecord {
-    #[getter]
-    fn record(&self) -> String {
-        self.record.to_string()
-    }
-}
+    PythonNavigatorRecord,
+);
 
 use crate::node::Node;
 
@@ -127,52 +104,7 @@ impl PythonNavigator {
             debug!("Config given: {:?}", config);
         }
 
-        let json_config = serde_json::to_string(&config)
-            .expect("Error during converting Python Navigator config to json");
-
-        let script_path = global_config.base_path.as_ref().join(&config.file);
-        let python_script = match fs::read_to_string(script_path.clone()) {
-            Err(e) => {
-                return Err(SimbaError::new(
-                    SimbaErrorTypes::ConfigError,
-                    format!(
-                        "Python navigator script not found ({}): {}",
-                        script_path.to_str().unwrap(),
-                        e
-                    ),
-                ))
-            }
-            Ok(s) => CString::new(s).unwrap(),
-        };
-        let res = Python::attach(|py| -> PyResult<Py<PyAny>> {
-            ensure_venv_pyo3(py)?;
-            let script = PyModule::from_code(py, CONVERT_TO_DICT, c_str!(""), c_str!(""))?;
-            let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
-            let config_dict = convert_fn.call(py, (json_config,), None)?;
-
-            let script = PyModule::from_code(py, &python_script, c_str!(""), c_str!(""))?;
-            let navigator_class: Py<PyAny> = script.getattr(config.class_name.as_str())?.into();
-            info!("Load Navigator class {} ...", config.class_name);
-
-            let res = navigator_class.call(py, (config_dict,), None);
-            let navigator_instance = match res {
-                Err(err) => {
-                    err.display(py);
-                    return Err(err);
-                }
-                Ok(instance) => instance,
-            };
-            Ok(navigator_instance)
-        });
-        let navigator_instance = match res {
-            Err(err) => {
-                return Err(SimbaError::new(
-                    SimbaErrorTypes::PythonError,
-                    err.to_string(),
-                ))
-            }
-            Ok(instance) => instance,
-        };
+        let navigator_instance = load_class_from_python_script(config, global_config, "Navigator")?;
         let (tx, rx) = mpsc::channel();
         Ok(Self {
             navigator: navigator_instance,
@@ -194,21 +126,13 @@ impl Navigator for PythonNavigator {
             debug!("Calling python implementation of compute_error");
         }
         let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
-        let result = Python::attach(|py| -> ControllerErrorWrapper {
-            match self.navigator.bind(py).call_method(
-                "compute_error",
-                (node_py, WorldStateWrapper::from_rust(&state)),
-                None,
-            ) {
-                Err(e) => {
-                    e.display(py);
-                    panic!("Error while calling 'compute_error' method of PythonNavigator.");
-                }
-                Ok(r) => r
-                    .extract()
-                    .expect("Error during the call of Python implementation of 'compute_error'"),
-            }
-        });
+        let result = call_py_method!(
+            self.navigator,
+            "compute_error",
+            ControllerErrorWrapper,
+            node_py,
+            WorldStateWrapper::from_rust(&state)
+        );
         result.to_rust()
     }
 
@@ -217,16 +141,7 @@ impl Navigator for PythonNavigator {
             debug!("Calling python implementation of pre_loop_hook");
         }
         let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
-        Python::attach(|py| {
-            if let Err(e) =
-                self.navigator
-                    .bind(py)
-                    .call_method("pre_loop_hook", (node_py, time), None)
-            {
-                e.display(py);
-                panic!("Error while calling 'pre_loop_hook' method of PythonNavigator.");
-            }
-        });
+        call_py_method_void!(self.navigator, "pre_loop_hook", node_py, time);
     }
 }
 
@@ -235,20 +150,7 @@ impl Recordable<NavigatorRecord> for PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::attach(|py| {
-            match self.navigator
-                .bind(py)
-                .call_method("record", (), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'record' method of PythonNavigator.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("The 'record' method of PythonNavigator does not return a valid PythonNavigatorRecord type")
-                    }
-                }
-        });
+        let record_str = call_py_method!(self.navigator, "record", String,);
         let record = PythonNavigatorRecord {
             record: Value::from_str(record_str.as_str()).expect(
                 "Impossible to get serde_json::Value from the input serialized python structure",

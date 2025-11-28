@@ -19,7 +19,10 @@ use crate::{
     pywrappers::{ControllerErrorWrapper, NodeWrapper, WorldStateWrapper},
     recordable::Recordable,
     state_estimators::WorldState,
-    utils::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+    utils::{
+        python::{call_py_method, call_py_method_void},
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+    },
 };
 
 use super::{Navigator, NavigatorRecord};
@@ -118,22 +121,12 @@ impl PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of compute_error");
         }
-        // let node_record = node.record();
-        let result = Python::attach(|py| -> ControllerErrorWrapper {
-            match self.model.bind(py).call_method(
-                "compute_error",
-                (node, WorldStateWrapper::from_rust(state)),
-                None,
-            ) {
-                Err(e) => {
-                    e.display(py);
-                    panic!("Error while calling 'compute_error' method of PythonNavigator.");
-                }
-                Ok(r) => r
-                    .extract()
-                    .expect("Error during the call of Python implementation of 'compute_error'"),
-            }
-        });
+        let result = call_py_method!(
+            self.model,
+            "compute_error",
+            ControllerErrorWrapper,
+            (node, WorldStateWrapper::from_rust(state))
+        );
         result.to_rust()
     }
 
@@ -141,43 +134,18 @@ impl PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::attach(|py| {
-            match self.model
-                .bind(py)
-                .call_method("record", (), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'record' method of PythonNavigator.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("The 'record' method of PythonNavigator does not return a valid EstimatorRecord type")
-                    }
-                }
-        });
-        let record = ExternalNavigatorRecord {
+        let record_str: String = call_py_method!(self.model, "record", String,);
+        NavigatorRecord::External(ExternalNavigatorRecord {
             record: Value::from_str(record_str.as_str()).expect(
                 "Impossible to get serde_json::Value from the input serialized python structure",
             ),
-        };
-        // record.clone()
-        // StateEstimatorRecord::External(PythonNavigator::record(&self))
-        NavigatorRecord::External(record)
+        })
     }
 
     fn pre_loop_hook(&mut self, node: NodeWrapper, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        Python::attach(|py: Python<'_>| {
-            if let Err(e) = self
-                .model
-                .bind(py)
-                .call_method("pre_loop_hook", (node, time), None)
-            {
-                e.display(py);
-                panic!("Error while calling 'pre_loop_hook' method of PythonNavigator.");
-            }
-        });
+        call_py_method_void!(self.model, "pre_loop_hook", node, time);
     }
 }

@@ -19,7 +19,9 @@ use crate::{
     },
     simulator::SimulatorConfig,
     state_estimators::{pybinds::PythonStateEstimator, StateEstimator},
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    utils::{
+        determinist_random_variable::DeterministRandomVariableFactory, python::call_py_method,
+    },
 };
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -97,25 +99,13 @@ impl PluginAPI for PythonAPI {
         self.state_estimators
             .lock()
             .unwrap()
-            .push(PythonStateEstimator::new(Python::attach(|py| {
-                match self.api.bind(py).call_method(
-                    "get_state_estimator",
-                    (
-                        config.to_string(),
-                        serde_json::to_string(global_config)
-                            .expect("Failed to serialize global_config"),
-                    ),
-                    None,
-                ) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error during execution of python method 'get_state_estimator'.");
-                    }
-                    Ok(r) => r
-                        .extract()
-                        .expect("Expecting function return of PythonStateEstimator but failed"),
-                }
-            })));
+            .push(PythonStateEstimator::new(call_py_method!(
+                self.api,
+                "get_state_estimator",
+                Py<PyAny>,
+                config.to_string(),
+                serde_json::to_string(global_config).expect("Failed to serialize global_config")
+            )));
         let st = Box::new(
             self.state_estimators
                 .lock()
@@ -142,25 +132,13 @@ impl PluginAPI for PythonAPI {
         self.controllers
             .lock()
             .unwrap()
-            .push(PythonController::new(Python::attach(|py| {
-                match self.api.bind(py).call_method(
-                    "get_controller",
-                    (
-                        config.to_string(),
-                        serde_json::to_string(global_config)
-                            .expect("Failed to serialize global_config"),
-                    ),
-                    None,
-                ) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error during execution of python method 'get_controller'.");
-                    }
-                    Ok(r) => r
-                        .extract()
-                        .expect("Expecting function return of PythonController but failed"),
-                }
-            })));
+            .push(PythonController::new(call_py_method!(
+                self.api,
+                "get_controller",
+                Py<PyAny>,
+                config.to_string(),
+                serde_json::to_string(global_config).expect("Failed to serialize global_config")
+            )));
         let st = Box::new(
             self.controllers
                 .lock()
@@ -187,25 +165,13 @@ impl PluginAPI for PythonAPI {
         self.navigators
             .lock()
             .unwrap()
-            .push(PythonNavigator::new(Python::attach(|py| {
-                match self.api.bind(py).call_method(
-                    "get_navigator",
-                    (
-                        config.to_string(),
-                        serde_json::to_string(global_config)
-                            .expect("Failed to serialize global_config"),
-                    ),
-                    None,
-                ) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error during execution of python method 'get_navigator'.");
-                    }
-                    Ok(r) => r
-                        .extract()
-                        .expect("Expecting function return of Python?avigator but failed"),
-                }
-            })));
+            .push(PythonNavigator::new(call_py_method!(
+                self.api,
+                "get_navigator",
+                Py<PyAny>,
+                config.to_string(),
+                serde_json::to_string(global_config).expect("Failed to serialize global_config")
+            )));
         let st = Box::new(self.navigators.lock().unwrap().last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Got api {:?}", st);
@@ -225,25 +191,13 @@ impl PluginAPI for PythonAPI {
         self.physics
             .lock()
             .unwrap()
-            .push(PythonPhysics::new(Python::attach(|py| {
-                match self.api.bind(py).call_method(
-                    "get_physics",
-                    (
-                        config.to_string(),
-                        serde_json::to_string(global_config)
-                            .expect("Failed to serialize global_config"),
-                    ),
-                    None,
-                ) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error during execution of python method 'get_physics'.");
-                    }
-                    Ok(r) => r
-                        .extract()
-                        .expect("Expecting function return of PythonPhysics but failed"),
-                }
-            })));
+            .push(PythonPhysics::new(call_py_method!(
+                self.api,
+                "get_physics",
+                Py<PyAny>,
+                config.to_string(),
+                serde_json::to_string(global_config).expect("Failed to serialize global_config")
+            )));
         let st = Box::new(self.physics.lock().unwrap().last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Got api {:?}", st);

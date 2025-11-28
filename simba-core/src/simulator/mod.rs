@@ -46,11 +46,24 @@ use pyo3::{ffi::c_str, prelude::*};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::{
-    VERSION, api::internal_api::NodeClient, constants::TIME_ROUND, errors::{SimbaError, SimbaErrorTypes, SimbaResult}, logger::{LoggerConfig, init_log, is_enabled}, networking::network_manager::NetworkManager, node::{
-        Node, node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig}
-    }, plugin_api::PluginAPI, recordable::Recordable, state_estimators::State, time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory}, utils::{
-        barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision, python::CONVERT_TO_DICT, time_ordered_data::TimeOrderedData
-    }
+    api::internal_api::NodeClient,
+    constants::TIME_ROUND,
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    logger::{init_log, is_enabled, LoggerConfig},
+    networking::network_manager::NetworkManager,
+    node::{
+        node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig},
+        Node,
+    },
+    plugin_api::PluginAPI,
+    recordable::Recordable,
+    state_estimators::State,
+    time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
+    utils::{
+        barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory,
+        maths::round_precision, python::CONVERT_TO_DICT, time_ordered_data::TimeOrderedData,
+    },
+    VERSION,
 };
 use core::f32;
 use std::{

@@ -18,7 +18,10 @@ use crate::{
     physics::robot_models::Command,
     pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
     recordable::Recordable,
-    utils::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+    utils::{
+        python::{call_py_method, call_py_method_void},
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+    },
 };
 
 use super::{Controller, ControllerError, ControllerRecord};
@@ -121,21 +124,14 @@ impl PythonController {
             debug!("Calling python implementation of make_command");
         }
         // let node_record = node.record();
-        let result = Python::attach(|py| -> CommandWrapper {
-            match self.model.bind(py).call_method(
-                "make_command",
-                (node, ControllerErrorWrapper::from_rust(error), time),
-                None,
-            ) {
-                Err(e) => {
-                    e.display(py);
-                    panic!("Error while calling 'make_command' method of PythonController.");
-                }
-                Ok(r) => r
-                    .extract()
-                    .expect("Error during the call of Python implementation of 'make_command'"),
-            }
-        });
+        let result = call_py_method!(
+            self.model,
+            "make_command",
+            CommandWrapper,
+            node,
+            ControllerErrorWrapper::from_rust(error),
+            time
+        );
         result.to_rust()
     }
 
@@ -143,20 +139,7 @@ impl PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::attach(|py| {
-            match self.model
-                .bind(py)
-                .call_method("record", (), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'record' method of PythonController.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("The 'record' method of PythonController does not return a valid EstimatorRecord type")
-                    }
-                }
-        });
+        let record_str: String = call_py_method!(self.model, "record", String,);
         let record = ExternalControllerRecord {
             record: Value::from_str(record_str.as_str()).expect(
                 "Impossible to get serde_json::Value from the input serialized python structure",
@@ -171,15 +154,6 @@ impl PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        Python::attach(|py: Python<'_>| {
-            if let Err(e) = self
-                .model
-                .bind(py)
-                .call_method("pre_loop_hook", (node, time), None)
-            {
-                e.display(py);
-                panic!("Error while calling 'pre_loop_hook' method of PythonController.");
-            }
-        });
+        call_py_method_void!(self.model, "pre_loop_hook", node, time);
     }
 }

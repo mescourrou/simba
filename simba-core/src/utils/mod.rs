@@ -8,6 +8,7 @@ pub mod determinist_random_variable;
 pub mod distributions;
 pub mod enum_tools;
 pub mod geometry;
+pub mod macros;
 pub mod maths;
 pub mod occupancy_grid;
 pub mod python;

@@ -30,6 +30,7 @@ use crate::networking::network::Envelope;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
+use crate::utils::macros::{external_record, external_record_python_methods};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -99,6 +100,7 @@ impl UIComponent for ExternalNavigatorConfig {
     }
 }
 
+external_record_python_methods!(
 /// Record for the external navigator (generic).
 ///
 /// Like [`ExternalNavigatorConfig`], [`ExternalNavigator`] uses a [`serde_json::Value`]
@@ -106,36 +108,8 @@ impl UIComponent for ExternalNavigatorConfig {
 ///
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::record`] implementations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
-pub struct ExternalNavigatorRecord {
-    /// Record serialized.
-    #[serde(flatten)]
-    pub record: Value,
-}
-
-impl Default for ExternalNavigatorRecord {
-    fn default() -> Self {
-        Self {
-            record: Value::Null,
-        }
-    }
-}
-
-#[pymethods]
-impl ExternalNavigatorRecord {
-    #[getter]
-    fn record(&self) -> String {
-        self.record.to_string()
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalNavigatorRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(self.record.to_string());
-    }
-}
+    ExternalNavigatorRecord,
+);
 
 use crate::node::Node;
 
