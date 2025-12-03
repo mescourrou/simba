@@ -25,7 +25,7 @@ use crate::{plugin_api::PluginAPI, simulator::SimulatorConfig};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 /// Errors used by the controllers: lateral, orientation and velocity.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -53,8 +53,7 @@ impl UIComponent for ControllerError {
 }
 
 /// Enumerates the strategies configurations.
-#[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum ControllerConfig {
     PID(pid::PIDConfig),
     External(external_controller::ExternalControllerConfig),
@@ -79,7 +78,7 @@ impl UIComponent for ControllerConfig {
                 ui,
                 &ControllerConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 &mut current_str,
                 format!("controller-choice-{}", unique_id),

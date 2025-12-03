@@ -2,25 +2,21 @@ use std::sync::{Arc, Mutex};
 
 use log::debug;
 use pyo3::prelude::*;
-use serde_json::Value;
 
 use crate::{
-    controllers::{pybinds::PythonController, Controller},
+    controllers::{Controller, pybinds::PythonController},
     logger::is_enabled,
-    navigators::{go_to::GoToMessage, pybinds::PythonNavigator, Navigator},
-    networking::{network::MessageFlag, MessageTypes},
-    physics::{pybinds::PythonPhysics, Physics},
+    navigators::{Navigator, go_to::GoToMessage, pybinds::PythonNavigator},
+    networking::{MessageTypes, network::MessageFlag},
+    physics::{Physics, pybinds::PythonPhysics},
     plugin_api::PluginAPI,
     pywrappers::{
-        run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper,
-        ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
-        OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
-        SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, WorldStateWrapper,
+        CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper, SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, WorldStateWrapper, run_gui
     },
     simulator::SimulatorConfig,
-    state_estimators::{pybinds::PythonStateEstimator, StateEstimator},
+    state_estimators::{StateEstimator, pybinds::PythonStateEstimator},
     utils::{
-        determinist_random_variable::DeterministRandomVariableFactory, python::call_py_method,
+        determinist_random_variable::DeterministRandomVariableFactory, python::call_py_method
     },
 };
 
@@ -89,7 +85,7 @@ impl PluginAPI for PythonAPI {
 
     fn get_state_estimator(
         &self,
-        config: &Value,
+        config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn StateEstimator> {
@@ -122,7 +118,7 @@ impl PluginAPI for PythonAPI {
 
     fn get_controller(
         &self,
-        config: &Value,
+        config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Controller> {
@@ -155,7 +151,7 @@ impl PluginAPI for PythonAPI {
 
     fn get_navigator(
         &self,
-        config: &Value,
+        config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Navigator> {
@@ -181,7 +177,7 @@ impl PluginAPI for PythonAPI {
 
     fn get_physics(
         &self,
-        config: &Value,
+        config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Physics> {

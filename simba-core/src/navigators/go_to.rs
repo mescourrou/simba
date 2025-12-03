@@ -24,6 +24,7 @@ use libm::atan2;
 use nalgebra::SVector;
 use pyo3::{pyclass, pymethods};
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all, set_all)]
@@ -41,9 +42,7 @@ impl GoToMessage {
 }
 
 /// Configuration of the [`GoTo`] strategy.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct GoToConfig {
     pub target_point: Option<[f32; 2]>,
     #[check(ge(0.))]

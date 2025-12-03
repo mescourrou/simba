@@ -1090,10 +1090,7 @@ mod tests {
         },
         sensors::Observation,
         state_estimators::{
-            external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
-            perfect_estimator::PerfectEstimatorConfig,
-            BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
-            WorldState,
+            BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig, StateEstimatorRecord, WorldState, external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord}, perfect_estimator::PerfectEstimatorConfig
         },
     };
 
@@ -1179,7 +1176,7 @@ mod tests {
     impl Recordable<StateEstimatorRecord> for StateEstimatorTest {
         fn record(&self) -> StateEstimatorRecord {
             StateEstimatorRecord::External(ExternalEstimatorRecord {
-                record: Value::Null,
+                record: serde_json::Value::Null,
             })
         }
     }

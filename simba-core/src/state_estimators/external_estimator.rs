@@ -19,6 +19,7 @@ use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
+use simba_macros::config_derives;
 
 use super::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
@@ -29,7 +30,7 @@ use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::utils::macros::external_record_python_methods;
+use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -39,6 +40,7 @@ use super::StateEstimatorRecord;
 use crate::sensors::Observation;
 use serde_derive::{Deserialize, Serialize};
 
+external_config!(
 /// Config for the external state estimation (generic).
 ///
 /// The config for [`ExternalEstimator`] uses a [`serde_json::Value`] to
@@ -50,56 +52,10 @@ use serde_derive::{Deserialize, Serialize};
 ///     External:
 ///         parameter_of_my_own_estimator: true
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-pub struct ExternalEstimatorConfig {
-    /// Config serialized.
-    #[serde(flatten)]
-    pub config: Value,
-}
-
-impl Default for ExternalEstimatorConfig {
-    fn default() -> Self {
-        Self {
-            config: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalEstimatorConfig {
-    fn show_mut(
-        &mut self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External State Estimator").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                json_config(
-                    ui,
-                    &format!("external-state-estimator-key-{}", &unique_id),
-                    &format!("external-state-estimator-error-key-{}", &unique_id),
-                    buffer_stack,
-                    &mut self.config,
-                );
-            });
-        });
-    }
-
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        egui::CollapsingHeader::new("External State Estimator").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                ui.label(self.config.to_string());
-            });
-        });
-    }
-}
+    ExternalEstimatorConfig,
+    "External State Estimator",
+    "external-state-estimator"
+);
 
 external_record_python_methods!(
 /// Record for the external state estimation (generic).

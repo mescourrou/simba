@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
@@ -19,9 +20,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct AdditiveRobotCenteredPhysicsFaultConfig {
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,

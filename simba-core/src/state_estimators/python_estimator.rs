@@ -194,7 +194,7 @@ impl Recordable<StateEstimatorRecord> for PythonEstimator {
                 }
         });
         let record = PythonEstimatorRecord {
-            record: Value::from_str(record_str.as_str()).expect(
+            record: serde_json::from_str(&record_str).expect(
                 "Impossible to get serde_json::Value from the input serialized python structure",
             ),
         };

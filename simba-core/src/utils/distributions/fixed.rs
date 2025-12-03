@@ -1,14 +1,13 @@
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::utils::determinist_random_variable::DeterministRandomVariable;
 
 /// Configuration for a fixed random variable.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct FixedRandomVariableConfig {
     /// Fixed value to return.
     values: Vec<f32>,

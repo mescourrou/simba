@@ -19,6 +19,7 @@ use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
+use simba_macros::config_derives;
 
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
@@ -26,7 +27,7 @@ use crate::gui::{utils::json_config, UIComponent};
 use crate::logger::is_enabled;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::utils::macros::external_record_python_methods;
+use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -70,6 +71,7 @@ impl Recordable<ExternalObservationRecord> for ExternalObservation {
     }
 }
 
+external_config!(
 /// Config for the external state estimation (generic).
 ///
 /// The config for [`ExternalEstimator`] uses a [`serde_json::Value`] to
@@ -81,61 +83,10 @@ impl Recordable<ExternalObservationRecord> for ExternalObservation {
 ///     External:
 ///         parameter_of_my_own_estimator: true
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-pub struct ExternalSensorConfig {
-    /// Config serialized.
-    #[serde(flatten)]
-    pub config: Value,
-}
-
-impl Default for ExternalSensorConfig {
-    fn default() -> Self {
-        Self {
-            config: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalSensorConfig {
-    fn show_mut(
-        &mut self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External Sensor").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                json_config(
-                    ui,
-                    &format!("external-sensor-key-{}", &unique_id),
-                    &format!("external-sensor-error-key-{}", &unique_id),
-                    buffer_stack,
-                    &mut self.config,
-                );
-            });
-        });
-    }
-
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        _unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External Sensor").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                ui.label(self.config.to_string());
-            });
-        });
-    }
-}
+    ExternalSensorConfig,
+    "External Sensor",
+    "external-sensor"
+);
 
 external_record_python_methods!(
 /// Record for the external sensor (generic).

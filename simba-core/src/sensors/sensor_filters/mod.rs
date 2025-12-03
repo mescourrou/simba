@@ -1,6 +1,6 @@
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, utils::enum_tools::ToVec};
@@ -19,7 +19,7 @@ use crate::{
 pub mod python_filter;
 pub mod range_filter;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Check, EnumToString, ToVec)]
+#[config_derives]
 pub enum SensorFilterConfig {
     RangeFilter(RangeFilterConfig),
     PythonFilter(PythonFilterConfig),
@@ -127,7 +127,7 @@ impl SensorFilterConfig {
                 ui,
                 &SensorFilterConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 buffer_stack.get_mut(&buffer_key).unwrap(),
                 format!("filter-choice-{}", unique_id),

@@ -2,6 +2,7 @@ use config_checker::macros::Check;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 use statrs::distribution::Poisson;
 
 #[cfg(feature = "gui")]
@@ -11,9 +12,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariable;
 use crate::utils::format_f32;
 
 /// Configuration for a uniform random variable.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct PoissonRandomVariableConfig {
     /// Random seed for this random variable.
     #[serde(serialize_with = "format_f32")]

@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../../../config.schema.json
 log:
   log_level:
     Info
@@ -14,16 +15,19 @@ max_time: 60.
 
 robots:
   - name: "robot1"
-    navigator: !TrajectoryFollower
-      trajectory_path: "paths/path1.yaml"
-      target_speed: 0.5
-      forward_distance: 0.2
-    controller: !PID
-      robot_model: !Unicycle
-        wheel_distance: 0.25
-      proportional_gains: [1.0, 6.0]
-    physics: !External
-      config:
+    navigator: 
+      TrajectoryFollower:
+        trajectory_path: "paths/path1.yaml"
+        target_speed: 0.5
+        forward_distance: 0.2
+    controller: 
+      PID:
+        robot_model: 
+          Unicycle:
+            wheel_distance: 0.25
+        proportional_gains: [1.0, 6.0]
+    physics: 
+      External:
         wheel_distance: 0.25
   # - name: "robot2"
   #   navigator: !TrajectoryFollower

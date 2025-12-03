@@ -19,7 +19,7 @@ use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 use crate::controllers::ControllerError;
 #[cfg(feature = "gui")]
@@ -30,8 +30,7 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
 
 /// Enumerate the configuration of the different strategies.
-#[derive(Serialize, Deserialize, Debug, Clone, Check, EnumToString, ToVec)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum NavigatorConfig {
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerConfig),
     External(external_navigator::ExternalNavigatorConfig),
@@ -57,7 +56,7 @@ impl UIComponent for NavigatorConfig {
                 ui,
                 &NavigatorConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 &mut current_str,
                 format!("navigator-choice-{}", unique_id),

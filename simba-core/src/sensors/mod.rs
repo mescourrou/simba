@@ -26,7 +26,7 @@ extern crate confy;
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 use {
     gnss_sensor::{GNSSObservation, GNSSObservationRecord},
@@ -173,8 +173,7 @@ impl UIComponent for SensorObservationRecord {
 }
 
 /// Enumerates all the possible sensors configurations.
-#[derive(Serialize, Deserialize, Debug, Clone, Check, EnumToString, ToVec)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum SensorConfig {
     OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorConfig),
     OdometrySensor(odometry_sensor::OdometrySensorConfig),
@@ -201,7 +200,7 @@ impl UIComponent for SensorConfig {
                 ui,
                 &SensorConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 &mut current_str,
                 format!("sensor-choice-{}", unique_id),

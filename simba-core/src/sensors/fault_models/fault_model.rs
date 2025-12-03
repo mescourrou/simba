@@ -4,7 +4,7 @@ use std::fmt::Debug;
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
@@ -30,8 +30,7 @@ use super::{
     misdetection::{MisdetectionFault, MisdetectionFaultConfig},
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone, Check, ToVec, EnumToString)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum FaultModelConfig {
     AdditiveRobotCentered(AdditiveRobotCenteredFaultConfig),
     AdditiveRobotCenteredPolar(AdditiveRobotCenteredPolarFaultConfig),
@@ -181,7 +180,7 @@ impl FaultModelConfig {
                 ui,
                 &FaultModelConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 buffer_stack.get_mut(&buffer_key).unwrap(),
                 format!("fault-choice-{}", unique_id),

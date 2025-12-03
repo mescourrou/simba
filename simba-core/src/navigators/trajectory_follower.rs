@@ -22,13 +22,12 @@ use libm::atan2;
 use na::Vector3;
 
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 use std::{path::Path, sync::mpsc::Sender};
 
 /// Configuration of the [`TrajectoryFollower`] strategy.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct TrajectoryFollowerConfig {
     /// Path to load the path. The file should be compatible with [`TrajectoryConfig`].
     pub trajectory_path: String,

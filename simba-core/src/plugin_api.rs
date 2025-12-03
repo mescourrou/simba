@@ -6,18 +6,16 @@ Example to use an external state estimator:
 use simba::state_estimators::state_estimator::StateEstimator;
 use simba::{plugin_api::PluginAPI, simulator::SimulatorConfig};
 
-use serde_json::Value;
-
 pub struct MyPlugin;
 
 impl PluginAPI for MyPlugin {
     fn get_state_estimator(
         &self,
-        config: &Value,
+        config: &serde_json::Value,
         global_config: &SimulatorConfig,
     ) -> Box<dyn StateEstimator> {
         Box::new(MyFilter::from_config(
-            &serde_json::from_value(config.clone())
+            &serde_json::from_value(config.value.clone())
                 .expect("Error during parsing MyFilter config"),
         ))
     }
@@ -46,10 +44,8 @@ fn main() {
 use std::sync::Arc;
 
 use crate::{
-    controllers::Controller, navigators::Navigator, physics::Physics, sensors::Sensor, simulator::SimulatorConfig, state_estimators::StateEstimator, utils::determinist_random_variable::DeterministRandomVariableFactory
+    controllers::Controller, navigators::Navigator, physics::Physics, sensors::Sensor, simulator::SimulatorConfig, state_estimators::StateEstimator, utils::{determinist_random_variable::DeterministRandomVariableFactory}
 };
-
-use serde_json::Value;
 
 /// Trait to link the simulator to the external implementation.
 pub trait PluginAPI: Send + Sync {
@@ -67,7 +63,7 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the [`StateEstimator`] to use.
     fn get_state_estimator(
         &self,
-        _config: &Value,
+        _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn StateEstimator> {
@@ -88,7 +84,7 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the [`Controller`] to use.
     fn get_controller(
         &self,
-        _config: &Value,
+        _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Controller> {
@@ -109,7 +105,7 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the [`Navigator`] to use.
     fn get_navigator(
         &self,
-        _config: &Value,
+        _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Navigator> {
@@ -130,7 +126,7 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the [`Physics`] to use.
     fn get_physics(
         &self,
-        _config: &Value,
+        _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Physics> {
@@ -141,7 +137,7 @@ pub trait PluginAPI: Send + Sync {
 
     fn get_sensor(
         &self,
-        _config: &Value,
+        _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
     ) -> Box<dyn Sensor> {
         panic!("The given PluginAPI does not provide a sensor");

@@ -5,6 +5,7 @@ available observations.
 
 extern crate confy;
 use config_checker::macros::Check;
+use simba_macros::config_derives;
 use core::f32;
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
@@ -32,9 +33,7 @@ use super::robot_sensor::RobotSensor;
 use super::{Observation, ObservationRecord, Sensor, SensorConfig, SensorRecord};
 use crate::plugin_api::PluginAPI;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct ManagedSensorConfig {
     pub name: String,
     pub send_to: Vec<String>,
@@ -126,9 +125,8 @@ impl UIComponent for ManagedSensorConfig {
 }
 
 /// Configuration listing all the [`SensorConfig`]s.
-#[derive(Serialize, Deserialize, Debug, Clone, Check, Default)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
+#[derive(Default)]
 pub struct SensorManagerConfig {
     #[check]
     pub sensors: Vec<ManagedSensorConfig>,

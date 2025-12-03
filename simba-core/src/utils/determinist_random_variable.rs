@@ -22,7 +22,7 @@ use std::sync::Mutex;
 use config_checker::macros::Check;
 use rand::random;
 use serde::{Deserialize, Serialize};
-use simba_macros::EnumToString;
+use simba_macros::{EnumToString, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
@@ -108,8 +108,7 @@ pub trait DeterministRandomVariable:
 }
 
 /// Configuration of the random variable: fixed, uniform or normal.
-#[derive(Serialize, Deserialize, Debug, Clone, Check, EnumToString)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum RandomVariableTypeConfig {
     /// No random variable
     None,

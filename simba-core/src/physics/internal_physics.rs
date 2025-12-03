@@ -23,11 +23,10 @@ use crate::{
 };
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 /// Config for the [`InternalPhysics`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct InternalPhysicConfig {
     #[check]
     pub model: RobotModelConfig,

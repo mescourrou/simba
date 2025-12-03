@@ -11,7 +11,7 @@ doctest = false
 
 [features]
 gui = ["egui", "eframe"] # Enable GUI features
-
+schema = ["schemars"]  # Enable schemars for schema generation
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -40,7 +40,7 @@ rand = "0.8.5"
 rand_chacha = "0.3.1"
 statrs = "0.17.1"
 
-config-checker = { git = "https://github.com/mescourrou/rust_config_checker", rev = "fdfcd15"}
+config-checker = { git = "https://github.com/mescourrou/rust_config_checker", rev = "53a575a"}
 
 simba-macros ={ path = "../simba-macros" , version = "*"}
 
@@ -50,6 +50,8 @@ pyo3 ={ version = "^0.27", features = ["auto-initialize"]}
 libc ={ version = "*" }
 rsdoc = "0.3.0"
 serde_yaml = "0.9.34"
+
+schemars = { version = "1.1.0", optional = true }
 
 [dependencies.confy]
 version = "^1.0"

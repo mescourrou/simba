@@ -1,4 +1,10 @@
+#[cfg(feature = "schema")]
+use std::borrow::Cow;
+
 use confy::ConfyError;
+use simba_macros::config_derives;
+
+use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 
 pub fn detailed_error(error: &ConfyError) -> String {
     format!(
@@ -21,3 +27,4 @@ pub fn detailed_error(error: &ConfyError) -> String {
         }
     )
 }
+

@@ -28,14 +28,13 @@ use serde_derive::{Deserialize, Serialize};
 use log::debug;
 extern crate nalgebra as na;
 use na::Vector3;
+use simba_macros::config_derives;
 
 use std::fmt;
 use std::sync::{Arc, Mutex};
 
 /// Configuration of the [`RobotSensor`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct RobotSensorConfig {
     /// Max distance of detection.
     #[check[ge(0.)]]

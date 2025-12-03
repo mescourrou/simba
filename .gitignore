@@ -1,3 +1,4 @@
+!config.schema.json
 *.csv
 *.json
 # Created by https://www.toptal.com/developers/gitignore/api/rust,rust-analyzer,visualstudiocode

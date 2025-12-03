@@ -6,8 +6,6 @@ use std::{
     time::Duration,
 };
 
-use serde_json::Value;
-
 use crate::{
     controllers::Controller,
     errors::SimbaResult,
@@ -17,8 +15,7 @@ use crate::{
     simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::StateEstimator,
     utils::{
-        determinist_random_variable::DeterministRandomVariableFactory,
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+        determinist_random_variable::DeterministRandomVariableFactory, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}
     },
 };
 
@@ -287,7 +284,7 @@ impl Default for PluginAsyncAPI {
 impl PluginAPI for PluginAsyncAPI {
     fn get_state_estimator(
         &self,
-        config: &Value,
+        config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn StateEstimator> {
@@ -302,7 +299,7 @@ impl PluginAPI for PluginAsyncAPI {
 
     fn get_controller(
         &self,
-        config: &Value,
+        config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Controller> {
@@ -317,7 +314,7 @@ impl PluginAPI for PluginAsyncAPI {
 
     fn get_navigator(
         &self,
-        config: &Value,
+        config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Navigator> {
@@ -332,7 +329,7 @@ impl PluginAPI for PluginAsyncAPI {
 
     fn get_physics(
         &self,
-        config: &Value,
+        config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn Physics> {
@@ -359,7 +356,7 @@ pub struct PluginAsyncAPIClient {
 }
 
 pub struct PluginAsyncAPIGetStateEstimatorRequest {
-    pub config: Value,
+    pub config: serde_json::Value,
     pub global_config: SimulatorConfig,
     pub va_factory: Arc<DeterministRandomVariableFactory>,
 }

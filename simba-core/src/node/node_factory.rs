@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 use config_checker::macros::Check;
 use log::debug;
 use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::text_singleline_with_apply, UIComponent};
@@ -167,9 +168,7 @@ impl NodeRecord {
 ////////////////////////
 
 /// Configuration of the [`NodeType::Robot`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct RobotConfig {
     /// Name of the robot.
     pub name: String,
@@ -412,9 +411,7 @@ impl UIComponent for RobotRecord {
 ////////////////////////
 
 /// Configuration of the [`NodeType::ComputationUnit`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct ComputationUnitConfig {
     /// Name of the unit.
     pub name: String,

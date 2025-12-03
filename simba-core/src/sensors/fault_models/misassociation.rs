@@ -15,7 +15,7 @@ use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::gui::{
@@ -41,7 +41,8 @@ use crate::{
 
 use super::fault_model::FaultModel;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, EnumToString, ToVec)]
+#[config_derives]
+#[derive(Default)]
 pub enum Sort {
     None,
     Random,
@@ -49,15 +50,13 @@ pub enum Sort {
     Distance,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, EnumToString)]
+#[config_derives]
 pub enum Source {
     Map(String),
     Robots,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct MisassociationFaultConfig {
     #[check(eq(self.apparition.probability.len(), 1))]
     pub apparition: BernouilliRandomVariableConfig,

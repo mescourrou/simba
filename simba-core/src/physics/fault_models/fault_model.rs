@@ -4,7 +4,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
@@ -16,8 +16,7 @@ use crate::{
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone, Check, ToVec, EnumToString)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum PhysicsFaultModelConfig {
     AdditiveRobotCentered(AdditiveRobotCenteredPhysicsFaultConfig),
 }
@@ -107,7 +106,7 @@ impl PhysicsFaultModelConfig {
                 ui,
                 &PhysicsFaultModelConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 buffer_stack.get_mut(&buffer_key).unwrap(),
                 format!("physics-fault-choice-{}", unique_id),

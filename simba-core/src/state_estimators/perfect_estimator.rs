@@ -28,11 +28,10 @@ use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
 use log::{error, info, warn};
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 /// Configuration for [`PerfectEstimator`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct PerfectEstimatorConfig {
     /// Prediction period.
     #[check(ge(0.))]

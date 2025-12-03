@@ -1,5 +1,6 @@
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
@@ -8,9 +9,7 @@ use crate::{
     state_estimators::State,
 };
 
-#[derive(Debug, Clone, Serialize, Deserialize, Check)]
-#[serde(deny_unknown_fields)]
-#[serde(default)]
+#[config_derives]
 pub struct RangeFilterConfig {
     #[check(and(and(eq(self.variables.len(), self.min_range.len()), eq(self.variables.len(), self.max_range.len())), inside(self.variables.clone(), vec![
         "x".to_string(),

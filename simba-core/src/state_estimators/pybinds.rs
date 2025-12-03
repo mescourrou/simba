@@ -18,10 +18,7 @@ use crate::{
     pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
     recordable::Recordable,
     sensors::Observation,
-    utils::{
-        maths::round_precision,
-        python::{call_py_method, call_py_method_void},
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+    utils::{maths::round_precision, python::{call_py_method, call_py_method_void}, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}
     },
 };
 
@@ -249,7 +246,7 @@ impl PythonStateEstimator {
         }
         let record_str: String = call_py_method!(self.model, "record", String,);
         let record = ExternalEstimatorRecord {
-            record: Value::from_str(record_str.as_str()).expect(
+            record: serde_json::Value::from_str(record_str.as_str()).expect(
                 "Impossible to get serde_json::Value from the input serialized python structure",
             ),
         };

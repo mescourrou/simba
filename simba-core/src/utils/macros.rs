@@ -6,8 +6,7 @@ macro_rules! python_class_config {
         $unique_key:expr
     ) => {
 $(#[$meta])*  // Re-emit all attributes, including doc
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, config_checker::macros::Check)]
-#[serde(default)]
+#[simba_macros::config_derives]
 pub struct $struct_name {
     file: String,
     class_name: String,
@@ -21,7 +20,7 @@ impl Default for $struct_name {
         Self {
             file: String::new(),
             class_name: String::new(),
-            config: serde_json::Value::Null,
+            config: serde_json::Value::default(),
         }
     }
 }
@@ -103,8 +102,7 @@ macro_rules! python_fn_config {
         $unique_key:expr
     ) => {
 $(#[$meta])*  // Re-emit all attributes, including doc
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, config_checker::macros::Check)]
-#[serde(default)]
+#[simba_macros::config_derives]
 pub struct $struct_name {
     file: String,
     function_name: String,
@@ -187,13 +185,13 @@ $(#[$meta])*
 pub struct $struct_name {
     /// Record serialized.
     #[serde(flatten)]
-    pub record: Value,
+    pub record: serde_json::Value,
 }
 
 impl Default for $struct_name {
     fn default() -> Self {
         Self {
-            record: Value::Null,
+            record: serde_json::Value::Null,
         }
     }
 }
@@ -232,3 +230,88 @@ impl $struct_name {
 }
 
 pub(crate) use external_record_python_methods;
+
+
+macro_rules! external_config {
+    (
+        $(#[$meta:meta])*  // Capture attributes including doc comments
+        $struct_name:ident,
+        $title:expr,
+        $unique_key:expr
+    ) => {
+$(#[$meta])*  // Re-emit all attributes, including doc
+#[config_derives(skip_jsonschema)]
+pub struct $struct_name {
+    /// Config serialized.
+    #[serde(flatten)]
+    pub config: serde_json::Value,
+}
+
+impl Default for $struct_name {
+    fn default() -> Self {
+        Self {
+            config: serde_json::Value::Null,
+        }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for $struct_name {
+    fn show_mut(
+        &mut self,
+        ui: &mut egui::Ui,
+        _ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _global_config: &SimulatorConfig,
+        _current_node_name: Option<&String>,
+        unique_id: &str,
+    ) {
+        egui::CollapsingHeader::new($title).show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                json_config(
+                    ui,
+                    &format!("{}-key-{}", $unique_key, &unique_id),
+                    &format!("{}-error-key-{}", $unique_key, &unique_id),
+                    buffer_stack,
+                    &mut self.config,
+                );
+            });
+        });
+    }
+
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+        egui::CollapsingHeader::new($title).show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label("Config (JSON):");
+                ui.label(self.config.to_string());
+            });
+        });
+    }
+}
+
+#[cfg(feature = "schema")]
+impl schemars::JsonSchema for $struct_name {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        // Exclude the module path to make the name in generated schemas clearer.
+        stringify!($struct_name).into()
+    }
+
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        // Include the module, in case a type with the same name is in another module/crate
+        concat!(module_path!(), "::", stringify!($struct_name)).into()
+    }
+
+    fn json_schema(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        use schemars::json_schema;
+        
+        json_schema!({
+            "type": "object",
+            "additionalProperties": true
+        })
+    }
+}
+    };
+}
+
+pub(crate) use external_config;

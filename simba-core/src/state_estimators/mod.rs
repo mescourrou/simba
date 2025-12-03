@@ -39,15 +39,13 @@ use na::SVector;
 
 extern crate confy;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 /// Configuration for [`State`] in order to load a state from the configuration.
 ///
 /// The pose should contain 3 elements.
 /// TODO: Make a config validation scheme.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct StateConfig {
     /// Position and orientation of the robot
     pub pose: Vec<f32>,
@@ -332,8 +330,7 @@ use std::sync::{Arc, RwLock};
 ///     Perfect:
 ///         prediction_period: 0.01
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum StateEstimatorConfig {
     Perfect(perfect_estimator::PerfectEstimatorConfig),
     External(external_estimator::ExternalEstimatorConfig),
@@ -358,7 +355,7 @@ impl UIComponent for StateEstimatorConfig {
                 ui,
                 &StateEstimatorConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 &mut current_str,
                 format!("state-estimator-choice-{}", unique_id),
@@ -524,9 +521,7 @@ pub trait StateEstimator:
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct BenchStateEstimatorConfig {
     pub name: String,
     #[check]

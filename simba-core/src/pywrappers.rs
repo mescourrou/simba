@@ -39,7 +39,7 @@ use crate::{
     utils::occupancy_grid::OccupancyGrid,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "ControllerError")]
 pub struct ControllerErrorWrapper {
@@ -93,14 +93,14 @@ impl Default for ControllerErrorWrapper {
 
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Pose")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Pose {
     pub x: f32,
     pub y: f32,
     pub theta: f32,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "State")]
 pub struct StateWrapper {
@@ -150,7 +150,7 @@ impl Default for StateWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "WorldState")]
 pub struct WorldStateWrapper {
@@ -220,7 +220,7 @@ impl Default for WorldStateWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass]
 #[pyo3(name = "OccupancyGrid")]
 pub struct OccupancyGridWrapper {
@@ -284,7 +284,7 @@ impl OccupancyGridWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OrientedLandmarkObservation")]
 pub struct OrientedLandmarkObservationWrapper {
@@ -339,7 +339,7 @@ impl Default for OrientedLandmarkObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OdometryObservation")]
 pub struct OdometryObservationWrapper {
@@ -384,7 +384,7 @@ impl Default for OdometryObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all)]
 #[pyo3(name = "GNSSObservation")]
 pub struct GNSSObservationWrapper {
@@ -429,7 +429,7 @@ impl Default for GNSSObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OrientedRobotObservation")]
 pub struct OrientedRobotObservationWrapper {
@@ -484,7 +484,7 @@ impl Default for OrientedRobotObservationWrapper {
     }
 }
 
-#[derive(Clone, EnumToString)]
+#[derive(Clone, EnumToString, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "SensorObservation")]
 pub enum SensorObservationWrapper {
@@ -587,7 +587,7 @@ impl Default for SensorObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Observation")]
 pub struct ObservationWrapper {
@@ -635,7 +635,7 @@ impl Default for ObservationWrapper {
     }
 }
 
-#[derive(Clone, EnumToString)]
+#[derive(Clone, EnumToString, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Command")]
 pub enum CommandWrapper {
@@ -715,7 +715,7 @@ impl CommandWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "UnicycleCommand")]
 pub struct UnicycleCommandWrapper {
@@ -756,8 +756,8 @@ impl UnicycleCommandWrapper {
         }
     }
 }
-
-#[derive(Clone)]
+    
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "HonolomicCommand")]
 pub struct HonolomicCommandWrapper {
@@ -801,7 +801,7 @@ impl HonolomicCommandWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Envelope")]
 pub struct EnvelopeWrapper {

@@ -20,6 +20,7 @@ use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
+use simba_macros::config_derives;
 
 use crate::controllers::ControllerError;
 #[cfg(feature = "gui")]
@@ -30,7 +31,7 @@ use crate::networking::network::Envelope;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
-use crate::utils::macros::{external_record, external_record_python_methods};
+use crate::utils::macros::{external_config, external_record, external_record_python_methods};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -38,6 +39,7 @@ use crate::{
 use super::{Navigator, NavigatorRecord};
 use serde_derive::{Deserialize, Serialize};
 
+external_config!(
 /// Config for the external navigator (generic).
 ///
 /// The config for [`ExternalNavigator`] uses a [`serde_json::Value`] to
@@ -49,56 +51,10 @@ use serde_derive::{Deserialize, Serialize};
 ///     External:
 ///         parameter_of_my_own_navigator: true
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-pub struct ExternalNavigatorConfig {
-    /// Config serialized.
-    #[serde(flatten)]
-    pub config: Value,
-}
-
-impl Default for ExternalNavigatorConfig {
-    fn default() -> Self {
-        Self {
-            config: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalNavigatorConfig {
-    fn show_mut(
-        &mut self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External Navigator").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                json_config(
-                    ui,
-                    &format!("external-navigator-key-{}", &unique_id),
-                    &format!("external-navigator-error-key-{}", &unique_id),
-                    buffer_stack,
-                    &mut self.config,
-                );
-            });
-        });
-    }
-
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        egui::CollapsingHeader::new("External Navigator").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                ui.label(self.config.to_string());
-            });
-        });
-    }
-}
+    ExternalNavigatorConfig,
+    "External Navigator",
+    "external-navigator"
+);
 
 external_record_python_methods!(
 /// Record for the external navigator (generic).

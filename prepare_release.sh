@@ -28,5 +28,6 @@ cargo clippy --all-features --all-targets -- -D warnings
 cargo build --release --all-features
 cargo doc --no-deps --all-features --release
 ./generate_config_doc.py
+target/release/simba-tools --generate-schema config.schema.json
 
 ./test.sh

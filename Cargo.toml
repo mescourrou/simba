@@ -4,10 +4,11 @@ members = [
     "simba-cmd",
     "simba-macros",
     "simba-core",
+    "simba-tools",
     "examples/stacked_plugins",
     "examples/plugin",
 ]
-default-members = ["simba-core", "simba-cmd", "simba-macros"]  # Skip root for tests
+default-members = ["simba-core", "simba-cmd", "simba-macros", "simba-tools"]  # Skip root for tests
 
 resolver = "2"
 

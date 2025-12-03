@@ -27,13 +27,12 @@ use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 extern crate nalgebra as na;
 
 /// Configuration of the [`OdometrySensor`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct OdometrySensorConfig {
     /// Observation period of the sensor.
     #[check[ge(0.)]]

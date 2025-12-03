@@ -1,5 +1,6 @@
 #[cfg(feature = "gui")]
 use egui::CollapsingHeader;
+use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use std::collections::BTreeMap;
 use std::path::Path;
@@ -39,9 +40,7 @@ use crate::{
 /// ```
 ///
 ///
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct SimulatorConfig {
     pub version: String,
     #[check]

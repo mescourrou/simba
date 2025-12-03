@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
@@ -40,7 +40,7 @@ impl UIComponent for Command {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, EnumToString, Check, ToVec)]
+#[config_derives]
 pub enum RobotModelConfig {
     Unicycle(UnicycleConfig),
     Honolomic(HonolomicConfig),
@@ -72,7 +72,7 @@ impl UIComponent for RobotModelConfig {
                 ui,
                 &RobotModelConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 &mut current_str,
                 format!("robot-model-choice-{}", unique_id),

@@ -2,6 +2,7 @@ use config_checker::macros::Check;
 use libm::atan2f;
 use nalgebra::SMatrix;
 use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
@@ -38,9 +39,7 @@ impl UIComponent for UnicycleCommand {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct UnicycleConfig {
     /// Distance between the two wheels, to compute the angular velocity from the wheel speeds.
     #[check(ge(0.))]

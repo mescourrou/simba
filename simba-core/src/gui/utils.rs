@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, fmt::Debug, path::Path};
 
 use egui::Color32;
 
-use crate::utils::enum_tools::ToVec;
+use crate::utils::{enum_tools::ToVec};
 
 pub fn enum_combobox<EnumType>(ui: &mut egui::Ui, value: &mut EnumType, id: impl std::hash::Hash)
 where
@@ -104,7 +104,7 @@ pub fn json_config(
     value: &mut serde_json::Value,
 ) {
     if !buffer_stack.contains_key(buffer_key) {
-        buffer_stack.insert(buffer_key.clone(), serde_json::to_string(&value).unwrap());
+        buffer_stack.insert(buffer_key.clone(), value.to_string());
     }
     ui.code_editor(buffer_stack.get_mut(buffer_key).unwrap());
 

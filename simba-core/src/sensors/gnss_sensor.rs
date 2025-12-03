@@ -25,13 +25,12 @@ use config_checker::macros::Check;
 use log::debug;
 use nalgebra::Vector2;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 extern crate nalgebra as na;
 
 /// Configuration of the [`GNSSSensor`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct GNSSSensorConfig {
     /// Observation period of the sensor.
     #[check(ge(0.))]

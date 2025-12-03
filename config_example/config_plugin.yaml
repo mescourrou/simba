@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=../config.schema.json
 log:
   log_level:
     Info
@@ -9,15 +10,11 @@ results:
 max_time: 60.
 robots:
   - name: "robot1"
-    navigator: !External
-      config:
-        None
-    controller: !External
-      config:
-        None
-    state_estimator: !External
-      config:
-        None
-    physics: !External
-      config:
-        None
+    navigator: 
+      External: {}
+    controller: 
+      External: {}
+    state_estimator: 
+      External: {}
+    physics: 
+      External: {}

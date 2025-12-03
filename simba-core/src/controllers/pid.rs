@@ -27,6 +27,7 @@ use log::warn;
 use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::{de, Deserializer};
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 /// Configuration of the [`PID`], it contains the 3 list of gains:
 /// proportional gains, derivative gains and integral gains.
@@ -34,9 +35,8 @@ use serde_derive::{Deserialize, Serialize};
 /// - longitudinal (All models)
 /// - lateral (Holonomic model)
 /// - angular (All models)
-#[derive(Serialize, Debug, Clone, Default)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives(skip_check, skip_deserialize)]
+#[derive(Default)]
 pub struct PIDConfig {
     pub robot_model: Option<RobotModelConfig>,
     pub proportional_gains: Vec<f32>,

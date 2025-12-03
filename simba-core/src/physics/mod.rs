@@ -23,11 +23,10 @@ use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 /// Enumeration of the different physic implementations.
-#[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum PhysicsConfig {
     Internal(internal_physics::InternalPhysicConfig),
     External(external_physics::ExternalPhysicsConfig),
@@ -52,7 +51,7 @@ impl UIComponent for PhysicsConfig {
                 ui,
                 &PhysicsConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 &mut current_str,
                 format!("physics-choice-{}", unique_id),

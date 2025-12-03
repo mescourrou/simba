@@ -245,8 +245,8 @@ def document_config(node, docfile, configs, depth=0):
             comments_str = ""
             if len(comments) > 0:
                 comments_str += ", ".join(comments)
-            if n.type == "enum_variant":
-                docfile.write(f"{indent}- `!{name}`{':' if comments_str != '' else ''} {comments_str}\n")
+            if not config_name is None and config_name == "User-specific struct" and name == "config":
+                docfile.write(f"{indent}- Insert {comments_str}\n")
             else:
                 docfile.write(f"{indent}- `{name}`{':' if comments_str != '' else ''} {comments_str}\n")
             if not next_node is None:

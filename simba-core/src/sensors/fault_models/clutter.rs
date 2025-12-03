@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{
@@ -23,9 +24,7 @@ use crate::{
 
 use super::fault_model::FaultModel;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct ClutterFaultConfig {
     // #[check(eq(self.apparition.probability.len(), 1))]
     #[check]
