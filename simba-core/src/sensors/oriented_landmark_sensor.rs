@@ -9,7 +9,10 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
-use crate::gui::{utils::path_finder, UIComponent};
+use crate::{
+    gui::{utils::path_finder, UIComponent},
+    constants::TIME_ROUND_DECIMALS,
+};
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
@@ -42,8 +45,7 @@ pub struct OrientedLandmarkSensorConfig {
     /// config path.
     pub map_path: String,
     /// Observation period of the sensor.
-    #[check[ge(0.)]]
-    pub period: f32,
+    pub period: Option<f32>,
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
@@ -55,7 +57,7 @@ impl Default for OrientedLandmarkSensorConfig {
         Self {
             detection_distance: 5.0,
             map_path: String::from(""),
-            period: 0.1,
+            period: Some(0.1),
             faults: Vec::new(),
             filters: Vec::new(),
         }
@@ -86,13 +88,23 @@ impl UIComponent for OrientedLandmarkSensorConfig {
 
                 ui.horizontal(|ui| {
                     ui.label("Period:");
-                    if self.period < TIME_ROUND {
-                        self.period = TIME_ROUND;
+                    if let Some(p) = &mut self.period {
+
+                        if *p < TIME_ROUND {
+                            *p = TIME_ROUND;
+                        }
+                        ui.add(
+                            egui::DragValue::new(p)
+                            .max_decimals(TIME_ROUND_DECIMALS),
+                        );
+                        if ui.button("X").clicked() {
+                            self.period = None;
+                        }
+                    } else {
+                        if ui.button("+").clicked() {
+                            self.period = Self::default().period;
+                        }
                     }
-                    ui.add(
-                        egui::DragValue::new(&mut self.period)
-                            .max_decimals((1. / TIME_ROUND) as usize),
-                    );
                 });
 
                 ui.horizontal(|ui| {
@@ -131,7 +143,12 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label(format!("Period: {}", self.period));
+                    ui.label("Period:");
+                    if let Some(p) = &self.period {
+                        ui.label(format!("{}", p));
+                    } else {
+                        ui.label("None");
+                    }
                 });
 
                 ui.horizontal(|ui| {
@@ -379,7 +396,7 @@ pub struct OrientedLandmarkSensor {
     /// Landmarks list.
     landmarks: Vec<OrientedLandmark>,
     /// Observation period
-    period: f32,
+    period: Option<f32>,
     /// Last observation time.
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
@@ -479,7 +496,7 @@ impl Sensor for OrientedLandmarkSensor {
 
     fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.next_time_step()).abs() >= TIME_ROUND {
+        if (time - self.last_time).abs() >= TIME_ROUND {
             return observation_list;
         }
         let state = if let Some(arc_physic) = robot.physics() {
@@ -497,7 +514,7 @@ impl Sensor for OrientedLandmarkSensor {
                 + (landmark.pose.y - state.pose.y).powi(2))
             .sqrt();
             if d <= self.detection_distance {
-                let landmark_seed = 1. / (100. * self.period) * (landmark.id as f32);
+                let landmark_seed = 1. / (100. * self.period.unwrap_or(TIME_ROUND)) * (landmark.id as f32);
                 let pose = rotation_matrix.transpose() * (landmark.pose - state.pose);
                 let mut new_obs = Vec::new();
                 let obs = SensorObservation::OrientedLandmark(OrientedLandmarkObservation {
@@ -516,7 +533,7 @@ impl Sensor for OrientedLandmarkSensor {
                     for fault_model in self.faults.lock().unwrap().iter() {
                         fault_model.add_faults(
                             time + landmark_seed,
-                            self.period,
+                            self.period.unwrap_or(TIME_ROUND),
                             &mut new_obs,
                             SensorObservation::OrientedLandmark(
                                 OrientedLandmarkObservation::default(),
@@ -535,7 +552,11 @@ impl Sensor for OrientedLandmarkSensor {
 
     /// Get the next observation time.
     fn next_time_step(&self) -> f32 {
-        round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
+        if let Some(p) = &self.period {
+            round_precision(self.last_time + p, TIME_ROUND).unwrap()
+        } else {
+            f32::INFINITY
+        }
     }
 }
 

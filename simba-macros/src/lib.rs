@@ -278,6 +278,7 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
     } else if let ConfigDerivesType::Enum = struct_or_enum {
         quote! {
             #[derive(simba_macros::EnumToString)]
+            #[serde(tag = "type")]
         }
     } else {
         quote! {}

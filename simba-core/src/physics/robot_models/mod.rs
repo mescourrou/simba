@@ -8,20 +8,20 @@ use simba_macros::{EnumToString, ToVec, config_derives};
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use crate::{
     physics::robot_models::{
-        honolomic::{HolonomicCommand, Honolomic, HonolomicConfig},
+        holonomic::{HolonomicCommand, Holonomic, HolonomicConfig},
         unicycle::{Unicycle, UnicycleCommand, UnicycleConfig},
     },
     state_estimators::State,
 };
 
-pub mod honolomic;
+pub mod holonomic;
 pub mod unicycle;
 
 /// Command struct, to control both wheel speed, in m/s.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Command {
     Unicycle(UnicycleCommand),
-    Honolomic(HolonomicCommand),
+    Holonomic(HolonomicCommand),
 }
 
 impl Default for Command {
@@ -35,7 +35,7 @@ impl UIComponent for Command {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         match &self {
             Command::Unicycle(cmd) => cmd.show(ui, ctx, unique_id),
-            Command::Honolomic(cmd) => cmd.show(ui, ctx, unique_id),
+            Command::Holonomic(cmd) => cmd.show(ui, ctx, unique_id),
         };
     }
 }
@@ -43,7 +43,7 @@ impl UIComponent for Command {
 #[config_derives]
 pub enum RobotModelConfig {
     Unicycle(UnicycleConfig),
-    Honolomic(HonolomicConfig),
+    Holonomic(HolonomicConfig),
 }
 
 impl Default for RobotModelConfig {
@@ -83,8 +83,8 @@ impl UIComponent for RobotModelConfig {
                 "Unicycle" => {
                     *self = RobotModelConfig::Unicycle(UnicycleConfig::default());
                 }
-                "Honolomic" => {
-                    *self = RobotModelConfig::Honolomic(HonolomicConfig::default());
+                "Holonomic" => {
+                    *self = RobotModelConfig::Holonomic(HolonomicConfig::default());
                 }
                 _ => panic!("Where did you find this value?"),
             };
@@ -98,7 +98,7 @@ impl UIComponent for RobotModelConfig {
                 current_node_name,
                 unique_id,
             ),
-            RobotModelConfig::Honolomic(c) => c.show_mut(
+            RobotModelConfig::Holonomic(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -115,7 +115,7 @@ impl UIComponent for RobotModelConfig {
         });
         match self {
             RobotModelConfig::Unicycle(c) => c.show(ui, ctx, unique_id),
-            RobotModelConfig::Honolomic(c) => c.show(ui, ctx, unique_id),
+            RobotModelConfig::Holonomic(c) => c.show(ui, ctx, unique_id),
         }
     }
 }
@@ -130,8 +130,8 @@ pub fn make_model_from_config(config: &RobotModelConfig) -> Box<dyn RobotModel> 
         RobotModelConfig::Unicycle(cfg) => {
             Box::new(Unicycle::from_config(cfg)) as Box<dyn RobotModel>
         }
-        RobotModelConfig::Honolomic(cfg) => {
-            Box::new(Honolomic::from_config(cfg)) as Box<dyn RobotModel>
+        RobotModelConfig::Holonomic(cfg) => {
+            Box::new(Holonomic::from_config(cfg)) as Box<dyn RobotModel>
         }
     }
 }

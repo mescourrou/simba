@@ -37,10 +37,10 @@ impl UIComponent for HolonomicCommand {
 
 #[config_derives]
 #[derive(Default)]
-pub struct HonolomicConfig {}
+pub struct HolonomicConfig {}
 
 #[cfg(feature = "gui")]
-impl UIComponent for HonolomicConfig {
+impl UIComponent for HolonomicConfig {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
@@ -50,32 +50,32 @@ impl UIComponent for HonolomicConfig {
         _current_node_name: Option<&String>,
         unique_id: &str,
     ) {
-        egui::CollapsingHeader::new("Honolomic model")
-            .id_salt(format!("honolomic-model-{}", unique_id))
+        egui::CollapsingHeader::new("Holonomic model")
+            .id_salt(format!("holonomic-model-{}", unique_id))
             .show(ui, |_ui| {});
     }
 
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &str) {
-        egui::CollapsingHeader::new("Honolomic model")
-            .id_salt(format!("honolomic-model-{}", unique_id))
+        egui::CollapsingHeader::new("Holonomic model")
+            .id_salt(format!("holonomic-model-{}", unique_id))
             .show(ui, |_ui| {});
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Honolomic {}
+pub struct Holonomic {}
 
-impl Honolomic {
-    pub fn from_config(_config: &HonolomicConfig) -> Self {
+impl Holonomic {
+    pub fn from_config(_config: &HolonomicConfig) -> Self {
         Self {}
     }
 }
 
-impl RobotModel for Honolomic {
+impl RobotModel for Holonomic {
     fn update_state(&mut self, state: &mut State, command: &Command, dt: f32) {
         let command = match command {
-            Command::Honolomic(cmd) => cmd,
-            _ => panic!("Honolomic robot model needs a Honolomic command"),
+            Command::Holonomic(cmd) => cmd,
+            _ => panic!("Holonomic robot model needs a Holonomic command"),
         };
         let theta = state.pose.z;
 
@@ -126,7 +126,7 @@ impl RobotModel for Honolomic {
     }
 
     fn default_command(&self) -> Command {
-        Command::Honolomic(HolonomicCommand {
+        Command::Holonomic(HolonomicCommand {
             angular_velocity: 0.,
             lateral_velocity: 0.,
             longitudinal_velocity: 0.,

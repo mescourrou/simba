@@ -28,7 +28,7 @@ There are two main ways to communicate between nodes.
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
 
-use crate::navigators::go_to::GoToMessage;
+use crate::{navigators::go_to::GoToMessage, sensors::sensor_manager::SensorTriggerMessage};
 
 pub mod message_handler;
 pub mod network;
@@ -50,6 +50,7 @@ pub enum NetworkError {
 pub enum MessageTypes {
     String(String),
     GoTo(GoToMessage),
+    SensorTrigger(SensorTriggerMessage),
 }
 
 // Network message exchange test
@@ -215,7 +216,7 @@ mod tests {
         let mut config = SimulatorConfig::default();
         config.log.log_level = LogLevel::Off;
         // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
-        config.max_time = RobotSensorConfig::default().period * 1.1;
+        config.max_time = RobotSensorConfig::default().period.unwrap() * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             state_estimator_bench: vec![BenchStateEstimatorConfig {
@@ -280,7 +281,7 @@ mod tests {
         let mut config = SimulatorConfig::default();
         config.log.log_level = LogLevel::Off;
         // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
-        config.max_time = RobotSensorConfig::default().period * 1.1;
+        config.max_time = RobotSensorConfig::default().period.unwrap() * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             sensor_manager: SensorManagerConfig {
@@ -288,6 +289,7 @@ mod tests {
                     name: "RobotSensor".to_string(),
                     send_to: Vec::new(),
                     config: SensorConfig::RobotSensor(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other node poses.
+                    ..Default::default()
                 }],
             },
             ..Default::default()
@@ -299,6 +301,7 @@ mod tests {
                     name: "RobotSensor".to_string(),
                     send_to: Vec::new(),
                     config: SensorConfig::RobotSensor(RobotSensorConfig::default()),
+                    ..Default::default()
                 }],
             },
             ..Default::default()

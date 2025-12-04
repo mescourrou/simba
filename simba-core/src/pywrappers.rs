@@ -25,7 +25,7 @@ use crate::{
     node::Node,
     physics::{
         pybinds::PythonPhysics,
-        robot_models::{honolomic::HolonomicCommand, unicycle::UnicycleCommand, Command},
+        robot_models::{holonomic::HolonomicCommand, unicycle::UnicycleCommand, Command},
     },
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
@@ -640,7 +640,7 @@ impl Default for ObservationWrapper {
 #[pyo3(name = "Command")]
 pub enum CommandWrapper {
     Unicycle(UnicycleCommandWrapper),
-    Honolomic(HonolomicCommandWrapper),
+    Holonomic(HolonomicCommandWrapper),
 }
 
 #[pymethods]
@@ -660,12 +660,12 @@ impl CommandWrapper {
         }
     }
 
-    pub fn as_honolomic_command(&self) -> PyResult<HonolomicCommandWrapper> {
-        if let Self::Honolomic(o) = self {
+    pub fn as_holonomic_command(&self) -> PyResult<HolonomicCommandWrapper> {
+        if let Self::Holonomic(o) = self {
             Ok(o.clone())
         } else {
             Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                "Impossible to convert this command to a HonolomicCommand",
+                "Impossible to convert this command to a HolonomicCommand",
             ))
         }
     }
@@ -681,8 +681,8 @@ impl CommandWrapper {
     }
 
     #[staticmethod]
-    pub fn from_honolomic_command(cmd: HonolomicCommandWrapper) -> CommandWrapper {
-        Self::Honolomic(cmd)
+    pub fn from_holonomic_command(cmd: HolonomicCommandWrapper) -> CommandWrapper {
+        Self::Holonomic(cmd)
     }
 }
 
@@ -698,8 +698,8 @@ impl CommandWrapper {
             Command::Unicycle(cmd) => {
                 CommandWrapper::Unicycle(UnicycleCommandWrapper::from_rust(cmd))
             }
-            Command::Honolomic(cmd) => {
-                CommandWrapper::Honolomic(HonolomicCommandWrapper::from_rust(cmd))
+            Command::Holonomic(cmd) => {
+                CommandWrapper::Holonomic(HolonomicCommandWrapper::from_rust(cmd))
             }
         }
     }
@@ -708,8 +708,8 @@ impl CommandWrapper {
             CommandWrapper::Unicycle(cmd) => {
                 Command::Unicycle(UnicycleCommandWrapper::to_rust(cmd))
             }
-            CommandWrapper::Honolomic(cmd) => {
-                Command::Honolomic(HonolomicCommandWrapper::to_rust(cmd))
+            CommandWrapper::Holonomic(cmd) => {
+                Command::Holonomic(HolonomicCommandWrapper::to_rust(cmd))
             }
         }
     }
@@ -759,17 +759,17 @@ impl UnicycleCommandWrapper {
     
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
-#[pyo3(name = "HonolomicCommand")]
-pub struct HonolomicCommandWrapper {
+#[pyo3(name = "HolonomicCommand")]
+pub struct HolonomicCommandWrapper {
     pub longitudinal_velocity: f32,
     pub lateral_velocity: f32,
     pub angular_velocity: f32,
 }
 
 #[pymethods]
-impl HonolomicCommandWrapper {
+impl HolonomicCommandWrapper {
     #[new]
-    pub fn new() -> HonolomicCommandWrapper {
+    pub fn new() -> HolonomicCommandWrapper {
         Self {
             longitudinal_velocity: 0.,
             lateral_velocity: 0.,
@@ -778,13 +778,13 @@ impl HonolomicCommandWrapper {
     }
 }
 
-impl Default for HonolomicCommandWrapper {
+impl Default for HolonomicCommandWrapper {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl HonolomicCommandWrapper {
+impl HolonomicCommandWrapper {
     pub fn from_rust(s: &HolonomicCommand) -> Self {
         Self {
             longitudinal_velocity: s.longitudinal_velocity,
@@ -839,6 +839,7 @@ impl NodeWrapper {
             let msg = match message {
                 MessageTypes::String(s) => serde_json::to_value(s),
                 MessageTypes::GoTo(m) => serde_json::to_value(m),
+                MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
             }
             .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
             if let Err(e) = network.write().unwrap().send_to(to, msg, time, flags) {

@@ -67,6 +67,9 @@ pub mod pywrappers;
 pub mod api;
 pub mod time_analysis;
 
+#[cfg(test)]
+mod integration_tests;
+
 #[cfg(feature = "gui")]
 pub mod gui;
 

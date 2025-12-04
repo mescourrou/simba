@@ -253,6 +253,10 @@ impl Node {
         if let Some(navigator) = self.navigator() {
             navigator.write().unwrap().pre_loop_hook(self, time);
         }
+
+        if let Some(sensor_manager) = &self.sensor_manager() {
+            sensor_manager.write().unwrap().handle_messages(time);
+        }
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Pre prediction step wait");
         }
@@ -303,13 +307,16 @@ impl Node {
                 }
             }
         }
-
+        if let Some(sensor_manager) = &self.sensor_manager() {
+            sensor_manager.write().unwrap().handle_messages(time);
+        }
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Post prediction step wait");
         }
         self.sync_with_others(time_cv, nb_nodes, time);
 
         if let Some(sensor_manager) = &self.sensor_manager() {
+            sensor_manager.write().unwrap().handle_messages(time);
             sensor_manager
                 .write()
                 .unwrap()
@@ -321,7 +328,10 @@ impl Node {
         }
         self.sync_with_others(time_cv, nb_nodes, time);
 
+        
+
         if let Some(sensor_manager) = &self.sensor_manager() {
+            sensor_manager.write().unwrap().handle_messages(time);
             // Make observations (if it is the right time)
             let observations = sensor_manager.write().unwrap().get_observations();
             if is_enabled(crate::logger::InternalLog::SensorManager) {

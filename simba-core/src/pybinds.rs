@@ -4,20 +4,11 @@ use log::debug;
 use pyo3::prelude::*;
 
 use crate::{
-    controllers::{Controller, pybinds::PythonController},
-    logger::is_enabled,
-    navigators::{Navigator, go_to::GoToMessage, pybinds::PythonNavigator},
-    networking::{MessageTypes, network::MessageFlag},
-    physics::{Physics, pybinds::PythonPhysics},
-    plugin_api::PluginAPI,
-    pywrappers::{
+    controllers::{Controller, pybinds::PythonController}, logger::is_enabled, navigators::{Navigator, go_to::GoToMessage, pybinds::PythonNavigator}, networking::{MessageTypes, network::MessageFlag}, physics::{Physics, pybinds::PythonPhysics}, plugin_api::PluginAPI, pywrappers::{
         CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper, SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, WorldStateWrapper, run_gui
-    },
-    simulator::SimulatorConfig,
-    state_estimators::{StateEstimator, pybinds::PythonStateEstimator},
-    utils::{
+    }, sensors::sensor_manager::SensorTriggerMessage, simulator::SimulatorConfig, state_estimators::{StateEstimator, pybinds::PythonStateEstimator}, utils::{
         determinist_random_variable::DeterministRandomVariableFactory, python::call_py_method
-    },
+    }
 };
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -42,6 +33,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MessageFlag>()?;
     m.add_class::<MessageTypes>()?;
     m.add_class::<GoToMessage>()?;
+    m.add_class::<SensorTriggerMessage>()?;
     m.add_function(wrap_pyfunction!(run_gui, m)?)?;
     Ok(())
 }

@@ -143,7 +143,7 @@ class Observation:
 
 class Command(Enum):
     Unicycle: UnicycleCommand
-    Honolomic: HonolomicCommand
+    Holonomic: HolonomicCommand
 
     def __init__(self):
         self.kind: str
@@ -151,13 +151,13 @@ class Command(Enum):
     def as_unicycle_command(self) -> UnicycleCommand | None:
         raise NotImplementedError()
 
-    def as_honolomic_command(self) -> HonolomicCommand | None: 
+    def as_holonomic_command(self) -> HolonomicCommand | None: 
         raise NotImplementedError()
 
     def from_unicycle_command(cmd: UnicycleCommand) -> Command:
         raise NotImplementedError()
 
-    def from_honolomic_command(cmd: HonolomicCommand) -> Command:
+    def from_holonomic_command(cmd: HolonomicCommand) -> Command:
         raise NotImplementedError()
 
 class UnicycleCommand:
@@ -166,7 +166,7 @@ class UnicycleCommand:
         self.right_wheel_speed: float
 
 
-class HonolomicCommand:
+class HolonomicCommand:
     def __init__(self):
         self.longitudinal_velocity: float
         self.lateral_velocity: float
@@ -176,6 +176,10 @@ class HonolomicCommand:
 class GoToMessage:
     def __init__(self, target:Tuple[float, float]|None=None):
         self.target_point: Tuple[float, float]|None
+
+class SensorTriggerMessage:
+    def __init__(self, sensor_name: str):
+        self.sensor_name: str
         
 class MessageFlag(Enum):
     # God mode, messages are instaneous.
@@ -188,6 +192,7 @@ class MessageFlag(Enum):
 class MessageTypes(Enum):
     String: str
     GoTo: GoToMessage
+    SensorTrigger: SensorTriggerMessage
 
 class Envelope:
     def __init__(self):

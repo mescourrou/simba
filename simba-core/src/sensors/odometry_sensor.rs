@@ -35,8 +35,7 @@ extern crate nalgebra as na;
 #[config_derives]
 pub struct OdometrySensorConfig {
     /// Observation period of the sensor.
-    #[check[ge(0.)]]
-    pub period: f32,
+    pub period: Option<f32>,
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
@@ -46,7 +45,7 @@ pub struct OdometrySensorConfig {
 impl Default for OdometrySensorConfig {
     fn default() -> Self {
         Self {
-            period: 0.1,
+            period: Some(0.1),
             faults: Vec::new(),
             filters: Vec::new(),
         }
@@ -69,10 +68,19 @@ impl UIComponent for OdometrySensorConfig {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
-                    if self.period < TIME_ROUND {
-                        self.period = TIME_ROUND;
+                    if let Some(p) = &mut self.period {
+                        if *p <= TIME_ROUND {
+                            *p = TIME_ROUND;
+                        }
+                        ui.add(egui::DragValue::new(p));
+                        if ui.button("X").clicked() {
+                            self.period = None;
+                        }
+                    } else {
+                        if ui.button("+").clicked() {
+                            self.period = Self::default().period;
+                        }
                     }
-                    ui.add(egui::DragValue::new(&mut self.period));
                 });
 
                 SensorFilterConfig::show_filters_mut(
@@ -102,7 +110,12 @@ impl UIComponent for OdometrySensorConfig {
             .id_salt(format!("odometry-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(format!("Period: {}", self.period));
+                    ui.label("Period:");
+                    if let Some(p) = &self.period {
+                        ui.label(format!("{}", p));
+                    } else {
+                        ui.label("None");
+                    }
                 });
 
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
@@ -176,7 +189,7 @@ pub struct OdometrySensor {
     /// Last state to compute the velocity.
     last_state: State,
     /// Observation period
-    period: f32,
+    period: Option<f32>,
     /// Last observation time.
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
@@ -253,7 +266,7 @@ impl Sensor for OdometrySensor {
 
     fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.next_time_step()).abs() >= TIME_ROUND {
+        if (time - self.last_time).abs() >= TIME_ROUND {
             return observation_list;
         }
         let arc_physic = robot
@@ -281,7 +294,7 @@ impl Sensor for OdometrySensor {
             for fault_model in self.faults.lock().unwrap().iter() {
                 fault_model.add_faults(
                     time,
-                    self.period,
+                    self.period.unwrap_or(TIME_ROUND),
                     &mut observation_list,
                     SensorObservation::Odometry(OdometryObservation::default()),
                 );
@@ -296,7 +309,11 @@ impl Sensor for OdometrySensor {
     }
 
     fn next_time_step(&self) -> f32 {
-        round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
+        if let Some(period) = &self.period {
+            round_precision(self.last_time + period, TIME_ROUND).unwrap()
+        } else {
+            f32::INFINITY
+        }
     }
 }
 

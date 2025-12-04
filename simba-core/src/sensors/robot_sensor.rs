@@ -40,8 +40,7 @@ pub struct RobotSensorConfig {
     #[check[ge(0.)]]
     pub detection_distance: f32,
     /// Observation period of the sensor.
-    #[check[ge(0.)]]
-    pub period: f32,
+    pub period: Option<f32>,
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
@@ -52,7 +51,7 @@ impl Default for RobotSensorConfig {
     fn default() -> Self {
         Self {
             detection_distance: 5.0,
-            period: 0.1,
+            period: Some(0.1),
             faults: Vec::new(),
             filters: Vec::new(),
         }
@@ -83,13 +82,22 @@ impl UIComponent for RobotSensorConfig {
 
                 ui.horizontal(|ui| {
                     ui.label("Period:");
-                    if self.period < TIME_ROUND {
-                        self.period = TIME_ROUND;
-                    }
-                    ui.add(
-                        egui::DragValue::new(&mut self.period)
+                    if let Some(p) = &mut self.period {
+                        if *p < TIME_ROUND {
+                            *p = TIME_ROUND;
+                        }
+                        ui.add(
+                            egui::DragValue::new(p)
                             .max_decimals((1. / TIME_ROUND) as usize),
-                    );
+                        );
+                        if ui.button("X").clicked() {
+                            self.period = None;
+                        }
+                    } else {
+                        if ui.button("+").clicked() {
+                            self.period = Some(Self::default().period.unwrap());
+                        }
+                    }
                 });
 
                 SensorFilterConfig::show_filters_mut(
@@ -123,7 +131,11 @@ impl UIComponent for RobotSensorConfig {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label(format!("Period: {}", self.period));
+                    if let Some(p) = &self.period {
+                        ui.label(format!("Period: {}", p));
+                    } else {
+                        ui.label("Period: None");
+                    }
                 });
 
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
@@ -359,7 +371,7 @@ pub struct RobotSensor {
     /// Detection distance
     detection_distance: f32,
     /// Observation period
-    period: f32,
+    period: Option<f32>,
     /// Last observation time.
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
@@ -388,7 +400,9 @@ impl RobotSensor {
         node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
     ) -> Self {
-        assert!(config.period != 0.);
+        if let Some(p) = config.period {
+            assert!(p != 0.);
+        }
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
         for fault_config in &config.faults {
@@ -431,7 +445,7 @@ impl Sensor for RobotSensor {
 
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.next_time_step()).abs() >= TIME_ROUND {
+        if (time - self.last_time).abs() >= TIME_ROUND {
             return observation_list;
         }
         if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
@@ -470,7 +484,7 @@ impl Sensor for RobotSensor {
                         debug!("Distance is {d}");
                     }
                     if d <= self.detection_distance {
-                        let robot_seed = 1. / (100. * self.period) * (i as f32);
+                        let robot_seed = 1. / (100. * self.period.unwrap_or(TIME_ROUND)) * (i as f32);
                         let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
                         let mut new_obs = Vec::new();
                         let obs = SensorObservation::OrientedRobot(OrientedRobotObservation {
@@ -492,7 +506,7 @@ impl Sensor for RobotSensor {
                             for fault_model in self.faults.lock().unwrap().iter() {
                                 fault_model.add_faults(
                                     time + robot_seed,
-                                    self.period,
+                                    self.period.unwrap_or(TIME_ROUND),
                                     &mut observation_list,
                                     SensorObservation::OrientedRobot(
                                         OrientedRobotObservation::default(),
@@ -528,7 +542,11 @@ impl Sensor for RobotSensor {
 
     /// Get the next observation time.
     fn next_time_step(&self) -> f32 {
-        round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
+        if let Some(p) = &self.period {
+            round_precision(self.last_time + p, TIME_ROUND).unwrap()
+        } else {
+            f32::INFINITY
+        }
     }
 }
 

@@ -162,7 +162,7 @@ robots:
   physics: 
     Internal:
       model: 
-        Honolomic: {}
+        Holonomic: {}
 computation_units:
 - name: Central Unit
   network:
