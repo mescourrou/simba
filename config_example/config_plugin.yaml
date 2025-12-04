@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../config.schema.json
 log:
   log_level:
-    Info
+    type: Info
 results:
   result_path: "../result.json"
   show_figures: false # Disabled for automatic testing
@@ -11,10 +11,10 @@ max_time: 60.
 robots:
   - name: "robot1"
     navigator: 
-      External: {}
+      type: External
     controller: 
-      External: {}
+      type: External
     state_estimator: 
-      External: {}
+      type: External
     physics: 
-      External: {}
+      type: External

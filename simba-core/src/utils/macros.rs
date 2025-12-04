@@ -6,7 +6,7 @@ macro_rules! python_class_config {
         $unique_key:expr
     ) => {
 $(#[$meta])*  // Re-emit all attributes, including doc
-#[simba_macros::config_derives]
+#[simba_macros::config_derives(skip_jsonschema, skip_unknown_fields)]
 pub struct $struct_name {
     file: String,
     class_name: String,
@@ -87,6 +87,30 @@ impl crate::gui::UIComponent for $struct_name {
                 ui.label(self.config.to_string());
             });
         });
+    }
+}
+
+#[cfg(feature = "schema")]
+impl schemars::JsonSchema for $struct_name {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        // Exclude the module path to make the name in generated schemas clearer.
+        stringify!($struct_name).into()
+    }
+
+    fn schema_id() -> std::borrow::Cow<'static, str> {
+        // Include the module, in case a type with the same name is in another module/crate
+        concat!(module_path!(), "::", stringify!($struct_name)).into()
+    }
+
+    fn json_schema(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
+        use schemars::json_schema;
+        
+        json_schema!({
+            "file": { "type": "string" },
+            "class_name": { "type": "string" },
+            "type": "object",
+            "additionalProperties": true
+        })
     }
 }
     };
@@ -240,7 +264,7 @@ macro_rules! external_config {
         $unique_key:expr
     ) => {
 $(#[$meta])*  // Re-emit all attributes, including doc
-#[config_derives(skip_jsonschema)]
+#[config_derives(skip_jsonschema, skip_unknown_fields)]
 pub struct $struct_name {
     /// Config serialized.
     #[serde(flatten)]

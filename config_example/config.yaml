@@ -3,11 +3,13 @@ version: 1.3.0
 log:
   included_nodes: []
   excluded_nodes: []
-  log_level: Info
+  log_level:
+    type: Info
 results: {}
 max_time: 20.0
 time_analysis:
-  exporter: TraceEventExporter
+  exporter:
+    type: TraceEventExporter
   keep_last: true
   output_path: time_performance
   analysis_unit: s
@@ -15,154 +17,155 @@ random_seed: null
 robots:
 - name: robot1
   navigator: 
-    TrajectoryFollower:
-      trajectory_path: paths/path1.yaml
-      forward_distance: 0.2
-      target_speed: 0.5
-      stop_distance: 0.2
-      stop_ramp_coefficient: 0.5
+    type: TrajectoryFollower
+    trajectory_path: paths/path1.yaml
+    forward_distance: 0.2
+    target_speed: 0.5
+    stop_distance: 0.2
+    stop_ramp_coefficient: 0.5
   controller: 
-    PID: {}
+    type: PID
   physics: 
-    Internal:
-      model: 
-        Unicycle:
-          wheel_distance: 0.25
-      initial_state:
-        pose:
+    type: Internal
+    model: 
+      type: Unicycle
+      wheel_distance: 0.25
+    initial_state:
+      pose:
+      - 0.0
+      - 0.0
+      - 0.0
+      velocity: 0.0
+    faults:
+    - type: AdditiveRobotCentered
+      distributions:
+      - type: Normal
+        unique_seed: 0.7968901991844177
+        mean:
         - 0.0
         - 0.0
+        covariance:
+        - 0.1
         - 0.0
-        velocity: 0.0
-      faults:
-      - AdditiveRobotCentered:
+        - 0.0
+        - 0.1
+      variable_order:
+      - x
+      - y
+  state_estimator:
+    type: Perfect
+    prediction_period: 0.1
+    targets:
+    - self
+    map_path: null
+  sensor_manager:
+    sensors:
+    - name: RobotSensor
+      send_to:
+      - Central Unit
+      config:
+        type: RobotSensor
+        detection_distance: 100.0
+        period: 0.1
+        faults: []
+    - name: LandmarkSensor
+      config: 
+        type: OrientedLandmarkSensor
+        detection_distance: 10.0
+        map_path: maps/landmarks_square.yaml
+        period: 0.1
+        faults:
+        - type: AdditiveRobotCentered
+          apparition:
+            unique_seed: 0.0
+            probability:
+            - 1.0
           distributions:
-          - Normal:
-              unique_seed: 0.7968901991844177
-              mean:
-              - 0.0
-              - 0.0
-              covariance:
-              - 0.1
-              - 0.0
-              - 0.0
-              - 0.1
+          - type: Normal
+            unique_seed: 95698.953125
+            mean:
+            - 0.0
+            - 0.0
+            - 0.0
+            covariance:
+            - 0.01
+            - 0.0
+            - 0.0
+            - 0.0
+            - 0.01
+            - 0.0
+            - 0.0
+            - 0.0
+            - 0.01
           variable_order:
           - x
           - y
-  state_estimator:
-    Perfect:
-      prediction_period: 0.1
-      targets:
-      - self
-      map_path: null
-  sensor_manager:
-    sensors:
-    # - name: RobotSensor
-    #   send_to:
-    #   - Central Unit
-    #   config: !RobotSensor
-    #     detection_distance: 100.0
-    #     period: 0.1
-    #     faults: []
-    - name: LandmarkSensor
-      config: 
-        OrientedLandmarkSensor:
-          detection_distance: 10.0
-          map_path: maps/landmarks_square.yaml
-          period: 0.1
-          faults:
-          - AdditiveRobotCentered:
-              apparition:
-                unique_seed: 0.0
-                probability:
-                - 1.0
-              distributions:
-              - Normal:
-                  unique_seed: 95698.953125
-                  mean:
-                  - 0.0
-                  - 0.0
-                  - 0.0
-                  covariance:
-                  - 0.01
-                  - 0.0
-                  - 0.0
-                  - 0.0
-                  - 0.01
-                  - 0.0
-                  - 0.0
-                  - 0.0
-                  - 0.01
-              variable_order:
-              - x
-              - y
-              - orientation
+          - orientation
   network:
     range: 0.0
     reception_delay: 0.0
   state_estimator_bench: []
 - name: robot2
   navigator: 
-    TrajectoryFollower:
-      trajectory_path: paths/path1.yaml
-      forward_distance: 0.2
-      target_speed: 0.3
-      stop_distance: 0.2
-      stop_ramp_coefficient: 0.5
+    type: TrajectoryFollower
+    trajectory_path: paths/path1.yaml
+    forward_distance: 0.2
+    target_speed: 0.3
+    stop_distance: 0.2
+    stop_ramp_coefficient: 0.5
   controller: 
-    PID: {}
+    type: PID
   physics: 
-    Internal:
-      model: 
-        Unicycle:
-          wheel_distance: 0.25
-      initial_state:
-        pose:
-        - 0.0
-        - 0.0
-        - 0.0
-        velocity: 0.0
-      faults: []
+    type: Internal
+    model: 
+      type: Unicycle
+      wheel_distance: 0.25
+    initial_state:
+      pose:
+      - 0.0
+      - 0.0
+      - 0.0
+      velocity: 0.0
+    faults: []
   state_estimator: 
-    Perfect:
-      prediction_period: 0.1
-      targets:
-      - self
-      map_path: null
+    type: Perfect
+    prediction_period: 0.1
+    targets:
+    - self
+    map_path: null
   sensor_manager:
     sensors:
     - name: RobotSensor
       send_to:
       - Central Unit
       config: 
-        RobotSensor:
-          detection_distance: 100.0
-          period: 0.1
-          faults: []
-          filters:
-            - RangeFilter:
-                variables: [x, y]
-                min_range: [0, -1]
-                max_range: [10, 1]
+        type: RobotSensor
+        detection_distance: 100.0
+        period: 0.1
+        faults: []
+        filters:
+          - type: RangeFilter
+            variables: [x, y]
+            min_range: [0, -1]
+            max_range: [10, 1]
   network:
     range: 0.0
     reception_delay: 0.0
   state_estimator_bench: []
 - name: drone1
   navigator: 
-    TrajectoryFollower:
-      trajectory_path: paths/path1.yaml
-      forward_distance: 0.2
-      target_speed: 1.
-      stop_distance: 0.2
-      stop_ramp_coefficient: 0.5
+    type: TrajectoryFollower
+    trajectory_path: paths/path1.yaml
+    forward_distance: 0.2
+    target_speed: 1.
+    stop_distance: 0.2
+    stop_ramp_coefficient: 0.5
   controller: 
-    PID: {}
+    type: PID
   physics: 
-    Internal:
-      model: 
-        Holonomic: {}
+    type: Internal
+    model: 
+      type: Holonomic
 computation_units:
 - name: Central Unit
   network:
@@ -171,9 +174,9 @@ computation_units:
   state_estimators:
   - name: central_perfect
     config: 
-      Perfect:
-        prediction_period: 0.1
-        targets:
-        - robot1
-        - robot2
-        map_path: null
+      type: Perfect
+      prediction_period: 0.1
+      targets:
+      - robot1
+      - robot2
+      map_path: null

@@ -496,7 +496,7 @@ impl Sensor for OrientedLandmarkSensor {
 
     fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.last_time).abs() >= TIME_ROUND {
+        if (time - self.last_time).abs() < TIME_ROUND {
             return observation_list;
         }
         let state = if let Some(arc_physic) = robot.physics() {

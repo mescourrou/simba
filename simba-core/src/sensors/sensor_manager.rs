@@ -426,11 +426,13 @@ impl SensorManager {
         let mut min_next_time = None;
         let mut obs_to_send = BTreeMap::new();
         for sensor in &mut self.sensors {
+            log::debug!("Sensor {} last triggered at {:?} ({})", sensor.name, sensor.last_triggered, sensor.triggered);
             let sensor_observations: Vec<Observation> = 
                 if (sensor.triggered && match sensor.last_triggered {
                     Some(t) => (time - t).abs() < TIME_ROUND,
                     None => false,
-                }) || (sensor.sensor.read().unwrap().next_time_step() - time).abs() > TIME_ROUND {
+                }) || (sensor.sensor.read().unwrap().next_time_step() - time).abs() < TIME_ROUND {
+                    log::debug!("Sensor {} is triggered, getting observations", sensor.name);
                     sensor
                     .sensor
                     .write()

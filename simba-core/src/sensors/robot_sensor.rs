@@ -445,7 +445,7 @@ impl Sensor for RobotSensor {
 
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.last_time).abs() >= TIME_ROUND {
+        if (time - self.last_time).abs() < TIME_ROUND {
             return observation_list;
         }
         if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {

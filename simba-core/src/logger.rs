@@ -17,7 +17,7 @@ use crate::{
 
 static INTERNAL_LOG_LEVEL: RwLock<Vec<InternalLog>> = RwLock::new(Vec::new());
 
-#[config_derives]
+#[config_derives(tag_content)]
 pub enum LogLevel {
     Off,
     Error,

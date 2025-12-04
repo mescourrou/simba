@@ -228,37 +228,50 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse attributes to check for skip_check
     let attr_str = attr.to_string();
 
-    // Conditionally include Check derive
-    let skip_check = attr_str.contains("skip_check");
-    let check_derive = if skip_check {
-        quote! {}
-    } else {
-        quote! { config_checker::macros::Check, }
+    let mut check_derive = quote! { config_checker::macros::Check, };
+    let mut deserialize_derive = quote! { serde::Deserialize, };
+    let mut tagged_derive = quote! { #[serde(tag = "type")] };
+    let mut jsonschema_derive = quote! {
+        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
     };
-
-    // Conditionally include Deserialize derive
-    let skip_deserialize = attr_str.contains("skip_deserialize");
-    let deserialize_derive = if skip_deserialize {
-        quote! {}
-    } else {
-        quote! { serde::Deserialize, }
+    let mut jsonschema_derive_struct = quote! {
+        #[cfg_attr(feature = "schema", schemars(default))]
     };
-
-    // Conditionally include JsonSchema derive
-    let skip_jsonschema: bool = attr_str.contains("skip_jsonschema");
-    let (jsonschema_derive, jsonschema_derive_struct) = if skip_jsonschema {
-        (quote! {}, quote! {})
-    } else {
-        (
-            quote! {
-                #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-            },
-            quote! {
-                #[cfg_attr(feature = "schema", schemars(default))]
+    let mut unknown_fields_derive = quote! {
+        #[serde(deny_unknown_fields)]
+    };
+    for attribute in attr_str.split(',') {
+        let trimmed = attribute.trim();
+        match trimmed {
+            "skip_check" => {
+                check_derive = quote! { };
             }
-        )
-    };
-    
+            "skip_deserialize" => {
+                deserialize_derive = quote! { };
+            }
+            "tag_content" => {
+                tagged_derive = quote! {  #[serde(tag = "type", content = "config")] };
+            }
+            "untagged" => {
+                tagged_derive = quote! {  #[serde(untagged)] };
+            }
+            "skip_unknown_fields" => {
+                unknown_fields_derive = quote! { };
+            }
+            "skip_jsonschema" => {
+                jsonschema_derive = quote! { };
+                jsonschema_derive_struct = quote! { };
+            }
+            "" => {}
+            _ => {
+                return syn::Error::new(
+                    input.span(),
+                    format!("Unknown attribute '{}' for config_derives", trimmed)
+                ).to_compile_error().into();
+            }
+        }
+    }
+   
     let struct_or_enum = match &input.data {
         Data::Struct(_) => {
             ConfigDerivesType::Struct
@@ -278,7 +291,7 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
     } else if let ConfigDerivesType::Enum = struct_or_enum {
         quote! {
             #[derive(simba_macros::EnumToString)]
-            #[serde(tag = "type")]
+            #tagged_derive
         }
     } else {
         quote! {}
@@ -296,7 +309,7 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
             simba_macros::ToVec,
         )]
         #jsonschema_derive
-        #[serde(deny_unknown_fields)]
+        #unknown_fields_derive
         #type_only_attrs
         #input
     };

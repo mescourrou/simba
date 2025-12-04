@@ -1,29 +1,30 @@
 # yaml-language-server: $schema=../../../config.schema.json
 log:
   log_level: #!Internal ["All"]
-    Info
+    type: Info
 results:
   result_path: "../result.json"
   show_figures: true # Disabled for automatic testing
   analyse_script: "../../../python_scripts/analyse_results.py"
   figures_path: "../figures"
 time_analysis:
-  exporter: TraceEventExporter
+  exporter:
+    type: TraceEventExporter
   output_path: "time_performance"
   keep_last: true
 max_time: 60.
 robots:
   - name: "robot1"
     navigator: 
-      GoTo:
-        target_speed: 0.5
+      type: GoTo
+      target_speed: 0.5
     state_estimator: 
-      Perfect:
-        prediction_period: 0.1
+      type: Perfect
+      prediction_period: 0.1
 computation_units:
   - name: "master"
     state_estimators:
       - name: "master"
         config:
-          External: {}
+          type: External
 
