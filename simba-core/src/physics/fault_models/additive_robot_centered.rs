@@ -25,6 +25,9 @@ pub struct AdditiveRobotCenteredPhysicsFaultConfig {
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
+    /// If some, the faults will be proportionnal to the robot velocity times this factor.
+    /// If none, the faults will be independant of the robot velocity.
+    pub proportionnal_to_velocity: Option<f32>,
 }
 
 impl Default for AdditiveRobotCenteredPhysicsFaultConfig {
@@ -34,6 +37,7 @@ impl Default for AdditiveRobotCenteredPhysicsFaultConfig {
                 NormalRandomVariableConfig::default(),
             )],
             variable_order: Vec::new(),
+            proportionnal_to_velocity: Some(1.0),
         }
     }
 }
@@ -103,6 +107,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
 pub struct AdditiveRobotCenteredPhysicsFault {
     distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
     variable_order: Vec<String>,
+    proportionnal_to_velocity: Option<f32>,
     last_time_draw: Mutex<f32>,
 }
 
@@ -134,6 +139,7 @@ impl AdditiveRobotCenteredPhysicsFault {
             distributions,
             variable_order: config.variable_order.clone(),
             last_time_draw: Mutex::new(0.),
+            proportionnal_to_velocity: config.proportionnal_to_velocity,
         }
     }
 }
@@ -141,7 +147,7 @@ impl AdditiveRobotCenteredPhysicsFault {
 impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
     fn add_faults(&self, time: f32, state: &mut State) {
         let mut last_time_draw = self.last_time_draw.lock().unwrap();
-        let delta_time = time - *last_time_draw;
+        let delta_time = (time - *last_time_draw) * self.proportionnal_to_velocity.and_then(|f| Some(f*state.velocity)).unwrap_or(1.0);
         let mut random_sample = Vec::new();
         for d in self.distributions.lock().unwrap().iter() {
             random_sample.extend_from_slice(&d.gen(time));
