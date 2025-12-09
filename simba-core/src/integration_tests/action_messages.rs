@@ -1,10 +1,31 @@
-use std::{collections::VecDeque, sync::{Arc, Mutex, mpsc::Sender}};
+use std::{
+    collections::VecDeque,
+    sync::{mpsc::Sender, Arc, Mutex},
+};
 
 use egui::Atom;
 use serde_json::Value;
 
-use crate::{constants::TIME_ROUND, logger::{InternalLog, LogLevel}, navigators::{NavigatorConfig, go_to::GoToConfig, trajectory_follower::TrajectoryFollowerConfig}, node::node_factory::{NodeRecord, RobotConfig}, plugin_api::PluginAPI, sensors::{SensorConfig, robot_sensor::RobotSensorConfig, sensor_manager::{ManagedSensorConfig, SensorManagerConfig}}, simulator::{ResultConfig, Simulator, SimulatorConfig}, state_estimators::{BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig, external_estimator::ExternalEstimatorConfig, perfect_estimator::PerfectEstimatorConfig}, utils::determinist_random_variable::DeterministRandomVariableFactory};
-
+use crate::{
+    constants::TIME_ROUND,
+    logger::{InternalLog, LogLevel},
+    navigators::{
+        go_to::GoToConfig, trajectory_follower::TrajectoryFollowerConfig, NavigatorConfig,
+    },
+    node::node_factory::{NodeRecord, RobotConfig},
+    plugin_api::PluginAPI,
+    sensors::{
+        robot_sensor::RobotSensorConfig,
+        sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
+        SensorConfig,
+    },
+    simulator::{ResultConfig, Simulator, SimulatorConfig},
+    state_estimators::{
+        external_estimator::ExternalEstimatorConfig, perfect_estimator::PerfectEstimatorConfig,
+        BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig,
+    },
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 
 struct PluginAPITest<SE: StateEstimator + 'static> {
     se: Mutex<Option<SE>>,
@@ -17,7 +38,8 @@ impl<SE: StateEstimator> PluginAPI for PluginAPITest<SE> {
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Box<dyn StateEstimator> {
-        let se = std::mem::replace(&mut *self.se.lock().unwrap(), None).expect("StateEstimator already taken");
+        let se = std::mem::replace(&mut *self.se.lock().unwrap(), None)
+            .expect("StateEstimator already taken");
         Box::new(se) as Box<dyn StateEstimator>
     }
 }
@@ -27,7 +49,21 @@ mod kill_node {
 
     use serde_json::Value;
 
-    use crate::{constants::TIME_ROUND, networking::{message_handler::MessageHandler, network::{Envelope, MessageFlag}}, node::Node, recordable::Recordable, sensors::Observation, state_estimators::{StateEstimator, StateEstimatorRecord, WorldState, external_estimator::ExternalEstimatorRecord}, utils::maths::round_precision};
+    use crate::{
+        constants::TIME_ROUND,
+        networking::{
+            message_handler::MessageHandler,
+            network::{Envelope, MessageFlag},
+        },
+        node::Node,
+        recordable::Recordable,
+        sensors::Observation,
+        state_estimators::{
+            external_estimator::ExternalEstimatorRecord, StateEstimator, StateEstimatorRecord,
+            WorldState,
+        },
+        utils::maths::round_precision,
+    };
 
     #[derive(Debug, Clone)]
     pub struct StateEstimatorTest {
@@ -88,7 +124,6 @@ mod kill_node {
         }
     }
 }
-
 
 #[test]
 fn kill_node() {
@@ -158,11 +193,32 @@ fn kill_node() {
 }
 
 mod trigger_sensor {
-    use std::{collections::VecDeque, sync::{Arc, Mutex, mpsc::Sender}};
+    use std::{
+        collections::VecDeque,
+        sync::{mpsc::Sender, Arc, Mutex},
+    };
 
     use serde_json::Value;
 
-    use crate::{constants::TIME_ROUND, networking::{message_handler::MessageHandler, network::{Envelope, MessageFlag}}, node::Node, plugin_api::PluginAPI, recordable::Recordable, sensors::{Observation, sensor_manager::SensorTriggerMessage}, simulator::SimulatorConfig, state_estimators::{StateEstimator, StateEstimatorRecord, WorldState, external_estimator::ExternalEstimatorRecord}, utils::{determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision}};
+    use crate::{
+        constants::TIME_ROUND,
+        networking::{
+            message_handler::MessageHandler,
+            network::{Envelope, MessageFlag},
+        },
+        node::Node,
+        plugin_api::PluginAPI,
+        recordable::Recordable,
+        sensors::{sensor_manager::SensorTriggerMessage, Observation},
+        simulator::SimulatorConfig,
+        state_estimators::{
+            external_estimator::ExternalEstimatorRecord, StateEstimator, StateEstimatorRecord,
+            WorldState,
+        },
+        utils::{
+            determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
+        },
+    };
 
     #[derive(Debug, Clone)]
     pub struct StateEstimatorTest {
@@ -187,7 +243,15 @@ mod trigger_sensor {
 
         fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
             if !self.is_the_triggered {
-                if time >= self.trigger_times.lock().unwrap().front().copied().unwrap_or(f32::INFINITY) {
+                if time
+                    >= self
+                        .trigger_times
+                        .lock()
+                        .unwrap()
+                        .front()
+                        .copied()
+                        .unwrap_or(f32::INFINITY)
+                {
                     log::info!("Triggering sensor at time {}", time);
                     node.network()
                         .as_ref()
@@ -198,7 +262,8 @@ mod trigger_sensor {
                             "robot1".to_string(),
                             serde_json::to_value(SensorTriggerMessage {
                                 sensor_name: "RobotSensor".to_string(),
-                            }).unwrap(),
+                            })
+                            .unwrap(),
                             time,
                             Vec::new(),
                         )
@@ -239,31 +304,29 @@ mod trigger_sensor {
         pub triggered_times: Arc<Mutex<VecDeque<f32>>>,
     }
 
-impl PluginAPI for PluginAPITest {
-    fn get_state_estimator(
-        &self,
-        config: &serde_json::Value,
-        _global_config: &SimulatorConfig,
-        _va_factory: &Arc<DeterministRandomVariableFactory>,
-    ) -> Box<dyn StateEstimator> {
-        if config.as_bool().unwrap() {
-            Box::new(StateEstimatorTest {
-                last_time: 0.,
-                is_the_triggered: false,
-                trigger_times: self.trigger_times.clone(),
-            }) as Box<dyn StateEstimator>
-        } else {
-            Box::new(StateEstimatorTest {
-                last_time: 0.,
-                is_the_triggered: true,
-                trigger_times: self.triggered_times.clone(),
-            }) as Box<dyn StateEstimator>
+    impl PluginAPI for PluginAPITest {
+        fn get_state_estimator(
+            &self,
+            config: &serde_json::Value,
+            _global_config: &SimulatorConfig,
+            _va_factory: &Arc<DeterministRandomVariableFactory>,
+        ) -> Box<dyn StateEstimator> {
+            if config.as_bool().unwrap() {
+                Box::new(StateEstimatorTest {
+                    last_time: 0.,
+                    is_the_triggered: false,
+                    trigger_times: self.trigger_times.clone(),
+                }) as Box<dyn StateEstimator>
+            } else {
+                Box::new(StateEstimatorTest {
+                    last_time: 0.,
+                    is_the_triggered: true,
+                    trigger_times: self.triggered_times.clone(),
+                }) as Box<dyn StateEstimator>
+            }
         }
-        
     }
 }
-}
-
 
 #[test]
 fn trigger_sensor() {
@@ -280,7 +343,8 @@ fn trigger_sensor() {
     config.robots.push(RobotConfig {
         name: "robot1".to_string(),
         navigator: NavigatorConfig::TrajectoryFollower(TrajectoryFollowerConfig {
-            trajectory_path: env!("CARGO_MANIFEST_DIR").to_string() + "/test_config/paths/path1.yaml",
+            trajectory_path: env!("CARGO_MANIFEST_DIR").to_string()
+                + "/test_config/paths/path1.yaml",
             ..Default::default()
         }),
         state_estimator_bench: vec![BenchStateEstimatorConfig {
@@ -321,15 +385,41 @@ fn trigger_sensor() {
         triggered_times: Arc::new(Mutex::new(VecDeque::<f32>::new())),
     };
     let plugin_api = Arc::new(plugin_api);
-    let mut simulator = Simulator::from_config(&config, &Some(plugin_api.clone() as Arc<dyn PluginAPI>)).unwrap();
+    let mut simulator =
+        Simulator::from_config(&config, &Some(plugin_api.clone() as Arc<dyn PluginAPI>)).unwrap();
 
     simulator.run().unwrap();
 
-    println!("Triggered times: {:?}", plugin_api.triggered_times.lock().unwrap());
-    assert!(plugin_api.trigger_times.lock().unwrap().is_empty(), "Not all triggers were used");
-    assert!(plugin_api.triggered_times.lock().unwrap().len() == trigger_times.len(), "Not all triggers were received");
+    println!(
+        "Triggered times: {:?}",
+        plugin_api.triggered_times.lock().unwrap()
+    );
+    assert!(
+        plugin_api.trigger_times.lock().unwrap().is_empty(),
+        "Not all triggers were used"
+    );
+    assert!(
+        plugin_api.triggered_times.lock().unwrap().len() == trigger_times.len(),
+        "Not all triggers were received"
+    );
     for t in trigger_times.iter() {
-        assert!((plugin_api.triggered_times.lock().unwrap().pop_front().unwrap() - *t).abs() < TIME_ROUND, "Triggered time {} was not in the trigger times (remaining triggered_times: {:?})", t, plugin_api.triggered_times.lock().unwrap());
+        assert!(
+            (plugin_api
+                .triggered_times
+                .lock()
+                .unwrap()
+                .pop_front()
+                .unwrap()
+                - *t)
+                .abs()
+                < TIME_ROUND,
+            "Triggered time {} was not in the trigger times (remaining triggered_times: {:?})",
+            t,
+            plugin_api.triggered_times.lock().unwrap()
+        );
     }
-    assert!(plugin_api.triggered_times.lock().unwrap().is_empty(), "There are extra triggered times");
+    assert!(
+        plugin_api.triggered_times.lock().unwrap().is_empty(),
+        "There are extra triggered times"
+    );
 }

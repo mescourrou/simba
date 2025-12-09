@@ -40,7 +40,7 @@ use na::SVector;
 
 extern crate confy;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec, config_derives};
+use simba_macros::{config_derives, EnumToString, ToVec};
 
 /// Configuration for [`State`] in order to load a state from the configuration.
 ///
@@ -96,48 +96,40 @@ impl UIComponent for StateConfig {
             ui.add(egui::DragValue::new(&mut self.velocity).max_decimals(10));
         });
         egui::CollapsingHeader::new("Random State")
-        .id_salt("state-config-random-variable")
-        .show(ui, |ui| {
-            RandomVariableTypeConfig::show_vector_mut(
-                &mut self.random,
-                ui,
-                ctx,
-                buffer_stack,
-                global_config,
-                current_node_name,
-                unique_id,
-            );
-            let possible_variables = [
-                "x",
-                "y",
-                "orientation",
-                "velocity",
-                "v",
-                "r",
-                "theta",
-            ]
-            .iter()
-            .map(|x| String::from(*x))
-            .collect();
-            ui.horizontal(|ui| {
-                ui.label("Variable order:");
-                for (i, var) in self.variable_order.iter_mut().enumerate() {
-                    let unique_var_id = format!("variable-{i}-{unique_id}");
-                    string_combobox(ui, &possible_variables, var, unique_var_id);
-                }
-                if !self.variable_order.is_empty() && ui.button("-").clicked() {
-                    self.variable_order.pop();
-                }
-                if ui.button("+").clicked() {
-                    self.variable_order.push(
-                        possible_variables
-                            .get(self.variable_order.len().min(possible_variables.len()))
-                            .unwrap()
-                            .clone(),
-                    );
-                }
+            .id_salt("state-config-random-variable")
+            .show(ui, |ui| {
+                RandomVariableTypeConfig::show_vector_mut(
+                    &mut self.random,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+                let possible_variables = ["x", "y", "orientation", "velocity", "v", "r", "theta"]
+                    .iter()
+                    .map(|x| String::from(*x))
+                    .collect();
+                ui.horizontal(|ui| {
+                    ui.label("Variable order:");
+                    for (i, var) in self.variable_order.iter_mut().enumerate() {
+                        let unique_var_id = format!("variable-{i}-{unique_id}");
+                        string_combobox(ui, &possible_variables, var, unique_var_id);
+                    }
+                    if !self.variable_order.is_empty() && ui.button("-").clicked() {
+                        self.variable_order.pop();
+                    }
+                    if ui.button("+").clicked() {
+                        self.variable_order.push(
+                            possible_variables
+                                .get(self.variable_order.len().min(possible_variables.len()))
+                                .unwrap()
+                                .clone(),
+                        );
+                    }
+                });
             });
-        });
     }
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
@@ -227,7 +219,10 @@ impl State {
     }
 
     /// Load a [`State`] from the `config` ([`StateConfig`]).
-    pub fn from_config(config: &StateConfig, va_factory: &Arc<DeterministRandomVariableFactory>) -> Self {
+    pub fn from_config(
+        config: &StateConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+    ) -> Self {
         let mut state = Self::new();
         for (i, coord) in config.pose.iter().enumerate() {
             if i >= 3 {
@@ -263,7 +258,6 @@ impl State {
             state.pose.x += add_r * state.pose.z.cos();
             state.pose.y += add_r * state.pose.z.sin();
         }
-
 
         state
     }
@@ -391,7 +385,6 @@ use crate::gui::{
     utils::{string_combobox, text_singleline_with_apply},
     UIComponent,
 };
-use crate::{networking::message_handler::MessageHandler, utils::determinist_random_variable::RandomVariableTypeConfig};
 use crate::node::Node;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
@@ -399,6 +392,10 @@ use crate::simulator::SimulatorConfig;
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
 use crate::utils::occupancy_grid::OccupancyGrid;
+use crate::{
+    networking::message_handler::MessageHandler,
+    utils::determinist_random_variable::RandomVariableTypeConfig,
+};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };

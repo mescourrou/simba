@@ -19,9 +19,7 @@ pub struct ExponentialRandomVariableConfig {
 
 impl Default for ExponentialRandomVariableConfig {
     fn default() -> Self {
-        Self {
-            lambda: vec![1.],
-        }
+        Self { lambda: vec![1.] }
     }
 }
 

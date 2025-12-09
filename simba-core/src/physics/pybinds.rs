@@ -12,7 +12,8 @@ use crate::{
     recordable::Recordable,
     state_estimators::State,
     utils::{
-        python::{call_py_method, call_py_method_void}, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}
+        python::{call_py_method, call_py_method_void},
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
 

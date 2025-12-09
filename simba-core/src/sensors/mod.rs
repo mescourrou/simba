@@ -12,12 +12,12 @@ To add a new [`Sensor`](sensor::Sensor), you should implement the
 [`SensorRecord`](sensor::SensorRecord) enumarations.
 */
 
+pub mod external_sensor;
 pub mod gnss_sensor;
 pub mod odometry_sensor;
 pub mod oriented_landmark_sensor;
 pub mod robot_sensor;
 pub mod sensor_manager;
-pub mod external_sensor;
 
 pub mod fault_models;
 pub mod sensor_filters;
@@ -26,7 +26,7 @@ extern crate confy;
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec, config_derives};
+use simba_macros::{config_derives, EnumToString, ToVec};
 
 use {
     gnss_sensor::{GNSSObservation, GNSSObservationRecord},
@@ -41,7 +41,11 @@ use crate::{
     simulator::SimulatorConfig,
     utils::enum_tools::ToVec,
 };
-use crate::{node::Node, recordable::Recordable, sensors::external_sensor::{ExternalObservation, ExternalObservationRecord}};
+use crate::{
+    node::Node,
+    recordable::Recordable,
+    sensors::external_sensor::{ExternalObservation, ExternalObservationRecord},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {
@@ -131,7 +135,7 @@ pub enum SensorObservation {
     Odometry(OdometryObservation),
     GNSS(GNSSObservation),
     OrientedRobot(OrientedRobotObservation),
-    External(ExternalObservation)
+    External(ExternalObservation),
 }
 
 impl Recordable<SensorObservationRecord> for SensorObservation {
@@ -225,9 +229,7 @@ impl UIComponent for SensorConfig {
                     *self = SensorConfig::RobotSensor(robot_sensor::RobotSensorConfig::default())
                 }
                 "External" => {
-                    *self = SensorConfig::External(
-                        external_sensor::ExternalSensorConfig::default(),
-                    )
+                    *self = SensorConfig::External(external_sensor::ExternalSensorConfig::default())
                 }
                 _ => panic!("Where did you find this value?"),
             };

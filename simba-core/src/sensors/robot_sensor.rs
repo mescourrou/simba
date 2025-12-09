@@ -86,10 +86,7 @@ impl UIComponent for RobotSensorConfig {
                         if *p < TIME_ROUND {
                             *p = TIME_ROUND;
                         }
-                        ui.add(
-                            egui::DragValue::new(p)
-                            .max_decimals((1. / TIME_ROUND) as usize),
-                        );
+                        ui.add(egui::DragValue::new(p).max_decimals((1. / TIME_ROUND) as usize));
                         if ui.button("X").clicked() {
                             self.period = None;
                         }
@@ -484,7 +481,8 @@ impl Sensor for RobotSensor {
                         debug!("Distance is {d}");
                     }
                     if d <= self.detection_distance {
-                        let robot_seed = 1. / (100. * self.period.unwrap_or(TIME_ROUND)) * (i as f32);
+                        let robot_seed =
+                            1. / (100. * self.period.unwrap_or(TIME_ROUND)) * (i as f32);
                         let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
                         let mut new_obs = Vec::new();
                         let obs = SensorObservation::OrientedRobot(OrientedRobotObservation {

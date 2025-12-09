@@ -4,7 +4,7 @@ use std::{fmt::Debug, sync::Arc};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec, config_derives};
+use simba_macros::{config_derives, EnumToString, ToVec};
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};

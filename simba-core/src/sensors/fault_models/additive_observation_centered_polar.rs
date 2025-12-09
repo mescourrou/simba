@@ -285,7 +285,9 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                         ));
                 }
                 SensorObservation::External(_) => {
-                    panic!("AdditiveObservationCenteredPolarFault cannot fault ExternalObservation");
+                    panic!(
+                        "AdditiveObservationCenteredPolarFault cannot fault ExternalObservation"
+                    );
                 }
             }
         }

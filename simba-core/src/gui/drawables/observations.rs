@@ -164,8 +164,8 @@ impl OrientedLandmarkObservation {
                     width: 0.01 * scale,
                 },
             ));
-            shapes.push(Shape::circle_filled(p1, 0.05*scale, self.color));
-            shapes.push(Shape::circle_filled(p2, 0.05*scale, self.color));
+            shapes.push(Shape::circle_filled(p1, 0.05 * scale, self.color));
+            shapes.push(Shape::circle_filled(p2, 0.05 * scale, self.color));
         }
         Ok(shapes)
     }

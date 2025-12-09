@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, fmt::Debug, path::Path};
 
 use egui::Color32;
 
-use crate::utils::{enum_tools::ToVec};
+use crate::utils::enum_tools::ToVec;
 
 pub fn enum_combobox<EnumType>(ui: &mut egui::Ui, value: &mut EnumType, id: impl std::hash::Hash)
 where

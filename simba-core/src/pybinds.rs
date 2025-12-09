@@ -4,11 +4,24 @@ use log::debug;
 use pyo3::prelude::*;
 
 use crate::{
-    controllers::{Controller, pybinds::PythonController}, logger::is_enabled, navigators::{Navigator, go_to::GoToMessage, pybinds::PythonNavigator}, networking::{MessageTypes, network::MessageFlag}, physics::{Physics, pybinds::PythonPhysics}, plugin_api::PluginAPI, pywrappers::{
-        CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper, SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, WorldStateWrapper, run_gui
-    }, sensors::sensor_manager::SensorTriggerMessage, simulator::SimulatorConfig, state_estimators::{StateEstimator, pybinds::PythonStateEstimator}, utils::{
-        determinist_random_variable::DeterministRandomVariableFactory, python::call_py_method
-    }
+    controllers::{pybinds::PythonController, Controller},
+    logger::is_enabled,
+    navigators::{go_to::GoToMessage, pybinds::PythonNavigator, Navigator},
+    networking::{network::MessageFlag, MessageTypes},
+    physics::{pybinds::PythonPhysics, Physics},
+    plugin_api::PluginAPI,
+    pywrappers::{
+        run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper,
+        ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
+        OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
+        SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, WorldStateWrapper,
+    },
+    sensors::sensor_manager::SensorTriggerMessage,
+    simulator::SimulatorConfig,
+    state_estimators::{pybinds::PythonStateEstimator, StateEstimator},
+    utils::{
+        determinist_random_variable::DeterministRandomVariableFactory, python::call_py_method,
+    },
 };
 
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {

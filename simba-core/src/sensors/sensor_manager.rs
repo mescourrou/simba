@@ -5,11 +5,11 @@ available observations.
 
 extern crate confy;
 use config_checker::macros::Check;
-use simba_macros::config_derives;
-use pyo3::prelude::*;
 use core::f32;
 use log::debug;
+use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
@@ -20,7 +20,7 @@ use crate::gui::{
     utils::{string_checkbox, text_singleline_with_apply},
     UIComponent,
 };
-use crate::logger::{InternalLog, is_enabled};
+use crate::logger::{is_enabled, InternalLog};
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::node::Node;
@@ -375,7 +375,8 @@ impl SensorManager {
                     .extend(obs_list.iter().map(|o| o.record()));
                 self.distant_observations.extend(obs_list);
                 // Assure that the observations are always in the same order, for determinism:
-                self.distant_observations.sort_by(|a, b| a.observer.cmp(&b.observer));
+                self.distant_observations
+                    .sort_by(|a, b| a.observer.cmp(&b.observer));
                 // if self.received_observations.len() > 0 {
                 //     self.next_time = Some(time);
                 // }
@@ -392,10 +393,7 @@ impl SensorManager {
                     if sensor.name == trigger_msg.sensor_name {
                         sensor.last_triggered = Some(time);
                         if is_enabled(crate::logger::InternalLog::SensorManager) {
-                            debug!(
-                                "Sensor {} triggered at time {}",
-                                sensor.name, time
-                            );
+                            debug!("Sensor {} triggered at time {}", sensor.name, time);
                         }
                     }
                 }
@@ -427,17 +425,24 @@ impl SensorManager {
         let mut obs_to_send = BTreeMap::new();
         for sensor in &mut self.sensors {
             if is_enabled(InternalLog::SensorManager) {
-                log::debug!("Sensor {} last triggered at {:?} ({})", sensor.name, sensor.last_triggered, sensor.triggered);
+                log::debug!(
+                    "Sensor {} last triggered at {:?} ({})",
+                    sensor.name,
+                    sensor.last_triggered,
+                    sensor.triggered
+                );
             }
-            let sensor_observations: Vec<Observation> = 
-                if (sensor.triggered && match sensor.last_triggered {
+            let sensor_observations: Vec<Observation> = if (sensor.triggered
+                && match sensor.last_triggered {
                     Some(t) => (time - t).abs() < TIME_ROUND,
                     None => false,
-                }) || (sensor.sensor.read().unwrap().next_time_step() - time).abs() < TIME_ROUND {
-                    if is_enabled(InternalLog::SensorManager) {
-                        log::debug!("Sensor {} is triggered, getting observations", sensor.name);
-                    }
-                    sensor
+                })
+                || (sensor.sensor.read().unwrap().next_time_step() - time).abs() < TIME_ROUND
+            {
+                if is_enabled(InternalLog::SensorManager) {
+                    log::debug!("Sensor {} is triggered, getting observations", sensor.name);
+                }
+                sensor
                     .sensor
                     .write()
                     .unwrap()
@@ -450,9 +455,9 @@ impl SensorManager {
                         sensor_observation: obs,
                     })
                     .collect()
-                } else {
-                    Vec::new()
-                };
+            } else {
+                Vec::new()
+            };
 
             if !sensor_observations.is_empty() {
                 for to in &sensor.send_to {

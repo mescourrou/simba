@@ -328,8 +328,6 @@ impl Node {
         }
         self.sync_with_others(time_cv, nb_nodes, time);
 
-        
-
         if let Some(sensor_manager) = &self.sensor_manager() {
             sensor_manager.write().unwrap().handle_messages(time);
             // Make observations (if it is the right time)

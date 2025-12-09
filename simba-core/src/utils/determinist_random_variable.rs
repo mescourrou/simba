@@ -21,10 +21,10 @@ use std::sync::Mutex;
 
 use config_checker::macros::Check;
 use log::debug;
-use rand::{Rng, SeedableRng, random};
+use rand::{random, Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, config_derives};
+use simba_macros::{config_derives, EnumToString};
 
 #[cfg(feature = "gui")]
 use crate::gui::{utils::string_combobox, UIComponent};
@@ -66,24 +66,21 @@ impl DeterministRandomVariableFactory {
                     FixedRandomVariableConfig::default(),
                 ))
             }
-            RandomVariableTypeConfig::Fixed(c) => Box::new(
-                DeterministFixedRandomVariable::from_config(local_seed, c),
-            ),
-            RandomVariableTypeConfig::Uniform(c) => Box::new(
-                DeterministUniformRandomVariable::from_config(local_seed, c),
-            ),
-            RandomVariableTypeConfig::Normal(c) => Box::new(
-                DeterministNormalRandomVariable::from_config(local_seed, c),
-            ),
-            RandomVariableTypeConfig::Poisson(c) => Box::new(
-                DeterministPoissonRandomVariable::from_config(local_seed, c),
-            ),
-            RandomVariableTypeConfig::Exponential(c) => {
-                Box::new(DeterministExponentialRandomVariable::from_config(
-                    local_seed,
-                    c,
-                ))
+            RandomVariableTypeConfig::Fixed(c) => {
+                Box::new(DeterministFixedRandomVariable::from_config(local_seed, c))
             }
+            RandomVariableTypeConfig::Uniform(c) => {
+                Box::new(DeterministUniformRandomVariable::from_config(local_seed, c))
+            }
+            RandomVariableTypeConfig::Normal(c) => {
+                Box::new(DeterministNormalRandomVariable::from_config(local_seed, c))
+            }
+            RandomVariableTypeConfig::Poisson(c) => {
+                Box::new(DeterministPoissonRandomVariable::from_config(local_seed, c))
+            }
+            RandomVariableTypeConfig::Exponential(c) => Box::new(
+                DeterministExponentialRandomVariable::from_config(local_seed, c),
+            ),
         }
     }
 

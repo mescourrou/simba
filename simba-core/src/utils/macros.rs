@@ -104,7 +104,7 @@ impl schemars::JsonSchema for $struct_name {
 
     fn json_schema(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
         use schemars::json_schema;
-        
+
         json_schema!({
             "file": { "type": "string" },
             "class_name": { "type": "string" },
@@ -255,7 +255,6 @@ impl $struct_name {
 
 pub(crate) use external_record_python_methods;
 
-
 macro_rules! external_config {
     (
         $(#[$meta:meta])*  // Capture attributes including doc comments
@@ -328,7 +327,7 @@ impl schemars::JsonSchema for $struct_name {
 
     fn json_schema(_gen: &mut schemars::SchemaGenerator) -> schemars::Schema {
         use schemars::json_schema;
-        
+
         json_schema!({
             "type": "object",
             "additionalProperties": true

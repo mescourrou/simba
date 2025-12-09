@@ -19,7 +19,7 @@ use crate::{
     },
 };
 
-use crate::{simulator::{Record, SimulatorConfig}};
+use crate::simulator::{Record, SimulatorConfig};
 
 use crate::utils::enum_tools::ToVec;
 

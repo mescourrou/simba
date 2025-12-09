@@ -33,7 +33,10 @@ use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use crate::sensors::{Observation, ObservationRecord, Sensor, SensorObservation, SensorObservationRecord, SensorRecord};
+use crate::sensors::{
+    Observation, ObservationRecord, Sensor, SensorObservation, SensorObservationRecord,
+    SensorRecord,
+};
 use serde_derive::{Deserialize, Serialize};
 
 external_record_python_methods!(
@@ -48,12 +51,7 @@ pub struct ExternalObservation {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ExternalObservation {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            _ctx: &egui::Context,
-            _unique_id: &str,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("External Observation").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.label("Observation (JSON):");
@@ -161,9 +159,9 @@ impl Sensor for ExternalSensor {
     }
 
     fn next_time_step(&self) -> f32 {
-        round_precision(self.sensor.next_time_step(), TIME_ROUND).expect("Sensor next_time_step rounding returned an error:")
+        round_precision(self.sensor.next_time_step(), TIME_ROUND)
+            .expect("Sensor next_time_step rounding returned an error:")
     }
-
 }
 
 impl Recordable<SensorRecord> for ExternalSensor {

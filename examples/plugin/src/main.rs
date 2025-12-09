@@ -15,7 +15,9 @@ use simba::physics::robot_models::Command;
 use simba::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 use simba::plugin_api::PluginAPI;
 use simba::recordable::Recordable;
-use simba::sensors::external_sensor::{ExternalObservation, ExternalObservationRecord, ExternalSensorRecord};
+use simba::sensors::external_sensor::{
+    ExternalObservation, ExternalObservationRecord, ExternalSensorRecord,
+};
 use simba::sensors::{Observation, Sensor, SensorObservation, SensorRecord};
 use simba::simulator::{Simulator, SimulatorConfig};
 use simba::state_estimators::external_estimator::ExternalEstimatorRecord;

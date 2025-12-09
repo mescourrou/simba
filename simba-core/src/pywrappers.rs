@@ -766,7 +766,7 @@ impl UnicycleCommandWrapper {
         }
     }
 }
-    
+
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "HolonomicCommand")]

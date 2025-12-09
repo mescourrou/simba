@@ -27,4 +27,3 @@ pub fn detailed_error(error: &ConfyError) -> String {
         }
     )
 }
-

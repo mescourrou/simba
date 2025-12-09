@@ -1,11 +1,10 @@
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec, config_derives};
+use simba_macros::{config_derives, EnumToString, ToVec};
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, utils::enum_tools::ToVec};
 use crate::{
-    simulator::SimulatorConfig,
     sensors::{
         sensor_filters::{
             python_filter::{PythonFilter, PythonFilterConfig},
@@ -13,6 +12,7 @@ use crate::{
         },
         SensorObservation,
     },
+    simulator::SimulatorConfig,
     state_estimators::State,
 };
 

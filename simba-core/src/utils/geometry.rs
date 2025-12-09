@@ -65,19 +65,24 @@ pub fn smallest_theta_diff(a: f32, b: f32) -> f32 {
     diff
 }
 
-pub fn segment_circle_intersection(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>, center: &SVector<f32, 2>, radius: f32) -> Option<(SVector<f32, 2>, SVector<f32, 2>)> {
+pub fn segment_circle_intersection(
+    p1: &SVector<f32, 2>,
+    p2: &SVector<f32, 2>,
+    center: &SVector<f32, 2>,
+    radius: f32,
+) -> Option<(SVector<f32, 2>, SVector<f32, 2>)> {
     // For wide landmarks, check if a part of the landmark is in range
     // Source: https://stackoverflow.com/questions/1073336/circle-line-segment-collision-detection-algorithm
 
     let d = p2 - p1;
     let f = p1 - center;
-    
-    let a = d.dot(&d) ;
-    let b = 2.*f.dot(&d) ;
-    let c = f.dot(&f) - radius*radius;
-    
-    let discriminant = b*b-4.*a*c;
-    
+
+    let a = d.dot(&d);
+    let b = 2. * f.dot(&d);
+    let c = f.dot(&f) - radius * radius;
+
+    let discriminant = b * b - 4. * a * c;
+
     if discriminant < 0. {
         // no intersection
         return None;
@@ -85,7 +90,7 @@ pub fn segment_circle_intersection(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>, c
     // ray didn't totally miss sphere,
     // so there is a solution to
     // the equation.
-    
+
     let discriminant = discriminant.sqrt();
 
     if a == 0. {
@@ -97,29 +102,29 @@ pub fn segment_circle_intersection(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>, c
             return None;
         }
     }
-    
+
     // either solution may be on or off the ray so need to test both
     // t1 is always the smaller value, because BOTH discriminant and
     // a are nonnegative.
-    let t1 = (-b - discriminant)/(2.*a);
-    let t2 = (-b + discriminant)/(2.*a);
-    
+    let t1 = (-b - discriminant) / (2. * a);
+    let t2 = (-b + discriminant) / (2. * a);
+
     // 3x HIT cases:
     //          -o->             --|-->  |            |  --|->
-    // Impale(t1 hit,t2 hit), Poke(t1 hit,t2>1), ExitWound(t1<0, t2 hit), 
+    // Impale(t1 hit,t2 hit), Poke(t1 hit,t2>1), ExitWound(t1<0, t2 hit),
 
     // 3x MISS cases:
     //       ->  o                     o ->              | -> |
     // FallShort (t1>1,t2>1), Past (t1<0,t2<0), CompletelyInside(t1<0, t2>1)
-    
+
     // t1 inside [0..1] => hit
     // t1 is the intersection, and it's closer than t2
-        // (since t1 uses -b - discriminant)
-        // Impale, Poke
+    // (since t1 uses -b - discriminant)
+    // Impale, Poke
     // or  t1 didn't intersect so we are either started
     // inside the sphere or completely past it
     if (t1 < 0. || t1 > 1.) && (t2 < 0. || t2 > 1.) {
-        // no intn: FallShort, Past, CompletelyInside 
+        // no intn: FallShort, Past, CompletelyInside
         return None;
     }
 
@@ -135,7 +140,12 @@ pub fn segment_circle_intersection(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>, c
     Some((intersect1, intersect2))
 }
 
-pub fn segments_intersection(a1: &SVector<f32, 2>, a2: &SVector<f32, 2>, b1: &SVector<f32, 2>, b2: &SVector<f32, 2>) -> Option<SVector<f32, 2>> {
+pub fn segments_intersection(
+    a1: &SVector<f32, 2>,
+    a2: &SVector<f32, 2>,
+    b1: &SVector<f32, 2>,
+    b2: &SVector<f32, 2>,
+) -> Option<SVector<f32, 2>> {
     // Source: https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect // response https://stackoverflow.com/a/28390934
     let ax = a2.x - a1.x;
     let ay = a2.y - a1.y;
@@ -165,13 +175,15 @@ pub fn segments_intersection(a1: &SVector<f32, 2>, a2: &SVector<f32, 2>, b1: &SV
 
     // Get the intersection point\
     let ua = ua / d;
-    Some(SVector::<f32, 2>::new(
-        a1.x + ua * ax,
-        a1.y + ua * ay,
-    ))
+    Some(SVector::<f32, 2>::new(a1.x + ua * ax, a1.y + ua * ay))
 }
 
-pub fn segment_to_line_intersection(a1: &SVector<f32, 2>, a2: &SVector<f32, 2>, l1: &SVector<f32, 2>, l2: &SVector<f32, 2>) -> Option<SVector<f32, 2>> {
+pub fn segment_to_line_intersection(
+    a1: &SVector<f32, 2>,
+    a2: &SVector<f32, 2>,
+    l1: &SVector<f32, 2>,
+    l2: &SVector<f32, 2>,
+) -> Option<SVector<f32, 2>> {
     // Source: https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect // response https://stackoverflow.com/a/28390934
 
     let ax = a2.x - a1.x;
@@ -185,20 +197,21 @@ pub fn segment_to_line_intersection(a1: &SVector<f32, 2>, a2: &SVector<f32, 2>, 
         return None;
     }
 
-
     let ua = bx * (a1.y - l1.y) - by * (a1.x - l1.x);
     let ub = ax * (a1.y - l1.y) - ay * (a1.x - l1.x);
 
     // Get the intersection point\
     let ua = ua / d;
-    Some(SVector::<f32, 2>::new(
-        a1.x + ua * ax,
-        a1.y + ua * ay,
-    ))
+    Some(SVector::<f32, 2>::new(a1.x + ua * ax, a1.y + ua * ay))
 }
 
-pub fn segment_triangle_intersection(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>, triangle_top: &SVector<f32, 2>, triangle_a: &SVector<f32, 2>, triangle_b: &SVector<f32, 2>) -> Option<(SVector<f32, 2>, SVector<f32, 2>)> {
-    
+pub fn segment_triangle_intersection(
+    p1: &SVector<f32, 2>,
+    p2: &SVector<f32, 2>,
+    triangle_top: &SVector<f32, 2>,
+    triangle_a: &SVector<f32, 2>,
+    triangle_b: &SVector<f32, 2>,
+) -> Option<(SVector<f32, 2>, SVector<f32, 2>)> {
     // Check if collinear triangle
     if aligned_points(triangle_top, triangle_a, triangle_b, 1e-10) {
         return None;
@@ -221,36 +234,22 @@ pub fn segment_triangle_intersection(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>,
         t2h.cross(&t3h).transpose(),
         t3h.cross(&t1h).transpose(),
         t1h.cross(&t2h).transpose(),
-    ]) / Matrix3::<f32>::from_columns(&[
-        t1h,
-        t2h,
-        t3h,
-    ]).determinant();
+    ]) / Matrix3::<f32>::from_columns(&[t1h, t2h, t3h]).determinant();
     let lambda1 = to_bary * p1h;
     let lambda2 = to_bary * p2h;
 
     // Check if both points are inside the triangle
-    let p1inside = lambda1.fold(true, |acc, x| {
-        if x < 0. || x > 1. {
-            false
-        } else {
-            acc
-        }
-    });
-    let p2inside = lambda2.fold(true, |acc, x| {
-        if x < 0. || x > 1. {
-            false
-        } else {
-            acc
-        }
-    });
+    let p1inside = lambda1.fold(true, |acc, x| if x < 0. || x > 1. { false } else { acc });
+    let p2inside = lambda2.fold(true, |acc, x| if x < 0. || x > 1. { false } else { acc });
 
     if p1inside && p2inside {
         return Some((p1.clone(), p2.clone()));
     }
-    let edges = vec![(triangle_top, triangle_a),
-                        (triangle_a, triangle_b),
-                        (triangle_b, triangle_top)];
+    let edges = vec![
+        (triangle_top, triangle_a),
+        (triangle_a, triangle_b),
+        (triangle_b, triangle_top),
+    ];
     if p1inside || p2inside {
         // One point is inside the triangle
         let inside_point = if p1inside { p1 } else { p2 };
@@ -258,12 +257,7 @@ pub fn segment_triangle_intersection(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>,
 
         // Find intersection with triangle edges
         for (e1, e2) in &edges {
-            if let Some(intersection) = segments_intersection(
-                inside_point,
-                outside_point,
-                e1,
-                e2,
-            ) {
+            if let Some(intersection) = segments_intersection(inside_point, outside_point, e1, e2) {
                 if p1inside {
                     return Some((inside_point.clone(), intersection));
                 } else {
@@ -276,12 +270,7 @@ pub fn segment_triangle_intersection(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>,
     // If both outside, check for edge intersections
     let mut intersections = Vec::new();
     for (e1, e2) in &edges {
-        if let Some(intersection) = segments_intersection(
-            p1,
-            p2,
-            e1,
-            e2,
-        ) {
+        if let Some(intersection) = segments_intersection(p1, p2, e1, e2) {
             intersections.push(intersection);
         }
     }
@@ -294,7 +283,6 @@ pub fn segment_triangle_intersection(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>,
         } else if intersections[1] == intersections[2] {
             intersections = vec![intersections[1].clone(), intersections[0].clone()];
         }
-        
     }
     if intersections.len() >= 2 {
         if (intersections[0] - p1).norm() > (intersections[1] - p1).norm() {
@@ -302,11 +290,20 @@ pub fn segment_triangle_intersection(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>,
         }
         return Some((intersections[0].clone(), intersections[1].clone()));
     }
-    assert!(intersections.len() == 0, "Bug found! intersections.len() = {}", intersections.len());
+    assert!(
+        intersections.len() == 0,
+        "Bug found! intersections.len() = {}",
+        intersections.len()
+    );
     None
 }
 
-pub fn aligned_points(p1: &SVector<f32, 2>, p2: &SVector<f32, 2>, p3: &SVector<f32, 2>, tolerance: f32) -> bool {
+pub fn aligned_points(
+    p1: &SVector<f32, 2>,
+    p2: &SVector<f32, 2>,
+    p3: &SVector<f32, 2>,
+    tolerance: f32,
+) -> bool {
     let area = (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y)).abs() / 2.0;
     area < tolerance
 }
@@ -379,39 +376,48 @@ mod tests {
             Some((Vector2::new(0., 0.), Vector2::new(0., 0.))),
         ];
 
-        for (((p1, p2), (center, radius)), expected) in zip(zip(segments, centers_radius), expected_results) {
+        for (((p1, p2), (center, radius)), expected) in
+            zip(zip(segments, centers_radius), expected_results)
+        {
             let result = super::segment_circle_intersection(&p1, &p2, &center, radius);
             match (result, expected) {
                 (Some((res1, res2)), Some((exp1, exp2))) => {
-                    assert!((res1 - exp1).norm() < 1e-3, "res1: {res1:?}, exp1: {exp1:?}");
-                    assert!((res2 - exp2).norm() < 1e-3, "res2: {res2:?}, exp2: {exp2:?}");
-                },
-                (None, None) => {},
-                _ => panic!("Result and expected do not match: result={result:?}, expected={expected:?}"),
+                    assert!(
+                        (res1 - exp1).norm() < 1e-3,
+                        "res1: {res1:?}, exp1: {exp1:?}"
+                    );
+                    assert!(
+                        (res2 - exp2).norm() < 1e-3,
+                        "res2: {res2:?}, exp2: {exp2:?}"
+                    );
+                }
+                (None, None) => {}
+                _ => panic!(
+                    "Result and expected do not match: result={result:?}, expected={expected:?}"
+                ),
             }
         }
-
     }
 
     #[test]
     pub fn segments_intersection() {
         let segments_a = vec![
-            (Vector2::new(-2., -2.), Vector2::new(6., 4.)),// 1
-            (Vector2::new(-2., 2.), Vector2::new(6., 4.)), // 2
-            (Vector2::new(4., -4.), Vector2::new(6., 4.)), // 3
-            (Vector2::new(2., -4.), Vector2::new(2., 4.)), // 4
-            (Vector2::new(-2., 4.), Vector2::new(6., 4.)), // 5
-            (Vector2::new(-2., 4.), Vector2::new(6., 4.)), // 6
-            (Vector2::new(-2., 4.), Vector2::new(2., 0.)), // 7
-            (Vector2::new(-2., 4.), Vector2::new(2., 0.)), // 8
-            (Vector2::new(-2., 4.), Vector2::new(4., 4.)), // 9 
-            (Vector2::new(-2., 4.), Vector2::new(4., 4.)), // 10
-            (Vector2::new(-2., 4.), Vector2::new(4., 4.)), // 11
+            (Vector2::new(-2., -2.), Vector2::new(6., 4.)), // 1
+            (Vector2::new(-2., 2.), Vector2::new(6., 4.)),  // 2
+            (Vector2::new(4., -4.), Vector2::new(6., 4.)),  // 3
+            (Vector2::new(2., -4.), Vector2::new(2., 4.)),  // 4
+            (Vector2::new(-2., 4.), Vector2::new(6., 4.)),  // 5
+            (Vector2::new(-2., 4.), Vector2::new(6., 4.)),  // 6
+            (Vector2::new(-2., 4.), Vector2::new(2., 0.)),  // 7
+            (Vector2::new(-2., 4.), Vector2::new(2., 0.)),  // 8
+            (Vector2::new(-2., 4.), Vector2::new(4., 4.)),  // 9
+            (Vector2::new(-2., 4.), Vector2::new(4., 4.)),  // 10
+            (Vector2::new(-2., 4.), Vector2::new(4., 4.)),  // 11
         ];
         let segments_b = vec![
             (Vector2::new(-2., 2.), Vector2::new(4., -2.)),   // 1
             (Vector2::new(-2., 2.), Vector2::new(4., -2.)),   // 2
-            (Vector2::new(-2., 2.), Vector2::new(4., -2.)),   // 3 
+            (Vector2::new(-2., 2.), Vector2::new(4., -2.)),   // 3
             (Vector2::new(-2., 2.), Vector2::new(4., 2.)),    // 4
             (Vector2::new(4., 2.), Vector2::new(4., -2.)),    // 5
             (Vector2::new(6., 4.), Vector2::new(4., -2.)),    // 6
@@ -440,12 +446,13 @@ mod tests {
             match (result, expected) {
                 (Some(res), Some(exp)) => {
                     assert!((res - exp).norm() < 1e-3, "res: {res:?}, exp: {exp:?}");
-                },
-                (None, None) => {},
-                _ => panic!("Result and expected do not match: result={result:?}, expected={expected:?}"),
+                }
+                (None, None) => {}
+                _ => panic!(
+                    "Result and expected do not match: result={result:?}, expected={expected:?}"
+                ),
             }
         }
-
     }
 
     #[test]
@@ -466,47 +473,107 @@ mod tests {
             (Vector2::new(4., 0.), Vector2::new(-10., 0.)),   // 13
         ];
         let triangles = vec![
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(10., -2.)),  // 1
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(10., -2.)),  // 2
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(10., -2.)),  // 3
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(10., -2.)),  // 4
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(10., -2.)),  // 5
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(8., -2.)),   // 6
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(8., -2.)),   // 7
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(8., -2.)),   // 8
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(8., -2.)),   // 9
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(8., -2.)),   // 10
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(8., -2.)),   // 11
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(8., -2.)),   // 12
-            (Vector2::new(-2., 0.), Vector2::new(6., 6.), Vector2::new(8., -2.)),   // 13
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(10., -2.),
+            ), // 1
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(10., -2.),
+            ), // 2
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(10., -2.),
+            ), // 3
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(10., -2.),
+            ), // 4
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(10., -2.),
+            ), // 5
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(8., -2.),
+            ), // 6
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(8., -2.),
+            ), // 7
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(8., -2.),
+            ), // 8
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(8., -2.),
+            ), // 9
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(8., -2.),
+            ), // 10
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(8., -2.),
+            ), // 11
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(8., -2.),
+            ), // 12
+            (
+                Vector2::new(-2., 0.),
+                Vector2::new(6., 6.),
+                Vector2::new(8., -2.),
+            ), // 13
         ];
         let expected_results = vec![
-            Some((Vector2::new(4., 0.), Vector2::new(6., 4.))),                // 1
-            Some((Vector2::new(4., 0.), Vector2::new(6., 6.))),                // 2
-            Some((Vector2::new(4., 0.), Vector2::new(7.3333, 3.3333))),        // 3
-            Some((Vector2::new(6., 6.), Vector2::new(6., 6.))),                // 4
-            Some((Vector2::new(3.6, 4.2), Vector2::new(8., 2.))),              // 5
-            Some((Vector2::new(2.5714, 3.4286), Vector2::new(8., -2.))),       // 6
-            Some((Vector2::new(4., 2.), Vector2::new(8., -2.))),               // 7
-            Some((Vector2::new(1.6364, -0.7273), Vector2::new(-0.6667, 1.))),  // 8
-            Some((Vector2::new(5.1429, -1.4286), Vector2::new(4., 2.))),       // 9
-            Some((Vector2::new(8., -2.), Vector2::new(4., 2.))),               // 10
-            None,                                                              // 11
-            None,                                                              // 12
-            Some((Vector2::new(4., 0.), Vector2::new(-2., 0.))),               // 13
+            Some((Vector2::new(4., 0.), Vector2::new(6., 4.))), // 1
+            Some((Vector2::new(4., 0.), Vector2::new(6., 6.))), // 2
+            Some((Vector2::new(4., 0.), Vector2::new(7.3333, 3.3333))), // 3
+            Some((Vector2::new(6., 6.), Vector2::new(6., 6.))), // 4
+            Some((Vector2::new(3.6, 4.2), Vector2::new(8., 2.))), // 5
+            Some((Vector2::new(2.5714, 3.4286), Vector2::new(8., -2.))), // 6
+            Some((Vector2::new(4., 2.), Vector2::new(8., -2.))), // 7
+            Some((Vector2::new(1.6364, -0.7273), Vector2::new(-0.6667, 1.))), // 8
+            Some((Vector2::new(5.1429, -1.4286), Vector2::new(4., 2.))), // 9
+            Some((Vector2::new(8., -2.), Vector2::new(4., 2.))), // 10
+            None,                                               // 11
+            None,                                               // 12
+            Some((Vector2::new(4., 0.), Vector2::new(-2., 0.))), // 13
         ];
 
-        for (((p1, p2), (t1, t2, t3)), expected) in zip(zip(segments, triangles), expected_results) {
+        for (((p1, p2), (t1, t2, t3)), expected) in zip(zip(segments, triangles), expected_results)
+        {
             let result = super::segment_triangle_intersection(&p1, &p2, &t1, &t2, &t3);
             match (result, expected) {
                 (Some((res1, res2)), Some((exp1, exp2))) => {
-                    assert!((res1 - exp1).norm() < 1e-3 && (res2 - exp2).norm() < 1e-3, "res: ({:?}, {:?}), exp: ({:?}, {:?})", res1, res2, exp1, exp2);
-                },
-                (None, None) => {},
-                _ => panic!("Result and expected do not match: result={result:?}, expected={expected:?}"),
+                    assert!(
+                        (res1 - exp1).norm() < 1e-3 && (res2 - exp2).norm() < 1e-3,
+                        "res: ({:?}, {:?}), exp: ({:?}, {:?})",
+                        res1,
+                        res2,
+                        exp1,
+                        exp2
+                    );
+                }
+                (None, None) => {}
+                _ => panic!(
+                    "Result and expected do not match: result={result:?}, expected={expected:?}"
+                ),
             }
         }
-
     }
-
 }

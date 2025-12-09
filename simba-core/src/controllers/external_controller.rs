@@ -55,7 +55,6 @@ external_config!(
     "external-controller"
 );
 
-
 external_record_python_methods!(
 /// Record for the external controller (generic).
 ///

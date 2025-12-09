@@ -3,7 +3,7 @@ extern crate proc_macro;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{quote, ToTokens};
-use syn::{Data, parse_macro_input, DeriveInput, spanned::Spanned};
+use syn::{parse_macro_input, spanned::Spanned, Data, DeriveInput};
 
 #[proc_macro_derive(ToVec)]
 pub fn derive_tovec(item: TokenStream) -> TokenStream {
@@ -22,8 +22,10 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
                     None => {
                         return syn::Error::new(
                             f.span(),
-                            "ToVec derive macro requires named fields"
-                        ).to_compile_error().into();
+                            "ToVec derive macro requires named fields",
+                        )
+                        .to_compile_error()
+                        .into();
                     }
                 };
                 let id_str = id.to_token_stream().to_string();
@@ -46,13 +48,13 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
                     field_str_list.extend(quote! {, });
                 }
                 field_str_list.extend(quote! {#id_str});
-                
+
                 if enum_first {
                     enum_first = false;
                 } else {
                     field_enum_list.extend(quote! {, });
                 }
-                
+
                 // Generate variant construction with default values for fields
                 match &f.fields {
                     syn::Fields::Unit => {
@@ -71,7 +73,8 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
                             let ty = &field.ty;
                             quote! { #name: <#ty>::default() }
                         });
-                        field_enum_list.extend(quote! {#struct_identifier::#id { #(#field_defaults),* }});
+                        field_enum_list
+                            .extend(quote! {#struct_identifier::#id { #(#field_defaults),* }});
                     }
                 }
             }
@@ -85,10 +88,9 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
             }
         }
         Data::Union(_) => {
-            return syn::Error::new(
-                input.span(),
-                "ToVec derive macro does not support unions"
-            ).to_compile_error().into();
+            return syn::Error::new(input.span(), "ToVec derive macro does not support unions")
+                .to_compile_error()
+                .into();
         }
     }
 
@@ -115,33 +117,35 @@ pub fn derive_enum_to_string(item: TokenStream) -> TokenStream {
     match &input.data {
         Data::Enum(syn::DataEnum { variants, .. }) => {
             if variants.is_empty() {
-                return syn::Error::new(
-                    input.span(),
-                    "EnumToString requires at least one variant"
-                ).to_compile_error().into();
+                return syn::Error::new(input.span(), "EnumToString requires at least one variant")
+                    .to_compile_error()
+                    .into();
             }
             for variant in variants {
                 let id = &variant.ident;
                 let id_str = id.to_string();
-                
+
                 match &variant.fields {
                     syn::Fields::Named(fields) => {
                         // Named fields: Variant { field1, field2, ... }
-                        let field_names: Vec<_> = fields.named.iter()
+                        let field_names: Vec<_> = fields
+                            .named
+                            .iter()
                             .filter_map(|f| f.ident.as_ref())
                             .collect();
-                        
+
                         if field_names.is_empty() {
                             match_impl.extend(quote! {
                                 #struct_identifier::#id { .. } => #id_str.to_string(),
                             });
                         } else {
-                            let debug_format = field_names.iter()
+                            let debug_format = field_names
+                                .iter()
                                 .map(|fname| format!("{}: {{:?}}", fname))
                                 .collect::<Vec<_>>()
                                 .join(", ");
                             let format_str = format!("{} {{ {} }}", id_str, debug_format);
-                            
+
                             match_impl.extend(quote! {
                                 #struct_identifier::#id { #(#field_names),* } => {
                                     format!(#format_str, #(#field_names),*)
@@ -152,7 +156,7 @@ pub fn derive_enum_to_string(item: TokenStream) -> TokenStream {
                     syn::Fields::Unnamed(fields) => {
                         // Unnamed fields: Variant(field1, field2, ...)
                         let field_count = fields.unnamed.len();
-                        
+
                         if field_count == 1 {
                             // Single field: format as "Variant(value)"
                             match_impl.extend(quote! {
@@ -163,11 +167,16 @@ pub fn derive_enum_to_string(item: TokenStream) -> TokenStream {
                         } else {
                             // Multiple fields: format as "Variant(val1, val2, ...)"
                             let field_indices: Vec<_> = (0..field_count)
-                                .map(|i| syn::Ident::new(&format!("field{}", i), proc_macro2::Span::call_site()))
+                                .map(|i| {
+                                    syn::Ident::new(
+                                        &format!("field{}", i),
+                                        proc_macro2::Span::call_site(),
+                                    )
+                                })
                                 .collect();
                             let debug_placeholders = vec!["{:?}"; field_count].join(", ");
                             let format_str = format!("{}({})", id_str, debug_placeholders);
-                            
+
                             match_impl.extend(quote! {
                                 #struct_identifier::#id(#(#field_indices),*) => {
                                     format!(#format_str, #(#field_indices),*)
@@ -187,14 +196,18 @@ pub fn derive_enum_to_string(item: TokenStream) -> TokenStream {
         Data::Struct(_) => {
             return syn::Error::new(
                 input.span(),
-                "EnumToString can only be derived for enums, not structs"
-            ).to_compile_error().into();
+                "EnumToString can only be derived for enums, not structs",
+            )
+            .to_compile_error()
+            .into();
         }
         Data::Union(_) => {
             return syn::Error::new(
                 input.span(),
-                "EnumToString can only be derived for enums, not unions"
-            ).to_compile_error().into();
+                "EnumToString can only be derived for enums, not unions",
+            )
+            .to_compile_error()
+            .into();
         }
     }
 
@@ -224,7 +237,7 @@ enum ConfigDerivesType {
 #[proc_macro_attribute]
 pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as DeriveInput);
-    
+
     // Parse attributes to check for skip_check
     let attr_str = attr.to_string();
 
@@ -244,10 +257,10 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
         let trimmed = attribute.trim();
         match trimmed {
             "skip_check" => {
-                check_derive = quote! { };
+                check_derive = quote! {};
             }
             "skip_deserialize" => {
-                deserialize_derive = quote! { };
+                deserialize_derive = quote! {};
             }
             "tag_content" => {
                 tagged_derive = quote! {  #[serde(tag = "type", content = "config")] };
@@ -256,32 +269,30 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
                 tagged_derive = quote! {  #[serde(untagged)] };
             }
             "skip_unknown_fields" => {
-                unknown_fields_derive = quote! { };
+                unknown_fields_derive = quote! {};
             }
             "skip_jsonschema" => {
-                jsonschema_derive = quote! { };
-                jsonschema_derive_struct = quote! { };
+                jsonschema_derive = quote! {};
+                jsonschema_derive_struct = quote! {};
             }
             "" => {}
             _ => {
                 return syn::Error::new(
                     input.span(),
-                    format!("Unknown attribute '{}' for config_derives", trimmed)
-                ).to_compile_error().into();
+                    format!("Unknown attribute '{}' for config_derives", trimmed),
+                )
+                .to_compile_error()
+                .into();
             }
         }
     }
-   
+
     let struct_or_enum = match &input.data {
-        Data::Struct(_) => {
-            ConfigDerivesType::Struct
-        }
-        Data::Enum(_) => {
-            ConfigDerivesType::Enum
-        }
+        Data::Struct(_) => ConfigDerivesType::Struct,
+        Data::Enum(_) => ConfigDerivesType::Enum,
         _ => ConfigDerivesType::None,
     };
-    
+
     // Conditional attributes for structs vs enums
     let type_only_attrs = if let ConfigDerivesType::Struct = struct_or_enum {
         quote! {
@@ -313,6 +324,6 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
         #type_only_attrs
         #input
     };
-    
+
     output.into()
 }

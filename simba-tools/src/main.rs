@@ -1,5 +1,5 @@
-use std::fs;
 use std::collections::BTreeSet;
+use std::fs;
 
 use clap::Parser;
 
@@ -20,12 +20,10 @@ fn generate_schema(path: String) {
     println!("Schema generated at: {}", path);
 }
 
-
 fn main() {
     let args = Cli::parse();
 
     if let Some(schema_path) = args.generate_schema {
         generate_schema(schema_path);
     }
-
 }

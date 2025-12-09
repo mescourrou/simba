@@ -25,7 +25,7 @@ use crate::{plugin_api::PluginAPI, simulator::SimulatorConfig};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec, config_derives};
+use simba_macros::{config_derives, EnumToString, ToVec};
 
 /// Errors used by the controllers: lateral, orientation and velocity.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

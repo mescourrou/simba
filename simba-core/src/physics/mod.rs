@@ -23,7 +23,7 @@ use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec, config_derives};
+use simba_macros::{config_derives, EnumToString, ToVec};
 
 /// Enumeration of the different physic implementations.
 #[config_derives]

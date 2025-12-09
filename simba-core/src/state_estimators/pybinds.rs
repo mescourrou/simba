@@ -18,7 +18,10 @@ use crate::{
     pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
     recordable::Recordable,
     sensors::Observation,
-    utils::{maths::round_precision, python::{call_py_method, call_py_method_void}, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}
+    utils::{
+        maths::round_precision,
+        python::{call_py_method, call_py_method_void},
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
 

@@ -44,7 +44,9 @@ fn main() {
 use std::sync::Arc;
 
 use crate::{
-    controllers::Controller, navigators::Navigator, physics::Physics, sensors::Sensor, simulator::SimulatorConfig, state_estimators::StateEstimator, utils::{determinist_random_variable::DeterministRandomVariableFactory}
+    controllers::Controller, navigators::Navigator, physics::Physics, sensors::Sensor,
+    simulator::SimulatorConfig, state_estimators::StateEstimator,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 /// Trait to link the simulator to the external implementation.

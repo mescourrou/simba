@@ -147,7 +147,11 @@ impl AdditiveRobotCenteredPhysicsFault {
 impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
     fn add_faults(&self, time: f32, state: &mut State) {
         let mut last_time_draw = self.last_time_draw.lock().unwrap();
-        let delta_time = (time - *last_time_draw) * self.proportionnal_to_velocity.and_then(|f| Some(f*state.velocity)).unwrap_or(1.0);
+        let delta_time = (time - *last_time_draw)
+            * self
+                .proportionnal_to_velocity
+                .and_then(|f| Some(f * state.velocity))
+                .unwrap_or(1.0);
         let mut random_sample = Vec::new();
         for d in self.distributions.lock().unwrap().iter() {
             random_sample.extend_from_slice(&d.gen(time));

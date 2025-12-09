@@ -10,11 +10,6 @@ use super::fault_models::fault_model::{
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
-#[cfg(feature = "gui")]
-use crate::{
-    gui::UIComponent,
-    constants::TIME_ROUND_DECIMALS,
-};
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
@@ -24,6 +19,8 @@ use crate::sensors::sensor_filters::{
 use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
+#[cfg(feature = "gui")]
+use crate::{constants::TIME_ROUND_DECIMALS, gui::UIComponent};
 use config_checker::macros::Check;
 use log::debug;
 use nalgebra::Vector2;
@@ -71,14 +68,10 @@ impl UIComponent for GNSSSensorConfig {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
                     if let Some(p) = &mut self.period {
-
                         if *p <= TIME_ROUND {
                             *p = TIME_ROUND;
                         }
-                        ui.add(
-                            egui::DragValue::new(p)
-                                .max_decimals(TIME_ROUND_DECIMALS),
-                        );
+                        ui.add(egui::DragValue::new(p).max_decimals(TIME_ROUND_DECIMALS));
                         if ui.button("X").clicked() {
                             self.period = None;
                         }

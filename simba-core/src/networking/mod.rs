@@ -72,18 +72,22 @@ mod tests {
             message_handler::MessageHandler,
             network::{Envelope, NetworkConfig},
         },
-        node::{Node, node_factory::RobotConfig},
+        node::{node_factory::RobotConfig, Node},
         plugin_api::PluginAPI,
         recordable::Recordable,
         sensors::{
-            Observation, SensorConfig, robot_sensor::RobotSensorConfig, sensor_manager::{ManagedSensorConfig, SensorManagerConfig}
+            robot_sensor::RobotSensorConfig,
+            sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
+            Observation, SensorConfig,
         },
         simulator::{Simulator, SimulatorConfig},
         state_estimators::{
-            BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig, StateEstimatorRecord, WorldState, external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord}
+            external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
+            BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
+            WorldState,
         },
         utils::{
-            determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision
+            determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
         },
     };
 

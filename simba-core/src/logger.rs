@@ -2,9 +2,9 @@ use std::{fmt::Display, sync::RwLock};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, config_derives};
 #[cfg(feature = "gui")]
 use simba_macros::ToVec;
+use simba_macros::{config_derives, EnumToString};
 
 #[cfg(feature = "gui")]
 use crate::{
