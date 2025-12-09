@@ -84,7 +84,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = ["r", "theta", "orientation"]
+            let possible_variables = ["r", "theta", "orientation", "width", "height"]
                 .iter()
                 .map(|x| String::from(*x))
                 .collect();
@@ -251,13 +251,17 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     let mut r_add = 0.;
                     let mut z_add = 0.;
                     let mut theta_add = 0.;
+                    let mut width_add = 0.;
+                    let mut height_add = 0.;
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
                                 "z" | "orientation" => z_add = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", variable)
+                                "width" => width_add = random_sample[i],
+                                "height" => height_add = random_sample[i],
+                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation, width, height]", variable)
                             }
                         }
                     } else {
@@ -271,6 +275,10 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     o.pose.y += r_add * theta.sin();
                     o.pose.z += z_add;
                     o.pose.z = mod2pi(o.pose.z);
+                    o.width += width_add;
+                    o.width = o.width.max(0.0);
+                    o.height += height_add;
+                    o.height = o.height.max(0.0);
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveObservationCenteredPolar(
                             self.config.clone(),

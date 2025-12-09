@@ -23,7 +23,9 @@ pub struct RangeFilterConfig {
         "w".to_string(),
         "v".to_string(),
         "self_velocity".to_string(),
-        "target_velocity".to_string()]
+        "target_velocity".to_string(),
+        "width".to_string(),
+        "height".to_string(),]
     )))]
     pub variables: Vec<String>,
     pub min_range: Vec<f32>,
@@ -67,6 +69,8 @@ impl UIComponent for RangeFilterConfig {
                 "v",
                 "self_velocity",
                 "target_velocity",
+                "width",
+                "height",
             ]
             .iter()
             .map(|x| String::from(*x))
@@ -214,7 +218,13 @@ impl SensorFilter for RangeFilter {
                         "self_velocity" => {
                             observer_state.velocity >= self.config.min_range[i] && observer_state.velocity <= self.config.max_range[i]
                         }
-                        &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, x, y, z | orientation, self_velocity]", self.config.variables[i])
+                        "width" => {
+                            obs.width >= self.config.min_range[i] && obs.width <= self.config.max_range[i]
+                        }
+                        "height" => {
+                            obs.height >= self.config.min_range[i] && obs.height <= self.config.max_range[i]
+                        }
+                        &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, x, y, z | orientation, self_velocity, width, height]", self.config.variables[i])
                     };
                     if self.config.inside {
                         if !in_range {

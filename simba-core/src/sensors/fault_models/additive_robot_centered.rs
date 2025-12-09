@@ -91,6 +91,8 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                 "velocity_y",
                 "w",
                 "v",
+                "width",
+                "height",
             ]
             .iter()
             .map(|x| String::from(*x))
@@ -266,7 +268,9 @@ impl FaultModel for AdditiveRobotCenteredFault {
                                 "x" => o.pose.x += random_sample[i],
                                 "y" => o.pose.y += random_sample[i],
                                 "z" | "orientation" => o.pose.z += random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]", variable)
+                                "width" => o.width += random_sample[i],
+                                "height" => o.height += random_sample[i],
+                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation, width, height]", variable)
                             }
                         }
                     } else {
@@ -276,6 +280,8 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         o.pose.z += random_sample[2];
                     }
                     o.pose.z = mod2pi(o.pose.z);
+                    o.width = o.width.max(0.0);
+                    o.height = o.height.max(0.0);
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }

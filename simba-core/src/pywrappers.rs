@@ -294,6 +294,10 @@ pub struct OrientedLandmarkObservationWrapper {
     pub pose: Pose,
     /// Applied fault in JSON format
     pub applied_faults: String,
+    /// Width of the landmark
+    pub width: f32,
+    /// Height of the landmark
+    pub height: f32,
 }
 
 #[pymethods]
@@ -307,6 +311,8 @@ impl OrientedLandmarkObservationWrapper {
                 y: 0.,
                 theta: 0.,
             },
+            width: 0.,
+            height: 1.,
             applied_faults: "[]".to_string(),
         }
     }
@@ -322,6 +328,8 @@ impl OrientedLandmarkObservationWrapper {
                 theta: s.pose[2],
             },
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
+            width: s.width,
+            height: s.height,
         }
     }
     pub fn to_rust(&self) -> OrientedLandmarkObservation {
@@ -329,6 +337,8 @@ impl OrientedLandmarkObservationWrapper {
             id: self.id,
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
+            width: self.width,
+            height: self.height,
         }
     }
 }

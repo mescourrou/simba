@@ -8,12 +8,13 @@ use super::fault_models::fault_model::{
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+use crate::utils::geometry::{aligned_points, project_point, segment_circle_intersection, segment_to_line_intersection, segment_triangle_intersection, segments_intersection};
 #[cfg(feature = "gui")]
 use crate::{
     gui::{utils::path_finder, UIComponent},
     constants::TIME_ROUND_DECIMALS,
 };
-use crate::logger::is_enabled;
+use crate::logger::{InternalLog, is_enabled};
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::sensor_filters::{
@@ -24,6 +25,8 @@ use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
+use nalgebra::Vector2;
+use rand_chacha::rand_core::le;
 use serde_derive::{Deserialize, Serialize};
 
 use log::{debug, error};
@@ -31,7 +34,7 @@ extern crate nalgebra as na;
 use na::Vector3;
 use simba_macros::config_derives;
 
-use std::fmt;
+use std::{fmt, vec};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -50,6 +53,8 @@ pub struct OrientedLandmarkSensorConfig {
     pub faults: Vec<FaultModelConfig>,
     #[check]
     pub filters: Vec<SensorFilterConfig>,
+    /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
+    pub xray: bool,
 }
 
 impl Default for OrientedLandmarkSensorConfig {
@@ -60,6 +65,7 @@ impl Default for OrientedLandmarkSensorConfig {
             period: Some(0.1),
             faults: Vec::new(),
             filters: Vec::new(),
+            xray: false,
         }
     }
 }
@@ -112,6 +118,11 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     path_finder(ui, &mut self.map_path, &global_config.base_path);
                 });
 
+                ui.horizontal(|ui| {
+                    ui.label("X-Ray mode:");
+                    ui.checkbox(&mut self.xray, "");
+                });
+
                 SensorFilterConfig::show_filters_mut(
                     &mut self.filters,
                     ui,
@@ -155,6 +166,10 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     ui.label(format!("Map path: {}", self.map_path));
                 });
 
+                ui.horizontal(|ui| {
+                    ui.label(format!("X-Ray mode: {}", self.xray));
+                });
+
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
 
                 FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
@@ -186,6 +201,11 @@ impl UIComponent for OrientedLandmarkSensorRecord {
 pub struct OrientedLandmark {
     pub id: i32,
     pub pose: Vector3<f32>,
+    /// Height of the landmark, used for obstruction checks
+    /// Use 0 for fully transparent landmarks
+    pub height: f32,
+    /// Can be 0 for ponctual landmarks
+    pub width: f32,
 }
 
 use serde::ser::{Serialize, SerializeStruct, Serializer};
@@ -201,6 +221,8 @@ impl Serialize for OrientedLandmark {
         state.serialize_field("x", &self.pose.x)?;
         state.serialize_field("y", &self.pose.y)?;
         state.serialize_field("theta", &self.pose.z)?;
+        state.serialize_field("height", &self.height)?;
+        state.serialize_field("width", &self.width)?;
         state.end()
     }
 }
@@ -217,6 +239,8 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
             X,
             Y,
             Theta,
+            Height,
+            Width,
             Unknown,
         }
 
@@ -236,7 +260,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                     type Value = Field;
 
                     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                        formatter.write_str("`id` or `x` or `y` or `theta`")
+                        formatter.write_str("`id` or `x` or `y` or `theta` or `height` or `width`")
                     }
 
                     fn visit_str<E>(self, value: &str) -> Result<Field, E>
@@ -248,6 +272,8 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                             "x" => Ok(Field::X),
                             "y" => Ok(Field::Y),
                             "theta" => Ok(Field::Theta),
+                            "height" => Ok(Field::Height),
+                            "width" => Ok(Field::Width),
                             _ => Ok(Field::Unknown),
                         }
                     }
@@ -282,9 +308,17 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                 let theta: f32 = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
+                let height: f32 = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(4, &self))?;
+                let width: f32 = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(5, &self))?;
                 Ok(OrientedLandmark {
                     id,
                     pose: Vector3::from_vec(vec![x, y, theta]),
+                    height,
+                    width,
                 })
             }
 
@@ -296,6 +330,8 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                 let mut x = None;
                 let mut y = None;
                 let mut theta = None;
+                let mut height = None;
+                let mut width = None;
 
                 while let Some(key) = map.next_key()? {
                     match key {
@@ -323,33 +359,66 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                             }
                             theta = Some(map.next_value()?);
                         }
+                        Field::Height => {
+                            if height.is_some() {
+                                return Err(de::Error::duplicate_field("height"));
+                            }
+                            height = Some(map.next_value()?);
+                        }
+                        Field::Width => {
+                            if width.is_some() {
+                                return Err(de::Error::duplicate_field("width"));
+                            }
+                            width = Some(map.next_value()?);
+                        }
                         Field::Unknown => {}
                     }
                 }
                 let id = id.ok_or_else(|| de::Error::missing_field("id"))?;
                 let x = x.ok_or_else(|| de::Error::missing_field("x"))?;
                 let y = y.ok_or_else(|| de::Error::missing_field("y"))?;
-                let theta = theta.ok_or_else(|| de::Error::missing_field("theta"))?;
+                let theta = theta.unwrap_or(0.);
+                let height = height.unwrap_or(1.);
+                let width = width.unwrap_or(0.);
                 Ok(OrientedLandmark {
                     id,
                     pose: Vector3::from_vec(vec![x, y, theta]),
+                    height,
+                    width,
                 })
             }
         }
 
-        const FIELDS: &[&str] = &["id", "x", "y", "theta"];
+        const FIELDS: &[&str] = &["id", "x", "y", "theta", "height", "width"];
         deserializer.deserialize_struct("OrientedLandmark", FIELDS, OrientedLandmarkVisitor)
     }
 }
 
 /// Observation of an [`OrientedLandmark`].
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrientedLandmarkObservation {
     /// Id of the landmark
     pub id: i32,
     /// Pose of the landmark
     pub pose: Vector3<f32>,
+    /// Height of the landmark, used for obstruction checks
+    /// Use 0 for fully transparent landmarks
+    pub height: f32,
+    /// Can be 0 for ponctual landmarks
+    pub width: f32,
     pub applied_faults: Vec<FaultModelConfig>,
+}
+
+impl Default for OrientedLandmarkObservation {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            pose: Vector3::new(0., 0., 0.),
+            height: 1.,
+            width: 0.,
+            applied_faults: Vec::new(),
+        }
+    }
 }
 
 impl Recordable<OrientedLandmarkObservationRecord> for OrientedLandmarkObservation {
@@ -357,16 +426,22 @@ impl Recordable<OrientedLandmarkObservationRecord> for OrientedLandmarkObservati
         OrientedLandmarkObservationRecord {
             id: self.id,
             pose: self.pose.into(),
+            height: self.height,
+            width: self.width,
+            applied_faults: self.applied_faults.clone(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OrientedLandmarkObservationRecord {
     /// Id of the landmark
     pub id: i32,
     /// Pose of the landmark
     pub pose: [f32; 3],
+    pub height: f32,
+    pub width: f32,
+    pub applied_faults: Vec<FaultModelConfig>,
 }
 
 #[cfg(feature = "gui")]
@@ -378,6 +453,21 @@ impl UIComponent for OrientedLandmarkObservationRecord {
                 "Pose: ({}, {}, {})",
                 self.pose[0], self.pose[1], self.pose[2]
             ));
+            if self.height <= 0. {
+                ui.label(format!("Height: {}", self.height));
+            }
+            if self.width <= 0. {
+                ui.label(format!("Width: {}", self.width));
+            }
+            if self.applied_faults.is_empty() {
+                ui.label("No applied faults.");
+                return;
+            } else {
+                ui.label("Applied faults:");
+                for fault in &self.applied_faults {
+                    ui.label(format!("{:?}", fault));
+                }
+            }
         });
     }
 }
@@ -401,6 +491,8 @@ pub struct OrientedLandmarkSensor {
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
     filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
+    /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
+    xray: bool,
 }
 
 impl OrientedLandmarkSensor {
@@ -452,6 +544,7 @@ impl OrientedLandmarkSensor {
             last_time: 0.,
             faults: fault_models,
             filters,
+            xray: config.xray,
         };
 
         if config.map_path.is_empty() {
@@ -509,18 +602,259 @@ impl Sensor for OrientedLandmarkSensor {
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
 
+        let state_pos = state.pose.fixed_rows::<2>(0).clone_owned();
+
+        let mut in_range_landmarks = Vec::new();
+
+        // List all landmarks in range
+        // Intersections concerns only non-ponctual landmarks and contains either the intersection
+        // with the detection circle, or extremitie(s) of the landmark segment if inside the
+        // detection circle
         for landmark in &self.landmarks {
             let d = ((landmark.pose.x - state.pose.x).powi(2)
                 + (landmark.pose.y - state.pose.y).powi(2))
             .sqrt();
-            if d <= self.detection_distance {
-                let landmark_seed = 1. / (100. * self.period.unwrap_or(TIME_ROUND)) * (landmark.id as f32);
-                let pose = rotation_matrix.transpose() * (landmark.pose - state.pose);
+            let mut intersections = None;
+            let half_width = landmark.width / 2.0;
+            let dir_vector = Vector2::new(
+                half_width * (landmark.pose.z + std::f32::consts::FRAC_PI_2).cos(),
+                half_width * (landmark.pose.z + std::f32::consts::FRAC_PI_2).sin(),
+            );
+            let pt1 = landmark.pose.fixed_rows::<2>(0).clone_owned() + dir_vector;
+            let pt2 = landmark.pose.fixed_rows::<2>(0).clone_owned() - dir_vector;
+            if d > self.detection_distance {
+                if landmark.width == 0.0 {
+                    continue;
+                }
+               
+                intersections = segment_circle_intersection(&pt1, &pt2, &state_pos, self.detection_distance);
+                if intersections.is_none() {
+                    continue;
+                }
+            } else if landmark.width > 0.0 {
+                intersections = segment_circle_intersection(&pt1, &pt2, &state_pos, self.detection_distance);
+                if intersections.is_none() {
+                    // Entire segment is inside the detection circle
+                    intersections = Some((pt1, pt2));
+                }
+            }
+            
+            // In range landmark
+            // Ponctual one has no intersection
+            // Otherwise, intersection is either with circle or extremities
+            in_range_landmarks.push((landmark, intersections));
+        }
+
+        // Create observations
+        for (landmark, intersections) in &in_range_landmarks {
+            
+            let mut intersections = if let Some((p1, p2)) = intersections {
+                vec![*p1, *p2]
+            } else {
+                vec![landmark.pose.fixed_rows::<2>(0).clone_owned()]
+            };
+            if !self.xray {
+                // Check for obstruction
+                // TODO: use a more efficient algorithm, and less specific case-oriented
+                for (possible_obstruction, possible_intersect) in &in_range_landmarks {
+                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                        debug!("Checking obstruction of landmark {} by landmark {}", landmark.id, possible_obstruction.id);
+                    }
+                    // Cannot obstruct itself
+                    // If obstruction is lower than landmark, cannot obstruct
+                    // If obstruction has no height, cannot obstruct
+                    if possible_obstruction.id == landmark.id || possible_obstruction.height < landmark.height || possible_obstruction.height <= 0.0 {
+                        continue;
+                    }
+                    // Ponctual landmark cannot obstruct
+                    if possible_intersect.is_none() {
+                        continue;
+                    }
+                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                        debug!("Possible obstruction intersection points: {:?}", possible_intersect);
+                    }
+                    let (p1, p2) = possible_intersect.unwrap();
+                    if intersections.len() >= 2 {
+                        assert!(intersections.len() % 2 == 0, "Intersections should be pairs of points.");
+                        if is_enabled(InternalLog::SensorManagerDetailed) {
+                            debug!("Current intersections: {:?}", intersections);
+                        }
+                        let mut new_intersections = Vec::new();
+                        for i in 0..intersections.len()/2 {
+                            // Look at a non-ponctual landmark. Check if the landmark is obstructed by segment
+                            let mut chunk_intersections = intersections[2*i..2*i+2].to_vec();
+                            if let Some((i1, i2)) = segment_triangle_intersection(&p1, &p2, &state_pos, &chunk_intersections[0], &chunk_intersections[1]) {
+                                let projected1 = segment_to_line_intersection(&state_pos, &i1, &chunk_intersections[0], &chunk_intersections[1]);
+                                let projected2 = segment_to_line_intersection(&state_pos, &i2, &chunk_intersections[0], &chunk_intersections[1]);
+                                let chunk_length = (chunk_intersections[1] - chunk_intersections[0]).norm_squared();
+                                if is_enabled(InternalLog::SensorManagerDetailed) {
+                                    debug!("Projected intersections: {:?}, {:?}", projected1, projected2);
+                                    debug!("Triangle intersection: i1: {:?}, i2: {:?}", i1, i2);
+                                }
+                                if projected1.is_none() && projected2.is_none() {
+                                    // No intersection, not obstructed, keep points
+                                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                                        debug!("No intersection after projection, not obstructed, keeping points.");
+                                    }
+                                    new_intersections.extend_from_slice(&chunk_intersections);
+                                    continue;
+                                }
+                                if projected1.is_none() && projected2.is_some() {
+                                    let projected2 = projected2.unwrap();
+                                    let dot2 = (projected2 - chunk_intersections[0]).dot(&(chunk_intersections[1] - chunk_intersections[0]));
+                                    if dot2-1e-3 < 0. || dot2+1e-3 > chunk_length {
+                                        // projected2 is out of segment, not obstructed, keep points
+                                        if is_enabled(InternalLog::SensorManagerDetailed) {
+                                            debug!("Projected2 is out of segment, not obstructed, keeping points.");
+                                        }
+                                        new_intersections.extend_from_slice(&chunk_intersections);
+                                        continue;
+                                    }
+                                    // partially obstructed, keep second part
+                                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                                        debug!("Partially obstructed, keeping second part.");
+                                    }
+                                    new_intersections.push(projected2);
+                                    new_intersections.push(chunk_intersections[1]);
+                                } else if projected1.is_some() && projected2.is_none() {
+                                    let projected1 = projected1.unwrap();
+                                    let dot1 = (projected1 - chunk_intersections[0]).dot(&(chunk_intersections[1] - chunk_intersections[0]));
+                                    if dot1-1e-3 < 0. || dot1+1e-3 > chunk_length {
+                                        // projected1 is out of segment, not obstructed, keep points
+                                        if is_enabled(InternalLog::SensorManagerDetailed) {
+                                            debug!("Projected1 is out of segment, not obstructed, keeping points.");
+                                        }
+                                        new_intersections.extend_from_slice(&chunk_intersections);
+                                        continue;
+                                    }
+                                    // partially obstructed, keep first part
+                                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                                        debug!("Partially obstructed, keeping first part.");
+                                    }
+                                    new_intersections.push(chunk_intersections[0]);
+                                    new_intersections.push(projected1);
+                                } else {
+                                    let projected1 = projected1.unwrap();
+                                    let projected2 = projected2.unwrap();
+                                    let dot1 = (projected1 - chunk_intersections[0]).dot(&(chunk_intersections[1] - chunk_intersections[0]));
+                                    let dot2 = (projected2 - chunk_intersections[0]).dot(&(chunk_intersections[1] - chunk_intersections[0]));
+                                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                                        debug!("Dot products: dot1: {}, dot2: {}, chunk_length: {}", dot1, dot2, chunk_length);
+                                    }
+                                    let inside1 = dot1-1e-3 > 0. && dot1+1e-3 < chunk_length;
+                                    let inside2 = dot2-1e-3 > 0. && dot2+1e-3 < chunk_length;
+                                    if dot1 > dot2 {
+                                        chunk_intersections.swap(0, 1);
+                                    }
+                                    
+                                    if !inside1 && !inside2 {
+                                        if (dot1 < 0. && dot2 < 0.) || (dot1 > chunk_length && dot2 > chunk_length) {
+                                            // both projected points are out of segment, not obstructed, keep points
+                                            if is_enabled(InternalLog::SensorManagerDetailed) {
+                                                debug!("Both projected points are out of segment, not obstructed, keeping points.");
+                                            }
+                                            new_intersections.extend_from_slice(&chunk_intersections);
+                                            continue;
+                                        } else {
+                                            if is_enabled(InternalLog::SensorManagerDetailed) {
+                                                debug!("Projected points are on different sides, fully obstructed, removing points.");
+                                            }
+                                            continue;
+                                        }
+                                    }
+                                    if inside1 && !inside2 {
+                                        // partially obstructed, keep first part
+                                        if (chunk_intersections[0] - projected1).norm() > 1e-3 {
+                                            if is_enabled(InternalLog::SensorManagerDetailed) {
+                                                debug!("Partially obstructed, keeping first part.");
+                                            }
+                                            new_intersections.push(chunk_intersections[0]);
+                                            new_intersections.push(projected1);
+                                        }
+                                        continue;
+                                    }
+                                    if !inside1 && inside2 {
+                                        // partially obstructed, keep second part
+                                        if (chunk_intersections[1] - projected2).norm() > 1e-3 {
+                                            if is_enabled(InternalLog::SensorManagerDetailed) {
+                                                debug!("Partially obstructed, keeping second part.");
+                                            }
+                                            new_intersections.push(projected2);
+                                            new_intersections.push(chunk_intersections[1]);
+                                        }
+                                        continue;
+                                    }
+                                    // both inside, keep external parts
+                                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                                        debug!("Partially obstructed, keeping external parts.");
+                                    }
+
+                                    if (chunk_intersections[0] - projected1).norm() > 1e-3 {
+                                        new_intersections.push(chunk_intersections[0]);
+                                        new_intersections.push(projected1);
+                                    }
+                                    if (chunk_intersections[1] - projected2).norm() > 1e-3 {
+                                        new_intersections.push(projected2);
+                                        new_intersections.push(chunk_intersections[1]);
+                                    }
+
+                                }
+                            } else {
+                                // else: no intersection, not obstructed, keep points
+                                new_intersections.extend_from_slice(&chunk_intersections);
+                            }
+
+                        }
+                        intersections = new_intersections;
+                    } else if intersections.len() == 1 {
+                        // Try to look at a ponctual landmark, check if segment intersects obstruction
+                        if let Some(_) = segments_intersection(
+                            &state_pos,
+                            &intersections[0],
+                            &p1,
+                            &p2,
+                        ) {
+                            // Obstructed, remove point
+                            intersections.clear();
+                            break;
+                        }
+                    }
+
+                }
+                if is_enabled(InternalLog::SensorManagerDetailed) {
+                    debug!("Intersections after obstruction checks: {:?}", intersections);
+                }
+                if intersections.is_empty() {
+                    // Fully obstructed
+                    continue;
+                }
+            }
+
+            let mut observed_poses = Vec::new();
+            let mut observed_width = Vec::new();
+            if intersections.len() == 1 {
+                observed_poses.push(intersections[0].clone().insert_row(2, landmark.pose.z));
+                observed_width.push(0.0);
+            } else {
+                for i in 0..intersections.len()/2 {
+                    let chunk_intersections = &intersections[2*i..2*i+2];
+                    let p1 = chunk_intersections[0];
+                    let p2 = chunk_intersections[1];
+                    observed_poses.push(Vector3::new(0.5*(p1.x + p2.x), 0.5*(p1.y + p2.y), landmark.pose.z));
+                    observed_width.push((p2 - p1).norm());
+                }
+            }
+
+            for (i, (pose, width)) in observed_poses.iter().zip(observed_width.iter()).enumerate() {
+                let landmark_seed = (i+1) as f32 / (100. * self.period.unwrap_or(TIME_ROUND)) * ((landmark.id + 1) as f32);
+                let pose = rotation_matrix.transpose() * (pose - state.pose);
                 let mut new_obs = Vec::new();
                 let obs = SensorObservation::OrientedLandmark(OrientedLandmarkObservation {
                     id: landmark.id,
                     pose,
                     applied_faults: Vec::new(),
+                    height: landmark.height,
+                    width: *width,
                 });
                 if let Some(observation) = self
                     .filters
@@ -542,9 +876,11 @@ impl Sensor for OrientedLandmarkSensor {
                     }
                     observation_list.extend(new_obs);
                 } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-                    debug!("Observation of landmark {} was filtered out", landmark.id);
+                    debug!("Observation {i} of landmark {} was filtered out", landmark.id);
                 }
+                
             }
+
         }
         self.last_time = time;
         observation_list

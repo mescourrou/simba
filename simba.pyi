@@ -93,6 +93,8 @@ class OrientedLandmarkObservation:
         self.id: int
         self.pose: Pose
         self.applied_faults: str """ Applied faults in JSON format """
+        self.width: float
+        self.height: float
 
 class OdometryObservation:
     def __init__(self):
