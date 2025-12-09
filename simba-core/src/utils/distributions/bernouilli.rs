@@ -12,9 +12,6 @@ use crate::utils::format_f32;
 /// Configuration for a uniform random variable.
 #[config_derives]
 pub struct BernouilliRandomVariableConfig {
-    /// Random seed for this random variable.
-    #[serde(serialize_with = "format_f32")]
-    pub unique_seed: f32,
     /// Probabilities of the random variable
     pub probability: Vec<f32>,
 }
@@ -22,7 +19,6 @@ pub struct BernouilliRandomVariableConfig {
 impl Default for BernouilliRandomVariableConfig {
     fn default() -> Self {
         Self {
-            unique_seed: 0.,
             probability: vec![1.],
         }
     }
@@ -59,8 +55,6 @@ impl UIComponent for BernouilliRandomVariableConfig {
                     self.probability.push(1.0);
                 }
             });
-            ui.label("Seed: ");
-            seed_generation_component(&mut self.unique_seed, ui, buffer_stack, unique_id);
         });
     }
 
@@ -73,25 +67,24 @@ impl UIComponent for BernouilliRandomVariableConfig {
                     });
                 }
             });
-            ui.label(format!("Seed: {}", self.unique_seed));
         });
     }
 }
 
 #[derive(Debug)]
 pub struct DeterministBernouilliRandomVariable {
-    /// Seed used, which is the global seed from the factory + the unique seed from the configuration.
-    global_seed: f32,
+    /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
+    my_seed: f32,
     /// Probability of the bernouilli distribution.
     probability: Vec<f32>,
 }
 
 impl DeterministBernouilliRandomVariable {
-    pub fn from_config(global_seed: f32, config: BernouilliRandomVariableConfig) -> Self {
+    pub fn from_config(my_seed: f32, config: BernouilliRandomVariableConfig) -> Self {
         assert!(config.probability.iter().all(|x| *x <= 1.));
         assert!(config.probability.iter().all(|x| *x >= 0.));
         Self {
-            global_seed: global_seed + config.unique_seed,
+            my_seed,
             probability: config.probability,
         }
     }
@@ -99,7 +92,7 @@ impl DeterministBernouilliRandomVariable {
 
 impl DeterministRandomVariable for DeterministBernouilliRandomVariable {
     fn gen(&self, time: f32) -> Vec<f32> {
-        let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + time).to_bits() as u64);
+        let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
         for p in &self.probability {
             v.push(if rng.gen::<f32>() <= *p { 1. } else { 0. });

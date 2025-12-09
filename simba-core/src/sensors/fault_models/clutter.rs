@@ -40,11 +40,9 @@ impl Default for ClutterFaultConfig {
         Self {
             apparition: RandomVariableTypeConfig::Poisson(PoissonRandomVariableConfig {
                 lambda: vec![10.],
-                unique_seed: 0.,
             }),
             distributions: vec![RandomVariableTypeConfig::Uniform(
                 UniformRandomVariableConfig {
-                    unique_seed: 0.,
                     min: vec![-10., -10.],
                     max: vec![10., 10.],
                 },

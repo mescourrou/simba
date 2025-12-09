@@ -15,9 +15,6 @@ use crate::utils::format_f32;
 /// Configuration for a uniform random variable.
 #[config_derives]
 pub struct UniformRandomVariableConfig {
-    /// Random seed for this random variable.
-    #[serde(serialize_with = "format_f32")]
-    pub unique_seed: f32,
     /// Minimum value of the uniform distribution.
     pub min: Vec<f32>,
     /// Maximum value of the uniform distribution.
@@ -27,7 +24,6 @@ pub struct UniformRandomVariableConfig {
 impl Default for UniformRandomVariableConfig {
     fn default() -> Self {
         Self {
-            unique_seed: random(),
             min: vec![-1.],
             max: vec![1.],
         }
@@ -46,8 +42,6 @@ impl UIComponent for UniformRandomVariableConfig {
         unique_id: &str,
     ) {
         ui.horizontal_top(|ui| {
-            use crate::utils::determinist_random_variable::seed_generation_component;
-
             ui.vertical(|ui| {
                 let mut to_remove = None;
                 for (i, (min, max)) in
@@ -72,8 +66,6 @@ impl UIComponent for UniformRandomVariableConfig {
                     self.max.push(1.);
                 }
             });
-            ui.label("Seed: ");
-            seed_generation_component(&mut self.unique_seed, ui, buffer_stack, unique_id);
         });
     }
 
@@ -87,7 +79,6 @@ impl UIComponent for UniformRandomVariableConfig {
                     });
                 }
             });
-            ui.label(format!("Seed: {}", self.unique_seed));
         });
     }
 }
@@ -95,8 +86,8 @@ impl UIComponent for UniformRandomVariableConfig {
 /// Random variable which return a random value between a min and a max, with a uniform distribution.
 #[derive(Debug)]
 pub struct DeterministUniformRandomVariable {
-    /// Seed used, which is the global seed from the factory + the unique seed from the configuration.
-    global_seed: f32,
+    /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
+    my_seed: f32,
     /// Minimum value of the uniform distribution.
     min: Vec<f32>,
     /// Maximum value of the uniform distribution.
@@ -104,13 +95,13 @@ pub struct DeterministUniformRandomVariable {
 }
 
 impl DeterministUniformRandomVariable {
-    pub fn from_config(global_seed: f32, config: UniformRandomVariableConfig) -> Self {
+    pub fn from_config(my_seed: f32, config: UniformRandomVariableConfig) -> Self {
         assert!(config.max.len() == config.min.len());
         for (min, max) in zip(&config.min, &config.max) {
             assert!(min <= max);
         }
         Self {
-            global_seed: global_seed + config.unique_seed,
+            my_seed,
             min: config.min,
             max: config.max,
         }
@@ -119,7 +110,7 @@ impl DeterministUniformRandomVariable {
 
 impl DeterministRandomVariable for DeterministUniformRandomVariable {
     fn gen(&self, time: f32) -> Vec<f32> {
-        let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + time).to_bits() as u64);
+        let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
         for (min, max) in zip(&self.min, &self.max) {
             v.push(min + rng.gen::<f32>() * (max - min));

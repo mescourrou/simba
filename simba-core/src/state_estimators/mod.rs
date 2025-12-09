@@ -35,6 +35,7 @@ pub mod python_estimator;
 
 extern crate nalgebra as na;
 use config_checker::macros::Check;
+use libm::atan2f;
 use na::SVector;
 
 extern crate confy;
@@ -52,6 +53,8 @@ pub struct StateConfig {
     /// Linear velocity
     #[check(ge(0.))]
     pub velocity: f32,
+    pub random: Vec<RandomVariableTypeConfig>,
+    pub variable_order: Vec<String>,
 }
 
 impl Default for StateConfig {
@@ -59,6 +62,8 @@ impl Default for StateConfig {
         Self {
             pose: vec![0., 0., 0.],
             velocity: 0.,
+            random: Vec::new(),
+            variable_order: Vec::new(),
         }
     }
 }
@@ -68,11 +73,11 @@ impl UIComponent for StateConfig {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        _unique_id: &str,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &str,
     ) {
         ui.horizontal(|ui| {
             ui.label("x: ");
@@ -90,9 +95,52 @@ impl UIComponent for StateConfig {
             ui.label("v: ");
             ui.add(egui::DragValue::new(&mut self.velocity).max_decimals(10));
         });
+        egui::CollapsingHeader::new("Random State")
+        .id_salt("state-config-random-variable")
+        .show(ui, |ui| {
+            RandomVariableTypeConfig::show_vector_mut(
+                &mut self.random,
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            );
+            let possible_variables = [
+                "x",
+                "y",
+                "orientation",
+                "velocity",
+                "v",
+                "r",
+                "theta",
+            ]
+            .iter()
+            .map(|x| String::from(*x))
+            .collect();
+            ui.horizontal(|ui| {
+                ui.label("Variable order:");
+                for (i, var) in self.variable_order.iter_mut().enumerate() {
+                    let unique_var_id = format!("variable-{i}-{unique_id}");
+                    string_combobox(ui, &possible_variables, var, unique_var_id);
+                }
+                if !self.variable_order.is_empty() && ui.button("-").clicked() {
+                    self.variable_order.pop();
+                }
+                if ui.button("+").clicked() {
+                    self.variable_order.push(
+                        possible_variables
+                            .get(self.variable_order.len().min(possible_variables.len()))
+                            .unwrap()
+                            .clone(),
+                    );
+                }
+            });
+        });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.horizontal(|ui| {
             ui.label(format!("x: {}", self.pose.first().unwrap()));
         });
@@ -104,6 +152,13 @@ impl UIComponent for StateConfig {
         });
         ui.horizontal(|ui| {
             ui.label(format!("v: {}", self.velocity));
+        });
+        RandomVariableTypeConfig::show_vector(&self.random, ui, ctx, unique_id);
+        ui.horizontal(|ui| {
+            ui.label("Variable order:");
+            for var in self.variable_order.iter() {
+                ui.label(format!("{}, ", var));
+            }
         });
     }
 }
@@ -172,9 +227,8 @@ impl State {
     }
 
     /// Load a [`State`] from the `config` ([`StateConfig`]).
-    pub fn from_config(config: &StateConfig) -> Self {
+    pub fn from_config(config: &StateConfig, va_factory: &Arc<DeterministRandomVariableFactory>) -> Self {
         let mut state = Self::new();
-
         for (i, coord) in config.pose.iter().enumerate() {
             if i >= 3 {
                 break;
@@ -182,6 +236,35 @@ impl State {
             state.pose[i] = *coord;
         }
         state.velocity = config.velocity;
+        let mut i = 0;
+        let mut add_r = 0.;
+        let mut add_theta = 0.;
+        for rv_config in config.random.iter() {
+            let rv = va_factory.make_variable(rv_config.clone());
+            let sampled_value = rv.gen(0.);
+            for sample in sampled_value {
+                assert!(i < config.variable_order.len(), "The variable_order length ({}) is smaller than the number of random variables sampled ({}).", config.variable_order.len(), i + 1);
+                match config.variable_order[i].as_str() {
+                    "x" => state.pose[0] += sample,
+                    "y" => state.pose[1] += sample,
+                    "orientation" => state.pose[2] += sample,
+                    "velocity" | "v" => state.velocity += sample,
+                    "r" => add_r += sample,
+                    "theta" => add_theta += sample,
+                    _ => panic!("Unknown variable name in variable_order ({}), should be in [x, y, orientation, velocity | v, r, theta]", config.variable_order[i]),
+                }
+                i += 1;
+            }
+        }
+
+        if i != 0 && (add_r != 0. || add_theta != 0.) {
+            state.pose.z += add_theta;
+            state.pose.z = mod2pi(state.pose.z);
+            state.pose.x += add_r * state.pose.z.cos();
+            state.pose.y += add_r * state.pose.z.sin();
+        }
+
+
         state
     }
 
@@ -308,7 +391,7 @@ use crate::gui::{
     utils::{string_combobox, text_singleline_with_apply},
     UIComponent,
 };
-use crate::networking::message_handler::MessageHandler;
+use crate::{networking::message_handler::MessageHandler, utils::determinist_random_variable::RandomVariableTypeConfig};
 use crate::node::Node;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;

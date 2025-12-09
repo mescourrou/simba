@@ -40,7 +40,6 @@ robots:
     - type: AdditiveRobotCentered
       distributions:
       - type: Normal
-        unique_seed: 0.7968901991844177
         mean:
         - 0.0
         - 0.0
@@ -77,12 +76,10 @@ robots:
         faults:
         - type: AdditiveRobotCentered
           apparition:
-            unique_seed: 0.0
             probability:
             - 1.0
           distributions:
           - type: Normal
-            unique_seed: 95698.953125
             mean:
             - 0.0
             - 0.0
@@ -130,11 +127,17 @@ robots:
       type: Unicycle
       wheel_distance: 0.25
     initial_state:
-      pose:
-      - 0.0
-      - 0.0
-      - 0.0
-      velocity: 0.0
+      random:
+        - type: Uniform
+          min:
+          - -5.0
+          - -5.0
+          - -3.1416
+          max:
+          - 5.0
+          - 5.0
+          - 3.1416
+      variable_order: [x, y, orientation]
     faults: []
   state_estimator: 
     type: Perfect

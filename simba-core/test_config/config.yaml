@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../config.schema.json
 log:
-  log_level: {type: Off}
+  log_level: {type: Debug}
 time_analysis:
   exporter: 
     type: TraceEventExporter
@@ -37,7 +37,6 @@ robots:
                 variable_order: [x, y, orientation]
                 distributions:
                   - type: Normal
-                    unique_seed: 95698.956258563245
                     mean: [0, 0, 0]
                     covariance: [0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01]
                     

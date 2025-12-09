@@ -13,9 +13,6 @@ use crate::utils::format_f32;
 /// Configuration for a normal random variable.
 #[config_derives]
 pub struct NormalRandomVariableConfig {
-    /// Random seed for this random variable.
-    #[serde(serialize_with = "format_f32")]
-    unique_seed: f32,
     /// Mean of the normal distribution.
     mean: Vec<f64>,
     /// Variance of the normal distribution.
@@ -25,7 +22,6 @@ pub struct NormalRandomVariableConfig {
 impl Default for NormalRandomVariableConfig {
     fn default() -> Self {
         Self {
-            unique_seed: random(),
             mean: vec![0.],
             covariance: vec![1.],
         }
@@ -44,8 +40,6 @@ impl UIComponent for NormalRandomVariableConfig {
         unique_id: &str,
     ) {
         ui.horizontal_top(|ui| {
-            use crate::utils::determinist_random_variable::seed_generation_component;
-
             ui.vertical(|ui| {
                 let mut to_remove = None;
                 for (i, p) in self.mean.iter_mut().enumerate() {
@@ -106,8 +100,6 @@ impl UIComponent for NormalRandomVariableConfig {
                     }
                 });
             });
-            ui.label("Seed: ");
-            seed_generation_component(&mut self.unique_seed, ui, buffer_stack, unique_id);
         });
     }
 
@@ -140,7 +132,6 @@ impl UIComponent for NormalRandomVariableConfig {
                     }
                 });
             });
-            ui.label(format!("Seed: {}", self.unique_seed));
         });
     }
 }
@@ -148,20 +139,20 @@ impl UIComponent for NormalRandomVariableConfig {
 /// Random variable which return a random value following a normal distribution.
 #[derive(Debug)]
 pub struct DeterministNormalRandomVariable {
-    /// Seed used, which is the global seed from the factory + the unique seed from the configuration.
-    global_seed: f32,
+    /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
+    my_seed: f32,
     /// Normal distribution.
     nd: MultivariateNormal,
 }
 
 impl DeterministNormalRandomVariable {
-    pub fn from_config(global_seed: f32, config: NormalRandomVariableConfig) -> Self {
+    pub fn from_config(my_seed: f32, config: NormalRandomVariableConfig) -> Self {
         assert!(
             config.mean.len().pow(2) == config.covariance.len(),
             "The length of the covariance vector should be the square of the means' one."
         );
         Self {
-            global_seed: global_seed + config.unique_seed,
+            my_seed,
             nd: MultivariateNormal::new(config.mean, config.covariance)
                 .expect("Impossible to create the normal distribution"),
         }
@@ -170,7 +161,7 @@ impl DeterministNormalRandomVariable {
 
 impl DeterministRandomVariable for DeterministNormalRandomVariable {
     fn gen(&self, time: f32) -> Vec<f32> {
-        let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + time).to_bits() as u64);
+        let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         self.nd.sample(&mut rng).iter().map(|x| *x as f32).collect()
     }
 

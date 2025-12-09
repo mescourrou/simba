@@ -40,7 +40,6 @@ robots:
     - type: AdditiveRobotCentered
       distributions:
       - type: Normal
-        unique_seed: 0.7968901991844177
         mean:
         - 0.0
         - 0.0
@@ -77,12 +76,11 @@ robots:
         faults:
         - type: AdditiveRobotCentered
           apparition:
-            unique_seed: 0.0
             probability:
             - 1.0
           distributions:
           - type: Normal
-            unique_seed: 95698.953125
+
             mean:
             - 0.0
             - 0.0

@@ -20,7 +20,9 @@ Other types can be added in the future.
 use std::sync::Mutex;
 
 use config_checker::macros::Check;
-use rand::random;
+use log::debug;
+use rand::{Rng, SeedableRng, random};
+use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use simba_macros::{EnumToString, config_derives};
 
@@ -39,6 +41,7 @@ use super::distributions::{
 pub struct DeterministRandomVariableFactory {
     /// Global run seed.
     global_seed: Mutex<f32>,
+    seed_generator: Mutex<ChaCha8Rng>,
 }
 
 impl DeterministRandomVariableFactory {
@@ -46,6 +49,7 @@ impl DeterministRandomVariableFactory {
     pub fn new(global_seed: f32) -> Self {
         Self {
             global_seed: Mutex::new(global_seed),
+            seed_generator: Mutex::new(ChaCha8Rng::seed_from_u64(global_seed.to_bits() as u64)),
         }
     }
 
@@ -54,28 +58,29 @@ impl DeterministRandomVariableFactory {
         &self,
         config: RandomVariableTypeConfig,
     ) -> Box<dyn DeterministRandomVariable> {
+        let local_seed = self.seed_generator.lock().unwrap().gen::<f32>() * 1000000.;
         match config {
             RandomVariableTypeConfig::None => {
                 Box::new(DeterministFixedRandomVariable::from_config(
-                    *self.global_seed.lock().unwrap(),
+                    local_seed,
                     FixedRandomVariableConfig::default(),
                 ))
             }
             RandomVariableTypeConfig::Fixed(c) => Box::new(
-                DeterministFixedRandomVariable::from_config(*self.global_seed.lock().unwrap(), c),
+                DeterministFixedRandomVariable::from_config(local_seed, c),
             ),
             RandomVariableTypeConfig::Uniform(c) => Box::new(
-                DeterministUniformRandomVariable::from_config(*self.global_seed.lock().unwrap(), c),
+                DeterministUniformRandomVariable::from_config(local_seed, c),
             ),
             RandomVariableTypeConfig::Normal(c) => Box::new(
-                DeterministNormalRandomVariable::from_config(*self.global_seed.lock().unwrap(), c),
+                DeterministNormalRandomVariable::from_config(local_seed, c),
             ),
             RandomVariableTypeConfig::Poisson(c) => Box::new(
-                DeterministPoissonRandomVariable::from_config(*self.global_seed.lock().unwrap(), c),
+                DeterministPoissonRandomVariable::from_config(local_seed, c),
             ),
             RandomVariableTypeConfig::Exponential(c) => {
                 Box::new(DeterministExponentialRandomVariable::from_config(
-                    *self.global_seed.lock().unwrap(),
+                    local_seed,
                     c,
                 ))
             }
@@ -84,6 +89,7 @@ impl DeterministRandomVariableFactory {
 
     pub fn set_global_seed(&self, seed: f32) {
         *self.global_seed.lock().unwrap() = seed;
+        *self.seed_generator.lock().unwrap() = ChaCha8Rng::seed_from_u64(seed.to_bits() as u64);
     }
 
     pub fn global_seed(&self) -> f32 {
@@ -93,8 +99,10 @@ impl DeterministRandomVariableFactory {
 
 impl Default for DeterministRandomVariableFactory {
     fn default() -> Self {
+        let global_seed = random::<f32>() * 1000000.;
         Self {
-            global_seed: Mutex::new(random()),
+            global_seed: Mutex::new(global_seed),
+            seed_generator: Mutex::new(ChaCha8Rng::seed_from_u64(global_seed.to_bits() as u64)),
         }
     }
 }

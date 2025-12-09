@@ -164,7 +164,7 @@ impl InternalPhysics {
         let current_command = model.default_command();
         InternalPhysics {
             model,
-            state: State::from_config(&config.initial_state),
+            state: State::from_config(&config.initial_state, va_factory),
             last_time_update: 0.,
             current_command,
             faults: Arc::new(Mutex::new(

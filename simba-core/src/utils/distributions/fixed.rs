@@ -72,7 +72,7 @@ pub struct DeterministFixedRandomVariable {
 }
 
 impl DeterministFixedRandomVariable {
-    pub fn from_config(_global_seed: f32, config: FixedRandomVariableConfig) -> Self {
+    pub fn from_config(_my_seed: f32, config: FixedRandomVariableConfig) -> Self {
         Self {
             values: config.values,
         }
