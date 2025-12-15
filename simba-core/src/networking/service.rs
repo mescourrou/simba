@@ -211,17 +211,14 @@ impl<
     pub fn delete(&mut self) {
         *self.living.write().unwrap() = false;
         for client in self.clients.values() {
-            client
-                .lock()
-                .unwrap()
-                .send(ServiceResponse {
-                    response: Err(SimbaError::new(
-                        SimbaErrorTypes::ServiceError(ServiceError::Closed),
-                        "Closing channel".to_string(),
-                    )),
-                    flags: vec![MessageFlag::Unsubscribe],
-                })
-                .unwrap();
+            // If the client is closed, ignore the error
+            let _ = client.lock().unwrap().send(ServiceResponse {
+                response: Err(SimbaError::new(
+                    SimbaErrorTypes::ServiceError(ServiceError::Closed),
+                    "Closing channel".to_string(),
+                )),
+                flags: vec![MessageFlag::Unsubscribe],
+            });
         }
     }
 }

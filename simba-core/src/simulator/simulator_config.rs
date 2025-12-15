@@ -12,6 +12,7 @@ use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::LoggerConfig,
     node::node_factory::{ComputationUnitConfig, RobotConfig},
+    scenario::config::ScenarioConfig,
     simulator::ResultConfig,
     time_analysis::TimeAnalysisConfig,
     utils::{self, format_option_f32},
@@ -61,6 +62,8 @@ pub struct SimulatorConfig {
     pub robots: Vec<RobotConfig>,
     #[check]
     pub computation_units: Vec<ComputationUnitConfig>,
+    #[check]
+    pub scenario: ScenarioConfig,
 }
 
 impl Default for SimulatorConfig {
@@ -76,6 +79,7 @@ impl Default for SimulatorConfig {
             robots: Vec::new(),
             computation_units: Vec::new(),
             max_time: 60.,
+            scenario: ScenarioConfig::default(),
         }
     }
 }

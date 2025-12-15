@@ -269,9 +269,7 @@ impl StateEstimator for PerfectEstimator {
         self.last_time_prediction = time;
     }
 
-    fn correction_step(&mut self, _node: &mut Node, _observations: &[Observation], _time: f32) {
-        info!("Got observations at time {_time}: {:?}", _observations);
-    }
+    fn correction_step(&mut self, _node: &mut Node, _observations: &[Observation], _time: f32) {}
 
     fn world_state(&self) -> WorldState {
         self.world_state.clone()

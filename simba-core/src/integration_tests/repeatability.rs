@@ -29,15 +29,31 @@ macro_rules! replication_test {
             }
 
             let reference_result = &results[0];
-            assert!(!reference_result.is_empty());
-            for result in results.iter().skip(1) {
-                assert_eq!(result.len(), reference_result.len());
+            println!(
+                "Reference last time: {}",
+                reference_result.last().unwrap().time
+            );
+            assert!(!reference_result.is_empty(), "No result recorded !");
+            for (i, result) in results.iter().skip(1).enumerate() {
+                println!(
+                    "Result {} last time: {}",
+                    i + 2,
+                    result.last().unwrap().time
+                );
+                assert_eq!(
+                    result.len(),
+                    reference_result.len(),
+                    "Different number of recorded entries ! (run {})",
+                    i + 2
+                );
                 for (j, ref_result) in reference_result.iter().enumerate() {
                     let result_as_str = format!("{:?}", result[j]);
                     let reference_result_as_str = format!("{:?}", ref_result);
                     assert_eq!(
-                        result_as_str, reference_result_as_str,
-                        "{result_as_str} != {reference_result_as_str}"
+                        result_as_str,
+                        reference_result_as_str,
+                        "{result_as_str} != {reference_result_as_str} (run {})",
+                        i + 2
                     );
                 }
             }
@@ -46,3 +62,4 @@ macro_rules! replication_test {
 }
 
 replication_test!(config);
+replication_test!(scenario);

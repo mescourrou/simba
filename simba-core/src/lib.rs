@@ -48,6 +48,7 @@ simulator.compute_results().unwrap();
 
 use pyo3::prelude::*;
 
+pub mod config;
 pub mod controllers;
 pub mod logger;
 pub mod navigators;
@@ -55,6 +56,7 @@ pub mod networking;
 pub mod node;
 pub mod physics;
 pub mod recordable;
+pub mod scenario;
 pub mod sensors;
 pub mod simulator;
 pub mod state_estimators;

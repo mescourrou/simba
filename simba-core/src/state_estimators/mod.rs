@@ -258,7 +258,10 @@ impl State {
             state.pose.x += add_r * state.pose.z.cos();
             state.pose.y += add_r * state.pose.z.sin();
         }
-
+        println!(
+            "Initialized state: x={}, y={}, θ={}, v={}",
+            state.pose.x, state.pose.y, state.pose.z, state.velocity
+        );
         state
     }
 

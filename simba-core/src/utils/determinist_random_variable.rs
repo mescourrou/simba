@@ -47,6 +47,10 @@ pub struct DeterministRandomVariableFactory {
 impl DeterministRandomVariableFactory {
     /// Create a new factory with the given `global_seed`.
     pub fn new(global_seed: f32) -> Self {
+        println!(
+            "Setting new global seed for DeterministRandomVariableFactory: {}",
+            global_seed
+        );
         Self {
             global_seed: Mutex::new(global_seed),
             seed_generator: Mutex::new(ChaCha8Rng::seed_from_u64(global_seed.to_bits() as u64)),
@@ -59,6 +63,11 @@ impl DeterministRandomVariableFactory {
         config: RandomVariableTypeConfig,
     ) -> Box<dyn DeterministRandomVariable> {
         let local_seed = self.seed_generator.lock().unwrap().gen::<f32>() * 1000000.;
+        println!(
+            "New variable with local seed: {} (global seed: {})",
+            local_seed,
+            self.global_seed()
+        );
         match config {
             RandomVariableTypeConfig::None => {
                 Box::new(DeterministFixedRandomVariable::from_config(
@@ -86,6 +95,10 @@ impl DeterministRandomVariableFactory {
 
     pub fn set_global_seed(&self, seed: f32) {
         *self.global_seed.lock().unwrap() = seed;
+        println!(
+            "Setting new global seed for DeterministRandomVariableFactory: {}",
+            seed
+        );
         *self.seed_generator.lock().unwrap() = ChaCha8Rng::seed_from_u64(seed.to_bits() as u64);
     }
 
@@ -97,6 +110,10 @@ impl DeterministRandomVariableFactory {
 impl Default for DeterministRandomVariableFactory {
     fn default() -> Self {
         let global_seed = random::<f32>() * 1000000.;
+        println!(
+            "Setting (random) new global seed for DeterministRandomVariableFactory: {}",
+            global_seed
+        );
         Self {
             global_seed: Mutex::new(global_seed),
             seed_generator: Mutex::new(ChaCha8Rng::seed_from_u64(global_seed.to_bits() as u64)),
@@ -125,6 +142,12 @@ pub enum RandomVariableTypeConfig {
     Normal(NormalRandomVariableConfig),
     Poisson(PoissonRandomVariableConfig),
     Exponential(ExponentialRandomVariableConfig),
+}
+
+impl Default for RandomVariableTypeConfig {
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 #[cfg(feature = "gui")]

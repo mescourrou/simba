@@ -5,12 +5,12 @@ use crate::{node::node_factory::NodeType, state_estimators::State};
 // The server is on Node side
 #[derive(Debug)]
 pub struct NodeServer {
-    pub state_update: Option<Sender<(f32, State)>>,
+    pub state_update: Option<Sender<(f32, (State, bool))>>,
 }
 
 #[derive(Debug)]
 pub struct NodeClient {
-    pub state_update: Option<Receiver<(f32, State)>>,
+    pub state_update: Option<Receiver<(f32, (State, bool))>>,
 }
 
 pub fn make_node_api(node_type: &NodeType) -> (NodeServer, NodeClient) {

@@ -87,6 +87,7 @@ pub enum InternalLog {
     NodeSyncDetailed,
     API,
     NavigatorDetailed,
+    Scenario,
 }
 
 #[config_derives]

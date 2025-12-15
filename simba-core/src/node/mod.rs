@@ -13,6 +13,7 @@ use std::sync::{Arc, Mutex, RwLock};
 use log::{debug, info};
 
 use crate::networking::message_handler::MessageHandler;
+use crate::state_estimators::State;
 use crate::time_analysis::TimeAnalysisNode;
 use crate::{
     api::internal_api::{self, NodeClient, NodeServer},
@@ -229,7 +230,10 @@ impl Node {
                 .state_update
                 .as_ref()
                 .unwrap()
-                .send((time, physics.read().unwrap().state(time).clone()))
+                .send((
+                    time,
+                    (physics.read().unwrap().state(time).clone(), self.zombie),
+                ))
                 .unwrap();
         }
 
@@ -676,7 +680,7 @@ impl Node {
         self.zombie = true;
     }
 
-    pub fn kill(&mut self) {
+    pub fn kill(&mut self, time: f32) {
         self.zombie = true;
         if let Some(network) = &self.network {
             network.write().unwrap().unsubscribe_node().unwrap();
@@ -684,6 +688,14 @@ impl Node {
         if let Some(service_manager) = &self.service_manager {
             service_manager.write().unwrap().unsubscribe_node();
         }
+        self.node_server
+            .as_ref()
+            .unwrap()
+            .state_update
+            .as_ref()
+            .unwrap()
+            .send((time, (State::new(), self.zombie)))
+            .unwrap();
     }
 }
 

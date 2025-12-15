@@ -12,6 +12,7 @@ doctest = false
 [features]
 gui = ["egui", "eframe"] # Enable GUI features
 schema = ["schemars"]  # Enable schemars for schema generation
+force_hard_determinism = []  # Disable features that may introduce non-determinism
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

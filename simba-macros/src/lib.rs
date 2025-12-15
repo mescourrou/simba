@@ -263,7 +263,7 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
                 deserialize_derive = quote! {};
             }
             "tag_content" => {
-                tagged_derive = quote! {  #[serde(tag = "type", content = "config")] };
+                tagged_derive = quote! {  #[serde(tag = "type", content = "value")] };
             }
             "untagged" => {
                 tagged_derive = quote! {  #[serde(untagged)] };
