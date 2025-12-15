@@ -9,9 +9,9 @@ use simba_macros::{config_derives, EnumToString, ToVec};
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use crate::{
-    physics::fault_models::additive_robot_centered::{
+    physics::{fault_models::additive_robot_centered::{
         AdditiveRobotCenteredPhysicsFault, AdditiveRobotCenteredPhysicsFaultConfig,
-    },
+    }, robot_models::RobotModelConfig},
     state_estimators::State,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -145,14 +145,15 @@ impl PhysicsFaultModelConfig {
 
 pub fn make_physics_fault_model_from_config(
     config: &PhysicsFaultModelConfig,
+    robot_model: RobotModelConfig,
     _robot_name: &String,
     va_factory: &Arc<DeterministRandomVariableFactory>,
 ) -> Box<dyn PhysicsFaultModel> {
     match &config {
         PhysicsFaultModelConfig::AdditiveRobotCentered(cfg) => Box::new(
-            AdditiveRobotCenteredPhysicsFault::from_config(cfg, va_factory),
+            AdditiveRobotCenteredPhysicsFault::from_config(cfg, robot_model, va_factory),
         )
-            as Box<dyn PhysicsFaultModel>,
+        as Box<dyn PhysicsFaultModel>,
     }
 }
 

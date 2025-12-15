@@ -10,7 +10,7 @@ class Pose:
 class State:
     def __init__(self):
         self.pose: Pose
-        self.velocity: float
+        self.velocity: Tuple[float, float]  # (longitudinal_velocity, lateral_velocity)
         
 class WorldState:
     def __init__(self):

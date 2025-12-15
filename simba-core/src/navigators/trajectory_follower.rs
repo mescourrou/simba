@@ -335,7 +335,7 @@ impl Navigator for TrajectoryFollower {
         self.error.longitudinal = local_projection.x;
 
         // Compute the velocity error
-        self.error.velocity = self.target_speed - state.velocity;
+        self.error.velocity = self.target_speed - state.velocity.norm();
 
         self.error.clone()
     }

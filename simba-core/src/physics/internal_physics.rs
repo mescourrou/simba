@@ -171,7 +171,7 @@ impl InternalPhysics {
                 config
                     .faults
                     .iter()
-                    .map(|f| make_physics_fault_model_from_config(f, robot_name, va_factory))
+                    .map(|f| make_physics_fault_model_from_config(f, config.model.clone(), robot_name, va_factory))
                     .collect(),
             )),
         }

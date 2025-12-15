@@ -107,7 +107,7 @@ pub struct StateWrapper {
     /// Position and orientation of the robot
     pub pose: Pose,
     /// Linear velocity.
-    pub velocity: f32,
+    pub velocity: [f32; 2],
 }
 
 #[pymethods]
@@ -120,7 +120,7 @@ impl StateWrapper {
                 y: 0.,
                 theta: 0.,
             },
-            velocity: 0.,
+            velocity: [0., 0.],
         }
     }
 }
@@ -133,13 +133,13 @@ impl StateWrapper {
                 y: s.pose[1],
                 theta: s.pose[2],
             },
-            velocity: s.velocity,
+            velocity: s.velocity.into(),
         }
     }
     pub fn to_rust(&self) -> State {
         State {
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
-            velocity: self.velocity,
+            velocity: self.velocity.into(),
         }
     }
 }
@@ -354,6 +354,7 @@ impl Default for OrientedLandmarkObservationWrapper {
 #[pyo3(name = "OdometryObservation")]
 pub struct OdometryObservationWrapper {
     pub linear_velocity: f32,
+    pub lateral_velocity: f32,
     pub angular_velocity: f32,
     /// Applied faults in JSON format
     pub applied_faults: String,
@@ -365,6 +366,7 @@ impl OdometryObservationWrapper {
     pub fn new() -> Self {
         Self {
             linear_velocity: 0.,
+            lateral_velocity: 0.,
             angular_velocity: 0.,
             applied_faults: "[]".to_string(),
         }
@@ -375,6 +377,7 @@ impl OdometryObservationWrapper {
     pub fn from_rust(s: &OdometryObservation) -> Self {
         Self {
             linear_velocity: s.linear_velocity,
+            lateral_velocity: s.lateral_velocity,
             angular_velocity: s.angular_velocity,
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
@@ -382,6 +385,7 @@ impl OdometryObservationWrapper {
     pub fn to_rust(&self) -> OdometryObservation {
         OdometryObservation {
             linear_velocity: self.linear_velocity,
+            lateral_velocity: self.lateral_velocity,
             angular_velocity: self.angular_velocity,
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }

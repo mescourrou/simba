@@ -121,8 +121,7 @@ impl RobotModel for Holonomic {
         state.pose.x = se2_mat[(0, 2)];
         state.pose.y = se2_mat[(1, 2)];
 
-        state.velocity =
-            (command.longitudinal_velocity.powi(2) + command.lateral_velocity.powi(2)).sqrt();
+        state.velocity = [command.longitudinal_velocity, command.lateral_velocity].into();
     }
 
     fn default_command(&self) -> Command {

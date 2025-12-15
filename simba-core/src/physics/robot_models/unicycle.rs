@@ -145,7 +145,8 @@ impl RobotModel for Unicycle {
         state.pose.x = se2_mat[(0, 2)];
         state.pose.y = se2_mat[(1, 2)];
 
-        state.velocity = translation / dt;
+        state.velocity.x = translation / dt;
+        state.velocity.y = 0.;
     }
 
     fn default_command(&self) -> Command {

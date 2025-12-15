@@ -154,6 +154,7 @@ impl UIComponent for OdometrySensorRecord {
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct OdometryObservation {
     pub linear_velocity: f32,
+    pub lateral_velocity: f32,
     pub angular_velocity: f32,
     pub applied_faults: Vec<FaultModelConfig>,
 }
@@ -162,6 +163,7 @@ impl Recordable<OdometryObservationRecord> for OdometryObservation {
     fn record(&self) -> OdometryObservationRecord {
         OdometryObservationRecord {
             linear_velocity: self.linear_velocity,
+            lateral_velocity: self.lateral_velocity,
             angular_velocity: self.angular_velocity,
         }
     }
@@ -170,6 +172,7 @@ impl Recordable<OdometryObservationRecord> for OdometryObservation {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct OdometryObservationRecord {
     pub linear_velocity: f32,
+    pub lateral_velocity: f32,
     pub angular_velocity: f32,
 }
 
@@ -178,6 +181,7 @@ impl UIComponent for OdometryObservationRecord {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Linear velocity: {}", self.linear_velocity));
+            ui.label(format!("Lateral velocity: {}", self.lateral_velocity));
             ui.label(format!("Angular velocity: {}", self.angular_velocity));
         });
     }
@@ -257,7 +261,7 @@ impl Sensor for OdometrySensor {
     fn init(&mut self, robot: &mut Node) {
         self.last_state = robot
             .physics()
-            .expect("Node with GNSS sensor should have Physics")
+            .expect("Node with Odometry sensor should have Physics")
             .read()
             .unwrap()
             .state(0.)
@@ -278,7 +282,8 @@ impl Sensor for OdometrySensor {
         let dt = time - self.last_time;
 
         let obs = SensorObservation::Odometry(OdometryObservation {
-            linear_velocity: state.velocity,
+            linear_velocity: state.velocity.x,
+            lateral_velocity: state.velocity.y,
             angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
             applied_faults: Vec::new(),
         });

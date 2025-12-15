@@ -271,7 +271,7 @@ impl Navigator for GoTo {
                 longitudinal: 0.,
                 lateral: 0.,
                 theta: 0.,
-                velocity: state.velocity,
+                velocity: state.velocity.norm(),
             };
         }
         let target_point = SVector::from_row_slice(&self.current_point.unwrap());
@@ -296,7 +296,7 @@ impl Navigator for GoTo {
         self.error.lateral = 0.;
 
         // Compute the velocity error
-        self.error.velocity = self.target_speed - state.velocity;
+        self.error.velocity = self.target_speed - state.velocity.norm();
 
         self.error.clone()
     }

@@ -49,10 +49,11 @@ use simba_macros::{config_derives, EnumToString, ToVec};
 #[config_derives]
 pub struct StateConfig {
     /// Position and orientation of the robot
+    #[check(le(self.velocity.len(), 3))]
     pub pose: Vec<f32>,
     /// Linear velocity
-    #[check(ge(0.))]
-    pub velocity: f32,
+    #[check(le(self.velocity.len(), 2))]
+    pub velocity: Vec<f32>,
     pub random: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
 }
@@ -61,7 +62,7 @@ impl Default for StateConfig {
     fn default() -> Self {
         Self {
             pose: vec![0., 0., 0.],
-            velocity: 0.,
+            velocity: vec![0., 0.],
             random: Vec::new(),
             variable_order: Vec::new(),
         }
@@ -92,8 +93,12 @@ impl UIComponent for StateConfig {
             ui.add(egui::DragValue::new(self.pose.get_mut(2).unwrap()).max_decimals(10));
         });
         ui.horizontal(|ui| {
-            ui.label("v: ");
-            ui.add(egui::DragValue::new(&mut self.velocity).max_decimals(10));
+            ui.label("vx: ");
+            ui.add(egui::DragValue::new(self.velocity.get_mut(0).unwrap()).max_decimals(10));
+        });
+        ui.horizontal(|ui| {
+            ui.label("vy: ");
+            ui.add(egui::DragValue::new(self.velocity.get_mut(1).unwrap()).max_decimals(10));
         });
         egui::CollapsingHeader::new("Random State")
             .id_salt("state-config-random-variable")
@@ -107,7 +112,7 @@ impl UIComponent for StateConfig {
                     current_node_name,
                     unique_id,
                 );
-                let possible_variables = ["x", "y", "orientation", "velocity", "v", "r", "theta"]
+                let possible_variables = ["x", "y", "orientation", "velocity", "velocity_x", "velocity_y", "vx", "vy", "r", "theta"]
                     .iter()
                     .map(|x| String::from(*x))
                     .collect();
@@ -143,7 +148,10 @@ impl UIComponent for StateConfig {
             ui.label(format!("θ: {}", self.pose.get(2).unwrap()));
         });
         ui.horizontal(|ui| {
-            ui.label(format!("v: {}", self.velocity));
+            ui.label(format!("vx: {}", self.velocity.get(0).unwrap()));
+        });
+        ui.horizontal(|ui| {
+            ui.label(format!("vy: {}", self.velocity.get(1).unwrap()));
         });
         RandomVariableTypeConfig::show_vector(&self.random, ui, ctx, unique_id);
         ui.horizontal(|ui| {
@@ -161,14 +169,14 @@ pub struct StateRecord {
     /// Position and orientation of the robot
     pub pose: [f32; 3],
     /// Linear velocity.
-    pub velocity: f32,
+    pub velocity: [f32; 2],
 }
 
 impl Default for StateRecord {
     fn default() -> Self {
         Self {
             pose: [0., 0., 0.],
-            velocity: 0.,
+            velocity: [0., 0.],
         }
     }
 }
@@ -181,7 +189,7 @@ impl UIComponent for StateRecord {
                 "pose: ({}, {}, {})",
                 self.pose[0], self.pose[1], self.pose[2]
             ));
-            ui.label(format!("velocity: {}", self.velocity));
+            ui.label(format!("velocity: ({}, {})", self.velocity[0], self.velocity[1]));
         });
     }
 }
@@ -192,7 +200,7 @@ pub struct State {
     /// Pose of the robot [x, y, orientation]
     pub pose: SVector<f32, 3>,
     /// Linear velocity of the robot (in the longitudinal direction).
-    pub velocity: f32,
+    pub velocity: SVector<f32, 2>,
 }
 
 impl State {
@@ -200,7 +208,7 @@ impl State {
     pub fn new() -> Self {
         Self {
             pose: SVector::<f32, 3>::new(0., 0., 0.),
-            velocity: 0.,
+            velocity: SVector::<f32, 2>::new(0., 0.),
         }
     }
 
@@ -214,6 +222,12 @@ impl State {
         }
         if vec.len() >= 3 {
             state.pose.z = vec[2];
+        }
+        if vec.len() >= 4 {
+            state.velocity.x = vec[3];
+        }
+        if vec.len() >= 5 {
+            state.velocity.y = vec[4];
         }
         state
     }
@@ -230,7 +244,12 @@ impl State {
             }
             state.pose[i] = *coord;
         }
-        state.velocity = config.velocity;
+        for (i, vel) in config.velocity.iter().enumerate() {
+            if i >= 2 {
+                break;
+            }
+            state.velocity[i] = *vel;
+        }
         let mut i = 0;
         let mut add_r = 0.;
         let mut add_theta = 0.;
@@ -243,10 +262,11 @@ impl State {
                     "x" => state.pose[0] += sample,
                     "y" => state.pose[1] += sample,
                     "orientation" => state.pose[2] += sample,
-                    "velocity" | "v" => state.velocity += sample,
+                    "velocity" | "velocity_x" | "vx" => state.velocity[0] += sample,
+                    "velocity_y" | "vy" => state.velocity[1] += sample,
                     "r" => add_r += sample,
                     "theta" => add_theta += sample,
-                    _ => panic!("Unknown variable name in variable_order ({}), should be in [x, y, orientation, velocity | v, r, theta]", config.variable_order[i]),
+                    _ => panic!("Unknown variable name in variable_order ({}), should be in [x, y, orientation, velocity | velocity_x | vx, velocity_y | vy, r, theta]", config.variable_order[i]),
                 }
                 i += 1;
             }
@@ -258,10 +278,6 @@ impl State {
             state.pose.x += add_r * state.pose.z.cos();
             state.pose.y += add_r * state.pose.z.sin();
         }
-        println!(
-            "Initialized state: x={}, y={}, θ={}, v={}",
-            state.pose.x, state.pose.y, state.pose.z, state.velocity
-        );
         state
     }
 
@@ -283,14 +299,23 @@ impl Recordable<StateRecord> for State {
             pose: {
                 let mut ve = [0., 0., 0.];
                 for (i, coord) in self.pose.iter().enumerate() {
-                    if i > ve.len() {
-                        continue;
+                    if i >= ve.len() {
+                        break;
                     }
                     ve[i] = *coord;
                 }
                 ve
             },
-            velocity: self.velocity,
+            velocity: {
+                let mut ve = [0., 0.];
+                for (i, coord) in self.velocity.iter().enumerate() {
+                    if i >= ve.len() {
+                        break;
+                    }
+                    ve[i] = *coord;
+                }
+                ve
+            },
         }
     }
 }
@@ -302,8 +327,8 @@ impl fmt::Display for State {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             formatter,
-            "pose: [{}, {}, {}], v: {}",
-            self.pose.x, self.pose.y, self.pose.z, self.velocity
+            "pose: [{}, {}, {}], v: [{}, {}]",
+            self.pose.x, self.pose.y, self.pose.z, self.velocity[0], self.velocity[1]
         )?;
         Ok(())
     }
