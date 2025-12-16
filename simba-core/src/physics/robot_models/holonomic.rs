@@ -1,6 +1,6 @@
 use config_checker::macros::Check;
 use libm::atan2f;
-use nalgebra::SMatrix;
+use nalgebra::{Matrix3, SMatrix};
 use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -72,7 +72,7 @@ impl Holonomic {
 }
 
 impl RobotModel for Holonomic {
-    fn update_state(&mut self, state: &mut State, command: &Command, dt: f32) {
+    fn update_state(&mut self, state: &mut State, command: &Command, cum_lie_action: &mut Matrix3<f32>, dt: f32) {
         let command = match command {
             Command::Holonomic(cmd) => cmd,
             _ => panic!("Holonomic robot model needs a Holonomic command"),
@@ -97,7 +97,7 @@ impl RobotModel for Holonomic {
             0.,
             0.,
         );
-
+        *cum_lie_action += lie_action;
         let rot_mat = *nalgebra::Rotation2::new(theta).matrix();
 
         let mut se2_mat = SMatrix::<f32, 3, 3>::new(

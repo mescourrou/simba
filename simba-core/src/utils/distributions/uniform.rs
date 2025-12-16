@@ -109,11 +109,11 @@ impl DeterministUniformRandomVariable {
 }
 
 impl DeterministRandomVariable for DeterministUniformRandomVariable {
-    fn gen(&self, time: f32) -> Vec<f32> {
+    fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
         for (min, max) in zip(&self.min, &self.max) {
-            v.push(min + rng.gen::<f32>() * (max - min));
+            v.push(min + rng.r#gen::<f32>() * (max - min));
         }
         v
     }

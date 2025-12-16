@@ -157,7 +157,7 @@ impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
                 .unwrap_or(1.0);
         let mut random_sample = Vec::new();
         for d in self.distributions.lock().unwrap().iter() {
-            random_sample.extend_from_slice(&d.gen(time));
+            random_sample.extend_from_slice(&d.generate(time));
         }
 
         if !self.variable_order.is_empty() {

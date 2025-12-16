@@ -191,12 +191,12 @@ impl FaultModel for AdditiveRobotCenteredFault {
         let mut seed = time;
         for obs in obs_list {
             seed += obs_seed_increment;
-            if self.apparition.gen(seed)[0] < 1. {
+            if self.apparition.generate(seed)[0] < 1. {
                 continue;
             }
             let mut random_sample = Vec::new();
             for d in self.distributions.lock().unwrap().iter() {
-                random_sample.extend_from_slice(&d.gen(seed));
+                random_sample.extend_from_slice(&d.generate(seed));
             }
             match obs {
                 SensorObservation::OrientedRobot(o) => {

@@ -91,11 +91,11 @@ impl DeterministBernouilliRandomVariable {
 }
 
 impl DeterministRandomVariable for DeterministBernouilliRandomVariable {
-    fn gen(&self, time: f32) -> Vec<f32> {
+    fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
         for p in &self.probability {
-            v.push(if rng.gen::<f32>() <= *p { 1. } else { 0. });
+            v.push(if rng.r#gen::<f32>() <= *p { 1. } else { 0. });
         }
         v
     }

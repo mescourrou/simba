@@ -160,7 +160,7 @@ impl DeterministNormalRandomVariable {
 }
 
 impl DeterministRandomVariable for DeterministNormalRandomVariable {
-    fn gen(&self, time: f32) -> Vec<f32> {
+    fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         self.nd.sample(&mut rng).iter().map(|x| *x as f32).collect()
     }

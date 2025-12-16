@@ -1,3 +1,4 @@
+use nalgebra::Vector2;
 #[allow(unused_variables)]
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
@@ -172,7 +173,7 @@ impl MyWonderfulPhysics {
         Self {
             state: State {
                 pose: Vector3::zeros(),
-                velocity: 0.,
+                velocity: Vector2::zeros(),
             },
         }
     }

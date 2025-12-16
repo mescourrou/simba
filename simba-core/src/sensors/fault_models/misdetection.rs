@@ -108,7 +108,7 @@ impl FaultModel for MisdetectionFault {
         let mut seed = time;
         for i in (0..obs_list.len()).rev() {
             seed += obs_seed_increment;
-            if self.apparition.gen(seed)[0] > 0. {
+            if self.apparition.generate(seed)[0] > 0. {
                 if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
                     debug!("Remove observation {i}");
                 }

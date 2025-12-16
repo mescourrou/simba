@@ -261,10 +261,10 @@ impl FaultModel for MisassociationFault {
         }
         for obs in obs_list {
             seed += obs_seed_increment;
-            if self.apparition.gen(seed)[0] < 1. {
+            if self.apparition.generate(seed)[0] < 1. {
                 continue;
             }
-            let random_sample = self.distribution.lock().unwrap().gen(seed);
+            let random_sample = self.distribution.lock().unwrap().generate(seed);
             match obs {
                 SensorObservation::OrientedRobot(o) => {
                     let new_id = id_list

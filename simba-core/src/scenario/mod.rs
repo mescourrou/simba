@@ -52,7 +52,7 @@ impl Scenario {
                     let occurences = match &t.occurences {
                         NumberConfig::Num(n) => *n as usize,
                         NumberConfig::Rand(rv_config) => {
-                            va_factory.make_variable(rv_config.clone()).gen(0.)[0] as usize
+                            va_factory.make_variable(rv_config.clone()).generate(0.)[0] as usize
                         }
                     };
                     match &t.time {
@@ -60,9 +60,9 @@ impl Scenario {
                             (0..occurences).map(|i| n * (i as f32 + 1.)).collect()
                         }
                         NumberConfig::Rand(rv_config) => {
-                            let gen = va_factory.make_variable(rv_config.clone());
+                            let rv = va_factory.make_variable(rv_config.clone());
                             (0..occurences)
-                                .map(|i| gen.gen(i as f32))
+                                .map(|i| rv.generate(i as f32))
                                 .flatten()
                                 .collect()
                         }

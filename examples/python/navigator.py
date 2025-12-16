@@ -22,7 +22,7 @@ class Navigator(simba.Navigator):
 
     def compute_error(self, node: simba.Node, world_state: simba.WorldState) -> simba.ControllerError:
         error = simba.ControllerError()
-        v = world_state.ego.velocity
+        v = world_state.ego.velocity.x
         x = world_state.ego.pose.x
         y = world_state.ego.pose.y
         theta = world_state.ego.pose.theta

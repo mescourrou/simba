@@ -60,7 +60,7 @@ class Physics(simba.Physics):
         state.pose.x = self.curr_state[0]
         state.pose.y = self.curr_state[1]
         state.pose.theta = self.curr_state[2]
-        state.velocity = self.curr_state[3]
+        state.velocity.x = self.curr_state[3]
         return state
 
 

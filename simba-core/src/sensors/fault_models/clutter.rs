@@ -206,12 +206,12 @@ impl FaultModel for ClutterFault {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;
 
-        let n_obs = self.apparition.lock().unwrap().gen(time)[0].abs().floor() as usize;
+        let n_obs = self.apparition.lock().unwrap().generate(time)[0].abs().floor() as usize;
         for _ in 0..n_obs {
             seed += obs_seed_increment;
             let mut random_sample = Vec::new();
             for d in self.distributions.lock().unwrap().iter() {
-                random_sample.extend_from_slice(&d.gen(seed));
+                random_sample.extend_from_slice(&d.generate(seed));
             }
             let mut new_obs = obs_type.clone();
             match &mut new_obs {

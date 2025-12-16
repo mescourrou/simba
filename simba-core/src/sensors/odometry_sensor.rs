@@ -25,7 +25,9 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
+use libm::atan2f;
 use log::debug;
+use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -40,6 +42,7 @@ pub struct OdometrySensorConfig {
     pub faults: Vec<FaultModelConfig>,
     #[check]
     pub filters: Vec<SensorFilterConfig>,
+    pub lie_integration: bool,
 }
 
 impl Default for OdometrySensorConfig {
@@ -48,6 +51,7 @@ impl Default for OdometrySensorConfig {
             period: Some(0.1),
             faults: Vec::new(),
             filters: Vec::new(),
+            lie_integration: true,
         }
     }
 }
@@ -83,6 +87,11 @@ impl UIComponent for OdometrySensorConfig {
                     }
                 });
 
+                ui.horizontal(|ui| {
+                    ui.label("Lie integration:");
+                    ui.checkbox(&mut self.lie_integration, "");
+                });
+
                 SensorFilterConfig::show_filters_mut(
                     &mut self.filters,
                     ui,
@@ -116,6 +125,11 @@ impl UIComponent for OdometrySensorConfig {
                     } else {
                         ui.label("None");
                     }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Lie integration:");
+                    ui.label(format!("{}", self.lie_integration));
                 });
 
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
@@ -192,12 +206,14 @@ impl UIComponent for OdometryObservationRecord {
 pub struct OdometrySensor {
     /// Last state to compute the velocity.
     last_state: State,
+    last_lie_action: Matrix3<f32>,
     /// Observation period
     period: Option<f32>,
     /// Last observation time.
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
     filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
+    lie_integration: bool,
 }
 
 impl OdometrySensor {
@@ -241,10 +257,12 @@ impl OdometrySensor {
 
         Self {
             last_state: State::new(),
+            last_lie_action: Matrix3::zeros(),
             period: config.period,
             last_time: 0.,
             faults: fault_models,
             filters,
+            lie_integration: config.lie_integration,
         }
     }
 }
@@ -281,12 +299,29 @@ impl Sensor for OdometrySensor {
 
         let dt = time - self.last_time;
 
-        let obs = SensorObservation::Odometry(OdometryObservation {
-            linear_velocity: state.velocity.x,
-            lateral_velocity: state.velocity.y,
-            angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
-            applied_faults: Vec::new(),
-        });
+        let obs = 
+        if self.lie_integration && let Some(lie_action) = physic.cummulative_lie_action() {
+            let delta_lie = lie_action - self.last_lie_action;
+            let delta_lie = delta_lie * dt;
+            let displacement = delta_lie.exp();
+            self.last_lie_action = lie_action;
+            SensorObservation::Odometry(OdometryObservation {
+                linear_velocity: displacement[(0, 2)] / dt,
+                lateral_velocity: displacement[(1, 2)] / dt,
+                angular_velocity: atan2f(displacement[(1, 0)], displacement[(0, 0)]) / dt,
+                applied_faults: Vec::new(),
+            })
+        } else {
+            // No lie action available, fall back to previous method
+            SensorObservation::Odometry(OdometryObservation {
+                linear_velocity: state.velocity.x,
+                lateral_velocity: state.velocity.y,
+                angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
+                applied_faults: Vec::new(),
+            })
+        };
+
+        
 
         if let Some(obs) = self
             .filters

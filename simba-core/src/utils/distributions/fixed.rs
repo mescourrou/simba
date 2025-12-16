@@ -80,7 +80,7 @@ impl DeterministFixedRandomVariable {
 }
 
 impl DeterministRandomVariable for DeterministFixedRandomVariable {
-    fn gen(&self, _time: f32) -> Vec<f32> {
+    fn generate(&self, _time: f32) -> Vec<f32> {
         self.values.clone()
     }
 

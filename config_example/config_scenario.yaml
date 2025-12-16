@@ -4,9 +4,7 @@ log:
   included_nodes: []
   excluded_nodes: []
   log_level:
-    type: Internal
-    value:
-      - type: Scenario
+    type: Debug
 results: {}
 max_time: 20.0
 time_analysis:
@@ -37,7 +35,7 @@ robots:
       - 0.0
       - 0.0
       - 0.0
-      velocity: 0.0
+      velocity: [0.0, 0.0]
     faults:
     - type: AdditiveRobotCentered
       distributions:
@@ -190,16 +188,16 @@ scenario:
     event_type: 
       type: Kill
       value: drone1
-  # - trigger: 
-  #     type: Area
-  #     value:
-  #       type: Rect
-  #       bottom_left: [-1,-1]
-  #       top_right: [5, 5]
-  #       inside: false
-  #   event_type: 
-  #     type: Kill
-  #     value: $0
+  - trigger: 
+      type: Area
+      value:
+        type: Rect
+        bottom_left: [-1,-1]
+        top_right: [5, 5]
+        inside: false
+    event_type: 
+      type: Kill
+      value: $0
   - trigger: 
       type: Proximity
       value:

@@ -7,10 +7,15 @@ class Pose:
         self.y: float
         self.theta: float
 
+class Vec2:
+    def __init__(self):
+        self.x: float
+        self.y: float
+
 class State:
     def __init__(self):
         self.pose: Pose
-        self.velocity: Tuple[float, float]  # (longitudinal_velocity, lateral_velocity)
+        self.velocity: Vec2  # (longitudinal_velocity, lateral_velocity)
         
 class WorldState:
     def __init__(self):
@@ -104,8 +109,8 @@ class OdometryObservation:
 
 class GNSSObservation: 
     def __init__(self):
-        self.position: List[float]
-        self.velocity: List[float]
+        self.position: Vec2
+        self.velocity: Vec2
         self.applied_faults: str """ Applied faults in JSON format """
 
 class OrientedRobotObservation:

@@ -22,7 +22,8 @@ class StateEstimator(simba.StateEstimator):
         world_state.ego.pose.x = 1
         world_state.ego.pose.y = 2
         world_state.ego.pose.theta = 0
-        world_state.ego.velocity = 3
+        world_state.ego.velocity.x = 3
+        world_state.ego.velocity.y = 0
         return world_state
 
     def record(self) -> str:

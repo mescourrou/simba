@@ -4,21 +4,18 @@ use log::debug;
 use pyo3::prelude::*;
 
 use crate::{
-    controllers::{pybinds::PythonController, Controller},
+    controllers::{Controller, pybinds::PythonController},
     logger::is_enabled,
-    navigators::{go_to::GoToMessage, pybinds::PythonNavigator, Navigator},
-    networking::{network::MessageFlag, MessageTypes},
-    physics::{pybinds::PythonPhysics, Physics},
+    navigators::{Navigator, go_to::GoToMessage, pybinds::PythonNavigator},
+    networking::{MessageTypes, network::MessageFlag},
+    physics::{Physics, pybinds::PythonPhysics},
     plugin_api::PluginAPI,
     pywrappers::{
-        run_gui, CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper,
-        ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
-        OrientedRobotObservationWrapper, PluginAPIWrapper, SensorObservationWrapper,
-        SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, WorldStateWrapper,
+        CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, Pose, SensorObservationWrapper, SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, Vec2, WorldStateWrapper, run_gui
     },
     sensors::sensor_manager::SensorTriggerMessage,
     simulator::SimulatorConfig,
-    state_estimators::{pybinds::PythonStateEstimator, StateEstimator},
+    state_estimators::{StateEstimator, pybinds::PythonStateEstimator},
     utils::{
         determinist_random_variable::DeterministRandomVariableFactory, python::call_py_method,
     },
@@ -30,6 +27,8 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ControllerErrorWrapper>()?;
     m.add_class::<PythonPhysics>()?;
     m.add_class::<StateWrapper>()?;
+    m.add_class::<Pose>()?;
+    m.add_class::<Vec2>()?;
     m.add_class::<WorldStateWrapper>()?;
     m.add_class::<PythonStateEstimator>()?;
     m.add_class::<ObservationWrapper>()?;

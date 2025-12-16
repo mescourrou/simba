@@ -38,7 +38,7 @@ robots:
       - 0.0
       - 0.0
       - 0.0
-      velocity: 0.0
+      velocity: [0.0, 0.0]
     faults:
     - type: AdditiveRobotCentered
       distributions:

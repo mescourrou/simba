@@ -22,6 +22,7 @@ extern crate confy;
 use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
+use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::{config_derives, EnumToString, ToVec};
 
@@ -197,6 +198,10 @@ pub trait Physics:
 
     /// Get the current real state, the groundtruth.
     fn state(&self, time: f32) -> State;
+
+    fn cummulative_lie_action(&self) -> Option<Matrix3<f32>> {
+        None
+    }
 }
 
 /// Helper function to create a physics from the given configuration.

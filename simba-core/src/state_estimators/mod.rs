@@ -255,7 +255,7 @@ impl State {
         let mut add_theta = 0.;
         for rv_config in config.random.iter() {
             let rv = va_factory.make_variable(rv_config.clone());
-            let sampled_value = rv.gen(0.);
+            let sampled_value = rv.generate(0.);
             for sample in sampled_value {
                 assert!(i < config.variable_order.len(), "The variable_order length ({}) is smaller than the number of random variables sampled ({}).", config.variable_order.len(), i + 1);
                 match config.variable_order[i].as_str() {

@@ -62,7 +62,7 @@ impl DeterministRandomVariableFactory {
         &self,
         config: RandomVariableTypeConfig,
     ) -> Box<dyn DeterministRandomVariable> {
-        let local_seed = self.seed_generator.lock().unwrap().gen::<f32>() * 1000000.;
+        let local_seed = self.seed_generator.lock().unwrap().r#gen::<f32>() * 1000000.;
         println!(
             "New variable with local seed: {} (global seed: {})",
             local_seed,
@@ -125,7 +125,7 @@ impl Default for DeterministRandomVariableFactory {
 pub trait DeterministRandomVariable:
     std::fmt::Debug + std::marker::Send + std::marker::Sync
 {
-    fn gen(&self, time: f32) -> Vec<f32>;
+    fn generate(&self, time: f32) -> Vec<f32>;
     fn dim(&self) -> usize;
 }
 

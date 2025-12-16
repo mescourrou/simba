@@ -22,6 +22,7 @@ use crate::{
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use config_checker::macros::Check;
+use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -145,6 +146,7 @@ pub struct InternalPhysics {
     last_time_update: f32,
     /// Current command applied.
     current_command: Command,
+    cum_lie_action: Matrix3<f32>,
     faults: Arc<Mutex<Vec<Box<dyn PhysicsFaultModel>>>>,
 }
 
@@ -174,6 +176,7 @@ impl InternalPhysics {
                     .map(|f| make_physics_fault_model_from_config(f, config.model.clone(), robot_name, va_factory))
                     .collect(),
             )),
+            cum_lie_action: Matrix3::zeros(),
         }
     }
 
@@ -192,7 +195,7 @@ impl InternalPhysics {
         }
 
         self.model
-            .update_state(&mut self.state, &self.current_command, dt);
+            .update_state(&mut self.state, &self.current_command, &mut self.cum_lie_action, dt);
 
         self.last_time_update = time;
 
@@ -220,6 +223,10 @@ impl Physics for InternalPhysics {
     fn state(&self, time: f32) -> State {
         assert!(time == self.last_time_update);
         self.state.clone()
+    }
+
+    fn cummulative_lie_action(&self) -> Option<Matrix3<f32>> {
+        Some(self.cum_lie_action)
     }
 }
 

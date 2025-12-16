@@ -100,6 +100,14 @@ pub struct Pose {
     pub theta: f32,
 }
 
+#[pyclass(get_all, set_all)]
+#[pyo3(name = "Vec2")]
+#[derive(Clone, Debug)]
+pub struct Vec2 {
+    pub x: f32,
+    pub y: f32,
+}
+
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "State")]
@@ -107,7 +115,7 @@ pub struct StateWrapper {
     /// Position and orientation of the robot
     pub pose: Pose,
     /// Linear velocity.
-    pub velocity: [f32; 2],
+    pub velocity: Vec2,
 }
 
 #[pymethods]
@@ -120,7 +128,7 @@ impl StateWrapper {
                 y: 0.,
                 theta: 0.,
             },
-            velocity: [0., 0.],
+            velocity: Vec2 { x: 0., y: 0. },
         }
     }
 }
@@ -133,13 +141,13 @@ impl StateWrapper {
                 y: s.pose[1],
                 theta: s.pose[2],
             },
-            velocity: s.velocity.into(),
+            velocity: Vec2 { x: s.velocity[0], y: s.velocity[1] },
         }
     }
     pub fn to_rust(&self) -> State {
         State {
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
-            velocity: self.velocity.into(),
+            velocity: SVector::from_vec(vec![self.velocity.x, self.velocity.y]),
         }
     }
 }
@@ -402,8 +410,8 @@ impl Default for OdometryObservationWrapper {
 #[pyclass(get_all)]
 #[pyo3(name = "GNSSObservation")]
 pub struct GNSSObservationWrapper {
-    pub position: [f32; 2],
-    pub velocity: [f32; 2],
+    pub position: Vec2,
+    pub velocity: Vec2,
     /// Applied faults in JSON format
     pub applied_faults: String,
 }
@@ -413,8 +421,8 @@ impl GNSSObservationWrapper {
     #[new]
     pub fn new() -> Self {
         Self {
-            position: [0., 0.],
-            velocity: [0., 0.],
+            position: Vec2 { x: 0., y: 0. },
+            velocity: Vec2 { x: 0., y: 0. },
             applied_faults: "[]".to_string(),
         }
     }
@@ -423,15 +431,15 @@ impl GNSSObservationWrapper {
 impl GNSSObservationWrapper {
     pub fn from_rust(s: &GNSSObservation) -> Self {
         Self {
-            position: s.position.into(),
-            velocity: s.velocity.into(),
+            position: Vec2 { x: s.position[0], y: s.position[1] },
+            velocity: Vec2 { x: s.velocity[0], y: s.velocity[1] },
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
     pub fn to_rust(&self) -> GNSSObservation {
         GNSSObservation {
-            position: Vector2::from(self.position),
-            velocity: Vector2::from(self.velocity),
+            position: Vector2::from_vec(vec![self.position.x, self.position.y]),
+            velocity: Vector2::from_vec(vec![self.velocity.x, self.velocity.y]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
     }

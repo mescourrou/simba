@@ -153,7 +153,7 @@ pub fn make_physics_fault_model_from_config(
         PhysicsFaultModelConfig::AdditiveRobotCentered(cfg) => Box::new(
             AdditiveRobotCenteredPhysicsFault::from_config(cfg, robot_model, va_factory),
         )
-        as Box<dyn PhysicsFaultModel>,
+            as Box<dyn PhysicsFaultModel>,
     }
 }
 
