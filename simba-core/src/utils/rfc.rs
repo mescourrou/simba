@@ -1,4 +1,4 @@
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 
 #[derive(Debug, Clone)]
 pub struct RemoteFunctionCall<ParamType, ReturnType> {

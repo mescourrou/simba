@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
     physics::{fault_models::fault_model::PhysicsFaultModel, robot_models::RobotModelConfig},
     state_estimators::State,
@@ -117,6 +117,7 @@ impl AdditiveRobotCenteredPhysicsFault {
         config: &AdditiveRobotCenteredPhysicsFaultConfig,
         robot_model: RobotModelConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Self {
         let distributions = Arc::new(Mutex::new(
             config
@@ -140,7 +141,7 @@ impl AdditiveRobotCenteredPhysicsFault {
         Self {
             distributions,
             variable_order: config.variable_order.clone(),
-            last_time_draw: Mutex::new(0.),
+            last_time_draw: Mutex::new(initial_time),
             proportionnal_to_velocity: config.proportionnal_to_velocity,
             robot_model: robot_model,
         }
@@ -166,21 +167,34 @@ impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
                     "x" => state.pose.x += random_sample[i] * delta_time,
                     "y" => state.pose.y += random_sample[i] * delta_time,
                     "z" | "orientation" => state.pose.z += random_sample[i] * delta_time,
-                    "v" | "vx" | "velocity" | "velocity_x" => state.velocity.x += random_sample[i] * delta_time,
+                    "v" | "vx" | "velocity" | "velocity_x" => {
+                        state.velocity.x += random_sample[i] * delta_time
+                    }
                     "vy" | "velocity_y" => {
                         if let RobotModelConfig::Unicycle(_) = self.robot_model {
-                            panic!("Unicycle robot model does not have lateral velocity (velocity_y).");
+                            panic!(
+                                "Unicycle robot model does not have lateral velocity (velocity_y)."
+                            );
                         }
                         state.velocity.y += random_sample[i] * delta_time;
                     }
-                    &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation, v | vx | velocity | velocity_x, vy | velocity_y]", variable)
+                    &_ => panic!(
+                        "Unknown variable name: '{}'. Available variable names: [x, y, z | orientation, v | vx | velocity | velocity_x, vy | velocity_y]",
+                        variable
+                    ),
                 }
             }
         } else {
             if let RobotModelConfig::Unicycle(_) = self.robot_model {
-                assert!(random_sample.len() >= 4, "The distribution of an AdditiveRobotCentered physics fault needs to be of dimension 4 (x, y, orientation, velocity_x).");
+                assert!(
+                    random_sample.len() >= 4,
+                    "The distribution of an AdditiveRobotCentered physics fault needs to be of dimension 4 (x, y, orientation, velocity_x)."
+                );
             } else {
-                assert!(random_sample.len() >= 5, "The distribution of an AdditiveRobotCentered physics fault needs to be of dimension 5 (x, y, orientation, velocity_x, velocity_y).");
+                assert!(
+                    random_sample.len() >= 5,
+                    "The distribution of an AdditiveRobotCentered physics fault needs to be of dimension 5 (x, y, orientation, velocity_x, velocity_y)."
+                );
                 state.velocity.y += random_sample[4] * delta_time;
             }
             state.pose.x += random_sample[0] * delta_time;

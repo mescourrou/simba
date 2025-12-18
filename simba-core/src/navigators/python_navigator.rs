@@ -12,19 +12,19 @@ use config_checker::macros::Check;
 use log::{debug, info};
 use pyo3::ffi::c_str;
 use pyo3::types::PyModule;
+use pyo3::{PyResult, Python, pyclass, pymethods};
 use pyo3::{call, prelude::*};
-use pyo3::{pyclass, pymethods, PyResult, Python};
 use serde_json::Value;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::json_config, UIComponent};
+use crate::gui::{UIComponent, utils::json_config};
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::pywrappers::NodeWrapper;
 use crate::utils::macros::{external_record, external_record_python_methods, python_class_config};
 use crate::utils::python::{
-    call_py_method, call_py_method_void, ensure_venv_pyo3, load_class_from_python_script,
-    CONVERT_TO_DICT,
+    CONVERT_TO_DICT, call_py_method, call_py_method_void, ensure_venv_pyo3,
+    load_class_from_python_script,
 };
 use crate::{
     controllers::ControllerError,
@@ -86,6 +86,7 @@ impl PythonNavigator {
         Self::from_config(
             &PythonNavigatorConfig::default(),
             &SimulatorConfig::default(),
+            0.0,
         )
     }
 
@@ -99,12 +100,14 @@ impl PythonNavigator {
     pub fn from_config(
         config: &PythonNavigatorConfig,
         global_config: &SimulatorConfig,
+        initial_time: f32,
     ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
         }
 
-        let navigator_instance = load_class_from_python_script(config, global_config, "Navigator")?;
+        let navigator_instance =
+            load_class_from_python_script(config, global_config, initial_time, "Navigator")?;
         let (tx, rx) = mpsc::channel();
         Ok(Self {
             navigator: navigator_instance,

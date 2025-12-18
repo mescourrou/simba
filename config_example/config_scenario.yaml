@@ -4,7 +4,7 @@ log:
   included_nodes: []
   excluded_nodes: []
   log_level:
-    type: Debug
+    type: Info
 results: {}
 max_time: 20.0
 time_analysis:
@@ -128,8 +128,8 @@ robots:
       random:
         - type: Uniform
           min:
-          - -5.0
-          - -5.0
+          - 0
+          - 0
           - -3.1416
           max:
           - 5.0
@@ -174,6 +174,7 @@ robots:
     type: Internal
     model: 
       type: Holonomic
+  autospawn: false
 scenario:
   events:
   - trigger:
@@ -181,13 +182,15 @@ scenario:
       value:
         time:
           type: Num
-          value: 10.0
+          value: 5.0
         occurences: 
           type: Num
-          value: 1
+          value: 3
     event_type: 
-      type: Kill
-      value: drone1
+      type: Spawn
+      value:
+        model_name: drone1
+        node_name: drone$0
   - trigger: 
       type: Area
       value:

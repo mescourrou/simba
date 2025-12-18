@@ -17,12 +17,12 @@ use crate::{
 
 #[cfg(feature = "gui")]
 use crate::gui::{
-    utils::{path_finder, string_checkbox},
     UIComponent,
+    utils::{path_finder, string_checkbox},
 };
 use crate::recordable::Recordable;
-use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
 use crate::sensors::Observation;
+use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
 use crate::simulator::SimulatorConfig;
 use crate::utils::maths::round_precision;
 use config_checker::macros::Check;
@@ -175,11 +175,16 @@ impl PerfectEstimator {
         Self::from_config(
             &PerfectEstimatorConfig::default(),
             &SimulatorConfig::default(),
+            0.0,
         )
     }
 
     /// Creates a new [`PerfectEstimator`] from the given `config`.
-    pub fn from_config(config: &PerfectEstimatorConfig, global_config: &SimulatorConfig) -> Self {
+    pub fn from_config(
+        config: &PerfectEstimatorConfig,
+        global_config: &SimulatorConfig,
+        initial_time: f32,
+    ) -> Self {
         let mut world_state = WorldState::new();
         for target in &config.targets {
             if target == "self" {
@@ -209,7 +214,7 @@ impl PerfectEstimator {
         Self {
             prediction_period: config.prediction_period,
             world_state,
-            last_time_prediction: 0.,
+            last_time_prediction: initial_time,
         }
     }
 }
@@ -249,15 +254,18 @@ impl StateEstimator for PerfectEstimator {
                 Err(e) => match e.error_type() {
                     SimbaErrorTypes::ServiceError(ServiceError::Closed) => {
                         warn!(
-                                    "[{}] {target} does not have physics anymore, no perfect state can be computed: delete target from list!",
-                                    node.name()
-                                );
+                            "[{}] {target} does not have physics anymore, no perfect state can be computed: delete target from list!",
+                            node.name()
+                        );
                         objects_to_delete.push(target.clone());
                         state.clone()
                     }
                     _ => {
-                        panic!("[{}] {target} does not have physics, no perfect state can be computed:\n{}",
-                                    node.name(), e.detailed_error())
+                        panic!(
+                            "[{}] {target} does not have physics, no perfect state can be computed:\n{}",
+                            node.name(),
+                            e.detailed_error()
+                        )
                     }
                 },
                 Ok(s) => s,

@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use crate::{
     errors::SimbaResult,
     pywrappers::SensorObservationWrapper,
-    sensors::{fault_models::fault_model::FaultModel, SensorObservation},
+    sensors::{SensorObservation, fault_models::fault_model::FaultModel},
     simulator::SimulatorConfig,
     utils::{
         macros::python_class_config,
@@ -26,8 +26,10 @@ impl PythonFaultModel {
     pub fn from_config(
         config: &PythonFaultModelConfig,
         global_config: &SimulatorConfig,
+        _initial_time: f32,
     ) -> SimbaResult<Self> {
-        let instance = load_class_from_python_script(config, global_config, "Fault Model")?;
+        let instance =
+            load_class_from_python_script(config, global_config, _initial_time, "Fault Model")?;
         Ok(Self { instance })
     }
 }

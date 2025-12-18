@@ -19,11 +19,11 @@ use std::sync::{Arc, RwLock};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{config_derives, EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 use crate::controllers::ControllerError;
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::gui::{UIComponent, utils::string_combobox};
 use crate::networking::message_handler::MessageHandler;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
@@ -201,10 +201,11 @@ pub fn make_navigator_from_config(
     plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    initial_time: f32,
 ) -> Arc<RwLock<Box<dyn Navigator>>> {
     Arc::new(RwLock::new(match config {
         NavigatorConfig::TrajectoryFollower(c) => Box::new(
-            trajectory_follower::TrajectoryFollower::from_config(c, global_config),
+            trajectory_follower::TrajectoryFollower::from_config(c, global_config, initial_time),
         ) as Box<dyn Navigator>,
         NavigatorConfig::External(c) => {
             Box::new(external_navigator::ExternalNavigator::from_config(
@@ -212,12 +213,14 @@ pub fn make_navigator_from_config(
                 plugin_api,
                 global_config,
                 va_factory,
+                initial_time,
             )) as Box<dyn Navigator>
         }
-        NavigatorConfig::Python(c) => {
-            Box::new(python_navigator::PythonNavigator::from_config(c, global_config).unwrap())
-                as Box<dyn Navigator>
+        NavigatorConfig::Python(c) => Box::new(
+            python_navigator::PythonNavigator::from_config(c, global_config, initial_time).unwrap(),
+        ) as Box<dyn Navigator>,
+        NavigatorConfig::GoTo(c) => {
+            Box::new(go_to::GoTo::from_config(c, initial_time)) as Box<dyn Navigator>
         }
-        NavigatorConfig::GoTo(c) => Box::new(go_to::GoTo::from_config(c)) as Box<dyn Navigator>,
     }))
 }

@@ -1,6 +1,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
+    thread::JoinHandle,
 };
 
 use log::{debug, warn};
@@ -9,16 +10,17 @@ use crate::{
     config::NumberConfig,
     constants::TIME_ROUND,
     errors::SimbaResult,
-    logger::{is_enabled, InternalLog},
-    networking::{network::MessageFlag, network_manager::MessageSendMethod, MessageTypes},
+    logger::{InternalLog, is_enabled},
+    networking::{MessageTypes, network::MessageFlag, network_manager::MessageSendMethod},
+    node::{Node, NodeState},
     scenario::config::{
         AreaEventTriggerConfig, EventConfig, EventTriggerConfig, EventTypeConfig,
         ProximityEventTriggerConfig, ScenarioConfig,
     },
-    simulator::Simulator,
+    simulator::{RunningParameters, Simulator},
     state_estimators::State,
     utils::{
-        determinist_random_variable::DeterministRandomVariableFactory,
+        barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory,
         time_ordered_data::TimeOrderedData,
     },
 };
@@ -26,7 +28,7 @@ use crate::{
 pub mod config;
 
 pub struct Scenario {
-    time_events: TimeOrderedData<EventConfig>,
+    time_events: TimeOrderedData<(usize, EventConfig)>,
     other_events: Mutex<Vec<EventConfig>>,
     last_executed_time: f32,
 }
@@ -70,8 +72,8 @@ impl Scenario {
                 }
                 _ => unreachable!(),
             };
-            for t in ts {
-                time_events.insert(t, event.clone(), false);
+            for (occurence, t) in ts.iter().enumerate() {
+                time_events.insert(*t, (occurence, event.clone()), false);
             }
         }
         #[cfg(not(feature = "force_hard_determinism"))]
@@ -87,19 +89,30 @@ impl Scenario {
         }
     }
 
-    pub fn execute_scenario(
+    pub(crate) fn execute_scenario(
         &mut self,
         time: f32,
         simulator: &mut Simulator,
-        state_history: &BTreeMap<String, TimeOrderedData<(State, bool)>>,
+        state_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
+        running_parameters: &mut RunningParameters,
     ) -> SimbaResult<()> {
+        if is_enabled(InternalLog::Scenario) {
+            debug!("Check scenario");
+        }
         // Time events
         for (_, event) in self
             .time_events
             .iter_from_time(self.last_executed_time)
             .take_while(|(t, _)| *t <= time)
         {
-            Self::execute_event(&event, simulator, time, &Vec::new(), "Time")?;
+            Self::execute_event(
+                &event.1,
+                simulator,
+                time,
+                &vec![event.0.to_string()],
+                "Time",
+                running_parameters,
+            )?;
         }
         // Other events
         let other_events = self.other_events.lock().unwrap();
@@ -109,20 +122,34 @@ impl Scenario {
                     let triggering_nodes =
                         self.proximity_trigger(proximity_config, simulator, time, state_history);
                     for nodes in triggering_nodes {
-                        Self::execute_event(&event, simulator, time, &nodes, "Proximity")?;
+                        Self::execute_event(
+                            &event,
+                            simulator,
+                            time,
+                            &nodes,
+                            "Proximity",
+                            running_parameters,
+                        )?;
                     }
                 }
                 EventTriggerConfig::Area(area_config) => {
                     let triggering_nodes =
                         self.area_trigger(area_config, simulator, time, state_history);
                     for nodes in triggering_nodes {
-                        Self::execute_event(&event, simulator, time, &nodes, "Area")?;
+                        Self::execute_event(
+                            &event,
+                            simulator,
+                            time,
+                            &nodes,
+                            "Area",
+                            running_parameters,
+                        )?;
                     }
                 }
                 EventTriggerConfig::Time(_) => unreachable!(),
             }
         }
-        self.last_executed_time = time + TIME_ROUND / 2.;
+        self.last_executed_time = time + TIME_ROUND;
         Ok(())
     }
 
@@ -141,11 +168,14 @@ impl Scenario {
         time: f32,
         trigger_variables: &Vec<String>,
         trigger_type: &str,
+        running_parameters: &mut RunningParameters,
     ) -> SimbaResult<()> {
         match &event.event_type {
             #[cfg(not(feature = "force_hard_determinism"))]
             EventTypeConfig::Kill(name) => {
-                warn!("Kill events are not deterministic-stable yet. Use `force_hard_determinism` feature to guarantee time and logical determinism.");
+                warn!(
+                    "Kill events are not deterministic-stable yet. Use `force_hard_determinism` feature to guarantee time and logical determinism."
+                );
                 let name = Self::replace_variables(name, trigger_variables);
                 log::info!(
                     "Executing Kill event for node `{}` triggered by {}",
@@ -160,12 +190,43 @@ impl Scenario {
                 ) {
                     warn!(
                         "Ignoring error while sending Kill message to node `{}`: {}",
-                        name, e
+                        name,
+                        e.detailed_error()
                     );
                 }
             }
             #[cfg(feature = "force_hard_determinism")]
             EventTypeConfig::Kill(_) => {}
+            #[cfg(not(feature = "force_hard_determinism"))]
+            EventTypeConfig::Spawn(spawn_config) => {
+                warn!(
+                    "Spawn events are not deterministic-stable yet. Use `force_hard_determinism` feature to guarantee time and logical determinism."
+                );
+                let model_name =
+                    Self::replace_variables(&spawn_config.model_name, trigger_variables);
+                let node_name = Self::replace_variables(&spawn_config.node_name, trigger_variables);
+                log::info!(
+                    "Executing Spawn event for node `{}` of model `{}` triggered by {}",
+                    node_name,
+                    model_name,
+                    trigger_type
+                );
+
+                if let Err(e) = simulator.spawn_node_from_name(
+                    &model_name,
+                    &node_name,
+                    running_parameters,
+                    time,
+                ) {
+                    warn!(
+                        "Ignoring error while sending Spawn message for node `{}`: {}",
+                        node_name,
+                        e.detailed_error()
+                    );
+                }
+            }
+            #[cfg(feature = "force_hard_determinism")]
+            EventTypeConfig::Spawn(_) => {}
             _ => unimplemented!(),
         }
         Ok(())
@@ -180,7 +241,7 @@ impl Scenario {
         area_config: &AreaEventTriggerConfig,
         simulator: &mut Simulator,
         time: f32,
-        state_history: &BTreeMap<String, TimeOrderedData<(State, bool)>>,
+        state_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
     ) -> Vec<Vec<String>> {
         let mut triggering_nodes = Vec::new();
 
@@ -193,8 +254,8 @@ impl Scenario {
                 continue;
             }
             let state = &hstate.unwrap().1;
-            if state.1 == true {
-                // Zombie node
+            if state.1 != NodeState::Running {
+                // Zombie, not created or killed node
                 continue;
             }
             let state = &state.0;
@@ -231,7 +292,7 @@ impl Scenario {
         proximity_config: &ProximityEventTriggerConfig,
         simulator: &mut Simulator,
         time: f32,
-        state_history: &BTreeMap<String, TimeOrderedData<(State, bool)>>,
+        state_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
     ) -> Vec<Vec<String>> {
         let node_positions = state_history
             .iter()
@@ -244,8 +305,8 @@ impl Scenario {
                     return None;
                 }
                 let state = &hstate.unwrap().1;
-                if state.1 == true {
-                    // Zombie node
+                if state.1 != NodeState::Running {
+                    // Zombie, not created or killed node
                     return None;
                 }
                 let state = &state.0;

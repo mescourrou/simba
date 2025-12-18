@@ -4,8 +4,8 @@ trajectory.
 */
 
 use std::sync::{
-    mpsc::{self, Receiver, Sender},
     Arc, Mutex,
+    mpsc::{self, Receiver, Sender},
 };
 
 #[cfg(feature = "gui")]
@@ -232,7 +232,7 @@ impl GoTo {
     /// * `config` - GoTo configuration
     /// * `plugin_api` - Not used there.
     /// * `global_config` - Global configuration of the simulator.
-    pub fn from_config(config: &GoToConfig) -> Self {
+    pub fn from_config(config: &GoToConfig, _initial_time: f32) -> Self {
         let (tx, rx) = mpsc::channel();
         Self {
             target_speed: config.target_speed,

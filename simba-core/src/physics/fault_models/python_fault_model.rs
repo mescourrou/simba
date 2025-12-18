@@ -27,8 +27,14 @@ impl PythonPhysicsFaultModel {
     pub fn from_config(
         config: &PythonPhysicsFaultModelConfig,
         global_config: &SimulatorConfig,
+        initial_time: f32,
     ) -> SimbaResult<Self> {
-        let instance = load_class_from_python_script(config, global_config, "Physics Fault Model")?;
+        let instance = load_class_from_python_script(
+            config,
+            global_config,
+            initial_time,
+            "Physics Fault Model",
+        )?;
         Ok(Self { instance })
     }
 }

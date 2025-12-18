@@ -1,8 +1,8 @@
 use std::{
     os::unix::thread::JoinHandleExt,
     path::Path,
-    sync::{mpsc, Arc, Mutex, RwLock},
-    thread::{self, sleep, JoinHandle},
+    sync::{Arc, Mutex, RwLock, mpsc},
+    thread::{self, JoinHandle, sleep},
     time::Duration,
 };
 
@@ -127,7 +127,6 @@ impl AsyncApiRunner {
         let private_api = self.private_api.clone();
         let keep_alive_rx = self.keep_alive_rx.clone();
         let simulator_cloned = self.simulator.clone();
-        let plugin_api = Arc::new(plugin_api);
         self.running = true;
         self.thread_handle = Some(thread::spawn(move || {
             println!("AsyncApiRunner thread started");
@@ -147,7 +146,7 @@ impl AsyncApiRunner {
                         let path = Path::new(&request.config_path);
                         simulator.load_config_path_full(
                             path,
-                            &plugin_api_threaded,
+                            plugin_api_threaded.clone(),
                             request.force_send_results,
                         )?;
                         println!("End loading");
@@ -177,7 +176,7 @@ impl AsyncApiRunner {
                     run.recv_closure_mut(|request| {
                         let mut simulator = simulator_arc.lock().unwrap();
                         if request.reset {
-                            simulator.reset(&plugin_api_threaded)?;
+                            simulator.reset(plugin_api_threaded.clone())?;
                         }
                         if let Some(max_time) = request.max_time {
                             simulator.set_max_time(max_time);
@@ -288,12 +287,14 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         self.get_state_estimator
             .call(PluginAsyncAPIGetStateEstimatorRequest {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                initial_time,
             })
             .unwrap()
     }
@@ -303,12 +304,14 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Controller> {
         self.get_controller
             .call(PluginAsyncAPIGetControllerRequest {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                initial_time,
             })
             .unwrap()
     }
@@ -318,12 +321,14 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Navigator> {
         self.get_navigator
             .call(PluginAsyncAPIGetNavigatorRequest {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                initial_time,
             })
             .unwrap()
     }
@@ -333,12 +338,14 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Physics> {
         self.get_physics
             .call(PluginAsyncAPIGetPhysicsRequest {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                initial_time,
             })
             .unwrap()
     }
@@ -360,6 +367,7 @@ pub struct PluginAsyncAPIGetStateEstimatorRequest {
     pub config: serde_json::Value,
     pub global_config: SimulatorConfig,
     pub va_factory: Arc<DeterministRandomVariableFactory>,
+    pub initial_time: f32,
 }
 
 pub type PluginAsyncAPIGetControllerRequest = PluginAsyncAPIGetStateEstimatorRequest;

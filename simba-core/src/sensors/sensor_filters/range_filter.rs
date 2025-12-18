@@ -3,9 +3,9 @@ use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
-    sensors::{sensor_filters::SensorFilter, SensorObservation},
+    sensors::{SensorObservation, sensor_filters::SensorFilter},
     state_estimators::State,
 };
 
@@ -134,7 +134,7 @@ pub struct RangeFilter {
 }
 
 impl RangeFilter {
-    pub fn from_config(config: &RangeFilterConfig) -> Self {
+    pub fn from_config(config: &RangeFilterConfig, _initial_time: f32) -> Self {
         Self {
             config: config.clone(),
         }
@@ -160,7 +160,10 @@ impl SensorFilter for RangeFilter {
                         "velocity_x" => obs.velocity.x,
                         "velocity_y" => obs.velocity.y,
                         "self_velocity" => observer_state.velocity.norm(),
-                        &_ => panic!("Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y, self_velocity]", self.config.variables[i])
+                        &_ => panic!(
+                            "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y, self_velocity]",
+                            self.config.variables[i]
+                        ),
                     };
                     let in_range =
                         value >= self.config.min_range[i] && value <= self.config.max_range[i];
@@ -180,7 +183,10 @@ impl SensorFilter for RangeFilter {
                     let value = match var.as_str() {
                         "w" | "angular" | "angular_velocity" => obs.angular_velocity,
                         "v" | "linear" | "linear_velocity" => obs.linear_velocity,
-                        &_ => panic!("Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]", self.config.variables[i])
+                        &_ => panic!(
+                            "Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]",
+                            self.config.variables[i]
+                        ),
                     };
                     let in_range =
                         value >= self.config.min_range[i] && value <= self.config.max_range[i];
@@ -207,24 +213,33 @@ impl SensorFilter for RangeFilter {
                             theta >= self.config.min_range[i] && theta <= self.config.max_range[i]
                         }
                         "x" => {
-                            obs.pose.x >= self.config.min_range[i] && obs.pose.x <= self.config.max_range[i]
-                        },
+                            obs.pose.x >= self.config.min_range[i]
+                                && obs.pose.x <= self.config.max_range[i]
+                        }
                         "y" => {
-                            obs.pose.y >= self.config.min_range[i] && obs.pose.y <= self.config.max_range[i]
-                        },
+                            obs.pose.y >= self.config.min_range[i]
+                                && obs.pose.y <= self.config.max_range[i]
+                        }
                         "z" | "orientation" => {
-                            obs.pose.z >= self.config.min_range[i] && obs.pose.z <= self.config.max_range[i]
+                            obs.pose.z >= self.config.min_range[i]
+                                && obs.pose.z <= self.config.max_range[i]
                         }
                         "self_velocity" => {
-                            observer_state.velocity.norm() >= self.config.min_range[i] && observer_state.velocity.norm() <= self.config.max_range[i]
+                            observer_state.velocity.norm() >= self.config.min_range[i]
+                                && observer_state.velocity.norm() <= self.config.max_range[i]
                         }
                         "width" => {
-                            obs.width >= self.config.min_range[i] && obs.width <= self.config.max_range[i]
+                            obs.width >= self.config.min_range[i]
+                                && obs.width <= self.config.max_range[i]
                         }
                         "height" => {
-                            obs.height >= self.config.min_range[i] && obs.height <= self.config.max_range[i]
+                            obs.height >= self.config.min_range[i]
+                                && obs.height <= self.config.max_range[i]
                         }
-                        &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, x, y, z | orientation, self_velocity, width, height]", self.config.variables[i])
+                        &_ => panic!(
+                            "Unknown variable name: '{}'. Available variable names: [r, theta, x, y, z | orientation, self_velocity, width, height]",
+                            self.config.variables[i]
+                        ),
                     };
                     if self.config.inside {
                         if !in_range {
@@ -249,25 +264,35 @@ impl SensorFilter for RangeFilter {
                             theta >= self.config.min_range[i] && theta <= self.config.max_range[i]
                         }
                         "x" => {
-                            obs.pose.x >= self.config.min_range[i] && obs.pose.x <= self.config.max_range[i]
-                        },
+                            obs.pose.x >= self.config.min_range[i]
+                                && obs.pose.x <= self.config.max_range[i]
+                        }
                         "y" => {
-                            obs.pose.y >= self.config.min_range[i] && obs.pose.y <= self.config.max_range[i]
-                        },
+                            obs.pose.y >= self.config.min_range[i]
+                                && obs.pose.y <= self.config.max_range[i]
+                        }
                         "z" | "orientation" => {
-                            obs.pose.z >= self.config.min_range[i] && obs.pose.z <= self.config.max_range[i]
+                            obs.pose.z >= self.config.min_range[i]
+                                && obs.pose.z <= self.config.max_range[i]
                         }
                         "self_velocity" => {
-                            observer_state.velocity.norm() >= self.config.min_range[i] && observer_state.velocity.norm() <= self.config.max_range[i]
+                            observer_state.velocity.norm() >= self.config.min_range[i]
+                                && observer_state.velocity.norm() <= self.config.max_range[i]
                         }
                         "target_velocity" => {
                             if let Some(observee_state) = observee_state {
-                                observee_state.velocity.norm() >= self.config.min_range[i] && observee_state.velocity.norm() <= self.config.max_range[i]
+                                observee_state.velocity.norm() >= self.config.min_range[i]
+                                    && observee_state.velocity.norm() <= self.config.max_range[i]
                             } else {
-                                panic!("Observee state is required to filter on target_velocity with OrientedRobot observation");
+                                panic!(
+                                    "Observee state is required to filter on target_velocity with OrientedRobot observation"
+                                );
                             }
                         }
-                        &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, x, y, z | orientation, self_velocity, target_velocity]", self.config.variables[i])
+                        &_ => panic!(
+                            "Unknown variable name: '{}'. Available variable names: [r, theta, x, y, z | orientation, self_velocity, target_velocity]",
+                            self.config.variables[i]
+                        ),
                     };
                     if self.config.inside {
                         if !in_range {
@@ -285,10 +310,6 @@ impl SensorFilter for RangeFilter {
             }
         }
 
-        if keep {
-            Some(observation)
-        } else {
-            None
-        }
+        if keep { Some(observation) } else { None }
     }
 }

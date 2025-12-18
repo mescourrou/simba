@@ -7,8 +7,8 @@ use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{
-    utils::{enum_radio, path_finder, string_combobox},
     UIComponent,
+    utils::{enum_radio, path_finder, string_combobox},
 };
 
 use crate::time_analysis::ProfileExporterConfig;

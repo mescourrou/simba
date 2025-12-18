@@ -23,7 +23,7 @@ use simba_macros::config_derives;
 
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
-use crate::gui::{utils::json_config, UIComponent};
+use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
@@ -113,6 +113,7 @@ impl ExternalSensor {
             &None,
             &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
+            0.0,
         )
     }
 
@@ -130,6 +131,7 @@ impl ExternalSensor {
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
+        initial_time: f32,
     ) -> Self {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
@@ -138,7 +140,7 @@ impl ExternalSensor {
             sensor: plugin_api
                 .as_ref()
                 .expect("Plugin API not set!")
-                .get_sensor(&config.config, global_config),
+                .get_sensor(&config.config, global_config, initial_time),
         }
     }
 }

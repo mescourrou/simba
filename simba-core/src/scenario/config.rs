@@ -131,12 +131,27 @@ impl Default for ProximityEventTriggerConfig {
 /// dynamic referencing (e.g., the robot that triggered the event is $0).
 #[config_derives(tag_content)]
 pub enum EventTypeConfig {
-    Spawn(String),
+    Spawn(SpawnEventConfig),
     Kill(String),
 }
 
 impl Default for EventTypeConfig {
     fn default() -> Self {
-        Self::Spawn("default_robot".to_string())
+        Self::Kill("$0".to_string())
+    }
+}
+
+#[config_derives]
+pub struct SpawnEventConfig {
+    pub model_name: String,
+    pub node_name: String,
+}
+
+impl Default for SpawnEventConfig {
+    fn default() -> Self {
+        Self {
+            model_name: "default_robot".to_string(),
+            node_name: "my_new_robot".to_string(),
+        }
     }
 }

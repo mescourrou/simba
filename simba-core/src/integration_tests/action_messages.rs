@@ -1,6 +1,6 @@
 use std::{
     collections::VecDeque,
-    sync::{mpsc::Sender, Arc, Mutex},
+    sync::{Arc, Mutex, mpsc::Sender},
 };
 
 use egui::Atom;
@@ -10,19 +10,19 @@ use crate::{
     constants::TIME_ROUND,
     logger::{InternalLog, LogLevel},
     navigators::{
-        go_to::GoToConfig, trajectory_follower::TrajectoryFollowerConfig, NavigatorConfig,
+        NavigatorConfig, go_to::GoToConfig, trajectory_follower::TrajectoryFollowerConfig,
     },
     node::node_factory::{NodeRecord, RobotConfig},
     plugin_api::PluginAPI,
     sensors::{
+        SensorConfig,
         robot_sensor::RobotSensorConfig,
         sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
-        SensorConfig,
     },
     simulator::{ResultConfig, Simulator, SimulatorConfig},
     state_estimators::{
-        external_estimator::ExternalEstimatorConfig, perfect_estimator::PerfectEstimatorConfig,
         BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig,
+        external_estimator::ExternalEstimatorConfig, perfect_estimator::PerfectEstimatorConfig,
     },
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -37,6 +37,7 @@ impl<SE: StateEstimator> PluginAPI for PluginAPITest<SE> {
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         let se = std::mem::replace(&mut *self.se.lock().unwrap(), None)
             .expect("StateEstimator already taken");
@@ -59,8 +60,8 @@ mod kill_node {
         recordable::Recordable,
         sensors::Observation,
         state_estimators::{
-            external_estimator::ExternalEstimatorRecord, StateEstimator, StateEstimatorRecord,
-            WorldState,
+            StateEstimator, StateEstimatorRecord, WorldState,
+            external_estimator::ExternalEstimatorRecord,
         },
         utils::maths::round_precision,
     };
@@ -171,7 +172,8 @@ fn kill_node() {
         })),
     };
 
-    let mut simulator = Simulator::from_config(&config, &Some(Arc::new(plugin_api))).unwrap();
+    let plugin_api = Arc::new(plugin_api);
+    let mut simulator = Simulator::from_config(&config, Some(plugin_api.clone())).unwrap();
 
     simulator.run().unwrap();
 
@@ -195,7 +197,7 @@ fn kill_node() {
 mod trigger_sensor {
     use std::{
         collections::VecDeque,
-        sync::{mpsc::Sender, Arc, Mutex},
+        sync::{Arc, Mutex, mpsc::Sender},
     };
 
     use serde_json::Value;
@@ -209,11 +211,11 @@ mod trigger_sensor {
         node::Node,
         plugin_api::PluginAPI,
         recordable::Recordable,
-        sensors::{sensor_manager::SensorTriggerMessage, Observation},
+        sensors::{Observation, sensor_manager::SensorTriggerMessage},
         simulator::SimulatorConfig,
         state_estimators::{
-            external_estimator::ExternalEstimatorRecord, StateEstimator, StateEstimatorRecord,
-            WorldState,
+            StateEstimator, StateEstimatorRecord, WorldState,
+            external_estimator::ExternalEstimatorRecord,
         },
         utils::{
             determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
@@ -310,16 +312,17 @@ mod trigger_sensor {
             config: &serde_json::Value,
             _global_config: &SimulatorConfig,
             _va_factory: &Arc<DeterministRandomVariableFactory>,
+            initial_time: f32,
         ) -> Box<dyn StateEstimator> {
             if config.as_bool().unwrap() {
                 Box::new(StateEstimatorTest {
-                    last_time: 0.,
+                    last_time: initial_time,
                     is_the_triggered: false,
                     trigger_times: self.trigger_times.clone(),
                 }) as Box<dyn StateEstimator>
             } else {
                 Box::new(StateEstimatorTest {
-                    last_time: 0.,
+                    last_time: initial_time,
                     is_the_triggered: true,
                     trigger_times: self.triggered_times.clone(),
                 }) as Box<dyn StateEstimator>
@@ -386,7 +389,7 @@ fn trigger_sensor() {
     };
     let plugin_api = Arc::new(plugin_api);
     let mut simulator =
-        Simulator::from_config(&config, &Some(plugin_api.clone() as Arc<dyn PluginAPI>)).unwrap();
+        Simulator::from_config(&config, Some(plugin_api.clone() as Arc<dyn PluginAPI>)).unwrap();
 
     simulator.run().unwrap();
 

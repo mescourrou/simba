@@ -11,8 +11,8 @@ use std::sync::{Arc, Mutex};
 use log::{debug, info};
 use pyo3::ffi::c_str;
 use pyo3::types::PyModule;
+use pyo3::{PyResult, Python, pyclass, pymethods};
 use pyo3::{call, prelude::*};
-use pyo3::{pyclass, pymethods, PyResult, Python};
 use serde_json::Value;
 
 use super::{StateEstimator, WorldState};
@@ -29,8 +29,8 @@ use crate::simulator::SimulatorConfig;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::maths::round_precision;
 use crate::utils::python::{
-    call_py_method, call_py_method_void, ensure_venv_pyo3, load_class_from_python_script,
-    CONVERT_TO_DICT,
+    CONVERT_TO_DICT, call_py_method, call_py_method_void, ensure_venv_pyo3,
+    load_class_from_python_script,
 };
 
 use super::StateEstimatorRecord;
@@ -85,6 +85,7 @@ impl PythonEstimator {
         Self::from_config(
             &PythonEstimatorConfig::default(),
             &SimulatorConfig::default(),
+            0.0,
         )
     }
 
@@ -99,13 +100,14 @@ impl PythonEstimator {
     pub fn from_config(
         config: &PythonEstimatorConfig,
         global_config: &SimulatorConfig,
+        initial_time: f32,
     ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
         }
 
         let state_estimator_instance =
-            load_class_from_python_script(config, global_config, "State Estimator")?;
+            load_class_from_python_script(config, global_config, initial_time, "State Estimator")?;
         let (tx, rx) = mpsc::channel();
         Ok(Self {
             state_estimator: state_estimator_instance,

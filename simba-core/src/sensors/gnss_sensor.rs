@@ -5,7 +5,7 @@ Provides a [`Sensor`] which can provide position and velocity in the global fram
 use std::sync::{Arc, Mutex};
 
 use super::fault_models::fault_model::{
-    make_fault_model_from_config, FaultModel, FaultModelConfig,
+    FaultModel, FaultModelConfig, make_fault_model_from_config,
 };
 use super::{Sensor, SensorObservation, SensorRecord};
 
@@ -14,7 +14,7 @@ use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::sensor_filters::{
-    make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
+    SensorFilter, SensorFilterConfig, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -203,6 +203,7 @@ impl GNSSSensor {
             &SimulatorConfig::default(),
             &"NoName".to_string(),
             &DeterministRandomVariableFactory::default(),
+            0.0,
         )
     }
 
@@ -213,6 +214,7 @@ impl GNSSSensor {
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
+        initial_time: f32,
     ) -> Self {
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
@@ -222,6 +224,7 @@ impl GNSSSensor {
                 global_config,
                 robot_name,
                 va_factory,
+                initial_time,
             ));
         }
         drop(unlock_fault_model);
@@ -229,12 +232,16 @@ impl GNSSSensor {
         let filters = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_filters = filters.lock().unwrap();
         for filter_config in &config.filters {
-            unlock_filters.push(make_sensor_filter_from_config(filter_config, global_config));
+            unlock_filters.push(make_sensor_filter_from_config(
+                filter_config,
+                global_config,
+                initial_time,
+            ));
         }
         drop(unlock_filters);
         Self {
             period: config.period,
-            last_time: 0.,
+            last_time: initial_time,
             faults: fault_models,
             filters,
         }

@@ -166,18 +166,22 @@ mod test {
         exe_tree.add("test1".to_string(), 1, vec![1]);
         assert!(exe_tree.top_time_nodes.len() == 1);
         assert!(exe_tree.top_time_nodes[0].next.as_ref().unwrap().name == "test1");
-        assert!(exe_tree.top_time_nodes[0]
-            .next
-            .as_ref()
-            .unwrap()
-            .next
-            .is_none());
-        assert!(exe_tree.top_time_nodes[0]
-            .next
-            .as_ref()
-            .unwrap()
-            .subdepth_child
-            .is_none());
+        assert!(
+            exe_tree.top_time_nodes[0]
+                .next
+                .as_ref()
+                .unwrap()
+                .next
+                .is_none()
+        );
+        assert!(
+            exe_tree.top_time_nodes[0]
+                .next
+                .as_ref()
+                .unwrap()
+                .subdepth_child
+                .is_none()
+        );
         println!("{:?}", exe_tree);
         exe_tree.add("test2".to_string(), 1, vec![1, 0]);
         assert!(exe_tree.top_time_nodes.len() == 1);
@@ -193,24 +197,28 @@ mod test {
                 .name
                 == "test2"
         );
-        assert!(exe_tree.top_time_nodes[0]
-            .next
-            .as_ref()
-            .unwrap()
-            .subdepth_child
-            .as_ref()
-            .unwrap()
-            .next
-            .is_none());
-        assert!(exe_tree.top_time_nodes[0]
-            .next
-            .as_ref()
-            .unwrap()
-            .subdepth_child
-            .as_ref()
-            .unwrap()
-            .subdepth_child
-            .is_none());
+        assert!(
+            exe_tree.top_time_nodes[0]
+                .next
+                .as_ref()
+                .unwrap()
+                .subdepth_child
+                .as_ref()
+                .unwrap()
+                .next
+                .is_none()
+        );
+        assert!(
+            exe_tree.top_time_nodes[0]
+                .next
+                .as_ref()
+                .unwrap()
+                .subdepth_child
+                .as_ref()
+                .unwrap()
+                .subdepth_child
+                .is_none()
+        );
         println!("{:?}", exe_tree);
         exe_tree.add("test3".to_string(), 1, vec![1, 1]);
         assert!(exe_tree.top_time_nodes.len() == 1);
@@ -240,30 +248,34 @@ mod test {
                 .name
                 == "test3"
         );
-        assert!(exe_tree.top_time_nodes[0]
-            .next
-            .as_ref()
-            .unwrap()
-            .subdepth_child
-            .as_ref()
-            .unwrap()
-            .next
-            .as_ref()
-            .unwrap()
-            .next
-            .is_none());
-        assert!(exe_tree.top_time_nodes[0]
-            .next
-            .as_ref()
-            .unwrap()
-            .subdepth_child
-            .as_ref()
-            .unwrap()
-            .next
-            .as_ref()
-            .unwrap()
-            .subdepth_child
-            .is_none());
+        assert!(
+            exe_tree.top_time_nodes[0]
+                .next
+                .as_ref()
+                .unwrap()
+                .subdepth_child
+                .as_ref()
+                .unwrap()
+                .next
+                .as_ref()
+                .unwrap()
+                .next
+                .is_none()
+        );
+        assert!(
+            exe_tree.top_time_nodes[0]
+                .next
+                .as_ref()
+                .unwrap()
+                .subdepth_child
+                .as_ref()
+                .unwrap()
+                .next
+                .as_ref()
+                .unwrap()
+                .subdepth_child
+                .is_none()
+        );
         println!("{:?}", exe_tree);
     }
 

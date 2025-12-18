@@ -4,13 +4,13 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "gui")]
 use simba_macros::ToVec;
-use simba_macros::{config_derives, EnumToString};
+use simba_macros::{EnumToString, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::{
     gui::{
-        utils::{enum_checkbox, enum_radio, string_checkbox},
         UIComponent,
+        utils::{enum_checkbox, enum_radio, string_checkbox},
     },
     simulator::SimulatorConfig,
 };

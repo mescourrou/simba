@@ -4,14 +4,17 @@ use std::{fmt::Debug, sync::Arc};
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{config_derives, EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use crate::{
-    physics::{fault_models::additive_robot_centered::{
-        AdditiveRobotCenteredPhysicsFault, AdditiveRobotCenteredPhysicsFaultConfig,
-    }, robot_models::RobotModelConfig},
+    physics::{
+        fault_models::additive_robot_centered::{
+            AdditiveRobotCenteredPhysicsFault, AdditiveRobotCenteredPhysicsFaultConfig,
+        },
+        robot_models::RobotModelConfig,
+    },
     state_estimators::State,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -148,12 +151,17 @@ pub fn make_physics_fault_model_from_config(
     robot_model: RobotModelConfig,
     _robot_name: &String,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    initial_time: f32,
 ) -> Box<dyn PhysicsFaultModel> {
     match &config {
-        PhysicsFaultModelConfig::AdditiveRobotCentered(cfg) => Box::new(
-            AdditiveRobotCenteredPhysicsFault::from_config(cfg, robot_model, va_factory),
-        )
-            as Box<dyn PhysicsFaultModel>,
+        PhysicsFaultModelConfig::AdditiveRobotCentered(cfg) => {
+            Box::new(AdditiveRobotCenteredPhysicsFault::from_config(
+                cfg,
+                robot_model,
+                va_factory,
+                initial_time,
+            )) as Box<dyn PhysicsFaultModel>
+        }
     }
 }
 

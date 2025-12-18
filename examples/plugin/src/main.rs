@@ -47,7 +47,7 @@ struct MyWonderfulController {
 }
 
 impl MyWonderfulController {
-    pub fn from_config(_config: MyWonderfulControllerConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulControllerConfig, _initial_time: f32) -> Self {
         let (tx, rx) = mpsc::channel();
         Self {
             letter_box_rx: Arc::new(Mutex::new(rx)),
@@ -107,7 +107,7 @@ struct MyWonderfulNavigator {
 }
 
 impl MyWonderfulNavigator {
-    pub fn from_config(_config: MyWonderfulNavigatorConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulNavigatorConfig, _initial_time: f32) -> Self {
         let (tx, rx) = mpsc::channel();
         Self {
             letter_box_rx: Arc::new(Mutex::new(rx)),
@@ -169,7 +169,7 @@ struct MyWonderfulPhysics {
 }
 
 impl MyWonderfulPhysics {
-    pub fn from_config(_config: MyWonderfulPhysicsConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulPhysicsConfig, _initial_time: f32) -> Self {
         Self {
             state: State {
                 pose: Vector3::zeros(),
@@ -230,10 +230,10 @@ struct MyWonderfulStateEstimator {
 }
 
 impl MyWonderfulStateEstimator {
-    pub fn from_config(_config: MyWonderfulStateEstimatorConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulStateEstimatorConfig, initial_time: f32) -> Self {
         let (tx, rx) = mpsc::channel();
         Self {
-            last_prediction: 0.,
+            last_prediction: initial_time,
             letter_box_rx: Arc::new(Mutex::new(rx)),
             letter_box_tx: tx,
         }
@@ -307,9 +307,9 @@ struct MyWonderfulSensor {
 }
 
 impl MyWonderfulSensor {
-    pub fn from_config(config: MyWonderfulSensorConfig) -> Self {
+    pub fn from_config(config: MyWonderfulSensorConfig, initial_time: f32) -> Self {
         Self {
-            last_time: 0.,
+            last_time: initial_time,
             period: config.period,
             last_observation: None,
         }
@@ -351,9 +351,11 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Controller> {
         Box::new(MyWonderfulController::from_config(
             serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
         ))
     }
 
@@ -362,9 +364,11 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Navigator> {
         Box::new(MyWonderfulNavigator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
         ))
     }
 
@@ -373,9 +377,11 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Physics> {
         Box::new(MyWonderfulPhysics::from_config(
             serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
         ))
     }
 
@@ -384,9 +390,11 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         Box::new(MyWonderfulStateEstimator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
         ))
 
         // Example: use already existing state estimator (PythonEstimator here)
@@ -398,9 +406,11 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        initial_time: f32,
     ) -> Box<dyn Sensor> {
         Box::new(MyWonderfulSensor::from_config(
             serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
         ))
     }
 }
@@ -414,7 +424,7 @@ fn main() {
     println!("Load configuration...");
     let mut simulator = Simulator::from_config_path(
         Path::new("config_example/config_plugin.yaml"),
-        &Some(Arc::new(my_plugin)), //<- plugin API, to load external modules
+        Some(Arc::new(my_plugin)), //<- plugin API, to load external modules
     )
     .unwrap();
 

@@ -3,16 +3,16 @@ Provides a [`Sensor`] which can observe oriented landmarks in the frame of the r
 */
 
 use super::fault_models::fault_model::{
-    make_fault_model_from_config, FaultModel, FaultModelConfig,
+    FaultModel, FaultModelConfig, make_fault_model_from_config,
 };
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
-use crate::logger::{is_enabled, InternalLog};
+use crate::logger::{InternalLog, is_enabled};
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::sensor_filters::{
-    make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
+    SensorFilter, SensorFilterConfig, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
@@ -25,7 +25,7 @@ use crate::utils::maths::round_precision;
 #[cfg(feature = "gui")]
 use crate::{
     constants::TIME_ROUND_DECIMALS,
-    gui::{utils::path_finder, UIComponent},
+    gui::{UIComponent, utils::path_finder},
 };
 use config_checker::macros::Check;
 use nalgebra::Vector2;
@@ -503,6 +503,7 @@ impl OrientedLandmarkSensor {
             &SimulatorConfig::default(),
             &"NoName".to_string(),
             &DeterministRandomVariableFactory::default(),
+            0.0,
         )
     }
 
@@ -515,6 +516,7 @@ impl OrientedLandmarkSensor {
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
+        initial_time: f32,
     ) -> Self {
         let mut path = Path::new(&config.map_path);
         let fault_models = Arc::new(Mutex::new(Vec::new()));
@@ -525,6 +527,7 @@ impl OrientedLandmarkSensor {
                 global_config,
                 robot_name,
                 va_factory,
+                initial_time,
             ));
         }
         drop(unlock_fault_model);
@@ -532,7 +535,11 @@ impl OrientedLandmarkSensor {
         let filters = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_filters = filters.lock().unwrap();
         for filter_config in &config.filters {
-            unlock_filters.push(make_sensor_filter_from_config(filter_config, global_config));
+            unlock_filters.push(make_sensor_filter_from_config(
+                filter_config,
+                global_config,
+                initial_time,
+            ));
         }
         drop(unlock_filters);
 
@@ -540,7 +547,7 @@ impl OrientedLandmarkSensor {
             detection_distance: config.detection_distance,
             landmarks: Vec::new(),
             period: config.period,
-            last_time: 0.,
+            last_time: initial_time,
             faults: fault_models,
             filters,
             xray: config.xray,
@@ -727,7 +734,9 @@ impl Sensor for OrientedLandmarkSensor {
                                 if projected1.is_none() && projected2.is_none() {
                                     // No intersection, not obstructed, keep points
                                     if is_enabled(InternalLog::SensorManagerDetailed) {
-                                        debug!("No intersection after projection, not obstructed, keeping points.");
+                                        debug!(
+                                            "No intersection after projection, not obstructed, keeping points."
+                                        );
                                     }
                                     new_intersections.extend_from_slice(&chunk_intersections);
                                     continue;
@@ -739,7 +748,9 @@ impl Sensor for OrientedLandmarkSensor {
                                     if dot2 - 1e-3 < 0. || dot2 + 1e-3 > chunk_length {
                                         // projected2 is out of segment, not obstructed, keep points
                                         if is_enabled(InternalLog::SensorManagerDetailed) {
-                                            debug!("Projected2 is out of segment, not obstructed, keeping points.");
+                                            debug!(
+                                                "Projected2 is out of segment, not obstructed, keeping points."
+                                            );
                                         }
                                         new_intersections.extend_from_slice(&chunk_intersections);
                                         continue;
@@ -757,7 +768,9 @@ impl Sensor for OrientedLandmarkSensor {
                                     if dot1 - 1e-3 < 0. || dot1 + 1e-3 > chunk_length {
                                         // projected1 is out of segment, not obstructed, keep points
                                         if is_enabled(InternalLog::SensorManagerDetailed) {
-                                            debug!("Projected1 is out of segment, not obstructed, keeping points.");
+                                            debug!(
+                                                "Projected1 is out of segment, not obstructed, keeping points."
+                                            );
                                         }
                                         new_intersections.extend_from_slice(&chunk_intersections);
                                         continue;
@@ -793,14 +806,18 @@ impl Sensor for OrientedLandmarkSensor {
                                         {
                                             // both projected points are out of segment, not obstructed, keep points
                                             if is_enabled(InternalLog::SensorManagerDetailed) {
-                                                debug!("Both projected points are out of segment, not obstructed, keeping points.");
+                                                debug!(
+                                                    "Both projected points are out of segment, not obstructed, keeping points."
+                                                );
                                             }
                                             new_intersections
                                                 .extend_from_slice(&chunk_intersections);
                                             continue;
                                         } else {
                                             if is_enabled(InternalLog::SensorManagerDetailed) {
-                                                debug!("Projected points are on different sides, fully obstructed, removing points.");
+                                                debug!(
+                                                    "Projected points are on different sides, fully obstructed, removing points."
+                                                );
                                             }
                                             continue;
                                         }

@@ -32,7 +32,7 @@ struct MyWonderfulNavigator {
 }
 
 impl MyWonderfulNavigator {
-    pub fn from_config(_config: MyWonderfulNavigatorConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulNavigatorConfig, _initial_time: f32) -> Self {
         let (tx, rx) = mpsc::channel();
         Self {
             letter_box_rx: Arc::new(Mutex::new(rx)),
@@ -88,9 +88,11 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Navigator> {
         Box::new(MyWonderfulNavigator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
         ))
     }
 
@@ -100,9 +102,10 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         self.python_api
-            .get_state_estimator(config, global_config, va_factory)
+            .get_state_estimator(config, global_config, va_factory, initial_time)
     }
 
     fn check_requests(&self) {

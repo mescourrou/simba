@@ -6,8 +6,8 @@ import numpy as np
 import math
 
 class Physics(simba.Physics):
-    def __init__(self, config: dict):
-        self.last_time = 0.
+    def __init__(self, config: dict, initial_time: float):
+        self.last_time = initial_time
         self.wheel_distance = 0.25,
         self.curr_state = np.array([0.,0.,0.,0.,0.])
         self.current_command = np.array([0.,0.])
@@ -65,9 +65,9 @@ class Physics(simba.Physics):
 
 
 class SimulatorAPI(simba.PluginAPI):
-    def get_physics(self, config: dict, global_config: dict):
+    def get_physics(self, config: dict, global_config: dict, initial_time: float):
         config = json.loads(config)
-        return Physics(config)
+        return Physics(config, initial_time)
 
 def main():
 

@@ -14,8 +14,8 @@ use simba_macros::EnumToString;
 use crate::{
     constants::TIME_ROUND,
     gui::{
-        utils::{json_config, path_finder, string_combobox},
         UIComponent,
+        utils::{json_config, path_finder, string_combobox},
     },
 };
 

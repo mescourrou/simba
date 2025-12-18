@@ -4,18 +4,34 @@ use log::debug;
 use pyo3::prelude::*;
 
 use crate::{
-    controllers::{Controller, pybinds::PythonController},
+    controllers::{
+        Controller,
+        pybinds::{ControllerWrapper, PythonController},
+    },
     logger::is_enabled,
-    navigators::{Navigator, go_to::GoToMessage, pybinds::PythonNavigator},
+    navigators::{
+        Navigator,
+        go_to::GoToMessage,
+        pybinds::{NavigatorWrapper, PythonNavigator},
+    },
     networking::{MessageTypes, network::MessageFlag},
-    physics::{Physics, pybinds::PythonPhysics},
+    physics::{
+        Physics,
+        pybinds::{PhysicsWrapper, PythonPhysics},
+    },
     plugin_api::PluginAPI,
     pywrappers::{
-        CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, Pose, SensorObservationWrapper, SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, Vec2, WorldStateWrapper, run_gui
+        CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper,
+        ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper,
+        OrientedRobotObservationWrapper, PluginAPIWrapper, Pose, SensorObservationWrapper,
+        SimulatorWrapper, StateWrapper, UnicycleCommandWrapper, Vec2, WorldStateWrapper, run_gui,
     },
     sensors::sensor_manager::SensorTriggerMessage,
     simulator::SimulatorConfig,
-    state_estimators::{StateEstimator, pybinds::PythonStateEstimator},
+    state_estimators::{
+        StateEstimator,
+        pybinds::{PythonStateEstimator, StateEstimatorWrapper},
+    },
     utils::{
         determinist_random_variable::DeterministRandomVariableFactory, python::call_py_method,
     },
@@ -25,22 +41,22 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SimulatorWrapper>()?;
     m.add_class::<PluginAPIWrapper>()?;
     m.add_class::<ControllerErrorWrapper>()?;
-    m.add_class::<PythonPhysics>()?;
+    m.add_class::<PhysicsWrapper>()?;
     m.add_class::<StateWrapper>()?;
     m.add_class::<Pose>()?;
     m.add_class::<Vec2>()?;
     m.add_class::<WorldStateWrapper>()?;
-    m.add_class::<PythonStateEstimator>()?;
+    m.add_class::<StateEstimatorWrapper>()?;
     m.add_class::<ObservationWrapper>()?;
     m.add_class::<SensorObservationWrapper>()?;
     m.add_class::<GNSSObservationWrapper>()?;
     m.add_class::<OdometryObservationWrapper>()?;
     m.add_class::<OrientedLandmarkObservationWrapper>()?;
     m.add_class::<OrientedRobotObservationWrapper>()?;
-    m.add_class::<PythonController>()?;
+    m.add_class::<ControllerWrapper>()?;
     m.add_class::<CommandWrapper>()?;
     m.add_class::<UnicycleCommandWrapper>()?;
-    m.add_class::<PythonNavigator>()?;
+    m.add_class::<NavigatorWrapper>()?;
     m.add_class::<NodeWrapper>()?;
     m.add_class::<MessageFlag>()?;
     m.add_class::<MessageTypes>()?;
@@ -92,6 +108,7 @@ impl PluginAPI for PythonAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling Python API");
@@ -104,7 +121,8 @@ impl PluginAPI for PythonAPI {
                 "get_state_estimator",
                 Py<PyAny>,
                 config.to_string(),
-                serde_json::to_string(global_config).expect("Failed to serialize global_config")
+                serde_json::to_string(global_config).expect("Failed to serialize global_config"),
+                initial_time
             )));
         let st = Box::new(
             self.state_estimators
@@ -125,6 +143,7 @@ impl PluginAPI for PythonAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Controller> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling Python API");
@@ -137,7 +156,8 @@ impl PluginAPI for PythonAPI {
                 "get_controller",
                 Py<PyAny>,
                 config.to_string(),
-                serde_json::to_string(global_config).expect("Failed to serialize global_config")
+                serde_json::to_string(global_config).expect("Failed to serialize global_config"),
+                initial_time
             )));
         let st = Box::new(
             self.controllers
@@ -158,6 +178,7 @@ impl PluginAPI for PythonAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Navigator> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling Python API");
@@ -170,7 +191,8 @@ impl PluginAPI for PythonAPI {
                 "get_navigator",
                 Py<PyAny>,
                 config.to_string(),
-                serde_json::to_string(global_config).expect("Failed to serialize global_config")
+                serde_json::to_string(global_config).expect("Failed to serialize global_config"),
+                initial_time
             )));
         let st = Box::new(self.navigators.lock().unwrap().last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {
@@ -184,6 +206,7 @@ impl PluginAPI for PythonAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Physics> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling Python API");
@@ -196,7 +219,8 @@ impl PluginAPI for PythonAPI {
                 "get_physics",
                 Py<PyAny>,
                 config.to_string(),
-                serde_json::to_string(global_config).expect("Failed to serialize global_config")
+                serde_json::to_string(global_config).expect("Failed to serialize global_config"),
+                initial_time
             )));
         let st = Box::new(self.physics.lock().unwrap().last().unwrap().get_client());
         if is_enabled(crate::logger::InternalLog::API) {

@@ -40,7 +40,7 @@ use na::SVector;
 
 extern crate confy;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{config_derives, EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 /// Configuration for [`State`] in order to load a state from the configuration.
 ///
@@ -112,10 +112,21 @@ impl UIComponent for StateConfig {
                     current_node_name,
                     unique_id,
                 );
-                let possible_variables = ["x", "y", "orientation", "velocity", "velocity_x", "velocity_y", "vx", "vy", "r", "theta"]
-                    .iter()
-                    .map(|x| String::from(*x))
-                    .collect();
+                let possible_variables = [
+                    "x",
+                    "y",
+                    "orientation",
+                    "velocity",
+                    "velocity_x",
+                    "velocity_y",
+                    "vx",
+                    "vy",
+                    "r",
+                    "theta",
+                ]
+                .iter()
+                .map(|x| String::from(*x))
+                .collect();
                 ui.horizontal(|ui| {
                     ui.label("Variable order:");
                     for (i, var) in self.variable_order.iter_mut().enumerate() {
@@ -189,7 +200,10 @@ impl UIComponent for StateRecord {
                 "pose: ({}, {}, {})",
                 self.pose[0], self.pose[1], self.pose[2]
             ));
-            ui.label(format!("velocity: ({}, {})", self.velocity[0], self.velocity[1]));
+            ui.label(format!(
+                "velocity: ({}, {})",
+                self.velocity[0], self.velocity[1]
+            ));
         });
     }
 }
@@ -257,7 +271,12 @@ impl State {
             let rv = va_factory.make_variable(rv_config.clone());
             let sampled_value = rv.generate(0.);
             for sample in sampled_value {
-                assert!(i < config.variable_order.len(), "The variable_order length ({}) is smaller than the number of random variables sampled ({}).", config.variable_order.len(), i + 1);
+                assert!(
+                    i < config.variable_order.len(),
+                    "The variable_order length ({}) is smaller than the number of random variables sampled ({}).",
+                    config.variable_order.len(),
+                    i + 1
+                );
                 match config.variable_order[i].as_str() {
                     "x" => state.pose[0] += sample,
                     "y" => state.pose[1] += sample,
@@ -266,7 +285,10 @@ impl State {
                     "velocity_y" | "vy" => state.velocity[1] += sample,
                     "r" => add_r += sample,
                     "theta" => add_theta += sample,
-                    _ => panic!("Unknown variable name in variable_order ({}), should be in [x, y, orientation, velocity | velocity_x | vx, velocity_y | vy, r, theta]", config.variable_order[i]),
+                    _ => panic!(
+                        "Unknown variable name in variable_order ({}), should be in [x, y, orientation, velocity | velocity_x | vx, velocity_y | vy, r, theta]",
+                        config.variable_order[i]
+                    ),
                 }
                 i += 1;
             }
@@ -410,8 +432,8 @@ impl Recordable<WorldStateRecord> for WorldState {
 
 #[cfg(feature = "gui")]
 use crate::gui::{
-    utils::{string_combobox, text_singleline_with_apply},
     UIComponent,
+    utils::{string_combobox, text_singleline_with_apply},
 };
 use crate::node::Node;
 use crate::recordable::Recordable;
@@ -568,10 +590,11 @@ pub fn make_state_estimator_from_config(
     plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    initial_time: f32,
 ) -> Box<dyn StateEstimator> {
     match config {
         StateEstimatorConfig::Perfect(c) => Box::new(
-            perfect_estimator::PerfectEstimator::from_config(c, global_config),
+            perfect_estimator::PerfectEstimator::from_config(c, global_config, initial_time),
         ) as Box<dyn StateEstimator>,
         StateEstimatorConfig::External(c) => {
             Box::new(external_estimator::ExternalEstimator::from_config(
@@ -579,12 +602,12 @@ pub fn make_state_estimator_from_config(
                 plugin_api,
                 global_config,
                 va_factory,
+                initial_time,
             )) as Box<dyn StateEstimator>
         }
-        StateEstimatorConfig::Python(c) => {
-            Box::new(python_estimator::PythonEstimator::from_config(c, global_config).unwrap())
-                as Box<dyn StateEstimator>
-        }
+        StateEstimatorConfig::Python(c) => Box::new(
+            python_estimator::PythonEstimator::from_config(c, global_config, initial_time).unwrap(),
+        ) as Box<dyn StateEstimator>,
     }
 }
 

@@ -31,7 +31,7 @@ fn main() {
     let config_path = Path::new("configs/simulator_config.yaml");
     let mut simulator = Simulator::from_config_path(
         config_path,
-        &Some(Box::new(plugin)),
+        Some(Arc::new(plugin)),
         );
 
     simulator.run();
@@ -68,6 +68,7 @@ pub trait PluginAPI: Send + Sync {
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         panic!("The given PluginAPI does not provide a state estimator");
     }
@@ -89,6 +90,7 @@ pub trait PluginAPI: Send + Sync {
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _initial_time: f32,
     ) -> Box<dyn Controller> {
         panic!("The given PluginAPI does not provide a controller");
     }
@@ -110,6 +112,7 @@ pub trait PluginAPI: Send + Sync {
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _initial_time: f32,
     ) -> Box<dyn Navigator> {
         panic!("The given PluginAPI does not provide a navigator");
     }
@@ -131,6 +134,7 @@ pub trait PluginAPI: Send + Sync {
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _initial_time: f32,
     ) -> Box<dyn Physics> {
         panic!("The given PluginAPI does not provide physics");
     }
@@ -141,6 +145,7 @@ pub trait PluginAPI: Send + Sync {
         &self,
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _initial_time: f32,
     ) -> Box<dyn Sensor> {
         panic!("The given PluginAPI does not provide a sensor");
     }

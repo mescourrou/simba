@@ -6,8 +6,8 @@ import time
 from typing import List, Dict
 
 class StateEstimator(simba.StateEstimator):
-    def __init__(self, config: dict):
-        self.last_time = 0
+    def __init__(self, config: dict, initial_time: float):
+        self.last_time = initial_time
 
     def state(self) -> simba.WorldState:
         return simba.WorldState()
@@ -47,10 +47,10 @@ class StateEstimator(simba.StateEstimator):
 
 
 class SimulatorAPI(simba.PluginAPI):
-    def get_state_estimator(self, config, global_config):
+    def get_state_estimator(self, config, global_config, initial_time: float):
         config = json.loads(config)
         print(f"Config received by python: {type(config)} {config}")
-        return StateEstimator(config)
+        return StateEstimator(config, initial_time)
 
 def main():
 

@@ -1,13 +1,13 @@
 use std::{
     str::FromStr,
     sync::{
-        mpsc::{self, Receiver, Sender},
         Arc, Mutex,
+        mpsc::{self, Receiver, Sender},
     },
 };
 
 use log::debug;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict};
 use serde_json::Value;
 
 use crate::{
@@ -62,8 +62,6 @@ impl MessageHandler for PythonControllerAsyncClient {
 }
 
 #[derive(Debug)]
-#[pyclass(subclass)]
-#[pyo3(name = "Controller")]
 pub struct PythonController {
     model: Py<PyAny>,
     client: PythonControllerAsyncClient,
@@ -72,9 +70,7 @@ pub struct PythonController {
     pre_loop_hook: Arc<RemoteFunctionCallHost<(NodeWrapper, f32), ()>>,
 }
 
-#[pymethods]
 impl PythonController {
-    #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             Python::attach(|py| {
@@ -155,5 +151,34 @@ impl PythonController {
             debug!("Calling python implementation of pre_loop_hook");
         }
         call_py_method_void!(self.model, "pre_loop_hook", node, time);
+    }
+}
+
+#[pyclass(subclass)]
+#[pyo3(name = "Controller")]
+pub struct ControllerWrapper {}
+
+#[pymethods]
+impl ControllerWrapper {
+    #[new]
+    pub fn new(_config: Py<PyAny>, _initial_time: f32) -> ControllerWrapper {
+        Self {}
+    }
+
+    fn make_command(
+        &mut self,
+        node: NodeWrapper,
+        error: ControllerErrorWrapper,
+        time: f32,
+    ) -> CommandWrapper {
+        unimplemented!()
+    }
+
+    fn record(&self) -> Py<PyDict> {
+        unimplemented!()
+    }
+
+    fn pre_loop_hook(&mut self, node: NodeWrapper, time: f32) {
+        unimplemented!()
     }
 }

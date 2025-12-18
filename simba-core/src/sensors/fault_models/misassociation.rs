@@ -15,17 +15,17 @@ use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
 use serde_json::from_str;
-use simba_macros::{config_derives, EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::gui::{
-    utils::{enum_combobox, string_combobox},
     UIComponent,
+    utils::{enum_combobox, string_combobox},
 };
 use crate::{
     sensors::{
-        fault_models::fault_model::FaultModelConfig,
-        oriented_landmark_sensor::OrientedLandmarkSensor, SensorObservation,
+        SensorObservation, fault_models::fault_model::FaultModelConfig,
+        oriented_landmark_sensor::OrientedLandmarkSensor,
     },
     simulator::SimulatorConfig,
     utils::{
@@ -187,6 +187,7 @@ impl MisassociationFault {
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
+        _initial_time: f32,
     ) -> Self {
         let distribution = Arc::new(Mutex::new(
             va_factory.make_variable(config.distribution.clone()),
@@ -199,7 +200,9 @@ impl MisassociationFault {
             Source::Map(path) => {
                 let path = Path::new(&path);
                 if !path.exists() {
-                    panic!("The correct map path should be given for Misassociation fault (when source is Map)");
+                    panic!(
+                        "The correct map path should be given for Misassociation fault (when source is Map)"
+                    );
                 }
                 let map = OrientedLandmarkSensor::load_map_from_path(path);
                 map.iter()
@@ -254,7 +257,9 @@ impl FaultModel for MisassociationFault {
             }
             Sort::Distance => {
                 if let SensorObservation::OrientedRobot(_) = obs_type {
-                    panic!("MisassociationFault: Distance sorting is not implemented for Robot Observation");
+                    panic!(
+                        "MisassociationFault: Distance sorting is not implemented for Robot Observation"
+                    );
                 }
             }
             _ => {}

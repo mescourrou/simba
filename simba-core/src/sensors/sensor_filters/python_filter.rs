@@ -3,7 +3,7 @@ use pyo3::prelude::*;
 use crate::{
     errors::SimbaResult,
     pywrappers::{SensorObservationWrapper, StateWrapper},
-    sensors::{sensor_filters::SensorFilter, SensorObservation},
+    sensors::{SensorObservation, sensor_filters::SensorFilter},
     simulator::SimulatorConfig,
     state_estimators::State,
     utils::{
@@ -23,8 +23,10 @@ impl PythonFilter {
     pub fn from_config(
         config: &PythonFilterConfig,
         global_config: &SimulatorConfig,
+        initial_time: f32,
     ) -> SimbaResult<Self> {
-        let instance = load_class_from_python_script(config, global_config, "Filter")?;
+        let instance =
+            load_class_from_python_script(config, global_config, initial_time, "Filter")?;
         Ok(Self { instance })
     }
 }

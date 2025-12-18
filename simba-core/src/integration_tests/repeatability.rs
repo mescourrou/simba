@@ -14,7 +14,7 @@ macro_rules! replication_test {
                 print!("Run {}/{nb_replications} ... ", i + 1);
                 let mut simulator = Simulator::from_config_path(
                     Path::new(format!("test_config/{}.yaml", stringify!($config)).as_str()),
-                    &None,
+                    None,
                 )
                 .map_err(|e| {
                     println!("Error while loading config: {}", e.detailed_error());

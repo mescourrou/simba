@@ -218,6 +218,9 @@ class Node:
         raise NotImplementedError()
 
 class StateEstimator:
+    def __init__(self, config: dict, initial_time: float):
+        raise NotImplementedError()
+    
     def state(self) -> WorldState:
         raise NotImplementedError()
     
@@ -270,16 +273,16 @@ class Physics:
         raise NotImplementedError()
 
 class PluginAPI:
-    def get_state_estimator(self, config: Dict, global_config: Dict) -> StateEstimator:
+    def get_state_estimator(self, config: Dict, global_config: Dict, initial_time: float) -> StateEstimator:
         raise NotImplementedError()
     
-    def get_controller(self, config: Dict, global_config: Dict) -> Controller:
+    def get_controller(self, config: Dict, global_config: Dict, initial_time: float) -> Controller:
         raise NotImplementedError()
     
-    def get_navigator(self, config: Dict, global_config: Dict) -> Navigator:
+    def get_navigator(self, config: Dict, global_config: Dict, initial_time: float) -> Navigator:
         raise NotImplementedError()
     
-    def get_physics(self, config: Dict, global_config: Dict) -> Physics:
+    def get_physics(self, config: Dict, global_config: Dict, initial_time: float) -> Physics:
         raise NotImplementedError()
     
 class Simulator:

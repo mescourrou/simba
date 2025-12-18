@@ -6,11 +6,11 @@ use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{
-    utils::{string_combobox, text_singleline_with_apply},
     UIComponent,
+    utils::{string_combobox, text_singleline_with_apply},
 };
 use crate::{
-    sensors::{fault_models::fault_model::FaultModelConfig, SensorObservation},
+    sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -158,6 +158,7 @@ impl ClutterFault {
     pub fn from_config(
         config: &ClutterFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
+        _initial_time: f32,
     ) -> Self {
         let distributions = Arc::new(Mutex::new(
             config
@@ -206,7 +207,9 @@ impl FaultModel for ClutterFault {
         let obs_seed_increment = 1. / (100. * period);
         let mut seed = time;
 
-        let n_obs = self.apparition.lock().unwrap().generate(time)[0].abs().floor() as usize;
+        let n_obs = self.apparition.lock().unwrap().generate(time)[0]
+            .abs()
+            .floor() as usize;
         for _ in 0..n_obs {
             seed += obs_seed_increment;
             let mut random_sample = Vec::new();
@@ -222,11 +225,17 @@ impl FaultModel for ClutterFault {
                                 "x" => o.pose.x = random_sample[i],
                                 "y" => o.pose.y = random_sample[i],
                                 "z" | "orientation" => o.pose.z = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]", variable)
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 3, "The distribution of an Clutter fault for OrientedRobot observation need to be of dimension 3.");
+                        assert!(
+                            random_sample.len() >= 3,
+                            "The distribution of an Clutter fault for OrientedRobot observation need to be of dimension 3."
+                        );
                         o.pose.x = random_sample[0];
                         o.pose.y = random_sample[1];
                         o.pose.z = random_sample[2];
@@ -244,11 +253,17 @@ impl FaultModel for ClutterFault {
                                 "position_y" | "y" => o.position.y = random_sample[i],
                                 "velocity_x" => o.velocity.x = random_sample[i],
                                 "velocity_y" => o.velocity.y = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y]", variable)
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 2, "The distribution of an Clutter fault for GNSS observation need to be at least of dimension 2 (to 4 for velocities).");
+                        assert!(
+                            random_sample.len() >= 2,
+                            "The distribution of an Clutter fault for GNSS observation need to be at least of dimension 2 (to 4 for velocities)."
+                        );
                         o.position.x = random_sample[0];
                         o.position.y = random_sample[1];
                         if random_sample.len() >= 3 {
@@ -265,13 +280,23 @@ impl FaultModel for ClutterFault {
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
-                                "w" | "angular" | "angular_velocity" => o.angular_velocity = random_sample[i],
-                                "v" | "linear" | "linear_velocity" => o.linear_velocity = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]", variable)
+                                "w" | "angular" | "angular_velocity" => {
+                                    o.angular_velocity = random_sample[i]
+                                }
+                                "v" | "linear" | "linear_velocity" => {
+                                    o.linear_velocity = random_sample[i]
+                                }
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 2, "The distribution of an Clutter fault for Odometry observation need to be of dimension 2.");
+                        assert!(
+                            random_sample.len() >= 2,
+                            "The distribution of an Clutter fault for Odometry observation need to be of dimension 2."
+                        );
                         o.angular_velocity = random_sample[0];
                         o.linear_velocity = random_sample[1];
                     }
@@ -285,11 +310,17 @@ impl FaultModel for ClutterFault {
                                 "x" => o.pose.x = random_sample[i],
                                 "y" => o.pose.y = random_sample[i],
                                 "z" | "orientation" => o.pose.z = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]", variable)
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 3, "The distribution of an Clutter fault for OrientedLandmark observation need to be of dimension 3.");
+                        assert!(
+                            random_sample.len() >= 3,
+                            "The distribution of an Clutter fault for OrientedLandmark observation need to be of dimension 3."
+                        );
                         o.pose.x = random_sample[0];
                         o.pose.y = random_sample[1];
                         o.pose.z = random_sample[2];

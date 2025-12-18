@@ -26,7 +26,7 @@ extern crate confy;
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{config_derives, EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 use {
     gnss_sensor::{GNSSObservation, GNSSObservationRecord},
@@ -37,7 +37,7 @@ use {
 
 #[cfg(feature = "gui")]
 use crate::{
-    gui::{utils::string_combobox, UIComponent},
+    gui::{UIComponent, utils::string_combobox},
     simulator::SimulatorConfig,
     utils::enum_tools::ToVec,
 };

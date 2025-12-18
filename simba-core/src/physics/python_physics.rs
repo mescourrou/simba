@@ -10,17 +10,17 @@ use config_checker::macros::Check;
 use log::{debug, info};
 use pyo3::ffi::c_str;
 use pyo3::types::PyModule;
+use pyo3::{PyResult, Python, pyclass, pymethods};
 use pyo3::{call, prelude::*};
-use pyo3::{pyclass, pymethods, PyResult, Python};
 use serde_json::Value;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::json_config, UIComponent};
+use crate::gui::{UIComponent, utils::json_config};
 use crate::physics::robot_models::Command;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::python::{
-    call_py_method, call_py_method_void, ensure_venv_pyo3, load_class_from_python_script,
-    CONVERT_TO_DICT,
+    CONVERT_TO_DICT, call_py_method, call_py_method_void, ensure_venv_pyo3,
+    load_class_from_python_script,
 };
 use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
@@ -76,7 +76,11 @@ pub struct PythonPhysics {
 impl PythonPhysics {
     /// Creates a new [`PythonPhysics`]
     pub fn new() -> SimbaResult<Self> {
-        Self::from_config(&PythonPhysicsConfig::default(), &SimulatorConfig::default())
+        Self::from_config(
+            &PythonPhysicsConfig::default(),
+            &SimulatorConfig::default(),
+            0.0,
+        )
     }
 
     /// Creates a new [`PythonPhysics`] from the given config.
@@ -89,12 +93,14 @@ impl PythonPhysics {
     pub fn from_config(
         config: &PythonPhysicsConfig,
         global_config: &SimulatorConfig,
+        initial_time: f32,
     ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
         }
 
-        let physics_instance = load_class_from_python_script(config, global_config, "Physics")?;
+        let physics_instance =
+            load_class_from_python_script(config, global_config, initial_time, "Physics")?;
         Ok(Self {
             physics: physics_instance,
         })

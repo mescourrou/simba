@@ -24,7 +24,7 @@ use std::sync::{Arc, RwLock};
 use config_checker::macros::Check;
 use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{config_derives, EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 /// Enumeration of the different physic implementations.
 #[config_derives]
@@ -157,7 +157,7 @@ impl UIComponent for PhysicsRecord {
 
 #[cfg(feature = "gui")]
 use crate::{
-    gui::{utils::string_combobox, UIComponent},
+    gui::{UIComponent, utils::string_combobox},
     utils::enum_tools::ToVec,
 };
 use crate::{
@@ -218,19 +218,24 @@ pub fn make_physics_from_config(
     global_config: &SimulatorConfig,
     robot_name: &String,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    initial_time: f32,
 ) -> Arc<RwLock<Box<dyn Physics>>> {
     Arc::new(RwLock::new(match &config {
         PhysicsConfig::Internal(c) => Box::new(internal_physics::InternalPhysics::from_config(
-            c, robot_name, va_factory,
+            c,
+            robot_name,
+            va_factory,
+            initial_time,
         )) as Box<dyn Physics>,
         PhysicsConfig::External(c) => Box::new(external_physics::ExternalPhysics::from_config(
             c,
             plugin_api,
             global_config,
             va_factory,
+            initial_time,
         )),
-        PhysicsConfig::Python(c) => {
-            Box::new(python_physics::PythonPhysics::from_config(c, global_config).unwrap())
-        }
+        PhysicsConfig::Python(c) => Box::new(
+            python_physics::PythonPhysics::from_config(c, global_config, initial_time).unwrap(),
+        ),
     }))
 }

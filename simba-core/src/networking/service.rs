@@ -15,7 +15,7 @@ use core::f32;
 use std::{
     collections::BTreeMap,
     fmt::Debug,
-    sync::{mpsc, Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, RwLock, mpsc},
 };
 
 use log::debug;
@@ -108,7 +108,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
             debug!("Sending a request: OK");
         }
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-            debug!("Notify CV");
+            debug!("Notify CV  (service line {})", line!());
         }
         // Needed to unlock the other node if it has finished and is waiting for messages.
         self.time_cv.condvar.notify_all();
@@ -122,7 +122,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
                 return Err(SimbaError::new(
                     SimbaErrorTypes::ServiceError(ServiceError::Other(e.to_string())),
                     format!("{:?}", e),
-                ))
+                ));
             }
         };
 
@@ -170,10 +170,10 @@ pub struct Service<
 }
 
 impl<
-        RequestMsg: Debug + Clone,
-        ResponseMsg: Debug + Clone,
-        T: HasService<RequestMsg, ResponseMsg> + ?Sized,
-    > Service<RequestMsg, ResponseMsg, T>
+    RequestMsg: Debug + Clone,
+    ResponseMsg: Debug + Clone,
+    T: HasService<RequestMsg, ResponseMsg> + ?Sized,
+> Service<RequestMsg, ResponseMsg, T>
 {
     /// Create a new service.
     ///
@@ -224,10 +224,10 @@ impl<
 }
 
 impl<
-        RequestMsg: Clone + Debug + Send + Sync,
-        ResponseMsg: Clone + Debug + Send + Sync,
-        T: HasService<RequestMsg, ResponseMsg> + ?Sized,
-    > ServiceInterface for Service<RequestMsg, ResponseMsg, T>
+    RequestMsg: Clone + Debug + Send + Sync,
+    ResponseMsg: Clone + Debug + Send + Sync,
+    T: HasService<RequestMsg, ResponseMsg> + ?Sized,
+> ServiceInterface for Service<RequestMsg, ResponseMsg, T>
 {
     /// Process the requests received from the clients.
     ///

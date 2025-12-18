@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use log::debug;
-use pyo3::{call, prelude::*};
+use pyo3::{call, prelude::*, types::PyDict};
 use serde_json::Value;
 
 use crate::{
@@ -62,8 +62,6 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysicAsyncClient {
 }
 
 #[derive(Debug)]
-#[pyclass(subclass)]
-#[pyo3(name = "Physics")]
 pub struct PythonPhysics {
     model: Py<PyAny>,
     client: PythonPhysicAsyncClient,
@@ -73,9 +71,7 @@ pub struct PythonPhysics {
     record: Arc<RemoteFunctionCallHost<(), PhysicsRecord>>,
 }
 
-#[pymethods]
 impl PythonPhysics {
-    #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonPhysics {
         if is_enabled(crate::logger::InternalLog::API) {
             Python::attach(|py| {
@@ -164,5 +160,33 @@ impl PythonPhysics {
         // record.clone()
         // StateEstimatorRecord::External(PythonPhysics::record(&self))
         PhysicsRecord::External(record)
+    }
+}
+
+#[pyclass(subclass)]
+#[pyo3(name = "Physics")]
+pub struct PhysicsWrapper {}
+
+#[pymethods]
+impl PhysicsWrapper {
+    #[new]
+    pub fn new(_config: Py<PyAny>, _initial_time: f32) -> PhysicsWrapper {
+        Self {}
+    }
+
+    fn apply_command(&mut self, command: CommandWrapper, time: f32) {
+        unimplemented!()
+    }
+
+    fn update_state(&mut self, time: f32) {
+        unimplemented!()
+    }
+
+    fn state(&mut self, time: f32) -> StateWrapper {
+        unimplemented!()
+    }
+
+    fn record(&self) -> Py<PyDict> {
+        unimplemented!()
     }
 }

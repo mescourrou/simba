@@ -86,6 +86,7 @@ impl MisdetectionFault {
     pub fn from_config(
         config: &MisdetectionFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
+        _initial_time: f32,
     ) -> Self {
         Self {
             apparition: DeterministBernouilliRandomVariable::from_config(

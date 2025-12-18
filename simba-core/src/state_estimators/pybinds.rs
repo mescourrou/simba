@@ -1,13 +1,13 @@
 use std::{
     str::FromStr,
     sync::{
-        mpsc::{self, Receiver, Sender},
         Arc, Mutex,
+        mpsc::{self, Receiver, Sender},
     },
 };
 
 use log::debug;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict};
 use serde_json::Value;
 
 use crate::{
@@ -111,8 +111,8 @@ impl MessageHandler for PythonStateEstimatorAsyncClient {
 }
 
 #[derive(Debug)]
-#[pyclass(subclass)]
-#[pyo3(name = "StateEstimator")]
+// #[pyclass(subclass)]
+// #[pyo3(name = "StateEstimator")]
 pub struct PythonStateEstimator {
     model: Py<PyAny>,
     client: PythonStateEstimatorAsyncClient,
@@ -143,9 +143,9 @@ pub struct PythonStateEstimatorPreLoopHookRequest {
     pub time: f32,
 }
 
-#[pymethods]
+// #[pymethods]
 impl PythonStateEstimator {
-    #[new]
+    // #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             Python::attach(|py| {
@@ -263,5 +263,51 @@ impl PythonStateEstimator {
             debug!("Calling python implementation of pre_loop_hook");
         }
         call_py_method_void!(self.model, "pre_loop_hook", node, time);
+    }
+}
+
+#[pyclass(subclass)]
+#[pyo3(name = "StateEstimator")]
+pub struct StateEstimatorWrapper {
+    #[pyo3(get, set)]
+    pub name: String,
+}
+
+#[pymethods]
+impl StateEstimatorWrapper {
+    #[new]
+    pub fn new(_config: Py<PyAny>, _initial_time: f32) -> StateEstimatorWrapper {
+        StateEstimatorWrapper {
+            name: String::from("anonyme"),
+        }
+    }
+
+    fn prediction_step(&mut self, _node: NodeWrapper, _time: f32) {
+        unimplemented!()
+    }
+
+    fn correction_step(
+        &mut self,
+        _node: NodeWrapper,
+        _observations: Vec<ObservationWrapper>,
+        _time: f32,
+    ) {
+        unimplemented!()
+    }
+
+    fn world_state(&self) -> WorldStateWrapper {
+        unimplemented!()
+    }
+
+    fn next_time_step(&self) -> f32 {
+        unimplemented!()
+    }
+
+    fn record(&self) -> Py<PyDict> {
+        unimplemented!()
+    }
+
+    fn pre_loop_hook(&mut self, _node: NodeWrapper, _time: f32) {
+        unimplemented!()
     }
 }

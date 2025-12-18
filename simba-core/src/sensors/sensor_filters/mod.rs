@@ -1,16 +1,16 @@
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{config_derives, EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, utils::enum_tools::ToVec};
 use crate::{
     sensors::{
+        SensorObservation,
         sensor_filters::{
             python_filter::{PythonFilter, PythonFilterConfig},
             range_filter::{RangeFilter, RangeFilterConfig},
         },
-        SensorObservation,
     },
     simulator::SimulatorConfig,
     state_estimators::State,
@@ -166,13 +166,14 @@ impl SensorFilterConfig {
 pub fn make_sensor_filter_from_config(
     config: &SensorFilterConfig,
     global_config: &SimulatorConfig,
+    initial_time: f32,
 ) -> Box<dyn SensorFilter> {
     match &config {
         SensorFilterConfig::RangeFilter(cfg) => {
-            Box::new(RangeFilter::from_config(cfg)) as Box<dyn SensorFilter>
+            Box::new(RangeFilter::from_config(cfg, initial_time)) as Box<dyn SensorFilter>
         }
         SensorFilterConfig::PythonFilter(cfg) => {
-            Box::new(PythonFilter::from_config(cfg, global_config).unwrap())
+            Box::new(PythonFilter::from_config(cfg, global_config, initial_time).unwrap())
                 as Box<dyn SensorFilter>
         }
     }

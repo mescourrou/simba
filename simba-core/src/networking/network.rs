@@ -153,6 +153,7 @@ impl Network {
             &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
             time_cv,
+            0.0,
         )
     }
 
@@ -163,6 +164,7 @@ impl Network {
         _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
         time_cv: Arc<TimeCv>,
+        _initial_time: f32,
     ) -> Network {
         Network {
             from,

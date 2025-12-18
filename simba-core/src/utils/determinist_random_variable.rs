@@ -21,13 +21,13 @@ use std::sync::Mutex;
 
 use config_checker::macros::Check;
 use log::debug;
-use rand::{random, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, random};
 use rand_chacha::ChaCha8Rng;
 use serde::{Deserialize, Serialize};
-use simba_macros::{config_derives, EnumToString};
+use simba_macros::{EnumToString, config_derives};
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::gui::{UIComponent, utils::string_combobox};
 
 use super::distributions::{
     exponential::{DeterministExponentialRandomVariable, ExponentialRandomVariableConfig},
@@ -47,10 +47,6 @@ pub struct DeterministRandomVariableFactory {
 impl DeterministRandomVariableFactory {
     /// Create a new factory with the given `global_seed`.
     pub fn new(global_seed: f32) -> Self {
-        println!(
-            "Setting new global seed for DeterministRandomVariableFactory: {}",
-            global_seed
-        );
         Self {
             global_seed: Mutex::new(global_seed),
             seed_generator: Mutex::new(ChaCha8Rng::seed_from_u64(global_seed.to_bits() as u64)),
@@ -63,11 +59,6 @@ impl DeterministRandomVariableFactory {
         config: RandomVariableTypeConfig,
     ) -> Box<dyn DeterministRandomVariable> {
         let local_seed = self.seed_generator.lock().unwrap().r#gen::<f32>() * 1000000.;
-        println!(
-            "New variable with local seed: {} (global seed: {})",
-            local_seed,
-            self.global_seed()
-        );
         match config {
             RandomVariableTypeConfig::None => {
                 Box::new(DeterministFixedRandomVariable::from_config(
@@ -95,10 +86,6 @@ impl DeterministRandomVariableFactory {
 
     pub fn set_global_seed(&self, seed: f32) {
         *self.global_seed.lock().unwrap() = seed;
-        println!(
-            "Setting new global seed for DeterministRandomVariableFactory: {}",
-            seed
-        );
         *self.seed_generator.lock().unwrap() = ChaCha8Rng::seed_from_u64(seed.to_bits() as u64);
     }
 
@@ -110,10 +97,6 @@ impl DeterministRandomVariableFactory {
 impl Default for DeterministRandomVariableFactory {
     fn default() -> Self {
         let global_seed = random::<f32>() * 1000000.;
-        println!(
-            "Setting (random) new global seed for DeterministRandomVariableFactory: {}",
-            global_seed
-        );
         Self {
             global_seed: Mutex::new(global_seed),
             seed_generator: Mutex::new(ChaCha8Rng::seed_from_u64(global_seed.to_bits() as u64)),

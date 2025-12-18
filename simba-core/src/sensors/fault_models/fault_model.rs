@@ -4,14 +4,14 @@ use std::fmt::Debug;
 
 use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use simba_macros::{config_derives, EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::{
     sensors::{
-        fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig},
         SensorObservation,
+        fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig},
     },
     simulator::SimulatorConfig,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -239,32 +239,36 @@ pub fn make_fault_model_from_config(
     global_config: &SimulatorConfig,
     robot_name: &String,
     va_factory: &DeterministRandomVariableFactory,
+    initial_time: f32,
 ) -> Box<dyn FaultModel> {
     match &config {
-        FaultModelConfig::AdditiveRobotCentered(cfg) => {
-            Box::new(AdditiveRobotCenteredFault::from_config(cfg, va_factory))
-                as Box<dyn FaultModel>
-        }
+        FaultModelConfig::AdditiveRobotCentered(cfg) => Box::new(
+            AdditiveRobotCenteredFault::from_config(cfg, va_factory, initial_time),
+        ) as Box<dyn FaultModel>,
         FaultModelConfig::AdditiveRobotCenteredPolar(cfg) => Box::new(
-            AdditiveRobotCenteredPolarFault::from_config(cfg, va_factory),
+            AdditiveRobotCenteredPolarFault::from_config(cfg, va_factory, initial_time),
         ) as Box<dyn FaultModel>,
         FaultModelConfig::AdditiveObservationCenteredPolar(cfg) => Box::new(
-            AdditiveObservationCenteredPolarFault::from_config(cfg, va_factory),
+            AdditiveObservationCenteredPolarFault::from_config(cfg, va_factory, initial_time),
         ) as Box<dyn FaultModel>,
         FaultModelConfig::Clutter(cfg) => {
-            Box::new(ClutterFault::from_config(cfg, va_factory)) as Box<dyn FaultModel>
+            Box::new(ClutterFault::from_config(cfg, va_factory, initial_time))
+                as Box<dyn FaultModel>
         }
-        FaultModelConfig::Misdetection(cfg) => {
-            Box::new(MisdetectionFault::from_config(cfg, va_factory)) as Box<dyn FaultModel>
-        }
+        FaultModelConfig::Misdetection(cfg) => Box::new(MisdetectionFault::from_config(
+            cfg,
+            va_factory,
+            initial_time,
+        )) as Box<dyn FaultModel>,
         FaultModelConfig::Misassociation(cfg) => Box::new(MisassociationFault::from_config(
             cfg,
             global_config,
             robot_name,
             va_factory,
+            initial_time,
         )) as Box<dyn FaultModel>,
         FaultModelConfig::Python(cfg) => Box::new(
-            PythonFaultModel::from_config(cfg, global_config)
+            PythonFaultModel::from_config(cfg, global_config, initial_time)
                 .expect("Failed to create Python Fault Model"),
         ) as Box<dyn FaultModel>,
     }

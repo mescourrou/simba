@@ -1,16 +1,19 @@
 use std::sync::mpsc::{self, Receiver, Sender};
 
-use crate::{node::node_factory::NodeType, state_estimators::State};
+use crate::{
+    node::{NodeState, node_factory::NodeType},
+    state_estimators::State,
+};
 
 // The server is on Node side
 #[derive(Debug)]
 pub struct NodeServer {
-    pub state_update: Option<Sender<(f32, (State, bool))>>,
+    pub state_update: Option<Sender<(f32, (State, NodeState))>>,
 }
 
 #[derive(Debug)]
 pub struct NodeClient {
-    pub state_update: Option<Receiver<(f32, (State, bool))>>,
+    pub state_update: Option<Receiver<(f32, (State, NodeState))>>,
 }
 
 pub fn make_node_api(node_type: &NodeType) -> (NodeServer, NodeClient) {

@@ -9,6 +9,7 @@ use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    VERSION,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::LoggerConfig,
     node::node_factory::{ComputationUnitConfig, RobotConfig},
@@ -16,7 +17,6 @@ use crate::{
     simulator::ResultConfig,
     time_analysis::TimeAnalysisConfig,
     utils::{self, format_option_f32},
-    VERSION,
 };
 
 #[cfg(feature = "gui")]

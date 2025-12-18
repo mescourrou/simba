@@ -16,7 +16,7 @@ use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::sensors::sensor_filters::{
-    make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
+    SensorFilter, SensorFilterConfig, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
@@ -384,6 +384,7 @@ impl RobotSensor {
             &SimulatorConfig::default(),
             &"NoName".to_string(),
             &DeterministRandomVariableFactory::default(),
+            0.0,
         )
     }
 
@@ -396,6 +397,7 @@ impl RobotSensor {
         global_config: &SimulatorConfig,
         node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
+        initial_time: f32,
     ) -> Self {
         if let Some(p) = config.period {
             assert!(p != 0.);
@@ -408,6 +410,7 @@ impl RobotSensor {
                 global_config,
                 node_name,
                 va_factory,
+                initial_time,
             ));
         }
         drop(unlock_fault_model);
@@ -415,14 +418,18 @@ impl RobotSensor {
         let filters = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_filters = filters.lock().unwrap();
         for filter_config in &config.filters {
-            unlock_filters.push(make_sensor_filter_from_config(filter_config, global_config));
+            unlock_filters.push(make_sensor_filter_from_config(
+                filter_config,
+                global_config,
+                initial_time,
+            ));
         }
         drop(unlock_filters);
 
         Self {
             detection_distance: config.detection_distance,
             period: config.period,
-            last_time: 0.,
+            last_time: initial_time,
             faults: fault_models,
             filters,
         }

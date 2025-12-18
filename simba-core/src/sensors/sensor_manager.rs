@@ -17,10 +17,10 @@ use std::sync::{Arc, Mutex, RwLock};
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
 use crate::gui::{
-    utils::{string_checkbox, text_singleline_with_apply},
     UIComponent,
+    utils::{string_checkbox, text_singleline_with_apply},
 };
-use crate::logger::{is_enabled, InternalLog};
+use crate::logger::{InternalLog, is_enabled};
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::node::Node;
@@ -298,6 +298,7 @@ impl SensorManager {
         global_config: &SimulatorConfig,
         node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
+        initial_time: f32,
     ) -> Self {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {
@@ -312,6 +313,7 @@ impl SensorManager {
                             global_config,
                             node_name,
                             va_factory,
+                            initial_time,
                         )) as Box<dyn Sensor>
                     }
                     SensorConfig::OdometrySensor(c) => Box::new(OdometrySensor::from_config(
@@ -320,6 +322,7 @@ impl SensorManager {
                         global_config,
                         node_name,
                         va_factory,
+                        initial_time,
                     )) as Box<dyn Sensor>,
                     SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
                         c,
@@ -327,6 +330,7 @@ impl SensorManager {
                         global_config,
                         node_name,
                         va_factory,
+                        initial_time,
                     )) as Box<dyn Sensor>,
                     SensorConfig::RobotSensor(c) => Box::new(RobotSensor::from_config(
                         c,
@@ -334,12 +338,14 @@ impl SensorManager {
                         global_config,
                         node_name,
                         va_factory,
+                        initial_time,
                     )) as Box<dyn Sensor>,
                     SensorConfig::External(c) => Box::new(ExternalSensor::from_config(
                         c,
                         plugin_api,
                         global_config,
                         va_factory,
+                        initial_time,
                     )) as Box<dyn Sensor>,
                 })),
                 triggered: sensor_config.triggered,

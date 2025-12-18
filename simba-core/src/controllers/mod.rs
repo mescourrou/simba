@@ -10,12 +10,12 @@ pub mod pybinds;
 
 #[cfg(feature = "gui")]
 use crate::{
-    gui::{utils::string_combobox, UIComponent},
+    gui::{UIComponent, utils::string_combobox},
     utils::enum_tools::ToVec,
 };
 use crate::{
     networking::message_handler::MessageHandler,
-    physics::{robot_models::Command, PhysicsConfig},
+    physics::{PhysicsConfig, robot_models::Command},
     recordable::Recordable,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -25,7 +25,7 @@ use crate::{plugin_api::PluginAPI, simulator::SimulatorConfig};
 
 use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{config_derives, EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 /// Errors used by the controllers: lateral, orientation and velocity.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -209,10 +209,11 @@ pub fn make_controller_from_config(
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
     physics_config: &PhysicsConfig,
+    initial_time: f32,
 ) -> Arc<RwLock<Box<dyn Controller>>> {
     Arc::new(RwLock::new(match config {
         ControllerConfig::PID(c) => {
-            Box::new(pid::PID::from_config(c, physics_config)) as Box<dyn Controller>
+            Box::new(pid::PID::from_config(c, physics_config, initial_time)) as Box<dyn Controller>
         }
         ControllerConfig::External(c) => {
             Box::new(external_controller::ExternalController::from_config(
@@ -220,11 +221,12 @@ pub fn make_controller_from_config(
                 plugin_api,
                 global_config,
                 va_factory,
+                initial_time,
             )) as Box<dyn Controller>
         }
-        ControllerConfig::Python(c) => {
-            Box::new(python_controller::PythonController::from_config(c, global_config).unwrap())
-                as Box<dyn Controller>
-        }
+        ControllerConfig::Python(c) => Box::new(
+            python_controller::PythonController::from_config(c, global_config, initial_time)
+                .unwrap(),
+        ) as Box<dyn Controller>,
     }))
 }

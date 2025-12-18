@@ -57,6 +57,12 @@
         "$ref": "#/$defs/RobotConfig"
       }
     },
+    "scenario": {
+      "$ref": "#/$defs/ScenarioConfig",
+      "default": {
+        "events": []
+      }
+    },
     "time_analysis": {
       "$ref": "#/$defs/TimeAnalysisConfig",
       "default": {
@@ -75,6 +81,106 @@
   },
   "additionalProperties": false,
   "$defs": {
+    "AreaEventTriggerConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "bottom_left": {
+              "type": "array",
+              "default": [
+                0.0,
+                0.0
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "format": "float"
+                },
+                {
+                  "type": "number",
+                  "format": "float"
+                }
+              ]
+            },
+            "inside": {
+              "type": "boolean",
+              "default": true
+            },
+            "top_right": {
+              "type": "array",
+              "default": [
+                1.0,
+                1.0
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "format": "float"
+                },
+                {
+                  "type": "number",
+                  "format": "float"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "Rect"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "center": {
+              "type": "array",
+              "default": [
+                0.0,
+                0.0
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "format": "float"
+                },
+                {
+                  "type": "number",
+                  "format": "float"
+                }
+              ]
+            },
+            "inside": {
+              "type": "boolean",
+              "default": true
+            },
+            "radius": {
+              "type": "number",
+              "format": "float",
+              "default": 1.0
+            },
+            "type": {
+              "type": "string",
+              "const": "Circle"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
     "BenchStateEstimatorConfig": {
       "type": "object",
       "properties": {
@@ -110,12 +216,6 @@
             "type": "number",
             "format": "float"
           }
-        },
-        "unique_seed": {
-          "description": "Random seed for this random variable.",
-          "type": "number",
-          "format": "float",
-          "default": 0.0
         }
       },
       "additionalProperties": false
@@ -228,6 +328,129 @@
         }
       ]
     },
+    "EventConfig": {
+      "type": "object",
+      "properties": {
+        "event_type": {
+          "$ref": "#/$defs/EventTypeConfig",
+          "default": {
+            "type": "Kill",
+            "value": "$0"
+          }
+        },
+        "trigger": {
+          "$ref": "#/$defs/EventTriggerConfig",
+          "default": {
+            "type": "Time",
+            "value": {
+              "occurences": {
+                "type": "Num",
+                "value": 1.0
+              },
+              "time": {
+                "type": "Num",
+                "value": 0.0
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "EventTriggerConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Time"
+            },
+            "value": {
+              "$ref": "#/$defs/TimeEventTriggerConfig"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Proximity"
+            },
+            "value": {
+              "$ref": "#/$defs/ProximityEventTriggerConfig"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Area"
+            },
+            "value": {
+              "$ref": "#/$defs/AreaEventTriggerConfig"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        }
+      ]
+    },
+    "EventTypeConfig": {
+      "description": "Defines the type of event to execute.\n\nThe name provided in the variants refers to the name of the nodes or use $0 notation for\ndynamic referencing (e.g., the robot that triggered the event is $0).",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Spawn"
+            },
+            "value": {
+              "$ref": "#/$defs/SpawnEventConfig"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Kill"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        }
+      ]
+    },
     "ExternalControllerConfig": {
       "type": "object",
       "additionalProperties": true
@@ -258,8 +481,7 @@
               "default": {
                 "probability": [
                   1.0
-                ],
-                "unique_seed": 0.0
+                ]
               }
             },
             "distributions": {
@@ -272,8 +494,7 @@
                   "mean": [
                     0.0
                   ],
-                  "type": "Normal",
-                  "unique_seed": 0.4493343234062195
+                  "type": "Normal"
                 }
               ],
               "items": {
@@ -305,8 +526,7 @@
               "default": {
                 "probability": [
                   1.0
-                ],
-                "unique_seed": 0.0
+                ]
               }
             },
             "distributions": {
@@ -319,8 +539,7 @@
                   "mean": [
                     0.0
                   ],
-                  "type": "Normal",
-                  "unique_seed": 0.2431815266609192
+                  "type": "Normal"
                 }
               ],
               "items": {
@@ -352,8 +571,7 @@
               "default": {
                 "probability": [
                   1.0
-                ],
-                "unique_seed": 0.0
+                ]
               }
             },
             "distributions": {
@@ -366,8 +584,7 @@
                   "mean": [
                     0.0
                   ],
-                  "type": "Normal",
-                  "unique_seed": 0.9899769425392151
+                  "type": "Normal"
                 }
               ],
               "items": {
@@ -400,8 +617,7 @@
                 "lambda": [
                   10.0
                 ],
-                "type": "Poisson",
-                "unique_seed": 0.0
+                "type": "Poisson"
               }
             },
             "distributions": {
@@ -416,8 +632,7 @@
                     -10.0,
                     -10.0
                   ],
-                  "type": "Uniform",
-                  "unique_seed": 0.0
+                  "type": "Uniform"
                 }
               ],
               "items": {
@@ -453,8 +668,7 @@
               "default": {
                 "probability": [
                   0.10000000149011612
-                ],
-                "unique_seed": 0.0
+                ]
               }
             },
             "type": {
@@ -475,8 +689,7 @@
               "default": {
                 "probability": [
                   0.10000000149011612
-                ],
-                "unique_seed": 0.0
+                ]
               }
             },
             "distribution": {
@@ -488,8 +701,7 @@
                 "min": [
                   0.0
                 ],
-                "type": "Uniform",
-                "unique_seed": 0.340551495552063
+                "type": "Uniform"
               }
             },
             "sort": {
@@ -686,6 +898,19 @@
           "required": [
             "type"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Scenario"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
         }
       ]
     },
@@ -759,21 +984,21 @@
         {
           "type": "object",
           "properties": {
-            "config": {
+            "type": {
+              "type": "string",
+              "const": "Internal"
+            },
+            "value": {
               "type": "array",
               "items": {
                 "$ref": "#/$defs/InternalLog"
               }
-            },
-            "type": {
-              "type": "string",
-              "const": "Internal"
             }
           },
           "additionalProperties": false,
           "required": [
             "type",
-            "config"
+            "value"
           ]
         }
       ]
@@ -812,6 +1037,7 @@
           "default": {
             "faults": [],
             "filters": [],
+            "lie_integration": true,
             "period": 0.10000000149011612,
             "type": "OdometrySensor"
           }
@@ -971,6 +1197,45 @@
       },
       "additionalProperties": false
     },
+    "NumberConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Num"
+            },
+            "value": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Rand"
+            },
+            "value": {
+              "$ref": "#/$defs/RandomVariableTypeConfig"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        }
+      ]
+    },
     "PhysicsConfig": {
       "description": "Enumeration of the different physic implementations.",
       "oneOf": [
@@ -994,7 +1259,12 @@
                   0.0,
                   0.0
                 ],
-                "velocity": 0.0
+                "random": [],
+                "variable_order": [],
+                "velocity": [
+                  0.0,
+                  0.0
+                ]
               }
             },
             "model": {
@@ -1057,13 +1327,21 @@
                   "mean": [
                     0.0
                   ],
-                  "type": "Normal",
-                  "unique_seed": 0.5325539708137512
+                  "type": "Normal"
                 }
               ],
               "items": {
                 "$ref": "#/$defs/RandomVariableTypeConfig"
               }
+            },
+            "proportionnal_to_velocity": {
+              "description": "If some, the faults will be proportionnal to the robot velocity times this factor.\nIf none, the faults will be independant of the robot velocity.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": 1.0
             },
             "type": {
               "type": "string",
@@ -1100,6 +1378,28 @@
           ]
         }
       ]
+    },
+    "ProximityEventTriggerConfig": {
+      "type": "object",
+      "properties": {
+        "distance": {
+          "type": "number",
+          "format": "float",
+          "default": 1.0
+        },
+        "inside": {
+          "type": "boolean",
+          "default": true
+        },
+        "protected_target": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
     },
     "PythonControllerConfig": {
       "type": "object",
@@ -1232,12 +1532,6 @@
             "type": {
               "type": "string",
               "const": "Uniform"
-            },
-            "unique_seed": {
-              "description": "Random seed for this random variable.",
-              "type": "number",
-              "format": "float",
-              "default": 0.9825530648231506
             }
           },
           "additionalProperties": false,
@@ -1274,12 +1568,6 @@
             "type": {
               "type": "string",
               "const": "Normal"
-            },
-            "unique_seed": {
-              "description": "Random seed for this random variable.",
-              "type": "number",
-              "format": "float",
-              "default": 0.10675305128097534
             }
           },
           "additionalProperties": false,
@@ -1305,12 +1593,6 @@
             "type": {
               "type": "string",
               "const": "Poisson"
-            },
-            "unique_seed": {
-              "description": "Random seed for this random variable.",
-              "type": "number",
-              "format": "float",
-              "default": 0.07026708126068115
             }
           },
           "additionalProperties": false,
@@ -1336,12 +1618,6 @@
             "type": {
               "type": "string",
               "const": "Exponential"
-            },
-            "unique_seed": {
-              "description": "Random seed for this random variable.",
-              "type": "number",
-              "format": "float",
-              "default": 0.7961900234222412
             }
           },
           "additionalProperties": false,
@@ -1455,6 +1731,10 @@
       "description": "Configuration of the [`NodeType::Robot`].",
       "type": "object",
       "properties": {
+        "autospawn": {
+          "type": "boolean",
+          "default": true
+        },
         "controller": {
           "description": "[`Controller`](crate::controllers::Controller) to use, and its configuration.",
           "$ref": "#/$defs/ControllerConfig",
@@ -1502,7 +1782,12 @@
                 0.0,
                 0.0
               ],
-              "velocity": 0.0
+              "random": [],
+              "variable_order": [],
+              "velocity": [
+                0.0,
+                0.0
+              ]
             },
             "model": {
               "type": "Unicycle",
@@ -1577,6 +1862,19 @@
         }
       ]
     },
+    "ScenarioConfig": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EventConfig"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "SensorConfig": {
       "description": "Enumerates all the possible sensors configurations.",
       "oneOf": [
@@ -1621,6 +1919,11 @@
             "type": {
               "type": "string",
               "const": "OrientedLandmarkSensor"
+            },
+            "xray": {
+              "description": "If true, will detect all landmarks, even if they are behind obstacles (no raycasting).",
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false,
@@ -1645,6 +1948,10 @@
               "items": {
                 "$ref": "#/$defs/SensorFilterConfig"
               }
+            },
+            "lie_integration": {
+              "type": "boolean",
+              "default": true
             },
             "period": {
               "description": "Observation period of the sensor.",
@@ -1904,6 +2211,20 @@
         }
       ]
     },
+    "SpawnEventConfig": {
+      "type": "object",
+      "properties": {
+        "model_name": {
+          "type": "string",
+          "default": "default_robot"
+        },
+        "node_name": {
+          "type": "string",
+          "default": "my_new_robot"
+        }
+      },
+      "additionalProperties": false
+    },
     "StateConfig": {
       "description": "Configuration for [`State`] in order to load a state from the configuration.\n\nThe pose should contain 3 elements.\nTODO: Make a config validation scheme.",
       "type": "object",
@@ -1921,11 +2242,31 @@
             "format": "float"
           }
         },
+        "random": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RandomVariableTypeConfig"
+          }
+        },
+        "variable_order": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
         "velocity": {
           "description": "Linear velocity",
-          "type": "number",
-          "format": "float",
-          "default": 0.0
+          "type": "array",
+          "default": [
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
         }
       },
       "additionalProperties": false
@@ -2017,6 +2358,27 @@
         "output_path": {
           "type": "string",
           "default": "time_performance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TimeEventTriggerConfig": {
+      "type": "object",
+      "properties": {
+        "occurences": {
+          "description": "Two cases:\n- if `time` is a fixed number, it turns into a period and `occurences` is how many times the event will be triggered\n- if `time` is a random variable, `occurences` is how many samples will be drawn from it to schedule the event\n- if `time` is a random variable with multiple dimensions, `occurences` is the number of repetitions of the full set of samples:\n  if `time` draws N samples, and `occurences` is M, then M*N event times will be scheduled",
+          "$ref": "#/$defs/NumberConfig",
+          "default": {
+            "type": "Num",
+            "value": 1.0
+          }
+        },
+        "time": {
+          "$ref": "#/$defs/NumberConfig",
+          "default": {
+            "type": "Num",
+            "value": 0.0
+          }
         }
       },
       "additionalProperties": false

@@ -13,8 +13,8 @@ type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
+use std::sync::mpsc::Sender;
 
 use config_checker::macros::Check;
 use log::debug;
@@ -24,7 +24,7 @@ use simba_macros::config_derives;
 
 use crate::controllers::ControllerError;
 #[cfg(feature = "gui")]
-use crate::gui::{utils::json_config, UIComponent};
+use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
@@ -83,6 +83,7 @@ impl ExternalNavigator {
             &None,
             &SimulatorConfig::default(),
             &Arc::new(DeterministRandomVariableFactory::default()),
+            0.0,
         )
     }
 
@@ -100,6 +101,7 @@ impl ExternalNavigator {
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Self {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
@@ -108,7 +110,7 @@ impl ExternalNavigator {
             navigator: plugin_api
                 .as_ref()
                 .expect("Plugin API not set!")
-                .get_navigator(&config.config, global_config, va_factory),
+                .get_navigator(&config.config, global_config, va_factory, initial_time),
         }
     }
 }

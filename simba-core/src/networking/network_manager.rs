@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
 use crate::networking::NetworkError;
-use crate::node::{self, Node};
+use crate::node::{self, Node, NodeState};
 use crate::simulator::TimeCv;
 use crate::state_estimators::State;
 use crate::utils::time_ordered_data::TimeOrderedData;
@@ -81,7 +81,7 @@ impl NetworkManager {
 
     /// Compute the distance between two nodes at the given time, using their real pose.
     fn distance_between(
-        position_history: &BTreeMap<String, TimeOrderedData<(State, bool)>>,
+        position_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
         node1: &String,
         node2: &String,
         time: f32,
@@ -98,7 +98,7 @@ impl NetworkManager {
                 format!("No state data for node {node1} at time {time}"),
             ))?
             .1
-             .0
+            .0
             .pose;
         let node2_pos = position_history
             .get(node2)
@@ -112,7 +112,7 @@ impl NetworkManager {
                 format!("No state data for node {node2} at time {time}"),
             ))?
             .1
-             .0
+            .0
             .pose;
 
         let distance = (node1_pos.rows(0, 2) - node2_pos.rows(0, 2)).norm();
@@ -121,7 +121,7 @@ impl NetworkManager {
 
     pub fn process_messages(
         &mut self,
-        position_history: &BTreeMap<String, TimeOrderedData<(State, bool)>>,
+        position_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
     ) -> SimbaResult<()> {
         let time_cv = self.time_cv.clone();
         let _lk = time_cv.waiting.lock().unwrap();
@@ -168,7 +168,7 @@ impl NetworkManager {
                                         self.time_cv.condvar.notify_all();
                                         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed)
                                         {
-                                            debug!("Notify CV");
+                                            debug!("Notify CV (network_manager line {})", line!());
                                         }
                                     }
                                     return Err(SimbaError::new(
@@ -183,7 +183,7 @@ impl NetworkManager {
                                 if message_sent {
                                     self.time_cv.condvar.notify_all();
                                     if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                                        debug!("Notify CV");
+                                        debug!("Notify CV (network_manager line {})", line!());
                                     }
                                 }
                                 return Err(SimbaError::new(
@@ -208,7 +208,9 @@ impl NetworkManager {
                                 )?
                         {
                             if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                                debug!("Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`");
+                                debug!(
+                                    "Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`"
+                                );
                             }
                             match sender.send(msg.clone()) {
                                 Ok(_) => {
@@ -220,7 +222,7 @@ impl NetworkManager {
                                         self.time_cv.condvar.notify_all();
                                         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed)
                                         {
-                                            debug!("Notify CV");
+                                            debug!("Notify CV (network_manager line {})", line!());
                                         }
                                     }
                                     return Err(SimbaError::new(
@@ -249,9 +251,11 @@ impl NetworkManager {
                 }
             }
         }
-        self.time_cv.condvar.notify_all();
-        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-            debug!("Notify CV");
+        if message_sent {
+            self.time_cv.condvar.notify_all();
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Notify CV (network_manager line {})", line!());
+            }
         }
         for node_name in nodes_to_remove {
             self.unsubscribe_node(&node_name);

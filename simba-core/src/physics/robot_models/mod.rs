@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use config_checker::macros::Check;
 use nalgebra::Matrix3;
 use serde::{Deserialize, Serialize};
-use simba_macros::{config_derives, EnumToString, ToVec};
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
@@ -122,7 +122,13 @@ impl UIComponent for RobotModelConfig {
 }
 
 pub trait RobotModel: std::fmt::Debug + std::marker::Send + std::marker::Sync {
-    fn update_state(&mut self, previous_state: &mut State, command: &Command, cum_lie_action: &mut Matrix3<f32>, delta_time: f32);
+    fn update_state(
+        &mut self,
+        previous_state: &mut State,
+        command: &Command,
+        cum_lie_action: &mut Matrix3<f32>,
+        delta_time: f32,
+    );
     fn default_command(&self) -> Command;
 }
 

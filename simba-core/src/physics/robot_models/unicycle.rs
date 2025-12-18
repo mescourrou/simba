@@ -103,7 +103,13 @@ impl Unicycle {
 }
 
 impl RobotModel for Unicycle {
-    fn update_state(&mut self, state: &mut State, command: &Command, cum_lie_action: &mut Matrix3<f32>, dt: f32) {
+    fn update_state(
+        &mut self,
+        state: &mut State,
+        command: &Command,
+        cum_lie_action: &mut Matrix3<f32>,
+        dt: f32,
+    ) {
         let command = match command {
             Command::Unicycle(cmd) => cmd,
             _ => panic!("Unicycle robot model needs a Unicycle command"),

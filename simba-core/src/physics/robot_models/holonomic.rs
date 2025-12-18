@@ -72,7 +72,13 @@ impl Holonomic {
 }
 
 impl RobotModel for Holonomic {
-    fn update_state(&mut self, state: &mut State, command: &Command, cum_lie_action: &mut Matrix3<f32>, dt: f32) {
+    fn update_state(
+        &mut self,
+        state: &mut State,
+        command: &Command,
+        cum_lie_action: &mut Matrix3<f32>,
+        dt: f32,
+    ) {
         let command = match command {
             Command::Holonomic(cmd) => cmd,
             _ => panic!("Holonomic robot model needs a Holonomic command"),

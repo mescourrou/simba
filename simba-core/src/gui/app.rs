@@ -9,14 +9,14 @@ use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    AUTHORS, VERSION,
     api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
     constants::TIME_ROUND_DECIMALS,
     errors::SimbaError,
-    gui::{drawables::popup::Popup, UIComponent},
+    gui::{UIComponent, drawables::popup::Popup},
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
     simulator::{Record, SimulatorConfig},
-    AUTHORS, VERSION,
 };
 
 use super::{
@@ -334,6 +334,18 @@ impl eframe::App for SimbaApp {
                 NodeRecord::Robot(n) => {
                     if let Some(r) = self.p.robots.get_mut(&n.name) {
                         r.add_record(time, *n);
+                    } else {
+                        // New robot during simulation
+                        if let Some(config) = &self.p.config {
+                            if let Some(new_config) =
+                                config.robots.iter().find(|rc| rc.name == n.model_name)
+                            {
+                                self.p.robots.insert(
+                                    n.name.clone(),
+                                    drawables::robot::Robot::init(new_config, config),
+                                );
+                            }
+                        }
                     }
                 }
             }

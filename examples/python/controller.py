@@ -4,8 +4,8 @@ import simba
 import json
 
 class Controller(simba.Controller):
-    def __init__(self, config: dict):
-        self.last_time = 0
+    def __init__(self, config: dict, initial_time: float):
+        self.last_time = initial_time
         if "speed" in config:
             self.speed: float = config["speed"]
         else:
@@ -27,10 +27,10 @@ class Controller(simba.Controller):
         pass
 
 class SimulatorAPI(simba.PluginAPI):
-    def get_controller(self, config: dict, global_config: dict):
+    def get_controller(self, config: dict, global_config: dict, initial_time: float):
         config = json.loads(config)
         print(f"Config received by python: {type(config)} {config}")
-        return Controller(config)
+        return Controller(config, initial_time)
 
 def main():
 

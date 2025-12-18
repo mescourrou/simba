@@ -5,7 +5,7 @@ Provides a [`Sensor`] which can provide linear velocity and angular velocity.
 use std::sync::{Arc, Mutex};
 
 use super::fault_models::fault_model::{
-    make_fault_model_from_config, FaultModel, FaultModelConfig,
+    FaultModel, FaultModelConfig, make_fault_model_from_config,
 };
 use super::{Sensor, SensorObservation, SensorRecord};
 
@@ -17,7 +17,7 @@ use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::sensor_filters::{
-    make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
+    SensorFilter, SensorFilterConfig, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
@@ -225,6 +225,7 @@ impl OdometrySensor {
             &SimulatorConfig::default(),
             &"NoName".to_string(),
             &DeterministRandomVariableFactory::default(),
+            0.0,
         )
     }
 
@@ -235,6 +236,7 @@ impl OdometrySensor {
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
+        initial_time: f32,
     ) -> Self {
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
@@ -244,6 +246,7 @@ impl OdometrySensor {
                 global_config,
                 robot_name,
                 va_factory,
+                initial_time,
             ));
         }
         drop(unlock_fault_model);
@@ -251,7 +254,11 @@ impl OdometrySensor {
         let filters = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_filters = filters.lock().unwrap();
         for filter_config in &config.filters {
-            unlock_filters.push(make_sensor_filter_from_config(filter_config, global_config));
+            unlock_filters.push(make_sensor_filter_from_config(
+                filter_config,
+                global_config,
+                initial_time,
+            ));
         }
         drop(unlock_filters);
 
@@ -259,7 +266,7 @@ impl OdometrySensor {
             last_state: State::new(),
             last_lie_action: Matrix3::zeros(),
             period: config.period,
-            last_time: 0.,
+            last_time: initial_time,
             faults: fault_models,
             filters,
             lie_integration: config.lie_integration,
@@ -299,8 +306,9 @@ impl Sensor for OdometrySensor {
 
         let dt = time - self.last_time;
 
-        let obs = 
-        if self.lie_integration && let Some(lie_action) = physic.cummulative_lie_action() {
+        let obs = if self.lie_integration
+            && let Some(lie_action) = physic.cummulative_lie_action()
+        {
             let delta_lie = lie_action - self.last_lie_action;
             let delta_lie = delta_lie * dt;
             let displacement = delta_lie.exp();
@@ -320,8 +328,6 @@ impl Sensor for OdometrySensor {
                 applied_faults: Vec::new(),
             })
         };
-
-        
 
         if let Some(obs) = self
             .filters

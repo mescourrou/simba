@@ -5,7 +5,7 @@ use std::fs;
 use log::debug;
 use pyo3::call::PyCallArgs;
 use pyo3::ffi::c_str;
-use pyo3::{prelude::*, PyClass};
+use pyo3::{PyClass, prelude::*};
 use pyo3::{PyResult, Python};
 use serde::{Deserialize, Serialize};
 
@@ -153,6 +153,7 @@ impl PythonScriptConfig {
 pub fn load_class_from_python_script<T: PythonClassConfig>(
     config: &T,
     global_config: &SimulatorConfig,
+    initial_time: f32,
     log_info: &str,
 ) -> SimbaResult<Py<PyAny>> {
     let json_config = serde_json::to_string(&config)
@@ -168,7 +169,7 @@ pub fn load_class_from_python_script<T: PythonClassConfig>(
                     script_path.to_str().unwrap(),
                     e
                 ),
-            ))
+            ));
         }
         Ok(s) => CString::new(s).unwrap(),
     };
@@ -183,7 +184,7 @@ pub fn load_class_from_python_script<T: PythonClassConfig>(
         let class: Py<PyAny> = script.getattr(config.class_name().as_str())?.into();
         log::info!("Load {log_info} class {} ...", config.class_name());
 
-        let res = class.call(py, (config_dict,), None);
+        let res = class.call(py, (config_dict, initial_time), None);
         let instance = match res {
             Err(err) => {
                 err.display(py);

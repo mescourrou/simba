@@ -13,11 +13,11 @@ use std::sync::mpsc::Sender;
 
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
+use crate::physics::PhysicsConfig;
 use crate::physics::internal_physics::InternalPhysicConfig;
 use crate::physics::robot_models::holonomic::HolonomicCommand;
 use crate::physics::robot_models::unicycle::UnicycleCommand;
 use crate::physics::robot_models::{Command, RobotModelConfig};
-use crate::physics::PhysicsConfig;
 use crate::recordable::Recordable;
 use crate::utils::maths::{Derivator, Integrator};
 #[cfg(feature = "gui")]
@@ -25,7 +25,7 @@ use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use config_checker::ConfigCheckable;
 use log::warn;
 use serde::de::{MapAccess, SeqAccess, Visitor};
-use serde::{de, Deserializer};
+use serde::{Deserializer, de};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -473,11 +473,16 @@ impl PID {
         Self::from_config(
             &PIDConfig::default(),
             &PhysicsConfig::Internal(InternalPhysicConfig::default()),
+            0.0,
         )
     }
 
     /// Makes a new [`PID`] from the given `config`.
-    pub fn from_config(config: &PIDConfig, physics_config: &PhysicsConfig) -> Self {
+    pub fn from_config(
+        config: &PIDConfig,
+        physics_config: &PhysicsConfig,
+        initial_time: f32,
+    ) -> Self {
         let mut config_clone = config.clone();
         if config.robot_model.is_none() {
             if let PhysicsConfig::Internal(InternalPhysicConfig {
@@ -489,7 +494,10 @@ impl PID {
                 config_clone.robot_model = Some(model.clone());
                 if config_clone.check().is_err() {
                     config_clone = PIDConfig::default_from_model(model);
-                    warn!("No model given in PID Config and gains given mismatch physics model ({}) => resetting gains", model);
+                    warn!(
+                        "No model given in PID Config and gains given mismatch physics model ({}) => resetting gains",
+                        model
+                    );
                 }
             } else {
                 config_clone = PIDConfig::default();
@@ -498,7 +506,7 @@ impl PID {
         }
         PID {
             config: config_clone,
-            last_command_time: 0.,
+            last_command_time: initial_time,
             longitudinal_integrator: Integrator::new(),
             lateral_integrator: Integrator::new(),
             angular_integrator: Integrator::new(),

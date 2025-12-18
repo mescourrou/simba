@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use std::{
     collections::BTreeMap,
-    sync::{mpsc::Receiver, Arc, Mutex},
+    sync::{Arc, Mutex, mpsc::Receiver},
 };
 
 use log::debug;
@@ -16,26 +16,33 @@ use std::path::Path;
 use crate::api::async_api::PluginAsyncAPI;
 
 use crate::{
-    controllers::{pybinds::PythonController, ControllerError},
-    navigators::pybinds::PythonNavigator,
+    controllers::{
+        ControllerError,
+        pybinds::{ControllerWrapper, PythonController},
+    },
+    navigators::pybinds::{NavigatorWrapper, PythonNavigator},
     networking::{
-        network::{Envelope, MessageFlag},
         MessageTypes,
+        network::{Envelope, MessageFlag},
     },
     node::Node,
     physics::{
-        pybinds::PythonPhysics,
-        robot_models::{holonomic::HolonomicCommand, unicycle::UnicycleCommand, Command},
+        pybinds::{PhysicsWrapper, PythonPhysics},
+        robot_models::{Command, holonomic::HolonomicCommand, unicycle::UnicycleCommand},
     },
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
-        gnss_sensor::GNSSObservation, odometry_sensor::OdometryObservation,
+        Observation, SensorObservation, gnss_sensor::GNSSObservation,
+        odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
-        robot_sensor::OrientedRobotObservation, Observation, SensorObservation,
+        robot_sensor::OrientedRobotObservation,
     },
     simulator::{AsyncSimulator, Simulator},
-    state_estimators::{pybinds::PythonStateEstimator, State, WorldState},
+    state_estimators::{
+        State, WorldState,
+        pybinds::{PythonStateEstimator, StateEstimatorWrapper},
+    },
     utils::occupancy_grid::OccupancyGrid,
 };
 
@@ -141,7 +148,10 @@ impl StateWrapper {
                 y: s.pose[1],
                 theta: s.pose[2],
             },
-            velocity: Vec2 { x: s.velocity[0], y: s.velocity[1] },
+            velocity: Vec2 {
+                x: s.velocity[0],
+                y: s.velocity[1],
+            },
         }
     }
     pub fn to_rust(&self) -> State {
@@ -431,8 +441,14 @@ impl GNSSObservationWrapper {
 impl GNSSObservationWrapper {
     pub fn from_rust(s: &GNSSObservation) -> Self {
         Self {
-            position: Vec2 { x: s.position[0], y: s.position[1] },
-            velocity: Vec2 { x: s.velocity[0], y: s.velocity[1] },
+            position: Vec2 {
+                x: s.position[0],
+                y: s.position[1],
+            },
+            velocity: Vec2 {
+                x: s.velocity[0],
+                y: s.velocity[1],
+            },
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
@@ -930,7 +946,8 @@ impl PluginAPIWrapper {
         &self,
         _config: Py<PyAny>,
         _global_config: Py<PyAny>,
-    ) -> PythonStateEstimator {
+        _initial_time: f32,
+    ) -> StateEstimatorWrapper {
         panic!("The given PluginAPI does not provide a state estimator");
     }
 
@@ -950,7 +967,8 @@ impl PluginAPIWrapper {
         &self,
         _config: Py<PyAny>,
         _global_config: Py<PyAny>,
-    ) -> PythonController {
+        _initial_time: f32,
+    ) -> ControllerWrapper {
         panic!("The given PluginAPI does not provide a controller");
     }
 
@@ -966,7 +984,12 @@ impl PluginAPIWrapper {
     /// # Return
     ///
     /// Returns the [`Navigator`](crate::navigators::Navigator) to use.
-    pub fn get_navigator(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonNavigator {
+    pub fn get_navigator(
+        &self,
+        _config: Py<PyAny>,
+        _global_config: Py<PyAny>,
+        _initial_time: f32,
+    ) -> NavigatorWrapper {
         panic!("The given PluginAPI does not provide a navigator");
     }
 
@@ -982,7 +1005,12 @@ impl PluginAPIWrapper {
     /// # Return
     ///
     /// Returns the [`Physics`](crate::physics::physics::Physics) to use.
-    pub fn get_physics(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonPhysics {
+    pub fn get_physics(
+        &self,
+        _config: Py<PyAny>,
+        _global_config: Py<PyAny>,
+        _initial_time: f32,
+    ) -> PhysicsWrapper {
         panic!("The given PluginAPI does not provide physics");
     }
 }
@@ -1061,6 +1089,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 api_client.get_controller.try_recv_closure(|request| {
@@ -1068,6 +1097,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 api_client.get_navigator.try_recv_closure(|request| {
@@ -1075,6 +1105,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 api_client.get_physics.try_recv_closure(|request| {
@@ -1082,6 +1113,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 python_api.check_requests();

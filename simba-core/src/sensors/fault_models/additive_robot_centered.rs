@@ -9,9 +9,9 @@ use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
-    sensors::{fault_models::fault_model::FaultModelConfig, SensorObservation},
+    sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -147,6 +147,7 @@ impl AdditiveRobotCenteredFault {
     pub fn from_config(
         config: &AdditiveRobotCenteredFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
+        _initial_time: f32,
     ) -> Self {
         let distributions = Arc::new(Mutex::new(
             config
@@ -206,11 +207,17 @@ impl FaultModel for AdditiveRobotCenteredFault {
                                 "x" => o.pose.x += random_sample[i],
                                 "y" => o.pose.y += random_sample[i],
                                 "z" | "orientation" => o.pose.z += random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]", variable)
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 3, "The distribution of an AdditiveRobotCentered fault for OrientedRobot observation need to be of dimension 3.");
+                        assert!(
+                            random_sample.len() >= 3,
+                            "The distribution of an AdditiveRobotCentered fault for OrientedRobot observation need to be of dimension 3."
+                        );
                         o.pose.x += random_sample[0];
                         o.pose.y += random_sample[1];
                         o.pose.z += random_sample[2];
@@ -227,11 +234,17 @@ impl FaultModel for AdditiveRobotCenteredFault {
                                 "position_y" | "y" => o.position.y += random_sample[i],
                                 "velocity_x" => o.velocity.x += random_sample[i],
                                 "velocity_y" => o.velocity.y += random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y]", variable)
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 2, "The distribution of an AdditiveRobotCentered fault for GNSS observation need to be at least of dimension 2 (to 4 for velocities).");
+                        assert!(
+                            random_sample.len() >= 2,
+                            "The distribution of an AdditiveRobotCentered fault for GNSS observation need to be at least of dimension 2 (to 4 for velocities)."
+                        );
                         o.position.x += random_sample[0];
                         o.position.y += random_sample[1];
                         if random_sample.len() >= 3 {
@@ -248,13 +261,23 @@ impl FaultModel for AdditiveRobotCenteredFault {
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
-                                "w" | "angular" | "angular_velocity" => o.angular_velocity += random_sample[i],
-                                "v" | "linear" | "linear_velocity" => o.linear_velocity += random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]", variable)
+                                "w" | "angular" | "angular_velocity" => {
+                                    o.angular_velocity += random_sample[i]
+                                }
+                                "v" | "linear" | "linear_velocity" => {
+                                    o.linear_velocity += random_sample[i]
+                                }
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 2, "The distribution of an AdditiveRobotCentered fault for Odometry observation need to be of dimension 2.");
+                        assert!(
+                            random_sample.len() >= 2,
+                            "The distribution of an AdditiveRobotCentered fault for Odometry observation need to be of dimension 2."
+                        );
                         o.angular_velocity += random_sample[0];
                         o.linear_velocity += random_sample[1];
                     }
@@ -270,11 +293,17 @@ impl FaultModel for AdditiveRobotCenteredFault {
                                 "z" | "orientation" => o.pose.z += random_sample[i],
                                 "width" => o.width += random_sample[i],
                                 "height" => o.height += random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation, width, height]", variable)
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [x, y, z | orientation, width, height]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 3, "The distribution of an AdditiveRobotCentered fault for OrientedLandmark observation need to be of dimension 3.");
+                        assert!(
+                            random_sample.len() >= 3,
+                            "The distribution of an AdditiveRobotCentered fault for OrientedLandmark observation need to be of dimension 3."
+                        );
                         o.pose.x += random_sample[0];
                         o.pose.y += random_sample[1];
                         o.pose.z += random_sample[2];

@@ -11,10 +11,10 @@ use crate::{
     networking::service::HasService,
     physics::{
         fault_models::fault_model::{
-            make_physics_fault_model_from_config, PhysicsFaultModel, PhysicsFaultModelConfig,
+            PhysicsFaultModel, PhysicsFaultModelConfig, make_physics_fault_model_from_config,
         },
         robot_models::{
-            make_model_from_config, unicycle::UnicycleConfig, Command, RobotModel, RobotModelConfig,
+            Command, RobotModel, RobotModelConfig, make_model_from_config, unicycle::UnicycleConfig,
         },
     },
     recordable::Recordable,
@@ -161,19 +161,28 @@ impl InternalPhysics {
         config: &InternalPhysicConfig,
         robot_name: &String,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Self {
         let model = make_model_from_config(&config.model);
         let current_command = model.default_command();
         InternalPhysics {
             model,
             state: State::from_config(&config.initial_state, va_factory),
-            last_time_update: 0.,
+            last_time_update: initial_time,
             current_command,
             faults: Arc::new(Mutex::new(
                 config
                     .faults
                     .iter()
-                    .map(|f| make_physics_fault_model_from_config(f, config.model.clone(), robot_name, va_factory))
+                    .map(|f| {
+                        make_physics_fault_model_from_config(
+                            f,
+                            config.model.clone(),
+                            robot_name,
+                            va_factory,
+                            initial_time,
+                        )
+                    })
                     .collect(),
             )),
             cum_lie_action: Matrix3::zeros(),
@@ -194,8 +203,12 @@ impl InternalPhysics {
             return;
         }
 
-        self.model
-            .update_state(&mut self.state, &self.current_command, &mut self.cum_lie_action, dt);
+        self.model.update_state(
+            &mut self.state,
+            &self.current_command,
+            &mut self.cum_lie_action,
+            dt,
+        );
 
         self.last_time_update = time;
 

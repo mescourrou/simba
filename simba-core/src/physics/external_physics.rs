@@ -22,7 +22,7 @@ use serde_json::Value;
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::json_config, UIComponent};
+use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
 use crate::networking::service::HasService;
 use crate::physics::robot_models::Command;
@@ -80,6 +80,7 @@ impl ExternalPhysics {
             &None,
             &SimulatorConfig::default(),
             &Arc::new(DeterministRandomVariableFactory::default()),
+            0.0,
         )
     }
 
@@ -97,6 +98,7 @@ impl ExternalPhysics {
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Self {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
@@ -105,7 +107,7 @@ impl ExternalPhysics {
             physics: plugin_api
                 .as_ref()
                 .expect("Plugin API not set!")
-                .get_physics(&config.config, global_config, va_factory),
+                .get_physics(&config.config, global_config, va_factory, initial_time),
         }
     }
 }

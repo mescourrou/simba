@@ -4,12 +4,12 @@ trajectory.
 */
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::path_finder, UIComponent};
+use crate::gui::{UIComponent, utils::path_finder};
 
 use crate::{
     navigators::{
-        trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
         Navigator, NavigatorRecord,
+        trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
     },
     networking::{message_handler::MessageHandler, network::Envelope},
     simulator::SimulatorConfig,
@@ -226,7 +226,11 @@ impl TrajectoryFollower {
     /// * `plugin_api` - Not used there.
     /// * `global_config` - Global configuration of the simulator. Used there to get the
     ///   path of the config, used as relative reference for the trajectory path.
-    pub fn from_config(config: &TrajectoryFollowerConfig, global_config: &SimulatorConfig) -> Self {
+    pub fn from_config(
+        config: &TrajectoryFollowerConfig,
+        global_config: &SimulatorConfig,
+        _initial_time: f32,
+    ) -> Self {
         let mut path = Path::new(&config.trajectory_path);
         if config.trajectory_path.is_empty() {
             return Self::new();

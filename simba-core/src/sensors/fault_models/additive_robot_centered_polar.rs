@@ -10,9 +10,9 @@ use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
-    sensors::{fault_models::fault_model::FaultModelConfig, SensorObservation},
+    sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -138,6 +138,7 @@ impl AdditiveRobotCenteredPolarFault {
     pub fn from_config(
         config: &AdditiveRobotCenteredPolarFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
+        _initial_time: f32,
     ) -> Self {
         let distributions = Arc::new(Mutex::new(
             config
@@ -200,11 +201,17 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
                                 "z" | "orientation" => z_add = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", variable)
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 3, "The distribution of an AdditiveRobotCenteredPolar fault for OrientedRobot observation need to be of dimension 3.");
+                        assert!(
+                            random_sample.len() >= 3,
+                            "The distribution of an AdditiveRobotCenteredPolar fault for OrientedRobot observation need to be of dimension 3."
+                        );
                         r_add = random_sample[0];
                         theta_add = random_sample[1];
                         z_add = random_sample[2];
@@ -242,11 +249,17 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                                 "z" | "orientation" => z_add = random_sample[i],
                                 "width" => width_add = random_sample[i],
                                 "height" => height_add = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation, width, height]", variable)
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation, width, height]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 3, "The distribution of an AdditiveRobotCenteredPolar fault for OrientedLandmark observation need to be of dimension 3.");
+                        assert!(
+                            random_sample.len() >= 3,
+                            "The distribution of an AdditiveRobotCenteredPolar fault for OrientedLandmark observation need to be of dimension 3."
+                        );
                         r_add = random_sample[0];
                         theta_add = random_sample[1];
                         z_add = random_sample[2];
