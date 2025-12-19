@@ -1,14 +1,11 @@
-use config_checker::macros::Check;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
-use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 use statrs::distribution::Exp;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::utils::determinist_random_variable::DeterministRandomVariable;
-use crate::utils::format_f32;
 
 /// Configuration for a uniform random variable.
 #[config_derives]
@@ -29,12 +26,11 @@ impl UIComponent for ExponentialRandomVariableConfig {
         &mut self,
         ui: &mut egui::Ui,
         _ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
         _global_config: &crate::simulator::SimulatorConfig,
         _current_node_name: Option<&String>,
-        unique_id: &str,
+        _unique_id: &str,
     ) {
-        use crate::utils::determinist_random_variable::seed_generation_component;
         ui.horizontal_top(|ui| {
             ui.vertical(|ui| {
                 let mut to_remove = None;

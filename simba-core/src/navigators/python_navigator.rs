@@ -2,33 +2,28 @@
 Module providing the interface to use external Python [`Navigator`].
 */
 
-use std::ffi::CString;
-use std::fs;
 use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use config_checker::macros::Check;
-use log::{debug, info};
-use pyo3::ffi::c_str;
-use pyo3::types::PyModule;
-use pyo3::{PyResult, Python, pyclass, pymethods};
-use pyo3::{call, prelude::*};
+use log::debug;
+use pyo3::{Python, pyclass, pymethods};
+use pyo3::prelude::*;
 use serde_json::Value;
 
 #[cfg(feature = "gui")]
-use crate::gui::{UIComponent, utils::json_config};
+use crate::gui::{UIComponent};
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::pywrappers::NodeWrapper;
-use crate::utils::macros::{external_record, external_record_python_methods, python_class_config};
+use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::python::{
-    CONVERT_TO_DICT, call_py_method, call_py_method_void, ensure_venv_pyo3,
+    call_py_method, call_py_method_void,
     load_class_from_python_script,
 };
 use crate::{
     controllers::ControllerError,
-    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    errors::SimbaResult,
     logger::is_enabled,
     navigators::{Navigator, NavigatorRecord},
     pywrappers::{ControllerErrorWrapper, WorldStateWrapper},

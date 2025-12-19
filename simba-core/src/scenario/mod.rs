@@ -1,18 +1,18 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::{Arc, Mutex},
-    thread::JoinHandle,
 };
 
-use log::{debug, warn};
+use log::{debug};
+#[cfg(not(feature = "force_hard_determinism"))]
+use log::warn;
 
 use crate::{
     config::NumberConfig,
     constants::TIME_ROUND,
     errors::SimbaResult,
     logger::{InternalLog, is_enabled},
-    networking::{MessageTypes, network::MessageFlag, network_manager::MessageSendMethod},
-    node::{Node, NodeState},
+    node::NodeState,
     scenario::config::{
         AreaEventTriggerConfig, EventConfig, EventTriggerConfig, EventTypeConfig,
         ProximityEventTriggerConfig, ScenarioConfig,
@@ -20,10 +20,13 @@ use crate::{
     simulator::{RunningParameters, Simulator},
     state_estimators::State,
     utils::{
-        barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory,
+        determinist_random_variable::DeterministRandomVariableFactory,
         time_ordered_data::TimeOrderedData,
     },
 };
+
+#[cfg(not(feature = "force_hard_determinism"))]
+use crate::networking::{network::MessageFlag, network_manager::MessageSendMethod};
 
 pub mod config;
 
@@ -43,10 +46,7 @@ impl Scenario {
             .events
             .clone()
             .into_iter()
-            .partition(|e| match e.trigger {
-                EventTriggerConfig::Time(_) => true,
-                _ => false,
-            });
+            .partition(|e| matches!(e.trigger, EventTriggerConfig::Time(_)));
         let mut time_events = TimeOrderedData::new();
         for event in &time_events_vec {
             let ts: Vec<f32> = match &event.trigger {
@@ -64,8 +64,7 @@ impl Scenario {
                         NumberConfig::Rand(rv_config) => {
                             let rv = va_factory.make_variable(rv_config.clone());
                             (0..occurences)
-                                .map(|i| rv.generate(i as f32))
-                                .flatten()
+                                .flat_map(|i| rv.generate(i as f32))
                                 .collect()
                         }
                     }
@@ -109,7 +108,7 @@ impl Scenario {
                 &event.1,
                 simulator,
                 time,
-                &vec![event.0.to_string()],
+                &[event.0.to_string()],
                 "Time",
                 running_parameters,
             )?;
@@ -123,7 +122,7 @@ impl Scenario {
                         self.proximity_trigger(proximity_config, simulator, time, state_history);
                     for nodes in triggering_nodes {
                         Self::execute_event(
-                            &event,
+                            event,
                             simulator,
                             time,
                             &nodes,
@@ -137,7 +136,7 @@ impl Scenario {
                         self.area_trigger(area_config, simulator, time, state_history);
                     for nodes in triggering_nodes {
                         Self::execute_event(
-                            &event,
+                            event,
                             simulator,
                             time,
                             &nodes,
@@ -153,8 +152,8 @@ impl Scenario {
         Ok(())
     }
 
-    fn replace_variables(template_string: &String, variables: &Vec<String>) -> String {
-        let mut result_string = template_string.clone();
+    fn replace_variables(template_string: &str, variables: &[String]) -> String {
+        let mut result_string = template_string.to_owned();
         for (i, var) in variables.iter().enumerate() {
             let var_tag = format!("${}", i);
             result_string = result_string.replace(&var_tag, &var.to_string());
@@ -162,11 +161,12 @@ impl Scenario {
         result_string
     }
 
+    #[cfg_attr(feature = "force_hard_determinism", allow(unused_variables))]
     fn execute_event(
         event: &EventConfig,
         simulator: &mut Simulator,
         time: f32,
-        trigger_variables: &Vec<String>,
+        trigger_variables: &[String],
         trigger_type: &str,
         running_parameters: &mut RunningParameters,
     ) -> SimbaResult<()> {
@@ -227,7 +227,6 @@ impl Scenario {
             }
             #[cfg(feature = "force_hard_determinism")]
             EventTypeConfig::Spawn(_) => {}
-            _ => unimplemented!(),
         }
         Ok(())
     }
@@ -239,7 +238,7 @@ impl Scenario {
     fn area_trigger(
         &self,
         area_config: &AreaEventTriggerConfig,
-        simulator: &mut Simulator,
+        _simulator: &mut Simulator,
         time: f32,
         state_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
     ) -> Vec<Vec<String>> {
@@ -290,7 +289,7 @@ impl Scenario {
     fn proximity_trigger(
         &self,
         proximity_config: &ProximityEventTriggerConfig,
-        simulator: &mut Simulator,
+        _simulator: &mut Simulator,
         time: f32,
         state_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
     ) -> Vec<Vec<String>> {
@@ -301,9 +300,7 @@ impl Scenario {
                     .iter_from_time(self.last_executed_time)
                     .take_while(|(t, _)| *t <= time)
                     .last();
-                if hstate.is_none() {
-                    return None;
-                }
+                hstate?;
                 let state = &hstate.unwrap().1;
                 if state.1 != NodeState::Running {
                     // Zombie, not created or killed node
@@ -322,11 +319,10 @@ impl Scenario {
                 if node1_name >= node2_name {
                     continue;
                 }
-                if let Some(target_name) = &proximity_config.protected_target {
-                    if target_name != node2_name && target_name != node1_name {
+                if let Some(target_name) = &proximity_config.protected_target
+                    && target_name != node2_name && target_name != node1_name {
                         continue;
                     }
-                }
                 let distance_squared =
                     (*node1_x - *node2_x).powi(2) + (*node1_y - *node2_y).powi(2);
                 let inside = distance_squared <= distance_threshold_squared;

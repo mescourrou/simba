@@ -21,7 +21,6 @@ use crate::{
     state_estimators::{State, StateConfig, StateRecord},
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
-use config_checker::macros::Check;
 use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;

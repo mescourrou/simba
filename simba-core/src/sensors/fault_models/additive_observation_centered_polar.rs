@@ -4,9 +4,7 @@
 
 use std::sync::{Arc, Mutex};
 
-use config_checker::macros::Check;
 use libm::atan2f;
-use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
@@ -42,7 +40,6 @@ impl Default for AdditiveObservationCenteredPolarFaultConfig {
         Self {
             apparition: BernouilliRandomVariableConfig {
                 probability: vec![1.0],
-                ..Default::default()
             },
             distributions: vec![RandomVariableTypeConfig::Normal(
                 NormalRandomVariableConfig::default(),

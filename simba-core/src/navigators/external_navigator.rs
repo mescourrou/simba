@@ -16,10 +16,8 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
 
-use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
-use serde_json::Value;
 use simba_macros::config_derives;
 
 use crate::controllers::ControllerError;
@@ -31,7 +29,7 @@ use crate::networking::network::Envelope;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
-use crate::utils::macros::{external_config, external_record, external_record_python_methods};
+use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };

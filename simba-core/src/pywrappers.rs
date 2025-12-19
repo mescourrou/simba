@@ -18,16 +18,16 @@ use crate::api::async_api::PluginAsyncAPI;
 use crate::{
     controllers::{
         ControllerError,
-        pybinds::{ControllerWrapper, PythonController},
+        pybinds::ControllerWrapper,
     },
-    navigators::pybinds::{NavigatorWrapper, PythonNavigator},
+    navigators::pybinds::NavigatorWrapper,
     networking::{
         MessageTypes,
         network::{Envelope, MessageFlag},
     },
     node::Node,
     physics::{
-        pybinds::{PhysicsWrapper, PythonPhysics},
+        pybinds::PhysicsWrapper,
         robot_models::{Command, holonomic::HolonomicCommand, unicycle::UnicycleCommand},
     },
     plugin_api::PluginAPI,
@@ -41,7 +41,7 @@ use crate::{
     simulator::{AsyncSimulator, Simulator},
     state_estimators::{
         State, WorldState,
-        pybinds::{PythonStateEstimator, StateEstimatorWrapper},
+        pybinds::StateEstimatorWrapper,
     },
     utils::occupancy_grid::OccupancyGrid,
 };

@@ -4,7 +4,6 @@ available observations.
 */
 
 extern crate confy;
-use config_checker::macros::Check;
 use core::f32;
 use log::debug;
 use pyo3::prelude::*;

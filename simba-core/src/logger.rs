@@ -1,10 +1,6 @@
-use std::{fmt::Display, sync::RwLock};
+use std::sync::RwLock;
 
-use config_checker::macros::Check;
-use serde::{Deserialize, Serialize};
-#[cfg(feature = "gui")]
-use simba_macros::ToVec;
-use simba_macros::{EnumToString, config_derives};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::{

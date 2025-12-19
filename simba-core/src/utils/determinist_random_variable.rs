@@ -19,12 +19,9 @@ Other types can be added in the future.
 
 use std::sync::Mutex;
 
-use config_checker::macros::Check;
-use log::debug;
 use rand::{Rng, SeedableRng, random};
 use rand_chacha::ChaCha8Rng;
-use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, config_derives};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::string_combobox};

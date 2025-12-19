@@ -6,7 +6,7 @@ extern crate nalgebra as na;
 use std::f32::consts::PI;
 
 use na::SVector;
-use nalgebra::{Matrix, Matrix3, VectorView2};
+use nalgebra::Matrix3;
 
 /// Computes the projection of a point on a segment.
 ///
@@ -97,7 +97,7 @@ pub fn segment_circle_intersection(
         // segment is a point
         let dist_sq = (p1 - center).dot(&(p1 - center));
         if dist_sq <= radius * radius {
-            return Some((p1.clone(), p1.clone()));
+            return Some((*p1, *p1));
         } else {
             return None;
         }
@@ -123,7 +123,7 @@ pub fn segment_circle_intersection(
     // Impale, Poke
     // or  t1 didn't intersect so we are either started
     // inside the sphere or completely past it
-    if (t1 < 0. || t1 > 1.) && (t2 < 0. || t2 > 1.) {
+    if !(0. ..=1.).contains(&t1) && !(0. ..=1.).contains(&t2) {
         // no intn: FallShort, Past, CompletelyInside
         return None;
     }
@@ -131,11 +131,11 @@ pub fn segment_circle_intersection(
     // If we are here, we have an intersection
     let mut intersect1 = p1 + t1 * d;
     if t1 < 0. {
-        intersect1 = p1.clone();
+        intersect1 = *p1;
     }
     let mut intersect2 = p1 + t2 * d;
     if t2 > 1. {
-        intersect2 = p2.clone();
+        intersect2 = *p2;
     }
     Some((intersect1, intersect2))
 }
@@ -198,9 +198,9 @@ pub fn segment_to_line_intersection(
     }
 
     let ua = bx * (a1.y - l1.y) - by * (a1.x - l1.x);
-    let ub = ax * (a1.y - l1.y) - ay * (a1.x - l1.x);
+    // let ub = ax * (a1.y - l1.y) - ay * (a1.x - l1.x);
 
-    // Get the intersection point\
+    // Get the intersection point
     let ua = ua / d;
     Some(SVector::<f32, 2>::new(a1.x + ua * ax, a1.y + ua * ay))
 }
@@ -239,11 +239,11 @@ pub fn segment_triangle_intersection(
     let lambda2 = to_bary * p2h;
 
     // Check if both points are inside the triangle
-    let p1inside = lambda1.fold(true, |acc, x| if x < 0. || x > 1. { false } else { acc });
-    let p2inside = lambda2.fold(true, |acc, x| if x < 0. || x > 1. { false } else { acc });
+    let p1inside = lambda1.fold(true, |acc, x| if !(0. ..=1.).contains(&x) { false } else { acc });
+    let p2inside = lambda2.fold(true, |acc, x| if !(0. ..=1.).contains(&x) { false } else { acc });
 
     if p1inside && p2inside {
-        return Some((p1.clone(), p2.clone()));
+        return Some((*p1, *p2));
     }
     let edges = vec![
         (triangle_top, triangle_a),
@@ -259,9 +259,9 @@ pub fn segment_triangle_intersection(
         for (e1, e2) in &edges {
             if let Some(intersection) = segments_intersection(inside_point, outside_point, e1, e2) {
                 if p1inside {
-                    return Some((inside_point.clone(), intersection));
+                    return Some((*inside_point, intersection));
                 } else {
-                    return Some((intersection, inside_point.clone()));
+                    return Some((intersection, *inside_point));
                 }
             }
         }
@@ -277,21 +277,21 @@ pub fn segment_triangle_intersection(
 
     if intersections.len() == 3 {
         if intersections[0] == intersections[1] {
-            intersections = vec![intersections[0].clone(), intersections[2].clone()];
+            intersections = vec![intersections[0], intersections[2]];
         } else if intersections[0] == intersections[2] {
-            intersections = vec![intersections[0].clone(), intersections[1].clone()];
+            intersections = vec![intersections[0], intersections[1]];
         } else if intersections[1] == intersections[2] {
-            intersections = vec![intersections[1].clone(), intersections[0].clone()];
+            intersections = vec![intersections[1], intersections[0]];
         }
     }
     if intersections.len() >= 2 {
         if (intersections[0] - p1).norm() > (intersections[1] - p1).norm() {
             intersections.reverse();
         }
-        return Some((intersections[0].clone(), intersections[1].clone()));
+        return Some((intersections[0], intersections[1]));
     }
     assert!(
-        intersections.len() == 0,
+        intersections.is_empty(),
         "Bug found! intersections.len() = {}",
         intersections.len()
     );

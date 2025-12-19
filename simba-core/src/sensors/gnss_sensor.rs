@@ -21,7 +21,6 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 #[cfg(feature = "gui")]
 use crate::{constants::TIME_ROUND_DECIMALS, gui::UIComponent};
-use config_checker::macros::Check;
 use log::debug;
 use nalgebra::Vector2;
 use serde_derive::{Deserialize, Serialize};
@@ -75,10 +74,8 @@ impl UIComponent for GNSSSensorConfig {
                         if ui.button("X").clicked() {
                             self.period = None;
                         }
-                    } else {
-                        if ui.button("+").clicked() {
-                            self.period = Self::default().period;
-                        }
+                    } else if ui.button("+").clicked() {
+                        self.period = Self::default().period;
                     }
                 });
 

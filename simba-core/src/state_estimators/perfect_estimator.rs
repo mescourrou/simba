@@ -25,7 +25,6 @@ use crate::sensors::Observation;
 use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
 use crate::simulator::SimulatorConfig;
 use crate::utils::maths::round_precision;
-use config_checker::macros::Check;
 use log::{error, info, warn};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;

@@ -22,7 +22,6 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
-use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
 
 use log::debug;
@@ -90,10 +89,8 @@ impl UIComponent for RobotSensorConfig {
                         if ui.button("X").clicked() {
                             self.period = None;
                         }
-                    } else {
-                        if ui.button("+").clicked() {
-                            self.period = Some(Self::default().period.unwrap());
-                        }
+                    } else if ui.button("+").clicked() {
+                        self.period = Some(Self::default().period.unwrap());
                     }
                 });
 

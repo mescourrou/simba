@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
 use crate::networking::NetworkError;
-use crate::node::{self, Node, NodeState};
+use crate::node::{Node, NodeState};
 use crate::simulator::TimeCv;
 use crate::state_estimators::State;
 use crate::utils::time_ordered_data::TimeOrderedData;
@@ -18,7 +18,7 @@ use super::network::MessageFlag;
 use std::collections::BTreeMap;
 
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, MutexGuard};
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub enum MessageSendMethod {
@@ -271,6 +271,7 @@ impl NetworkManager {
         self.nodes_senders.remove(node_name).unwrap();
     }
 
+    #[cfg(not(feature = "force_hard_determinism"))]
     pub(crate) fn send_message(
         &mut self,
         message: Value,
@@ -286,14 +287,13 @@ impl NetworkManager {
             range: 0.,
             message_flags: flags,
         };
-        if let MessageSendMethod::Recipient(to) = &message.to {
-            if !self.nodes_senders.contains_key(to) {
+        if let MessageSendMethod::Recipient(to) = &message.to
+            && !self.nodes_senders.contains_key(to) {
                 return Err(SimbaError::new(
                     SimbaErrorTypes::NetworkError(NetworkError::NodeUnknown),
                     format!("Unknown recipient node `{to}`"),
                 ));
             }
-        }
         self.simulator_messages.push(message);
         Ok(())
     }

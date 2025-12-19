@@ -167,9 +167,9 @@ impl ControllerWrapper {
 
     fn make_command(
         &mut self,
-        node: NodeWrapper,
-        error: ControllerErrorWrapper,
-        time: f32,
+        _node: NodeWrapper,
+        _error: ControllerErrorWrapper,
+        _time: f32,
     ) -> CommandWrapper {
         unimplemented!()
     }
@@ -178,7 +178,7 @@ impl ControllerWrapper {
         unimplemented!()
     }
 
-    fn pre_loop_hook(&mut self, node: NodeWrapper, time: f32) {
+    fn pre_loop_hook(&mut self, _node: NodeWrapper, _time: f32) {
         unimplemented!()
     }
 }

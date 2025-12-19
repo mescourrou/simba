@@ -159,8 +159,8 @@ impl NavigatorWrapper {
 
     fn compute_error(
         &mut self,
-        node: NodeWrapper,
-        state: WorldStateWrapper,
+        _node: NodeWrapper,
+        _state: WorldStateWrapper,
     ) -> ControllerErrorWrapper {
         unimplemented!()
     }
@@ -169,7 +169,7 @@ impl NavigatorWrapper {
         unimplemented!()
     }
 
-    fn pre_loop_hook(&mut self, node: NodeWrapper, time: f32) {
+    fn pre_loop_hook(&mut self, _node: NodeWrapper, _time: f32) {
         unimplemented!()
     }
 }

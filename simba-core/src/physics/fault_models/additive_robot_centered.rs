@@ -2,8 +2,6 @@
 
 use std::sync::{Arc, Mutex};
 
-use config_checker::macros::Check;
-use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
@@ -143,7 +141,7 @@ impl AdditiveRobotCenteredPhysicsFault {
             variable_order: config.variable_order.clone(),
             last_time_draw: Mutex::new(initial_time),
             proportionnal_to_velocity: config.proportionnal_to_velocity,
-            robot_model: robot_model,
+            robot_model,
         }
     }
 }
@@ -153,8 +151,7 @@ impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
         let mut last_time_draw = self.last_time_draw.lock().unwrap();
         let delta_time = (time - *last_time_draw)
             * self
-                .proportionnal_to_velocity
-                .and_then(|f| Some(f * state.velocity.norm()))
+                .proportionnal_to_velocity.map(|f| f * state.velocity.norm())
                 .unwrap_or(1.0);
         let mut random_sample = Vec::new();
         for d in self.distributions.lock().unwrap().iter() {

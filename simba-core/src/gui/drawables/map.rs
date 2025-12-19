@@ -1,7 +1,6 @@
 use std::{path::Path, sync::Mutex};
 
 use egui::{Color32, Rect, Shape, Stroke, Vec2};
-use nalgebra::Vector2;
 
 use crate::{
     gui::app::PainterInfo,

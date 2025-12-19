@@ -1,8 +1,6 @@
 #[cfg(feature = "gui")]
 use std::collections::BTreeMap;
 
-use config_checker::macros::Check;
-use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]

@@ -34,7 +34,6 @@ use results::ResultSavingData;
 pub use results::{ResultConfig, ResultSaveMode, Results};
 
 mod simulator_config;
-use serde::de;
 pub use simulator_config::SimulatorConfig;
 
 mod async_simulator;
@@ -55,7 +54,7 @@ use crate::{
     networking::{network_manager::NetworkManager, service_manager::ServiceManager},
     node::{
         Node, NodeState,
-        node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig},
+        node_factory::{ComputationUnitConfig, MakeNodeParams, NodeFactory, NodeRecord, RobotConfig},
     },
     plugin_api::PluginAPI,
     recordable::Recordable,
@@ -75,7 +74,6 @@ use core::f32;
 use std::{
     cmp::Ordering,
     path::{Path, PathBuf},
-    sync::mpsc::{self, Receiver, Sender},
     thread::JoinHandle,
 };
 use std::{collections::BTreeMap, ffi::CString};
@@ -171,6 +169,14 @@ pub(crate) struct RunningParameters {
     handles: Vec<JoinHandle<SimbaResult<Option<Node>>>>,
     end_time_step_sync_hosts: Vec<RemoteFunctionCallHost<(), ()>>,
     running_nodes_names: Vec<String>,
+}
+
+struct NodeSyncParams {
+    nb_nodes: Arc<RwLock<usize>>,
+    time_cv: Arc<TimeCv>,
+    common_time: Arc<RwLock<f32>>,
+    barrier: Arc<Barrier>,
+    end_time_step_sync: RemoteFunctionCall<(), ()>,
 }
 
 /// This is the central structure which manages the run of the scenario.
@@ -540,14 +546,16 @@ impl Simulator {
     ) {
         let mut new_node = NodeFactory::make_robot(
             robot_config,
-            &self.plugin_api,
-            global_config,
-            &self.determinist_va_factory,
-            &mut self.time_analysis_factory,
-            self.time_cv.clone(),
-            force_send_results,
-            None,
-            initial_time,
+            &mut MakeNodeParams{
+                plugin_api: &self.plugin_api,
+                global_config,
+                va_factory: &self.determinist_va_factory,
+                time_analysis_factory: &mut self.time_analysis_factory,
+                time_cv: self.time_cv.clone(),
+                force_send_results,
+                new_name: None,
+                initial_time,
+            }
         );
         if new_node.state() != NodeState::Running {
             return;
@@ -565,14 +573,16 @@ impl Simulator {
     ) {
         let mut new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
-            &self.plugin_api,
-            global_config,
-            &self.determinist_va_factory,
-            &mut self.time_analysis_factory,
-            self.time_cv.clone(),
-            force_send_results,
-            None,
-            initial_time,
+            &mut MakeNodeParams{
+                plugin_api: &self.plugin_api,
+                global_config,
+                va_factory: &self.determinist_va_factory,
+                time_analysis_factory: &mut self.time_analysis_factory,
+                time_cv: self.time_cv.clone(),
+                force_send_results,
+                new_name: None,
+                initial_time,
+            }
         );
         if new_node.state() != NodeState::Running {
             return;
@@ -652,6 +662,7 @@ impl Simulator {
         self.process_records(None)
     }
 
+    #[cfg(not(feature = "force_hard_determinism"))]
     pub(crate) fn spawn_node_from_name(
         &mut self,
         node_name: &str,
@@ -660,15 +671,17 @@ impl Simulator {
         time: f32,
     ) -> SimbaResult<()> {
         let mut node = NodeFactory::make_node_from_name(
-            &node_name,
-            &self.plugin_api,
-            &self.config,
-            &self.determinist_va_factory,
-            &mut self.time_analysis_factory,
-            self.time_cv.clone(),
-            self.force_send_results,
-            Some(new_node_name),
-            time,
+            node_name,
+            &mut MakeNodeParams {
+                plugin_api: &self.plugin_api,
+                global_config: &self.config,
+                va_factory: &self.determinist_va_factory,
+                time_analysis_factory: &mut self.time_analysis_factory,
+                time_cv: self.time_cv.clone(),
+                force_send_results: self.force_send_results,
+                new_name: Some(new_node_name),
+                initial_time: time,
+            }
         )
         .ok_or(SimbaError::new(
             SimbaErrorTypes::ImplementationError,
@@ -722,12 +735,14 @@ impl Simulator {
             let ret = Self::run_one_node(
                 node,
                 max_time,
-                nb_nodes,
-                time_cv.clone(),
                 async_api_server,
-                common_time_clone,
-                barrier_clone,
-                end_time_step_sync_tx,
+                NodeSyncParams {
+                    nb_nodes,
+                    time_cv: time_cv.clone(),
+                    common_time: common_time_clone,
+                    barrier: barrier_clone,
+                    end_time_step_sync: end_time_step_sync_tx,
+                },
             );
             match &ret {
                 Err(_) => *time_cv.force_finish.lock().unwrap() = true,
@@ -959,12 +974,9 @@ impl Simulator {
     fn run_one_node(
         mut node: Node,
         max_time: f32,
-        nb_nodes: Arc<RwLock<usize>>,
-        time_cv: Arc<TimeCv>,
         async_api_server: Option<SimulatorAsyncApiServer>,
-        common_time: Arc<RwLock<f32>>,
-        barrier: Arc<Barrier>,
-        end_time_step_sync: RemoteFunctionCall<(), ()>,
+        node_sync_params: NodeSyncParams,
+        
     ) -> SimbaResult<Option<Node>> {
         if node.state() != NodeState::Running {
             return Err(SimbaError::new(
@@ -981,10 +993,10 @@ impl Simulator {
         THREAD_NAMES.write().unwrap().push(node.name());
         drop(thread_ids);
         let mut next_time = -1.;
-        barrier.wait();
-        barrier.wait();
+        node_sync_params.barrier.wait();
+        node_sync_params.barrier.wait();
         loop {
-            if *time_cv.force_finish.lock().unwrap() {
+            if *node_sync_params.time_cv.force_finish.lock().unwrap() {
                 break;
             }
             next_time = node.next_time_step(next_time)?;
@@ -996,7 +1008,7 @@ impl Simulator {
                 if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                     debug!("Get common time (next_time is {next_time})");
                 }
-                let mut unlocked_common_time = common_time.write().unwrap();
+                let mut unlocked_common_time = node_sync_params.common_time.write().unwrap();
                 if *unlocked_common_time > next_time {
                     *unlocked_common_time = next_time;
                     if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
@@ -1004,15 +1016,15 @@ impl Simulator {
                     }
                 }
             }
-            barrier.wait();
+            node_sync_params.barrier.wait();
 
-            next_time = *common_time.read().unwrap();
+            next_time = *node_sync_params.common_time.read().unwrap();
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Barrier... final next_time is {next_time}");
             }
-            barrier.wait();
-            *common_time.write().unwrap() = f32::INFINITY;
-            barrier.wait();
+            node_sync_params.barrier.wait();
+            *node_sync_params.common_time.write().unwrap() = f32::INFINITY;
+            node_sync_params.barrier.wait();
             if let Some(async_api_server) = &async_api_server {
                 async_api_server.update_time(next_time);
             }
@@ -1021,19 +1033,18 @@ impl Simulator {
                 break;
             }
 
-            let nb_nodes_unlocked = *nb_nodes.read().unwrap();
-            node.run_next_time_step(next_time, &time_cv, nb_nodes_unlocked)?;
-            node.sync_with_others(&time_cv, nb_nodes_unlocked, next_time);
-            if node.send_records() {
-                if let Some(async_api_server) = &async_api_server {
+            let nb_nodes_unlocked = *node_sync_params.nb_nodes.read().unwrap();
+            node.run_next_time_step(next_time, &node_sync_params.time_cv, nb_nodes_unlocked)?;
+            node.sync_with_others(&node_sync_params.time_cv, nb_nodes_unlocked, next_time);
+            if node.send_records()
+                && let Some(async_api_server) = &async_api_server {
                     async_api_server.send_record(&Record {
                         time: next_time,
                         node: node.record(),
                     });
                 }
-            }
-            end_time_step_sync.call(());
-            barrier.wait();
+            node_sync_params.end_time_step_sync.call(());
+            node_sync_params.barrier.wait();
             if node.process_messages() > 0 {
                 node.handle_messages(next_time);
             }
@@ -1042,14 +1053,14 @@ impl Simulator {
                 if node.process_messages() > 0 {
                     node.handle_messages(next_time);
                 }
-                *nb_nodes.write().unwrap() -= 1;
-                time_cv.condvar.notify_all();
+                *node_sync_params.nb_nodes.write().unwrap() -= 1;
+                node_sync_params.time_cv.condvar.notify_all();
                 node.kill(next_time);
-                barrier.remove_one();
+                node_sync_params.barrier.remove_one();
                 return Ok(None);
             }
 
-            barrier.wait();
+            node_sync_params.barrier.wait();
         }
 
         Ok(Some(node))
@@ -1065,8 +1076,8 @@ impl Simulator {
         let mut waiting_nodes = 0;
         loop {
             for (node_name, node_api) in self.node_apis.iter() {
-                if let Some(state_update) = &node_api.state_update {
-                    if let Ok((time, state)) = state_update.try_recv() {
+                if let Some(state_update) = &node_api.state_update
+                    && let Ok((time, state)) = state_update.try_recv() {
                         if !node_states.contains_key(node_name) {
                             node_states.insert(
                                 node_name.clone(),
@@ -1077,7 +1088,6 @@ impl Simulator {
                             node_state.insert(time, state, true);
                         }
                     }
-                }
             }
             let mut time_end_procedure = false;
             for end_time_step_sync in running_parameters.end_time_step_sync_hosts.iter() {
@@ -1240,6 +1250,7 @@ def show():
         Arc::new(self.async_api_server.as_mut().unwrap().new_client())
     }
 
+    #[cfg(not(feature = "force_hard_determinism"))]
     pub(crate) fn get_network_manager_mut(&mut self) -> &mut NetworkManager {
         &mut self.network_manager
     }

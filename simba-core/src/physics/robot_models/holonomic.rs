@@ -1,4 +1,3 @@
-use config_checker::macros::Check;
 use libm::atan2f;
 use nalgebra::{Matrix3, SMatrix};
 use serde::{Deserialize, Serialize};

@@ -18,7 +18,7 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::{
-    aligned_points, project_point, segment_circle_intersection, segment_to_line_intersection,
+    segment_circle_intersection, segment_to_line_intersection,
     segment_triangle_intersection, segments_intersection,
 };
 use crate::utils::maths::round_precision;
@@ -27,9 +27,7 @@ use crate::{
     constants::TIME_ROUND_DECIMALS,
     gui::{UIComponent, utils::path_finder},
 };
-use config_checker::macros::Check;
 use nalgebra::Vector2;
-use rand_chacha::rand_core::le;
 use serde_derive::{Deserialize, Serialize};
 
 use log::{debug, error};
@@ -105,10 +103,8 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                         if ui.button("X").clicked() {
                             self.period = None;
                         }
-                    } else {
-                        if ui.button("+").clicked() {
-                            self.period = Self::default().period;
-                        }
+                    } else if ui.button("+").clicked() {
+                        self.period = Self::default().period;
                     }
                 });
 
@@ -460,7 +456,6 @@ impl UIComponent for OrientedLandmarkObservationRecord {
             }
             if self.applied_faults.is_empty() {
                 ui.label("No applied faults.");
-                return;
             } else {
                 ui.label("Applied faults:");
                 for fault in &self.applied_faults {
@@ -741,8 +736,7 @@ impl Sensor for OrientedLandmarkSensor {
                                     new_intersections.extend_from_slice(&chunk_intersections);
                                     continue;
                                 }
-                                if projected1.is_none() && projected2.is_some() {
-                                    let projected2 = projected2.unwrap();
+                                if projected1.is_none() && let Some(projected2) = projected2 {
                                     let dot2 = (projected2 - chunk_intersections[0])
                                         .dot(&(chunk_intersections[1] - chunk_intersections[0]));
                                     if dot2 - 1e-3 < 0. || dot2 + 1e-3 > chunk_length {
@@ -761,8 +755,7 @@ impl Sensor for OrientedLandmarkSensor {
                                     }
                                     new_intersections.push(projected2);
                                     new_intersections.push(chunk_intersections[1]);
-                                } else if projected1.is_some() && projected2.is_none() {
-                                    let projected1 = projected1.unwrap();
+                                } else if let Some(projected1) = projected1 && projected2.is_none() {
                                     let dot1 = (projected1 - chunk_intersections[0])
                                         .dot(&(chunk_intersections[1] - chunk_intersections[0]));
                                     if dot1 - 1e-3 < 0. || dot1 + 1e-3 > chunk_length {
@@ -868,8 +861,7 @@ impl Sensor for OrientedLandmarkSensor {
                         intersections = new_intersections;
                     } else if intersections.len() == 1 {
                         // Try to look at a ponctual landmark, check if segment intersects obstruction
-                        if let Some(_) =
-                            segments_intersection(&state_pos, &intersections[0], &p1, &p2)
+                        if segments_intersection(&state_pos, &intersections[0], &p1, &p2).is_some()
                         {
                             // Obstructed, remove point
                             intersections.clear();
@@ -892,7 +884,7 @@ impl Sensor for OrientedLandmarkSensor {
             let mut observed_poses = Vec::new();
             let mut observed_width = Vec::new();
             if intersections.len() == 1 {
-                observed_poses.push(intersections[0].clone().insert_row(2, landmark.pose.z));
+                observed_poses.push(intersections[0].insert_row(2, landmark.pose.z));
                 observed_width.push(0.0);
             } else {
                 for i in 0..intersections.len() / 2 {

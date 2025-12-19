@@ -15,7 +15,6 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 
 use std::sync::Arc;
 
-use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
@@ -34,7 +33,7 @@ use crate::{
 };
 
 use crate::sensors::{
-    Observation, ObservationRecord, Sensor, SensorObservation, SensorObservationRecord,
+    Sensor, SensorObservation,
     SensorRecord,
 };
 use serde_derive::{Deserialize, Serialize};
@@ -103,6 +102,12 @@ use crate::node::Node;
 pub struct ExternalSensor {
     /// External sensor.
     sensor: Box<dyn Sensor>,
+}
+
+impl Default for ExternalSensor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ExternalSensor {

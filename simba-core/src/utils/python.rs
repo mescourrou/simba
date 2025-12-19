@@ -47,16 +47,12 @@ pub fn ensure_venv_pyo3(py: Python<'_>) -> PyResult<()> {
     // Heuristic: local .venv or .env in CWD (useful when not "activated")
     if let Ok(cwd) = env::current_dir() {
         let venv = cwd.join(".venv");
-        if venv.exists() {
-            if let Some(s) = venv.to_str() {
-                prefixes.push(s.to_string());
-            }
+        if venv.exists()&& let Some(s) = venv.to_str() {
+            prefixes.push(s.to_string());
         }
         let envdir = cwd.join(".env");
-        if envdir.exists() {
-            if let Some(s) = envdir.to_str() {
-                prefixes.push(s.to_string());
-            }
+        if envdir.exists() && let Some(s) = envdir.to_str() {
+            prefixes.push(s.to_string());
         }
     }
 
@@ -139,11 +135,11 @@ impl PythonScriptConfig {
             let function: Py<PyAny> = script.getattr("main")?.into();
 
             let ret = function.call(py, args, None)?;
-            Ok(ret.extract(py).map_err(|_| {
+            ret.extract(py).map_err(|_| {
                 PyErr::new::<pyo3::exceptions::PyException, _>(
                     "Error during the call of Python script",
                 )
-            })?)
+            })
         });
 
         res.map_err(|err| SimbaError::new(SimbaErrorTypes::PythonError, err.to_string()))
@@ -159,7 +155,7 @@ pub fn load_class_from_python_script<T: PythonClassConfig>(
     let json_config = serde_json::to_string(&config)
         .unwrap_or_else(|_| format!("Error during converting Python {} config to json", log_info));
 
-    let script_path = global_config.base_path.as_ref().join(&config.file());
+    let script_path = global_config.base_path.as_ref().join(config.file());
     let python_script = match fs::read_to_string(script_path.clone()) {
         Err(e) => {
             return Err(SimbaError::new(

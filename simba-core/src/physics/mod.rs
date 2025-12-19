@@ -21,10 +21,9 @@ pub mod fault_models;
 extern crate confy;
 use std::sync::{Arc, RwLock};
 
-use config_checker::macros::Check;
 use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec, config_derives};
+use simba_macros::config_derives;
 
 /// Enumeration of the different physic implementations.
 #[config_derives]

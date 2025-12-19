@@ -9,7 +9,6 @@ use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use config_checker::macros::Check;
 use log::debug;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};

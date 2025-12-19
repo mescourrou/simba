@@ -34,13 +34,11 @@ pub mod pybinds;
 pub mod python_estimator;
 
 extern crate nalgebra as na;
-use config_checker::macros::Check;
-use libm::atan2f;
 use na::SVector;
 
 extern crate confy;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec, config_derives};
+use simba_macros::config_derives;
 
 /// Configuration for [`State`] in order to load a state from the configuration.
 ///
@@ -159,7 +157,7 @@ impl UIComponent for StateConfig {
             ui.label(format!("θ: {}", self.pose.get(2).unwrap()));
         });
         ui.horizontal(|ui| {
-            ui.label(format!("vx: {}", self.velocity.get(0).unwrap()));
+            ui.label(format!("vx: {}", self.velocity.first().unwrap()));
         });
         ui.horizontal(|ui| {
             ui.label(format!("vy: {}", self.velocity.get(1).unwrap()));

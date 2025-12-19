@@ -8,14 +8,12 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use config_checker::macros::Check;
 use nalgebra::Vector2;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
-use serde::{Deserialize, Serialize};
 use serde_json::from_str;
-use simba_macros::{EnumToString, ToVec, config_derives};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{
@@ -72,12 +70,10 @@ impl Default for MisassociationFaultConfig {
         Self {
             apparition: BernouilliRandomVariableConfig {
                 probability: vec![0.1],
-                ..Default::default()
             },
             distribution: RandomVariableTypeConfig::Uniform(UniformRandomVariableConfig {
                 max: vec![10.],
                 min: vec![0.],
-                ..Default::default()
             }),
             sort: Sort::Random,
             source: Source::Robots,

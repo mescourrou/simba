@@ -2,22 +2,16 @@
 Module providing the interface to use external Python [`StateEstimator`].
 */
 
-use std::ffi::CString;
-use std::fs;
-use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use log::{debug, info};
-use pyo3::ffi::c_str;
-use pyo3::types::PyModule;
-use pyo3::{PyResult, Python, pyclass, pymethods};
-use pyo3::{call, prelude::*};
-use serde_json::Value;
+use log::debug;
+use pyo3::{Python, pyclass, pymethods};
+use pyo3::prelude::*;
 
 use super::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
-use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
@@ -29,7 +23,7 @@ use crate::simulator::SimulatorConfig;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::maths::round_precision;
 use crate::utils::python::{
-    CONVERT_TO_DICT, call_py_method, call_py_method_void, ensure_venv_pyo3,
+    call_py_method, call_py_method_void,
     load_class_from_python_script,
 };
 

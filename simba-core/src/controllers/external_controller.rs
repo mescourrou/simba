@@ -16,10 +16,8 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 use std::sync::Arc;
 use std::sync::mpsc::Sender;
 
-use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
-use serde_json::Value;
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]

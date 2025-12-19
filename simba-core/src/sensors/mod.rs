@@ -24,9 +24,8 @@ pub mod sensor_filters;
 
 extern crate confy;
 
-use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec, config_derives};
+use simba_macros::config_derives;
 
 use {
     gnss_sensor::{GNSSObservation, GNSSObservationRecord},

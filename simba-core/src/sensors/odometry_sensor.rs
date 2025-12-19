@@ -24,7 +24,6 @@ use crate::state_estimators::{State, StateRecord};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
-use config_checker::macros::Check;
 use libm::atan2f;
 use log::debug;
 use nalgebra::Matrix3;
@@ -80,10 +79,8 @@ impl UIComponent for OdometrySensorConfig {
                         if ui.button("X").clicked() {
                             self.period = None;
                         }
-                    } else {
-                        if ui.button("+").clicked() {
-                            self.period = Self::default().period;
-                        }
+                    } else if ui.button("+").clicked() {
+                        self.period = Self::default().period;
                     }
                 });
 

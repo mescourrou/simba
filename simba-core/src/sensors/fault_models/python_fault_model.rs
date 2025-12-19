@@ -44,7 +44,7 @@ impl FaultModel for PythonFaultModel {
     ) {
         let py_obs_list: Vec<SensorObservationWrapper> = obs_list
             .iter()
-            .map(|o| SensorObservationWrapper::from_rust(o))
+            .map(SensorObservationWrapper::from_rust)
             .collect();
         let py_obs_list = call_py_method!(
             self.instance,

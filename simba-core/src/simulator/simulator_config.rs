@@ -5,8 +5,6 @@ use simba_macros::config_derives;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use config_checker::macros::Check;
-use serde::{Deserialize, Serialize};
 
 use crate::{
     VERSION,

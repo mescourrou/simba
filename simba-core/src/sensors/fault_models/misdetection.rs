@@ -2,9 +2,7 @@
 //!
 //! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
 
-use config_checker::macros::Check;
 use log::debug;
-use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
@@ -35,7 +33,6 @@ impl Default for MisdetectionFaultConfig {
         Self {
             apparition: BernouilliRandomVariableConfig {
                 probability: vec![0.1],
-                ..Default::default()
             },
         }
     }

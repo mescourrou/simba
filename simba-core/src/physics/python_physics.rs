@@ -2,28 +2,23 @@
 Module providing the interface to use external Python [`Physics`].
 */
 
-use std::ffi::CString;
-use std::fs;
 use std::str::FromStr;
 
-use config_checker::macros::Check;
-use log::{debug, info};
-use pyo3::ffi::c_str;
-use pyo3::types::PyModule;
-use pyo3::{PyResult, Python, pyclass, pymethods};
-use pyo3::{call, prelude::*};
+use log::debug;
+use pyo3::{Python, pyclass, pymethods};
+use pyo3::prelude::*;
 use serde_json::Value;
 
 #[cfg(feature = "gui")]
-use crate::gui::{UIComponent, utils::json_config};
+use crate::gui::{UIComponent};
 use crate::physics::robot_models::Command;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::python::{
-    CONVERT_TO_DICT, call_py_method, call_py_method_void, ensure_venv_pyo3,
+    call_py_method, call_py_method_void,
     load_class_from_python_script,
 };
 use crate::{
-    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    errors::SimbaResult,
     logger::is_enabled,
     networking::service::HasService,
     physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord},

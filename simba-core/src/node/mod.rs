@@ -289,8 +289,8 @@ impl Node {
         let mut do_control_loop = false;
 
         // If it is time for the state estimator to do the prediction
-        if let Some(state_estimator) = &self.state_estimator() {
-            if time >= state_estimator.read().unwrap().next_time_step() {
+        if let Some(state_estimator) = &self.state_estimator()
+            && time >= state_estimator.read().unwrap().next_time_step() {
                 // Prediction step
                 let ta = self.time_analysis.lock().unwrap().time_analysis(
                     time,
@@ -303,7 +303,6 @@ impl Node {
                     .finished_time_analysis(ta);
                 do_control_loop = true;
             }
-        }
 
         if let Some(state_estimator_bench) = &self.state_estimator_bench() {
             for state_estimator in state_estimator_bench.read().unwrap().iter() {
@@ -568,14 +567,13 @@ impl Node {
                     message_next_time.unwrap_or(-1.)
                 );
             }
-            if let Some(msg_next_time) = message_next_time {
-                if next_time_step > msg_next_time && msg_next_time > min_time_excluded {
+            if let Some(msg_next_time) = message_next_time
+                && next_time_step > msg_next_time && msg_next_time > min_time_excluded {
                     next_time_step = msg_next_time;
                     if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                         debug!("Time step changed with message: {}", next_time_step);
                     }
                 }
-            }
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                 debug!("Next time after network: {next_time_step}");
             }
@@ -627,6 +625,7 @@ impl Node {
         self.state.clone()
     }
 
+    #[cfg(not(feature = "force_hard_determinism"))]
     pub(crate) fn set_state(&mut self, state: NodeState) {
         self.state = state;
     }

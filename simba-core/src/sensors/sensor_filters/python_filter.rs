@@ -41,7 +41,7 @@ impl SensorFilter for PythonFilter {
     ) -> Option<SensorObservation> {
         let py_observation = SensorObservationWrapper::from_rust(&observation);
         let py_observer_state = StateWrapper::from_rust(observer_state);
-        let py_observee_state = observee_state.map(|s| StateWrapper::from_rust(s));
+        let py_observee_state = observee_state.map(StateWrapper::from_rust);
         let ret = call_py_method!(
             self.instance,
             "filter",

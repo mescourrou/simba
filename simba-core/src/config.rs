@@ -1,4 +1,3 @@
-use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 use crate::utils::determinist_random_variable::RandomVariableTypeConfig;

@@ -3,31 +3,20 @@ use simba_macros::config_derives;
 use crate::config::NumberConfig;
 
 #[config_derives]
+#[derive(Default)]
 pub struct ScenarioConfig {
     #[check]
     pub events: Vec<EventConfig>,
 }
 
-impl Default for ScenarioConfig {
-    fn default() -> Self {
-        Self { events: Vec::new() }
-    }
-}
 
 #[config_derives]
+#[derive(Default)]
 pub struct EventConfig {
     pub trigger: EventTriggerConfig,
     pub event_type: EventTypeConfig,
 }
 
-impl Default for EventConfig {
-    fn default() -> Self {
-        Self {
-            trigger: EventTriggerConfig::default(),
-            event_type: EventTypeConfig::default(),
-        }
-    }
-}
 
 #[config_derives(tag_content)]
 pub enum EventTriggerConfig {

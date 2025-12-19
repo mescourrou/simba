@@ -1,9 +1,7 @@
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use simba_macros::config_derives;
-#[cfg(feature = "gui")]
-use simba_macros::{EnumToString, ToVec};
 
 use crate::time_analysis::TimeAnalysisFactory;
 

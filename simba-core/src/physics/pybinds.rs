@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use log::debug;
-use pyo3::{call, prelude::*, types::PyDict};
+use pyo3::{prelude::*, types::PyDict};
 use serde_json::Value;
 
 use crate::{
@@ -174,15 +174,15 @@ impl PhysicsWrapper {
         Self {}
     }
 
-    fn apply_command(&mut self, command: CommandWrapper, time: f32) {
+    fn apply_command(&mut self, _command: CommandWrapper, _time: f32) {
         unimplemented!()
     }
 
-    fn update_state(&mut self, time: f32) {
+    fn update_state(&mut self, _time: f32) {
         unimplemented!()
     }
 
-    fn state(&mut self, time: f32) -> StateWrapper {
+    fn state(&mut self, _time: f32) -> StateWrapper {
         unimplemented!()
     }
 

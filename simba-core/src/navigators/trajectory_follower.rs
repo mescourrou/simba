@@ -17,7 +17,6 @@ use crate::{
 };
 
 extern crate nalgebra as na;
-use config_checker::macros::Check;
 use libm::atan2;
 use na::Vector3;
 
