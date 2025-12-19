@@ -5,7 +5,7 @@ use std::{
 
 use simba_macros::EnumToString;
 
-use crate::networking::{service_manager::ServiceError, NetworkError};
+use crate::networking::{NetworkError, service_manager::ServiceError};
 
 #[derive(Debug, Clone, PartialEq, PartialOrd, EnumToString)]
 pub enum SimbaErrorTypes {

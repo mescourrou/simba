@@ -2,13 +2,12 @@
 
 use std::sync::{Arc, Mutex};
 
-use config_checker::macros::Check;
-use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
-    physics::fault_models::fault_model::PhysicsFaultModel,
+    physics::{fault_models::fault_model::PhysicsFaultModel, robot_models::RobotModelConfig},
     state_estimators::State,
     utils::{
         determinist_random_variable::{
@@ -19,13 +18,14 @@ use crate::{
     },
 };
 
-#[derive(Debug, Serialize, Deserialize, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct AdditiveRobotCenteredPhysicsFaultConfig {
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
+    /// If some, the faults will be proportionnal to the robot velocity times this factor.
+    /// If none, the faults will be independant of the robot velocity.
+    pub proportionnal_to_velocity: Option<f32>,
 }
 
 impl Default for AdditiveRobotCenteredPhysicsFaultConfig {
@@ -35,6 +35,7 @@ impl Default for AdditiveRobotCenteredPhysicsFaultConfig {
                 NormalRandomVariableConfig::default(),
             )],
             variable_order: Vec::new(),
+            proportionnal_to_velocity: Some(1.0),
         }
     }
 }
@@ -60,7 +61,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = ["x", "y", "orientation", "velocity"]
+            let possible_variables = ["x", "y", "orientation", "velocity_x", "velocity_y"]
                 .iter()
                 .map(|x| String::from(*x))
                 .collect();
@@ -104,13 +105,17 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
 pub struct AdditiveRobotCenteredPhysicsFault {
     distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
     variable_order: Vec<String>,
+    proportionnal_to_velocity: Option<f32>,
     last_time_draw: Mutex<f32>,
+    robot_model: RobotModelConfig,
 }
 
 impl AdditiveRobotCenteredPhysicsFault {
     pub fn from_config(
         config: &AdditiveRobotCenteredPhysicsFaultConfig,
+        robot_model: RobotModelConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Self {
         let distributions = Arc::new(Mutex::new(
             config
@@ -134,7 +139,9 @@ impl AdditiveRobotCenteredPhysicsFault {
         Self {
             distributions,
             variable_order: config.variable_order.clone(),
-            last_time_draw: Mutex::new(0.),
+            last_time_draw: Mutex::new(initial_time),
+            proportionnal_to_velocity: config.proportionnal_to_velocity,
+            robot_model,
         }
     }
 }
@@ -142,10 +149,14 @@ impl AdditiveRobotCenteredPhysicsFault {
 impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
     fn add_faults(&self, time: f32, state: &mut State) {
         let mut last_time_draw = self.last_time_draw.lock().unwrap();
-        let delta_time = time - *last_time_draw;
+        let delta_time = (time - *last_time_draw)
+            * self
+                .proportionnal_to_velocity
+                .map(|f| f * state.velocity.norm())
+                .unwrap_or(1.0);
         let mut random_sample = Vec::new();
         for d in self.distributions.lock().unwrap().iter() {
-            random_sample.extend_from_slice(&d.gen(time));
+            random_sample.extend_from_slice(&d.generate(time));
         }
 
         if !self.variable_order.is_empty() {
@@ -154,16 +165,40 @@ impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
                     "x" => state.pose.x += random_sample[i] * delta_time,
                     "y" => state.pose.y += random_sample[i] * delta_time,
                     "z" | "orientation" => state.pose.z += random_sample[i] * delta_time,
-                    "v" | "velocity" => state.velocity += random_sample[i] * delta_time,
-                    &_ => panic!("Unknown variable name: '{}'. Available variable names: [x, y, z | orientation, v | velocity]", variable)
+                    "v" | "vx" | "velocity" | "velocity_x" => {
+                        state.velocity.x += random_sample[i] * delta_time
+                    }
+                    "vy" | "velocity_y" => {
+                        if let RobotModelConfig::Unicycle(_) = self.robot_model {
+                            panic!(
+                                "Unicycle robot model does not have lateral velocity (velocity_y)."
+                            );
+                        }
+                        state.velocity.y += random_sample[i] * delta_time;
+                    }
+                    &_ => panic!(
+                        "Unknown variable name: '{}'. Available variable names: [x, y, z | orientation, v | vx | velocity | velocity_x, vy | velocity_y]",
+                        variable
+                    ),
                 }
             }
         } else {
-            assert!(random_sample.len() >= 4, "The distribution of an AdditiveRobotCentered physics fault needs to be of dimension 4 (x, y, orientation, velocity).");
+            if let RobotModelConfig::Unicycle(_) = self.robot_model {
+                assert!(
+                    random_sample.len() >= 4,
+                    "The distribution of an AdditiveRobotCentered physics fault needs to be of dimension 4 (x, y, orientation, velocity_x)."
+                );
+            } else {
+                assert!(
+                    random_sample.len() >= 5,
+                    "The distribution of an AdditiveRobotCentered physics fault needs to be of dimension 5 (x, y, orientation, velocity_x, velocity_y)."
+                );
+                state.velocity.y += random_sample[4] * delta_time;
+            }
             state.pose.x += random_sample[0] * delta_time;
             state.pose.y += random_sample[1] * delta_time;
             state.pose.z += random_sample[2] * delta_time;
-            state.velocity += random_sample[3] * delta_time;
+            state.velocity.x += random_sample[3] * delta_time;
         }
         state.pose.z = mod2pi(state.pose.z);
         *last_time_draw = time;

@@ -1,28 +1,28 @@
 use std::sync::{Arc, RwLock};
 
-use config_checker::macros::Check;
 use log::debug;
 use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::text_singleline_with_apply, UIComponent};
+use crate::gui::{UIComponent, utils::text_singleline_with_apply};
 
 use crate::{
-    controllers::{self, pid, ControllerConfig, ControllerRecord},
+    controllers::{self, ControllerConfig, ControllerRecord, pid},
     logger::is_enabled,
-    navigators::{self, trajectory_follower, NavigatorConfig, NavigatorRecord},
+    navigators::{self, NavigatorConfig, NavigatorRecord, trajectory_follower},
     networking::{
         network::{Network, NetworkConfig},
         service_manager::ServiceManager,
     },
-    node::Node,
-    physics::{self, internal_physics, PhysicsConfig, PhysicsRecord},
+    node::{Node, NodeState},
+    physics::{self, PhysicsConfig, PhysicsRecord, internal_physics},
     plugin_api::PluginAPI,
     sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
     simulator::{SimulatorConfig, TimeCv},
     state_estimators::{
-        self, perfect_estimator, BenchStateEstimator, BenchStateEstimatorConfig,
-        BenchStateEstimatorRecord, StateEstimatorConfig, StateEstimatorRecord,
+        self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord,
+        StateEstimatorConfig, StateEstimatorRecord, perfect_estimator,
     },
     time_analysis::TimeAnalysisFactory,
     utils::determinist_random_variable::DeterministRandomVariableFactory,
@@ -167,9 +167,7 @@ impl NodeRecord {
 ////////////////////////
 
 /// Configuration of the [`NodeType::Robot`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct RobotConfig {
     /// Name of the robot.
     pub name: String,
@@ -196,6 +194,7 @@ pub struct RobotConfig {
     /// loop with the [`Navigator`](crate::navigators::navigator::Navigator)
     #[check]
     pub state_estimator_bench: Vec<BenchStateEstimatorConfig>,
+    pub autospawn: bool,
 }
 
 impl Default for RobotConfig {
@@ -220,6 +219,7 @@ impl Default for RobotConfig {
             sensor_manager: SensorManagerConfig::default(),
             network: NetworkConfig::default(),
             state_estimator_bench: Vec::new(),
+            autospawn: true,
         }
     }
 }
@@ -248,6 +248,10 @@ impl UIComponent for RobotConfig {
                 );
             });
 
+            ui.horizontal(|ui| {
+                ui.label("Autospawn:");
+                ui.checkbox(&mut self.autospawn, "");
+            });
             self.network.show_mut(
                 ui,
                 ctx,
@@ -331,6 +335,10 @@ impl UIComponent for RobotConfig {
                 ui.label(format!("Name: {}", self.name));
             });
 
+            ui.horizontal(|ui| {
+                ui.label(format!("Autospawn: {}", self.autospawn));
+            });
+
             self.network.show(ui, ctx, unique_id);
             self.navigator.show(ui, ctx, unique_id);
             self.physics.show(ui, ctx, unique_id);
@@ -357,6 +365,7 @@ impl UIComponent for RobotConfig {
 pub struct RobotRecord {
     /// Name of the robot.
     pub name: String,
+    pub model_name: String,
     /// Record of the [`Navigator`](crate::navigators::navigator::Navigator) module.
     pub navigator: NavigatorRecord,
     /// Record of the [`Controller`](crate::controllers::Controller) module.
@@ -369,6 +378,7 @@ pub struct RobotRecord {
     pub state_estimator_bench: Vec<BenchStateEstimatorRecord>,
 
     pub sensors: SensorManagerRecord,
+    pub state: NodeState,
 }
 
 #[cfg(feature = "gui")]
@@ -376,6 +386,8 @@ impl UIComponent for RobotRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Name: {}", self.name));
+
+            ui.label(format!("Model Name: {}", self.model_name));
 
             egui::CollapsingHeader::new("Navigator").show(ui, |ui| {
                 self.navigator.show(ui, ctx, unique_id);
@@ -412,9 +424,7 @@ impl UIComponent for RobotRecord {
 ////////////////////////
 
 /// Configuration of the [`NodeType::ComputationUnit`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct ComputationUnitConfig {
     /// Name of the unit.
     pub name: String,
@@ -554,63 +564,73 @@ impl UIComponent for ComputationUnitRecord {
 /*      Factory       */
 ////////////////////////
 
+pub struct MakeNodeParams<'a> {
+    pub plugin_api: &'a Option<Arc<dyn PluginAPI>>,
+    pub global_config: &'a SimulatorConfig,
+    pub va_factory: &'a Arc<DeterministRandomVariableFactory>,
+    pub time_analysis_factory: &'a mut TimeAnalysisFactory,
+    pub time_cv: Arc<TimeCv>,
+    pub force_send_results: bool,
+    pub new_name: Option<&'a str>,
+    pub initial_time: f32,
+}
+
 pub struct NodeFactory {}
 
 impl NodeFactory {
-    pub fn make_robot(
-        config: &RobotConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        va_factory: &Arc<DeterministRandomVariableFactory>,
-        time_analysis_factory: &mut TimeAnalysisFactory,
-        time_cv: Arc<TimeCv>,
-        force_send_results: bool,
-    ) -> Node {
+    pub fn make_robot(config: &RobotConfig, params: &mut MakeNodeParams) -> Node {
         let node_type = NodeType::Robot;
         let mut node = Node {
             node_type,
-            name: config.name.clone(),
+            name: params.new_name.unwrap_or(&config.name).to_string(),
+            model_name: config.name.clone(),
             navigator: Some(navigators::make_navigator_from_config(
                 &config.navigator,
-                plugin_api,
-                global_config,
-                va_factory,
+                params.plugin_api,
+                params.global_config,
+                params.va_factory,
+                params.initial_time,
             )),
             controller: Some(controllers::make_controller_from_config(
                 &config.controller,
-                plugin_api,
-                global_config,
-                va_factory,
+                params.plugin_api,
+                params.global_config,
+                params.va_factory,
                 &config.physics,
+                params.initial_time,
             )),
             physics: Some(physics::make_physics_from_config(
                 &config.physics,
-                plugin_api,
-                global_config,
+                params.plugin_api,
+                params.global_config,
                 &config.name,
-                va_factory,
+                params.va_factory,
+                params.initial_time,
             )),
             state_estimator: Some(Arc::new(RwLock::new(
                 state_estimators::make_state_estimator_from_config(
                     &config.state_estimator,
-                    plugin_api,
-                    global_config,
-                    va_factory,
+                    params.plugin_api,
+                    params.global_config,
+                    params.va_factory,
+                    params.initial_time,
                 ),
             ))),
             sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
                 &config.sensor_manager,
-                plugin_api,
-                global_config,
+                params.plugin_api,
+                params.global_config,
                 &config.name,
-                va_factory,
+                params.va_factory,
+                params.initial_time,
             )))),
             network: Some(Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),
                 &config.network,
-                global_config,
-                va_factory,
-                time_cv.clone(),
+                params.global_config,
+                params.va_factory,
+                params.time_cv.clone(),
+                params.initial_time,
             )))),
             state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimator_bench.len(),
@@ -619,9 +639,13 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            zombie: false,
-            time_analysis: time_analysis_factory.new_node(config.name.clone()),
-            send_records: force_send_results || global_config.results.is_some(),
+            state: if config.autospawn {
+                NodeState::Running
+            } else {
+                NodeState::Created
+            },
+            time_analysis: params.time_analysis_factory.new_node(config.name.clone()),
+            send_records: params.force_send_results || params.global_config.results.is_some(),
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -635,16 +659,18 @@ impl NodeFactory {
                     state_estimator: Arc::new(RwLock::new(
                         state_estimators::make_state_estimator_from_config(
                             &state_estimator_config.config,
-                            plugin_api,
-                            global_config,
-                            va_factory,
+                            params.plugin_api,
+                            params.global_config,
+                            params.va_factory,
+                            params.initial_time,
                         ),
                     )),
                 })
         }
 
         let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
-            &node, time_cv,
+            &node,
+            params.time_cv.clone(),
         ))));
         // Services
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
@@ -657,34 +683,32 @@ impl NodeFactory {
 
     pub fn make_computation_unit(
         config: &ComputationUnitConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        va_factory: &Arc<DeterministRandomVariableFactory>,
-        time_analysis_factory: &mut TimeAnalysisFactory,
-        time_cv: Arc<TimeCv>,
-        force_send_results: bool,
+        params: &mut MakeNodeParams,
     ) -> Node {
         let node_type = NodeType::ComputationUnit;
         let mut node = Node {
             node_type,
-            name: config.name.clone(),
+            name: params.new_name.unwrap_or(&config.name).to_string(),
+            model_name: config.name.clone(),
             navigator: None,
             controller: None,
             physics: None,
             state_estimator: None,
             sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
                 &SensorManagerConfig::default(),
-                plugin_api,
-                global_config,
+                params.plugin_api,
+                params.global_config,
                 &config.name,
-                va_factory,
+                params.va_factory,
+                params.initial_time,
             )))),
             network: Some(Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),
                 &config.network,
-                global_config,
-                va_factory,
-                time_cv.clone(),
+                params.global_config,
+                params.va_factory,
+                params.time_cv.clone(),
+                params.initial_time,
             )))),
             state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimators.len(),
@@ -692,9 +716,9 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            zombie: false,
-            time_analysis: time_analysis_factory.new_node(config.name.clone()),
-            send_records: force_send_results || global_config.results.is_some(),
+            state: NodeState::Running,
+            time_analysis: params.time_analysis_factory.new_node(config.name.clone()),
+            send_records: params.force_send_results || params.global_config.results.is_some(),
         };
 
         for state_estimator_config in &config.state_estimators {
@@ -708,16 +732,18 @@ impl NodeFactory {
                     state_estimator: Arc::new(RwLock::new(
                         state_estimators::make_state_estimator_from_config(
                             &state_estimator_config.config,
-                            plugin_api,
-                            global_config,
-                            va_factory,
+                            params.plugin_api,
+                            params.global_config,
+                            params.va_factory,
+                            params.initial_time,
                         ),
                     )),
                 })
         }
 
         let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
-            &node, time_cv,
+            &node,
+            params.time_cv.clone(),
         ))));
         // Services
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
@@ -726,6 +752,22 @@ impl NodeFactory {
         node.service_manager = service_manager;
 
         node
+    }
+
+    pub fn make_node_from_name(name: &str, params: &mut MakeNodeParams) -> Option<Node> {
+        for robot_config in params.global_config.robots.iter() {
+            if robot_config.name == name {
+                return Some(Self::make_robot(robot_config, params));
+            }
+        }
+
+        for cu_config in params.global_config.computation_units.iter() {
+            if cu_config.name == name {
+                return Some(Self::make_computation_unit(cu_config, params));
+            }
+        }
+
+        None
     }
 }
 

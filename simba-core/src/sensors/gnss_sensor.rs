@@ -5,37 +5,34 @@ Provides a [`Sensor`] which can provide position and velocity in the global fram
 use std::sync::{Arc, Mutex};
 
 use super::fault_models::fault_model::{
-    make_fault_model_from_config, FaultModel, FaultModelConfig,
+    FaultModel, FaultModelConfig, make_fault_model_from_config,
 };
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
-#[cfg(feature = "gui")]
-use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::sensor_filters::{
-    make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
+    SensorFilter, SensorFilterConfig, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
-use config_checker::macros::Check;
+#[cfg(feature = "gui")]
+use crate::{constants::TIME_ROUND_DECIMALS, gui::UIComponent};
 use log::debug;
 use nalgebra::Vector2;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 extern crate nalgebra as na;
 
 /// Configuration of the [`GNSSSensor`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct GNSSSensorConfig {
     /// Observation period of the sensor.
-    #[check(ge(0.))]
-    pub period: f32,
+    pub period: Option<f32>,
     /// Fault on the x, y positions, and on the x and y velocities
     #[check]
     pub faults: Vec<FaultModelConfig>,
@@ -46,7 +43,7 @@ pub struct GNSSSensorConfig {
 impl Default for GNSSSensorConfig {
     fn default() -> Self {
         Self {
-            period: 1.,
+            period: Some(1.),
             faults: Vec::new(),
             filters: Vec::new(),
         }
@@ -69,13 +66,17 @@ impl UIComponent for GNSSSensorConfig {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
-                    if self.period < TIME_ROUND {
-                        self.period = TIME_ROUND;
+                    if let Some(p) = &mut self.period {
+                        if *p <= TIME_ROUND {
+                            *p = TIME_ROUND;
+                        }
+                        ui.add(egui::DragValue::new(p).max_decimals(TIME_ROUND_DECIMALS));
+                        if ui.button("X").clicked() {
+                            self.period = None;
+                        }
+                    } else if ui.button("+").clicked() {
+                        self.period = Self::default().period;
                     }
-                    ui.add(
-                        egui::DragValue::new(&mut self.period)
-                            .max_decimals((1. / TIME_ROUND) as usize),
-                    );
                 });
 
                 SensorFilterConfig::show_filters_mut(
@@ -105,7 +106,12 @@ impl UIComponent for GNSSSensorConfig {
             .id_salt(format!("gnss-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(format!("Period: {}", self.period));
+                    ui.label("Period:");
+                    if let Some(p) = &self.period {
+                        ui.label(format!("{}", p));
+                    } else {
+                        ui.label("None");
+                    }
                 });
 
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
@@ -177,7 +183,7 @@ impl Recordable<GNSSObservationRecord> for GNSSObservation {
 #[derive(Debug)]
 pub struct GNSSSensor {
     /// Observation period
-    period: f32,
+    period: Option<f32>,
     /// Last observation time.
     last_time: f32,
     /// Fault models for x and y positions and on x and y velocities
@@ -194,6 +200,7 @@ impl GNSSSensor {
             &SimulatorConfig::default(),
             &"NoName".to_string(),
             &DeterministRandomVariableFactory::default(),
+            0.0,
         )
     }
 
@@ -204,6 +211,7 @@ impl GNSSSensor {
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
+        initial_time: f32,
     ) -> Self {
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
@@ -213,6 +221,7 @@ impl GNSSSensor {
                 global_config,
                 robot_name,
                 va_factory,
+                initial_time,
             ));
         }
         drop(unlock_fault_model);
@@ -220,12 +229,16 @@ impl GNSSSensor {
         let filters = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_filters = filters.lock().unwrap();
         for filter_config in &config.filters {
-            unlock_filters.push(make_sensor_filter_from_config(filter_config));
+            unlock_filters.push(make_sensor_filter_from_config(
+                filter_config,
+                global_config,
+                initial_time,
+            ));
         }
         drop(unlock_filters);
         Self {
             period: config.period,
-            last_time: 0.,
+            last_time: initial_time,
             faults: fault_models,
             filters,
         }
@@ -245,7 +258,7 @@ impl Sensor for GNSSSensor {
 
     fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.next_time_step()).abs() >= TIME_ROUND {
+        if (time - self.last_time).abs() < TIME_ROUND {
             return observation_list;
         }
         let arc_physic = robot
@@ -254,9 +267,10 @@ impl Sensor for GNSSSensor {
         let physic = arc_physic.read().unwrap();
         let state = physic.state(time);
 
+        let velocity_norm = state.velocity.norm();
         let velocity = Vector2::<f32>::from_vec(vec![
-            state.velocity * state.pose.z.cos(),
-            state.velocity * state.pose.z.sin(),
+            velocity_norm * state.pose.z.cos(),
+            velocity_norm * state.pose.z.sin(),
         ]);
 
         // Apply filters until one rejects the observation
@@ -270,13 +284,13 @@ impl Sensor for GNSSSensor {
             .lock()
             .unwrap()
             .iter()
-            .try_fold(obs, |obs, filter| filter.filter(obs, &state, None))
+            .try_fold(obs, |obs, filter| filter.filter(time, obs, &state, None))
         {
             observation_list.push(observation);
             for fault_model in self.faults.lock().unwrap().iter() {
                 fault_model.add_faults(
                     time,
-                    self.period,
+                    self.period.unwrap_or(TIME_ROUND),
                     &mut observation_list,
                     SensorObservation::GNSS(GNSSObservation::default()),
                 );
@@ -290,11 +304,11 @@ impl Sensor for GNSSSensor {
     }
 
     fn next_time_step(&self) -> f32 {
-        round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
-    }
-
-    fn period(&self) -> f32 {
-        self.period
+        if let Some(period) = &self.period {
+            round_precision(self.last_time + period, TIME_ROUND).unwrap()
+        } else {
+            f32::INFINITY
+        }
     }
 }
 

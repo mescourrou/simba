@@ -1,0 +1,2387 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SimulatorConfig",
+  "description": "Scenario configuration for the simulator.\nThe Simulator configuration is the root of the scenario configuration.\n\nThis config contains an item, `robots`, which list the robot nodes [`RobotConfig`]\nand a list of `computation_units`: [`ComputationUnitConfig`].\n\n## Example in yaml:\n```ignore\nrobots:\n    - RobotConfig 1\n    - RobotConfig 2\ncomputation_units:\n    - ComputationUnitConfig 1\n    - ComputationUnitConfig 2\n```",
+  "type": "object",
+  "properties": {
+    "base_path": {
+      "type": "string",
+      "default": "."
+    },
+    "computation_units": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ComputationUnitConfig"
+      }
+    },
+    "log": {
+      "$ref": "#/$defs/LoggerConfig",
+      "default": {
+        "excluded_nodes": [],
+        "included_nodes": [],
+        "log_level": {
+          "type": "Info"
+        }
+      }
+    },
+    "max_time": {
+      "type": "number",
+      "format": "float",
+      "default": 60.0
+    },
+    "random_seed": {
+      "type": [
+        "number",
+        "null"
+      ],
+      "format": "float",
+      "default": null
+    },
+    "results": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ResultConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "robots": {
+      "description": "List of the robots to run, with their specific configuration.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RobotConfig"
+      }
+    },
+    "scenario": {
+      "$ref": "#/$defs/ScenarioConfig",
+      "default": {
+        "events": []
+      }
+    },
+    "time_analysis": {
+      "$ref": "#/$defs/TimeAnalysisConfig",
+      "default": {
+        "analysis_unit": "s",
+        "exporter": {
+          "type": "TraceEventExporter"
+        },
+        "keep_last": true,
+        "output_path": "time_performance"
+      }
+    },
+    "version": {
+      "type": "string",
+      "default": "1.4.0"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "AreaEventTriggerConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "bottom_left": {
+              "type": "array",
+              "default": [
+                0.0,
+                0.0
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "format": "float"
+                },
+                {
+                  "type": "number",
+                  "format": "float"
+                }
+              ]
+            },
+            "inside": {
+              "type": "boolean",
+              "default": true
+            },
+            "top_right": {
+              "type": "array",
+              "default": [
+                1.0,
+                1.0
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "format": "float"
+                },
+                {
+                  "type": "number",
+                  "format": "float"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "Rect"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "center": {
+              "type": "array",
+              "default": [
+                0.0,
+                0.0
+              ],
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "number",
+                  "format": "float"
+                },
+                {
+                  "type": "number",
+                  "format": "float"
+                }
+              ]
+            },
+            "inside": {
+              "type": "boolean",
+              "default": true
+            },
+            "radius": {
+              "type": "number",
+              "format": "float",
+              "default": 1.0
+            },
+            "type": {
+              "type": "string",
+              "const": "Circle"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "BenchStateEstimatorConfig": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/StateEstimatorConfig",
+          "default": {
+            "map_path": null,
+            "prediction_period": 0.10000000149011612,
+            "targets": [
+              "self"
+            ],
+            "type": "Perfect"
+          }
+        },
+        "name": {
+          "type": "string",
+          "default": "bench_state_estimator"
+        }
+      },
+      "additionalProperties": false
+    },
+    "BernouilliRandomVariableConfig": {
+      "description": "Configuration for a uniform random variable.",
+      "type": "object",
+      "properties": {
+        "probability": {
+          "description": "Probabilities of the random variable",
+          "type": "array",
+          "default": [
+            1.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ComputationUnitConfig": {
+      "description": "Configuration of the [`NodeType::ComputationUnit`].",
+      "type": "object",
+      "properties": {
+        "name": {
+          "description": "Name of the unit.",
+          "type": "string",
+          "default": "NoName"
+        },
+        "network": {
+          "description": "[`Network`] configuration.",
+          "$ref": "#/$defs/NetworkConfig",
+          "default": {
+            "range": 0.0,
+            "reception_delay": 0.0
+          }
+        },
+        "state_estimators": {
+          "description": "[`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator)s",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/BenchStateEstimatorConfig"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ControllerConfig": {
+      "description": "Enumerates the strategies configurations.",
+      "oneOf": [
+        {
+          "description": "Configuration of the [`PID`], it contains the 3 list of gains:\nproportional gains, derivative gains and integral gains.\nThe size of each gains depends on the model used, and follow this order:\n- longitudinal (All models)\n- lateral (Holonomic model)\n- angular (All models)",
+          "type": "object",
+          "properties": {
+            "derivative_gains": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "integral_gains": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "proportional_gains": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "robot_model": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RobotModelConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": null
+            },
+            "type": {
+              "type": "string",
+              "const": "PID"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalControllerConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonControllerConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "EventConfig": {
+      "type": "object",
+      "properties": {
+        "event_type": {
+          "$ref": "#/$defs/EventTypeConfig",
+          "default": {
+            "type": "Kill",
+            "value": "$0"
+          }
+        },
+        "trigger": {
+          "$ref": "#/$defs/EventTriggerConfig",
+          "default": {
+            "type": "Time",
+            "value": {
+              "occurences": {
+                "type": "Num",
+                "value": 1.0
+              },
+              "time": {
+                "type": "Num",
+                "value": 0.0
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "EventTriggerConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Time"
+            },
+            "value": {
+              "$ref": "#/$defs/TimeEventTriggerConfig"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Proximity"
+            },
+            "value": {
+              "$ref": "#/$defs/ProximityEventTriggerConfig"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Area"
+            },
+            "value": {
+              "$ref": "#/$defs/AreaEventTriggerConfig"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        }
+      ]
+    },
+    "EventTypeConfig": {
+      "description": "Defines the type of event to execute.\n\nThe name provided in the variants refers to the name of the nodes or use $0 notation for\ndynamic referencing (e.g., the robot that triggered the event is $0).",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Spawn"
+            },
+            "value": {
+              "$ref": "#/$defs/SpawnEventConfig"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Kill"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        }
+      ]
+    },
+    "ExternalControllerConfig": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "ExternalEstimatorConfig": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "ExternalNavigatorConfig": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "ExternalPhysicsConfig": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "ExternalSensorConfig": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "FaultModelConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditiveRobotCentered"
+            },
+            "variable_order": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditiveRobotCenteredPolar"
+            },
+            "variable_order": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditiveObservationCenteredPolar"
+            },
+            "variable_order": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/RandomVariableTypeConfig",
+              "default": {
+                "lambda": [
+                  10.0
+                ],
+                "type": "Poisson"
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "max": [
+                    10.0,
+                    10.0
+                  ],
+                  "min": [
+                    -10.0,
+                    -10.0
+                  ],
+                  "type": "Uniform"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "observation_id": {
+              "type": "string",
+              "default": "clutter"
+            },
+            "type": {
+              "type": "string",
+              "const": "Clutter"
+            },
+            "variable_order": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  0.10000000149011612
+                ]
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Misdetection"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  0.10000000149011612
+                ]
+              }
+            },
+            "distribution": {
+              "$ref": "#/$defs/RandomVariableTypeConfig",
+              "default": {
+                "max": [
+                  10.0
+                ],
+                "min": [
+                  0.0
+                ],
+                "type": "Uniform"
+              }
+            },
+            "sort": {
+              "$ref": "#/$defs/Sort",
+              "default": {
+                "type": "Random"
+              }
+            },
+            "source": {
+              "$ref": "#/$defs/Source",
+              "default": {
+                "type": "Robots"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Misassociation"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFaultModelConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "InternalLog": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "All"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "NetworkMessages"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "ServiceHandling"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "SetupSteps"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "SetupStepsDetailed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "SensorManager"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "SensorManagerDetailed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "NodeRunning"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "NodeRunningDetailed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "NodeSyncDetailed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "API"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "NavigatorDetailed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Scenario"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "LogLevel": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Off"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Error"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Warn"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Info"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Debug"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Internal"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/InternalLog"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        }
+      ]
+    },
+    "LoggerConfig": {
+      "type": "object",
+      "properties": {
+        "excluded_nodes": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "included_nodes": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "log_level": {
+          "$ref": "#/$defs/LogLevel",
+          "default": {
+            "type": "Info"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ManagedSensorConfig": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "$ref": "#/$defs/SensorConfig",
+          "default": {
+            "faults": [],
+            "filters": [],
+            "lie_integration": true,
+            "period": 0.10000000149011612,
+            "type": "OdometrySensor"
+          }
+        },
+        "name": {
+          "type": "string",
+          "default": "some_sensor"
+        },
+        "send_to": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "triggered": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "NavigatorConfig": {
+      "description": "Enumerate the configuration of the different strategies.",
+      "oneOf": [
+        {
+          "description": "Configuration of the [`TrajectoryFollower`] strategy.",
+          "type": "object",
+          "properties": {
+            "forward_distance": {
+              "description": "Distance of the point which is projected on the trajectory.",
+              "type": "number",
+              "format": "float",
+              "default": 1.0
+            },
+            "stop_distance": {
+              "description": "Distance where to stop when reaching the end of the trajectory",
+              "type": "number",
+              "format": "float",
+              "default": 0.20000000298023224
+            },
+            "stop_ramp_coefficient": {
+              "description": "Coefficient of the target velocity, multiplied by the remaining distance",
+              "type": "number",
+              "format": "float",
+              "default": 0.5
+            },
+            "target_speed": {
+              "description": "Speed to reach, in m/s.",
+              "type": "number",
+              "format": "float",
+              "default": 0.5
+            },
+            "trajectory_path": {
+              "description": "Path to load the path. The file should be compatible with [`TrajectoryConfig`].",
+              "type": "string",
+              "default": ""
+            },
+            "type": {
+              "type": "string",
+              "const": "TrajectoryFollower"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalNavigatorConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonNavigatorConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Configuration of the [`GoTo`] strategy.",
+          "type": "object",
+          "properties": {
+            "stop_distance": {
+              "description": "Distance where to stop when reaching the end of the trajectory",
+              "type": "number",
+              "format": "float",
+              "default": 0.20000000298023224
+            },
+            "stop_ramp_coefficient": {
+              "description": "Coefficient of the target velocity, multiplied by the remaining distance",
+              "type": "number",
+              "format": "float",
+              "default": 0.5
+            },
+            "target_point": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "default": null,
+              "items": {
+                "type": "number",
+                "format": "float"
+              },
+              "maxItems": 2,
+              "minItems": 2
+            },
+            "target_speed": {
+              "type": "number",
+              "format": "float",
+              "default": 0.5
+            },
+            "type": {
+              "type": "string",
+              "const": "GoTo"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "NetworkConfig": {
+      "description": "Configuration for the [`Network`].",
+      "type": "object",
+      "properties": {
+        "range": {
+          "description": "Limit range communication, 0 for no limit.",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "reception_delay": {
+          "description": "Communication delay (fixed). 0 for no delay (not stable).",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
+    "NumberConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Num"
+            },
+            "value": {
+              "type": "number",
+              "format": "float"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Rand"
+            },
+            "value": {
+              "$ref": "#/$defs/RandomVariableTypeConfig"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        }
+      ]
+    },
+    "PhysicsConfig": {
+      "description": "Enumeration of the different physic implementations.",
+      "oneOf": [
+        {
+          "description": "Config for the [`InternalPhysics`].",
+          "type": "object",
+          "properties": {
+            "faults": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/PhysicsFaultModelConfig"
+              }
+            },
+            "initial_state": {
+              "description": "Starting state.",
+              "$ref": "#/$defs/StateConfig",
+              "default": {
+                "pose": [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                "random": [],
+                "variable_order": [],
+                "velocity": [
+                  0.0,
+                  0.0
+                ]
+              }
+            },
+            "model": {
+              "$ref": "#/$defs/RobotModelConfig",
+              "default": {
+                "type": "Unicycle",
+                "wheel_distance": 0.25
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Internal"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalPhysicsConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonPhysicsConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "PhysicsFaultModelConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportionnal_to_velocity": {
+              "description": "If some, the faults will be proportionnal to the robot velocity times this factor.\nIf none, the faults will be independant of the robot velocity.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": 1.0
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditiveRobotCentered"
+            },
+            "variable_order": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "ProfileExporterConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "TraceEventExporter"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "ProximityEventTriggerConfig": {
+      "type": "object",
+      "properties": {
+        "distance": {
+          "type": "number",
+          "format": "float",
+          "default": 1.0
+        },
+        "inside": {
+          "type": "boolean",
+          "default": true
+        },
+        "protected_target": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
+    },
+    "PythonControllerConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "class_name": {
+        "type": "string"
+      },
+      "file": {
+        "type": "string"
+      }
+    },
+    "PythonEstimatorConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "class_name": {
+        "type": "string"
+      },
+      "file": {
+        "type": "string"
+      }
+    },
+    "PythonFaultModelConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "class_name": {
+        "type": "string"
+      },
+      "file": {
+        "type": "string"
+      }
+    },
+    "PythonFilterConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "class_name": {
+        "type": "string"
+      },
+      "file": {
+        "type": "string"
+      }
+    },
+    "PythonNavigatorConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "class_name": {
+        "type": "string"
+      },
+      "file": {
+        "type": "string"
+      }
+    },
+    "PythonPhysicsConfig": {
+      "type": "object",
+      "additionalProperties": true,
+      "class_name": {
+        "type": "string"
+      },
+      "file": {
+        "type": "string"
+      }
+    },
+    "RandomVariableTypeConfig": {
+      "description": "Configuration of the random variable: fixed, uniform or normal.",
+      "oneOf": [
+        {
+          "description": "No random variable",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "None"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Fixed value",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Fixed"
+            },
+            "values": {
+              "description": "Fixed value to return.",
+              "type": "array",
+              "default": [
+                0.0
+              ],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Uniform distribution",
+          "type": "object",
+          "properties": {
+            "max": {
+              "description": "Maximum value of the uniform distribution.",
+              "type": "array",
+              "default": [
+                1.0
+              ],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "min": {
+              "description": "Minimum value of the uniform distribution.",
+              "type": "array",
+              "default": [
+                -1.0
+              ],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Uniform"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Normal distribution",
+          "type": "object",
+          "properties": {
+            "covariance": {
+              "description": "Variance of the normal distribution.",
+              "type": "array",
+              "default": [
+                1.0
+              ],
+              "items": {
+                "type": "number",
+                "format": "double"
+              }
+            },
+            "mean": {
+              "description": "Mean of the normal distribution.",
+              "type": "array",
+              "default": [
+                0.0
+              ],
+              "items": {
+                "type": "number",
+                "format": "double"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Normal"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Configuration for a uniform random variable.",
+          "type": "object",
+          "properties": {
+            "lambda": {
+              "description": "Probabilities of the random variable",
+              "type": "array",
+              "default": [
+                1.0
+              ],
+              "items": {
+                "type": "number",
+                "format": "double"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Poisson"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Configuration for a uniform random variable.",
+          "type": "object",
+          "properties": {
+            "lambda": {
+              "description": "Probabilities of the random variable",
+              "type": "array",
+              "default": [
+                1.0
+              ],
+              "items": {
+                "type": "number",
+                "format": "double"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Exponential"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "ResultConfig": {
+      "type": "object",
+      "properties": {
+        "analyse_script": {
+          "description": "Path to the python analyse scrit.\nThis script should have the following entry point:\n```def analyse(result_data: Record, figure_path: str, figure_type: str)```\nIf the option is none, the script is not run",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "figures_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "python_params": {
+          "default": null
+        },
+        "result_path": {
+          "description": "Filename to save the results, in JSON format. The directory of this\nfile is used to save the figures if results are computed.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "save_mode": {
+          "$ref": "#/$defs/ResultSaveMode",
+          "default": {
+            "type": "AtTheEnd"
+          }
+        },
+        "show_figures": {
+          "description": "Show the matplotlib figures",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "ResultSaveMode": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "AtTheEnd"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Continuous"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "format": "uint",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Batch"
+            }
+          },
+          "minimum": 0,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "format": "float",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Periodic"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "RobotConfig": {
+      "description": "Configuration of the [`NodeType::Robot`].",
+      "type": "object",
+      "properties": {
+        "autospawn": {
+          "type": "boolean",
+          "default": true
+        },
+        "controller": {
+          "description": "[`Controller`](crate::controllers::Controller) to use, and its configuration.",
+          "$ref": "#/$defs/ControllerConfig",
+          "default": {
+            "derivative_gains": [],
+            "integral_gains": [],
+            "proportional_gains": [],
+            "robot_model": null,
+            "type": "PID"
+          }
+        },
+        "name": {
+          "description": "Name of the robot.",
+          "type": "string",
+          "default": "NoName"
+        },
+        "navigator": {
+          "description": "[`Navigator`](crate::navigators::navigator::Navigator) to use, and its configuration.",
+          "$ref": "#/$defs/NavigatorConfig",
+          "default": {
+            "forward_distance": 1.0,
+            "stop_distance": 0.20000000298023224,
+            "stop_ramp_coefficient": 0.5,
+            "target_speed": 0.5,
+            "trajectory_path": "",
+            "type": "TrajectoryFollower"
+          }
+        },
+        "network": {
+          "description": "[`Network`] configuration.",
+          "$ref": "#/$defs/NetworkConfig",
+          "default": {
+            "range": 0.0,
+            "reception_delay": 0.0
+          }
+        },
+        "physics": {
+          "description": "[`Physics`](crate::physics::physics::Physics) to use, and its configuration.",
+          "$ref": "#/$defs/PhysicsConfig",
+          "default": {
+            "faults": [],
+            "initial_state": {
+              "pose": [
+                0.0,
+                0.0,
+                0.0
+              ],
+              "random": [],
+              "variable_order": [],
+              "velocity": [
+                0.0,
+                0.0
+              ]
+            },
+            "model": {
+              "type": "Unicycle",
+              "wheel_distance": 0.25
+            },
+            "type": "Internal"
+          }
+        },
+        "sensor_manager": {
+          "description": "[`SensorManager`] configuration, which defines the [`Sensor`](crate::sensors::sensor::Sensor)s used.",
+          "$ref": "#/$defs/SensorManagerConfig",
+          "default": {
+            "sensors": []
+          }
+        },
+        "state_estimator": {
+          "description": "[`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to use, and its configuration.",
+          "$ref": "#/$defs/StateEstimatorConfig",
+          "default": {
+            "map_path": null,
+            "prediction_period": 0.10000000149011612,
+            "targets": [
+              "self"
+            ],
+            "type": "Perfect"
+          }
+        },
+        "state_estimator_bench": {
+          "description": "Additional [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to be evaluated but without a feedback\nloop with the [`Navigator`](crate::navigators::navigator::Navigator)",
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/BenchStateEstimatorConfig"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "RobotModelConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Unicycle"
+            },
+            "wheel_distance": {
+              "description": "Distance between the two wheels, to compute the angular velocity from the wheel speeds.",
+              "type": "number",
+              "format": "float",
+              "default": 0.25
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Holonomic"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "ScenarioConfig": {
+      "type": "object",
+      "properties": {
+        "events": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/EventConfig"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "SensorConfig": {
+      "description": "Enumerates all the possible sensors configurations.",
+      "oneOf": [
+        {
+          "description": "Configuration of the [`OrientedLandmarkSensor`].",
+          "type": "object",
+          "properties": {
+            "detection_distance": {
+              "description": "Max distance of detection.",
+              "type": "number",
+              "format": "float",
+              "default": 5.0
+            },
+            "faults": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/FaultModelConfig"
+              }
+            },
+            "filters": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/SensorFilterConfig"
+              }
+            },
+            "map_path": {
+              "description": "Path to the map (with real position of the landmarks), relative to the simulator\nconfig path.",
+              "type": "string",
+              "default": ""
+            },
+            "period": {
+              "description": "Observation period of the sensor.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": 0.10000000149011612
+            },
+            "type": {
+              "type": "string",
+              "const": "OrientedLandmarkSensor"
+            },
+            "xray": {
+              "description": "If true, will detect all landmarks, even if they are behind obstacles (no raycasting).",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Configuration of the [`OdometrySensor`].",
+          "type": "object",
+          "properties": {
+            "faults": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/FaultModelConfig"
+              }
+            },
+            "filters": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/SensorFilterConfig"
+              }
+            },
+            "lie_integration": {
+              "type": "boolean",
+              "default": true
+            },
+            "period": {
+              "description": "Observation period of the sensor.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": 0.10000000149011612
+            },
+            "type": {
+              "type": "string",
+              "const": "OdometrySensor"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Configuration of the [`GNSSSensor`].",
+          "type": "object",
+          "properties": {
+            "faults": {
+              "description": "Fault on the x, y positions, and on the x and y velocities",
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/FaultModelConfig"
+              }
+            },
+            "filters": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/SensorFilterConfig"
+              }
+            },
+            "period": {
+              "description": "Observation period of the sensor.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": 1.0
+            },
+            "type": {
+              "type": "string",
+              "const": "GNSSSensor"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Configuration of the [`RobotSensor`].",
+          "type": "object",
+          "properties": {
+            "detection_distance": {
+              "description": "Max distance of detection.",
+              "type": "number",
+              "format": "float",
+              "default": 5.0
+            },
+            "faults": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/FaultModelConfig"
+              }
+            },
+            "filters": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/SensorFilterConfig"
+              }
+            },
+            "period": {
+              "description": "Observation period of the sensor.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": 0.10000000149011612
+            },
+            "type": {
+              "type": "string",
+              "const": "RobotSensor"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalSensorConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "SensorFilterConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "inside": {
+              "type": "boolean",
+              "default": true
+            },
+            "max_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "min_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "RangeFilter"
+            },
+            "variables": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "PythonFilter"
+            }
+          },
+          "$ref": "#/$defs/PythonFilterConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "SensorManagerConfig": {
+      "description": "Configuration listing all the [`SensorConfig`]s.",
+      "type": "object",
+      "properties": {
+        "sensors": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ManagedSensorConfig"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "Sort": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "None"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Random"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Distance"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "Source": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Map"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Robots"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "SpawnEventConfig": {
+      "type": "object",
+      "properties": {
+        "model_name": {
+          "type": "string",
+          "default": "default_robot"
+        },
+        "node_name": {
+          "type": "string",
+          "default": "my_new_robot"
+        }
+      },
+      "additionalProperties": false
+    },
+    "StateConfig": {
+      "description": "Configuration for [`State`] in order to load a state from the configuration.\n\nThe pose should contain 3 elements.\nTODO: Make a config validation scheme.",
+      "type": "object",
+      "properties": {
+        "pose": {
+          "description": "Position and orientation of the robot",
+          "type": "array",
+          "default": [
+            0.0,
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        },
+        "random": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RandomVariableTypeConfig"
+          }
+        },
+        "variable_order": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "velocity": {
+          "description": "Linear velocity",
+          "type": "array",
+          "default": [
+            0.0,
+            0.0
+          ],
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "StateEstimatorConfig": {
+      "description": "List the possible configs, to be selected in the global config.\n\nTo select the [`StateEstimatorConfig::Perfect`], the yaml config should be:\n```YAML\nstate_estimator:\n    Perfect:\n        prediction_period: 0.01\n```",
+      "oneOf": [
+        {
+          "description": "Configuration for [`PerfectEstimator`].",
+          "type": "object",
+          "properties": {
+            "map_path": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "prediction_period": {
+              "description": "Prediction period.",
+              "type": "number",
+              "format": "float",
+              "default": 0.10000000149011612
+            },
+            "targets": {
+              "type": "array",
+              "default": [
+                "self"
+              ],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Perfect"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalEstimatorConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonEstimatorConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "TimeAnalysisConfig": {
+      "type": "object",
+      "properties": {
+        "analysis_unit": {
+          "type": "string",
+          "default": "s"
+        },
+        "exporter": {
+          "$ref": "#/$defs/ProfileExporterConfig",
+          "default": {
+            "type": "TraceEventExporter"
+          }
+        },
+        "keep_last": {
+          "type": "boolean",
+          "default": true
+        },
+        "output_path": {
+          "type": "string",
+          "default": "time_performance"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TimeEventTriggerConfig": {
+      "type": "object",
+      "properties": {
+        "occurences": {
+          "description": "Two cases:\n- if `time` is a fixed number, it turns into a period and `occurences` is how many times the event will be triggered\n- if `time` is a random variable, `occurences` is how many samples will be drawn from it to schedule the event\n- if `time` is a random variable with multiple dimensions, `occurences` is the number of repetitions of the full set of samples:\n  if `time` draws N samples, and `occurences` is M, then M*N event times will be scheduled",
+          "$ref": "#/$defs/NumberConfig",
+          "default": {
+            "type": "Num",
+            "value": 1.0
+          }
+        },
+        "time": {
+          "$ref": "#/$defs/NumberConfig",
+          "default": {
+            "type": "Num",
+            "value": 0.0
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

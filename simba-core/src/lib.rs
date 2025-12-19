@@ -31,7 +31,7 @@ Simulator::init_environment();
 println!("Load configuration...");
 let mut simulator = Simulator::from_config_path(
     Path::new("config_example/config.yaml"),
-    &None, //<- plugin API, to load external modules
+    None, //<- plugin API, to load external modules
 ).unwrap();
 // Show the simulator loaded configuration
 simulator.show();
@@ -48,6 +48,7 @@ simulator.compute_results().unwrap();
 
 use pyo3::prelude::*;
 
+pub mod config;
 pub mod controllers;
 pub mod logger;
 pub mod navigators;
@@ -55,6 +56,7 @@ pub mod networking;
 pub mod node;
 pub mod physics;
 pub mod recordable;
+pub mod scenario;
 pub mod sensors;
 pub mod simulator;
 pub mod state_estimators;
@@ -66,6 +68,9 @@ pub mod pywrappers;
 
 pub mod api;
 pub mod time_analysis;
+
+#[cfg(test)]
+mod integration_tests;
 
 #[cfg(feature = "gui")]
 pub mod gui;

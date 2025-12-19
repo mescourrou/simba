@@ -4,12 +4,12 @@ trajectory.
 */
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::path_finder, UIComponent};
+use crate::gui::{UIComponent, utils::path_finder};
 
 use crate::{
     navigators::{
-        trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
         Navigator, NavigatorRecord,
+        trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
     },
     networking::{message_handler::MessageHandler, network::Envelope},
     simulator::SimulatorConfig,
@@ -17,18 +17,16 @@ use crate::{
 };
 
 extern crate nalgebra as na;
-use config_checker::macros::Check;
 use libm::atan2;
 use na::Vector3;
 
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 use std::{path::Path, sync::mpsc::Sender};
 
 /// Configuration of the [`TrajectoryFollower`] strategy.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct TrajectoryFollowerConfig {
     /// Path to load the path. The file should be compatible with [`TrajectoryConfig`].
     pub trajectory_path: String,
@@ -227,7 +225,11 @@ impl TrajectoryFollower {
     /// * `plugin_api` - Not used there.
     /// * `global_config` - Global configuration of the simulator. Used there to get the
     ///   path of the config, used as relative reference for the trajectory path.
-    pub fn from_config(config: &TrajectoryFollowerConfig, global_config: &SimulatorConfig) -> Self {
+    pub fn from_config(
+        config: &TrajectoryFollowerConfig,
+        global_config: &SimulatorConfig,
+        _initial_time: f32,
+    ) -> Self {
         let mut path = Path::new(&config.trajectory_path);
         if config.trajectory_path.is_empty() {
             return Self::new();
@@ -336,7 +338,7 @@ impl Navigator for TrajectoryFollower {
         self.error.longitudinal = local_projection.x;
 
         // Compute the velocity error
-        self.error.velocity = self.target_speed - state.velocity;
+        self.error.velocity = self.target_speed - state.velocity.norm();
 
         self.error.clone()
     }

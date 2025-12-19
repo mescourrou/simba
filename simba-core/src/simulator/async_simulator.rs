@@ -1,4 +1,4 @@
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 
 use log::debug;
 use pyo3::Python;
@@ -55,6 +55,7 @@ impl AsyncSimulator {
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 api_client.get_controller.try_recv_closure(|request| {
@@ -62,6 +63,7 @@ impl AsyncSimulator {
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 api_client.get_navigator.try_recv_closure(|request| {
@@ -69,6 +71,7 @@ impl AsyncSimulator {
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 api_client.get_physics.try_recv_closure(|request| {
@@ -76,6 +79,7 @@ impl AsyncSimulator {
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 plugin_api_unwrapped.check_requests();

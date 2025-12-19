@@ -1,24 +1,19 @@
-use std::{fmt::Display, sync::RwLock};
+use std::sync::RwLock;
 
-use config_checker::macros::Check;
-use serde::{Deserialize, Serialize};
-use simba_macros::EnumToString;
-#[cfg(feature = "gui")]
-use simba_macros::ToVec;
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::{
     gui::{
-        utils::{enum_checkbox, enum_radio, string_checkbox},
         UIComponent,
+        utils::{enum_checkbox, enum_radio, string_checkbox},
     },
     simulator::SimulatorConfig,
 };
 
 static INTERNAL_LOG_LEVEL: RwLock<Vec<InternalLog>> = RwLock::new(Vec::new());
 
-#[derive(Debug, Serialize, Deserialize, Check, Clone, PartialEq)]
-#[cfg_attr(feature = "gui", derive(ToVec))]
+#[config_derives(tag_content)]
 pub enum LogLevel {
     Off,
     Error,
@@ -74,14 +69,7 @@ impl From<LogLevel> for String {
     }
 }
 
-impl Display for LogLevel {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", Into::<String>::into(self.clone()))
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Check, Clone, PartialEq, EnumToString)]
-#[cfg_attr(feature = "gui", derive(ToVec))]
+#[config_derives]
 pub enum InternalLog {
     All,
     NetworkMessages,
@@ -95,11 +83,10 @@ pub enum InternalLog {
     NodeSyncDetailed,
     API,
     NavigatorDetailed,
+    Scenario,
 }
 
-#[derive(Debug, Serialize, Deserialize, Check, Clone)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct LoggerConfig {
     pub included_nodes: Vec<String>,
     pub excluded_nodes: Vec<String>,

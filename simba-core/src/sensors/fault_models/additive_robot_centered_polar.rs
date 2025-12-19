@@ -4,14 +4,13 @@
 
 use std::sync::{Arc, Mutex};
 
-use config_checker::macros::Check;
 use libm::atan2f;
-use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
-    sensors::{fault_models::fault_model::FaultModelConfig, SensorObservation},
+    sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -26,9 +25,7 @@ use crate::{
 
 use super::fault_model::FaultModel;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct AdditiveRobotCenteredPolarFaultConfig {
     #[check(eq(self.apparition.probability.len(), 1))]
     #[check]
@@ -43,7 +40,6 @@ impl Default for AdditiveRobotCenteredPolarFaultConfig {
         Self {
             apparition: BernouilliRandomVariableConfig {
                 probability: vec![1.0],
-                ..Default::default()
             },
             distributions: vec![RandomVariableTypeConfig::Normal(
                 NormalRandomVariableConfig::default(),
@@ -85,7 +81,7 @@ impl UIComponent for AdditiveRobotCenteredPolarFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = ["r", "theta", "orientation"]
+            let possible_variables = ["r", "theta", "orientation", "width", "height"]
                 .iter()
                 .map(|x| String::from(*x))
                 .collect();
@@ -139,6 +135,7 @@ impl AdditiveRobotCenteredPolarFault {
     pub fn from_config(
         config: &AdditiveRobotCenteredPolarFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
+        _initial_time: f32,
     ) -> Self {
         let distributions = Arc::new(Mutex::new(
             config
@@ -183,12 +180,12 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
         let mut seed = time;
         for obs in obs_list {
             seed += obs_seed_increment;
-            if self.apparition.gen(seed)[0] < 1. {
+            if self.apparition.generate(seed)[0] < 1. {
                 continue;
             }
             let mut random_sample = Vec::new();
             for d in self.distributions.lock().unwrap().iter() {
-                random_sample.extend_from_slice(&d.gen(seed));
+                random_sample.extend_from_slice(&d.generate(seed));
             }
             match obs {
                 SensorObservation::OrientedRobot(o) => {
@@ -201,11 +198,17 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
                                 "z" | "orientation" => z_add = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", variable)
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 3, "The distribution of an AdditiveRobotCenteredPolar fault for OrientedRobot observation need to be of dimension 3.");
+                        assert!(
+                            random_sample.len() >= 3,
+                            "The distribution of an AdditiveRobotCenteredPolar fault for OrientedRobot observation need to be of dimension 3."
+                        );
                         r_add = random_sample[0];
                         theta_add = random_sample[1];
                         z_add = random_sample[2];
@@ -233,17 +236,27 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                     let mut r_add = 0.;
                     let mut z_add = 0.;
                     let mut theta_add = 0.;
+                    let mut width_add = 0.;
+                    let mut height_add = 0.;
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
                                 "z" | "orientation" => z_add = random_sample[i],
-                                &_ => panic!("Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]", variable)
+                                "width" => width_add = random_sample[i],
+                                "height" => height_add = random_sample[i],
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation, width, height]",
+                                    variable
+                                ),
                             }
                         }
                     } else {
-                        assert!(random_sample.len() >= 3, "The distribution of an AdditiveRobotCenteredPolar fault for OrientedLandmark observation need to be of dimension 3.");
+                        assert!(
+                            random_sample.len() >= 3,
+                            "The distribution of an AdditiveRobotCenteredPolar fault for OrientedLandmark observation need to be of dimension 3."
+                        );
                         r_add = random_sample[0];
                         theta_add = random_sample[1];
                         z_add = random_sample[2];
@@ -256,10 +269,17 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                     o.pose.x = r * theta.cos();
                     o.pose.y = r * theta.sin();
                     o.pose.z = mod2pi(z);
+                    o.width += width_add;
+                    o.height += height_add;
+                    o.width = o.width.max(0.0);
+                    o.height = o.height.max(0.0);
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveRobotCenteredPolar(
                             self.config.clone(),
                         ));
+                }
+                SensorObservation::External(_) => {
+                    panic!("AdditiveRobotCenteredPolarFault cannot fault ExternalObservation");
                 }
             }
         }

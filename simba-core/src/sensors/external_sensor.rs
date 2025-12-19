@@ -13,24 +13,32 @@ type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
-use config_checker::macros::Check;
+use std::sync::Arc;
+
 use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
+use simba_macros::config_derives;
 
 use crate::constants::TIME_ROUND;
 #[cfg(feature = "gui")]
-use crate::gui::{utils::json_config, UIComponent};
+use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
+use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::stateful::Stateful;
+use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use crate::sensors::sensor::{Observation, Sensor, SensorObservation, SensorRecord};
+use crate::sensors::{Sensor, SensorObservation, SensorRecord};
 use serde_derive::{Deserialize, Serialize};
+
+external_record_python_methods!(
+/// Record for the external sensor (generic).
+ExternalObservationRecord,
+);
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct ExternalObservation {
@@ -39,12 +47,7 @@ pub struct ExternalObservation {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ExternalObservation {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &str,
-        ) {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         egui::CollapsingHeader::new("External Observation").show(ui, |ui| {
             ui.vertical(|ui| {
                 ui.label("Observation (JSON):");
@@ -54,16 +57,15 @@ impl UIComponent for ExternalObservation {
     }
 }
 
-impl Stateful<ExternalObservation> for ExternalObservation {
-    fn record(&self) -> ExternalObservation {
-        self.clone()
-    }
-
-    fn from_record(&mut self, record: ExternalObservation) {
-        *self = record;
+impl Recordable<ExternalObservationRecord> for ExternalObservation {
+    fn record(&self) -> ExternalObservationRecord {
+        ExternalObservationRecord {
+            record: self.observation.clone(),
+        }
     }
 }
 
+external_config!(
 /// Config for the external state estimation (generic).
 ///
 /// The config for [`ExternalEstimator`] uses a [`serde_json::Value`] to
@@ -75,62 +77,12 @@ impl Stateful<ExternalObservation> for ExternalObservation {
 ///     External:
 ///         parameter_of_my_own_estimator: true
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-pub struct ExternalSensorConfig {
-    /// Config serialized.
-    #[serde(flatten)]
-    pub config: Value,
-}
+    ExternalSensorConfig,
+    "External Sensor",
+    "external-sensor"
+);
 
-impl Default for ExternalSensorConfig {
-    fn default() -> Self {
-        Self {
-            config: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalSensorConfig {
-    fn show_mut(
-        &mut self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External Sensor").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                json_config(
-                    ui,
-                    &format!("external-sensor-key-{}", &unique_id),
-                    &format!("external-sensor-error-key-{}", &unique_id),
-                    buffer_stack,
-                    &mut self.config,
-                );
-            });
-        });
-    }
-
-    fn show(
-        &self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External Sensor").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                ui.label(self.config.to_string());
-            });
-        });
-    }
-}
-
+external_record_python_methods!(
 /// Record for the external sensor (generic).
 ///
 /// Like [`ExternalSensorConfig`], [`ExternalSensor`] uses a [`serde_json::Value`]
@@ -138,42 +90,8 @@ impl UIComponent for ExternalSensorConfig {
 ///
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
-pub struct ExternalSensorRecord {
-    /// Record serialized.
-    #[serde(flatten)]
-    pub record: Value,
-}
-
-impl Default for ExternalSensorRecord {
-    fn default() -> Self {
-        Self {
-            record: Value::Null,
-        }
-    }
-}
-
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalSensorRecord {
-    fn show(
-            &self,
-            ui: &mut egui::Ui,
-            ctx: &egui::Context,
-            unique_id: &str,
-        ) {
-        ui.label(self.record.to_string());
-    }
-}
-
-#[pymethods]
-impl ExternalSensorRecord {
-    #[getter]
-    fn record(&self) -> String {
-        self.record.to_string()
-    }
-}
+ExternalSensorRecord,
+);
 
 use crate::node::Node;
 
@@ -181,6 +99,12 @@ use crate::node::Node;
 pub struct ExternalSensor {
     /// External sensor.
     sensor: Box<dyn Sensor>,
+}
+
+impl Default for ExternalSensor {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ExternalSensor {
@@ -191,6 +115,7 @@ impl ExternalSensor {
             &None,
             &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
+            0.0,
         )
     }
 
@@ -208,6 +133,7 @@ impl ExternalSensor {
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
+        initial_time: f32,
     ) -> Self {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
@@ -216,7 +142,7 @@ impl ExternalSensor {
             sensor: plugin_api
                 .as_ref()
                 .expect("Plugin API not set!")
-                .get_sensor(&config.config, global_config),
+                .get_sensor(&config.config, global_config, initial_time),
         }
     }
 }
@@ -237,21 +163,13 @@ impl Sensor for ExternalSensor {
     }
 
     fn next_time_step(&self) -> f32 {
-        round_precision(self.sensor.next_time_step(), TIME_ROUND).expect("Sensor next_time_step rounding returned an error:")
+        round_precision(self.sensor.next_time_step(), TIME_ROUND)
+            .expect("Sensor next_time_step rounding returned an error:")
     }
-
-    fn period(&self) -> f32 {
-        self.sensor.period()
-    }
-
 }
 
-impl Stateful<SensorRecord> for ExternalSensor {
+impl Recordable<SensorRecord> for ExternalSensor {
     fn record(&self) -> SensorRecord {
         self.sensor.record()
-    }
-
-    fn from_record(&mut self, record: SensorRecord) {
-        self.sensor.from_record(record);
     }
 }

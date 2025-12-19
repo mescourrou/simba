@@ -1,11 +1,12 @@
 log:
-  log_level: !Info
+  log_level:
+    type: Info
 max_time: 60.
 robots:
   - name: "robot1"
-    navigator: !External
-      config:
-        None
-    state_estimator: !External
+    navigator:
+      type: External
+    state_estimator: 
+      type: External
       period: 0.1
       filter_name: "robot1"

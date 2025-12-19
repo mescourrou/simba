@@ -8,24 +8,22 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use config_checker::macros::Check;
 use nalgebra::Vector2;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
-use serde::{Deserialize, Serialize};
 use serde_json::from_str;
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{
-    utils::{enum_combobox, string_combobox},
     UIComponent,
+    utils::{enum_combobox, string_combobox},
 };
 use crate::{
     sensors::{
-        fault_models::fault_model::FaultModelConfig,
-        oriented_landmark_sensor::OrientedLandmarkSensor, SensorObservation,
+        SensorObservation, fault_models::fault_model::FaultModelConfig,
+        oriented_landmark_sensor::OrientedLandmarkSensor,
     },
     simulator::SimulatorConfig,
     utils::{
@@ -41,7 +39,8 @@ use crate::{
 
 use super::fault_model::FaultModel;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq, EnumToString, ToVec)]
+#[config_derives]
+#[derive(Default)]
 pub enum Sort {
     None,
     Random,
@@ -49,15 +48,13 @@ pub enum Sort {
     Distance,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, EnumToString)]
+#[config_derives]
 pub enum Source {
     Map(String),
     Robots,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct MisassociationFaultConfig {
     #[check(eq(self.apparition.probability.len(), 1))]
     pub apparition: BernouilliRandomVariableConfig,
@@ -73,12 +70,10 @@ impl Default for MisassociationFaultConfig {
         Self {
             apparition: BernouilliRandomVariableConfig {
                 probability: vec![0.1],
-                ..Default::default()
             },
             distribution: RandomVariableTypeConfig::Uniform(UniformRandomVariableConfig {
                 max: vec![10.],
                 min: vec![0.],
-                ..Default::default()
             }),
             sort: Sort::Random,
             source: Source::Robots,
@@ -188,6 +183,7 @@ impl MisassociationFault {
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
+        _initial_time: f32,
     ) -> Self {
         let distribution = Arc::new(Mutex::new(
             va_factory.make_variable(config.distribution.clone()),
@@ -200,7 +196,9 @@ impl MisassociationFault {
             Source::Map(path) => {
                 let path = Path::new(&path);
                 if !path.exists() {
-                    panic!("The correct map path should be given for Misassociation fault (when source is Map)");
+                    panic!(
+                        "The correct map path should be given for Misassociation fault (when source is Map)"
+                    );
                 }
                 let map = OrientedLandmarkSensor::load_map_from_path(path);
                 map.iter()
@@ -255,17 +253,19 @@ impl FaultModel for MisassociationFault {
             }
             Sort::Distance => {
                 if let SensorObservation::OrientedRobot(_) = obs_type {
-                    panic!("MisassociationFault: Distance sorting is not implemented for Robot Observation");
+                    panic!(
+                        "MisassociationFault: Distance sorting is not implemented for Robot Observation"
+                    );
                 }
             }
             _ => {}
         }
         for obs in obs_list {
             seed += obs_seed_increment;
-            if self.apparition.gen(seed)[0] < 1. {
+            if self.apparition.generate(seed)[0] < 1. {
                 continue;
             }
-            let random_sample = self.distribution.lock().unwrap().gen(seed);
+            let random_sample = self.distribution.lock().unwrap().generate(seed);
             match obs {
                 SensorObservation::OrientedRobot(o) => {
                     let new_id = id_list
@@ -297,6 +297,9 @@ impl FaultModel for MisassociationFault {
                     );
                     o.applied_faults
                         .push(FaultModelConfig::Misassociation(self.config.clone()));
+                }
+                SensorObservation::External(_) => {
+                    panic!("MisassociationFault cannot fault ExternalObservation");
                 }
             }
         }

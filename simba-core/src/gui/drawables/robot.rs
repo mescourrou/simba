@@ -2,7 +2,7 @@ use egui::{Color32, Rect, Response, Shape, Stroke, Vec2};
 use nalgebra::Vector3;
 
 use crate::{
-    gui::{app::PainterInfo, UIComponent},
+    gui::{UIComponent, app::PainterInfo},
     node::node_factory::{RobotConfig, RobotRecord},
     sensors::{SensorConfig, SensorObservationRecord},
     simulator::SimulatorConfig,
@@ -35,6 +35,7 @@ impl Robot {
                 SensorConfig::RobotSensor(c) => {
                     robot_obs = Some(OrientedRobotObservation::init(c, sim_config))
                 }
+                SensorConfig::External(_) => {}
             }
         }
 

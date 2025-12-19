@@ -9,14 +9,14 @@ use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    AUTHORS, VERSION,
     api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
     constants::TIME_ROUND_DECIMALS,
     errors::SimbaError,
-    gui::{drawables::popup::Popup, UIComponent},
+    gui::{UIComponent, drawables::popup::Popup},
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
     simulator::{Record, SimulatorConfig},
-    AUTHORS, VERSION,
 };
 
 use super::{
@@ -334,6 +334,14 @@ impl eframe::App for SimbaApp {
                 NodeRecord::Robot(n) => {
                     if let Some(r) = self.p.robots.get_mut(&n.name) {
                         r.add_record(time, *n);
+                    } else if let Some(config) = &self.p.config
+                        && let Some(new_config) =
+                            config.robots.iter().find(|rc| rc.name == n.model_name)
+                    {
+                        self.p.robots.insert(
+                            n.name.clone(),
+                            drawables::robot::Robot::init(new_config, config),
+                        );
                     }
                 }
             }
@@ -395,28 +403,28 @@ impl eframe::App for SimbaApp {
                             force_send_results: true,
                         });
                 }
-                if self.p.config.is_none() {
-                    if let Some(res) = self.p.api.load_config.try_get_result() {
-                        match res {
-                            Err(e) => {
-                                let now = time::Instant::now();
-                                self.p.error_buffer.push((now, e));
-                            }
-                            Ok(c) => {
-                                self.p.config = Some(c);
-                                self.init_drawables();
-                            }
+                if self.p.config.is_none()
+                    && let Some(res) = self.p.api.load_config.try_get_result()
+                {
+                    match res {
+                        Err(e) => {
+                            let now = time::Instant::now();
+                            self.p.error_buffer.push((now, e));
+                        }
+                        Ok(c) => {
+                            self.p.config = Some(c);
+                            self.init_drawables();
                         }
                     }
                 }
                 if ui.button("Configurator").clicked() {
                     self.p.configurator = Some(Configurator::init(&self.config_path));
                 }
-                if let Some(configurator) = &mut self.p.configurator {
-                    if configurator.show(ui, ctx) {
-                        //Closing
-                        self.p.configurator = None;
-                    }
+                if let Some(configurator) = &mut self.p.configurator
+                    && configurator.show(ui, ctx)
+                {
+                    //Closing
+                    self.p.configurator = None;
                 }
                 if ui.button("Load results").clicked() {
                     log::info!("Load previous results");

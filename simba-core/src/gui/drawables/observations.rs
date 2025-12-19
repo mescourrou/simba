@@ -149,6 +149,24 @@ impl OrientedLandmarkObservation {
                 width: 0.01 * scale,
             },
         ));
+        if obs.width > 0.0 {
+            let half_width = obs.width / 2.0;
+            let dir_vector = Vec2::new(
+                half_width * (obs.pose[2] + robot_pose[2] + std::f32::consts::FRAC_PI_2).cos(),
+                half_width * (obs.pose[2] + robot_pose[2] + std::f32::consts::FRAC_PI_2).sin(),
+            );
+            let p1 = obs_position + dir_vector * scale;
+            let p2 = obs_position - dir_vector * scale;
+            shapes.push(Shape::line_segment(
+                [p1, p2],
+                Stroke {
+                    color: self.color,
+                    width: 0.01 * scale,
+                },
+            ));
+            shapes.push(Shape::circle_filled(p1, 0.05 * scale, self.color));
+            shapes.push(Shape::circle_filled(p2, 0.05 * scale, self.color));
+        }
         Ok(shapes)
     }
 }

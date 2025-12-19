@@ -13,11 +13,11 @@ use std::sync::mpsc::Sender;
 
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
+use crate::physics::PhysicsConfig;
 use crate::physics::internal_physics::InternalPhysicConfig;
-use crate::physics::robot_models::honolomic::HolonomicCommand;
+use crate::physics::robot_models::holonomic::HolonomicCommand;
 use crate::physics::robot_models::unicycle::UnicycleCommand;
 use crate::physics::robot_models::{Command, RobotModelConfig};
-use crate::physics::PhysicsConfig;
 use crate::recordable::Recordable;
 use crate::utils::maths::{Derivator, Integrator};
 #[cfg(feature = "gui")]
@@ -25,8 +25,9 @@ use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use config_checker::ConfigCheckable;
 use log::warn;
 use serde::de::{MapAccess, SeqAccess, Visitor};
-use serde::{de, Deserializer};
+use serde::{Deserializer, de};
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 /// Configuration of the [`PID`], it contains the 3 list of gains:
 /// proportional gains, derivative gains and integral gains.
@@ -34,9 +35,8 @@ use serde_derive::{Deserialize, Serialize};
 /// - longitudinal (All models)
 /// - lateral (Holonomic model)
 /// - angular (All models)
-#[derive(Serialize, Debug, Clone, Default)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives(skip_check, skip_deserialize)]
+#[derive(Default)]
 pub struct PIDConfig {
     pub robot_model: Option<RobotModelConfig>,
     pub proportional_gains: Vec<f32>,
@@ -55,7 +55,7 @@ impl PIDConfig {
                 integral_gains: vec![0., 0.],
             },
             // Order: longitudinal, lateral, angular
-            RobotModelConfig::Honolomic(_) => Self {
+            RobotModelConfig::Holonomic(_) => Self {
                 robot_model: Some(config.clone()),
                 proportional_gains: vec![1., 1., 1.],
                 derivative_gains: vec![0., 0., 0.1],
@@ -71,14 +71,14 @@ impl PIDConfig {
     fn kp_lateral(&self) -> Option<f32> {
         match self.robot_model.as_ref().unwrap() {
             RobotModelConfig::Unicycle(_) => None,
-            RobotModelConfig::Honolomic(_) => Some(self.proportional_gains[1]),
+            RobotModelConfig::Holonomic(_) => Some(self.proportional_gains[1]),
         }
     }
 
     fn kp_angular(&self) -> Option<f32> {
         match self.robot_model.as_ref().unwrap() {
             RobotModelConfig::Unicycle(_) => Some(self.proportional_gains[1]),
-            RobotModelConfig::Honolomic(_) => Some(self.proportional_gains[2]),
+            RobotModelConfig::Holonomic(_) => Some(self.proportional_gains[2]),
         }
     }
 
@@ -89,14 +89,14 @@ impl PIDConfig {
     fn ki_lateral(&self) -> Option<f32> {
         match self.robot_model.as_ref().unwrap() {
             RobotModelConfig::Unicycle(_) => None,
-            RobotModelConfig::Honolomic(_) => Some(self.integral_gains[1]),
+            RobotModelConfig::Holonomic(_) => Some(self.integral_gains[1]),
         }
     }
 
     fn ki_angular(&self) -> Option<f32> {
         match self.robot_model.as_ref().unwrap() {
             RobotModelConfig::Unicycle(_) => Some(self.integral_gains[1]),
-            RobotModelConfig::Honolomic(_) => Some(self.integral_gains[2]),
+            RobotModelConfig::Holonomic(_) => Some(self.integral_gains[2]),
         }
     }
 
@@ -107,14 +107,14 @@ impl PIDConfig {
     fn kd_lateral(&self) -> Option<f32> {
         match self.robot_model.as_ref().unwrap() {
             RobotModelConfig::Unicycle(_) => None,
-            RobotModelConfig::Honolomic(_) => Some(self.derivative_gains[1]),
+            RobotModelConfig::Holonomic(_) => Some(self.derivative_gains[1]),
         }
     }
 
     fn kd_angular(&self) -> Option<f32> {
         match self.robot_model.as_ref().unwrap() {
             RobotModelConfig::Unicycle(_) => Some(self.derivative_gains[1]),
-            RobotModelConfig::Honolomic(_) => Some(self.derivative_gains[2]),
+            RobotModelConfig::Holonomic(_) => Some(self.derivative_gains[2]),
         }
     }
 }
@@ -348,7 +348,7 @@ impl UIComponent for PIDConfig {
                 }
 
                 let label_order = match self.robot_model.as_ref().unwrap() {
-                    RobotModelConfig::Honolomic(_) => vec!["Longitudinal", "Lateral", "Angular"],
+                    RobotModelConfig::Holonomic(_) => vec!["Longitudinal", "Lateral", "Angular"],
                     RobotModelConfig::Unicycle(_) => vec!["Longitudinal", "Angular"],
                 };
 
@@ -382,7 +382,7 @@ impl UIComponent for PIDConfig {
                 self.robot_model.as_ref().unwrap().show(ui, ctx, unique_id);
 
                 let label_order = match self.robot_model.as_ref().unwrap() {
-                    RobotModelConfig::Honolomic(_) => vec!["Longitudinal", "Lateral", "Angular"],
+                    RobotModelConfig::Holonomic(_) => vec!["Longitudinal", "Lateral", "Angular"],
                     RobotModelConfig::Unicycle(_) => vec!["Longitudinal", "Angular"],
                 };
 
@@ -473,11 +473,16 @@ impl PID {
         Self::from_config(
             &PIDConfig::default(),
             &PhysicsConfig::Internal(InternalPhysicConfig::default()),
+            0.0,
         )
     }
 
     /// Makes a new [`PID`] from the given `config`.
-    pub fn from_config(config: &PIDConfig, physics_config: &PhysicsConfig) -> Self {
+    pub fn from_config(
+        config: &PIDConfig,
+        physics_config: &PhysicsConfig,
+        initial_time: f32,
+    ) -> Self {
         let mut config_clone = config.clone();
         if config.robot_model.is_none() {
             if let PhysicsConfig::Internal(InternalPhysicConfig {
@@ -489,7 +494,10 @@ impl PID {
                 config_clone.robot_model = Some(model.clone());
                 if config_clone.check().is_err() {
                     config_clone = PIDConfig::default_from_model(model);
-                    warn!("No model given in PID Config and gains given mismatch physics model ({}) => resetting gains", model);
+                    warn!(
+                        "No model given in PID Config and gains given mismatch physics model ({}) => resetting gains",
+                        model
+                    );
                 }
             } else {
                 config_clone = PIDConfig::default();
@@ -498,7 +506,7 @@ impl PID {
         }
         PID {
             config: config_clone,
-            last_command_time: 0.,
+            last_command_time: initial_time,
             longitudinal_integrator: Integrator::new(),
             lateral_integrator: Integrator::new(),
             angular_integrator: Integrator::new(),
@@ -556,7 +564,7 @@ impl Controller for PID {
                         right_wheel_speed: self.velocity + correction_theta / 2.,
                 })
             },
-            RobotModelConfig::Honolomic(_model) => {
+            RobotModelConfig::Holonomic(_model) => {
                 self.velocity_integrator.integrate(error.velocity, dt);
                 self.lateral_integrator.integrate(error.lateral, dt);
                 self.angular_integrator.integrate(error.theta, dt);
@@ -579,7 +587,7 @@ impl Controller for PID {
                     (self.config.kp_lateral().unwrap() * error.lateral + self.config.ki_lateral().unwrap() * self.lateral_integrator.integral_value() + self.config.kd_lateral().unwrap() * lateral_derivative) * self.velocity;
                 let correction_longitudinal =
                     (self.config.kp_longitudinal().unwrap() * error.longitudinal + self.config.ki_longitudinal().unwrap() * self.longitudinal_integrator.integral_value() + self.config.kd_longitudinal().unwrap() * longitudinal_derivative) * self.velocity;
-                Command::Honolomic(HolonomicCommand {
+                Command::Holonomic(HolonomicCommand {
                     longitudinal_velocity: correction_longitudinal,
                     lateral_velocity: correction_lateral,
                     angular_velocity: correction_theta,

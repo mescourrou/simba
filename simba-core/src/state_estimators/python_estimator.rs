@@ -2,126 +2,54 @@
 Module providing the interface to use external Python [`StateEstimator`].
 */
 
-use std::ffi::CString;
-use std::fs;
-use std::str::FromStr;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use config_checker::macros::Check;
-use log::{debug, info};
-use pyo3::ffi::c_str;
+use log::debug;
 use pyo3::prelude::*;
-use pyo3::types::PyModule;
-use pyo3::{pyclass, pymethods, PyResult, Python};
-use serde_json::Value;
+use pyo3::{Python, pyclass, pymethods};
 
 use super::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
-use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
-use crate::gui::{utils::json_config, UIComponent};
+use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
+use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::maths::round_precision;
-use crate::utils::python::ensure_venv_pyo3;
+use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
 
 use super::StateEstimatorRecord;
 use crate::sensors::Observation;
 use serde_derive::{Deserialize, Serialize};
 
-/// Config for the external state estimation (generic).
-///
-/// The config for [`PythonEstimator`] uses a [`serde_json::Value`] to
-/// integrate your own configuration inside the full simulator config.
-///
-/// You need to provide the path of the script containing the state estimator.
-///
-/// In the yaml file, the config could be:
-/// ```YAML
-/// state_estimator:
-///     Python:
-///         file: ""../my_python_script.py"
-///         class_name: MyStateEstimator
-///         parameter_of_my_own_estimator: true
-/// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-pub struct PythonEstimatorConfig {
-    file: String,
-    class_name: String,
-    /// Config serialized.
-    #[serde(flatten)]
-    pub config: Value,
-}
+python_class_config!(
+    /// Config for the external state estimation (generic).
+    ///
+    /// The config for [`PythonEstimator`] uses a [`serde_json::Value`] to
+    /// integrate your own configuration inside the full simulator config.
+    ///
+    /// You need to provide the path of the script containing the state estimator.
+    ///
+    /// In the yaml file, the config could be:
+    /// ```YAML
+    /// state_estimator:
+    ///     Python:
+    ///         file: ""../my_python_script.py"
+    ///         class_name: MyStateEstimator
+    ///         parameter_of_my_own_estimator: true
+    /// ```
+    PythonEstimatorConfig,
+    "External Python State Estimator",
+    "external-python-state-estimator"
+);
 
-impl Default for PythonEstimatorConfig {
-    fn default() -> Self {
-        Self {
-            file: String::new(),
-            class_name: String::new(),
-            config: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for PythonEstimatorConfig {
-    fn show_mut(
-        &mut self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External Python State Estimator").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Script path: ");
-                    ui.text_edit_singleline(&mut self.file);
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Class name: ");
-                    ui.text_edit_singleline(&mut self.class_name);
-                });
-
-                ui.label("Config (JSON):");
-                json_config(
-                    ui,
-                    &format!("external-python-state-estimator-key-{}", &unique_id),
-                    &format!("external-python-state-estimator-error-key-{}", &unique_id),
-                    buffer_stack,
-                    &mut self.config,
-                );
-            });
-        });
-    }
-
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        egui::CollapsingHeader::new("External Python State Estimator").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.label("Script path: ");
-                    ui.label(&self.file);
-                });
-                ui.horizontal(|ui| {
-                    ui.label("Class name: ");
-                    ui.label(&self.class_name);
-                });
-                ui.label("Config (JSON):");
-                ui.label(self.config.to_string());
-            });
-        });
-    }
-}
-
+external_record_python_methods!(
 /// Record for the external state estimation (generic).
 ///
 /// Like [`PythonEstimatorConfig`], [`PythonEstimator`] uses a [`serde_json::Value`]
@@ -129,36 +57,8 @@ impl UIComponent for PythonEstimatorConfig {
 ///
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::record`] implementations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
-pub struct PythonEstimatorRecord {
-    /// Record serialized.
-    #[serde(flatten)]
-    pub record: Value,
-}
-
-impl Default for PythonEstimatorRecord {
-    fn default() -> Self {
-        Self {
-            record: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for PythonEstimatorRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(self.record.to_string());
-    }
-}
-
-#[pymethods]
-impl PythonEstimatorRecord {
-    #[getter]
-    fn record(&self) -> String {
-        self.record.to_string()
-    }
-}
+PythonEstimatorRecord,
+);
 
 use crate::node::Node;
 
@@ -176,6 +76,7 @@ impl PythonEstimator {
         Self::from_config(
             &PythonEstimatorConfig::default(),
             &SimulatorConfig::default(),
+            0.0,
         )
     }
 
@@ -190,77 +91,14 @@ impl PythonEstimator {
     pub fn from_config(
         config: &PythonEstimatorConfig,
         global_config: &SimulatorConfig,
+        initial_time: f32,
     ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
         }
 
-        let json_config = serde_json::to_string(&config)
-            .expect("Error during converting Python State Estimator config to json");
-
-        let convert_to_dict = cr#"
-import json
-class NoneDict(dict):
-    """ dict subclass that returns a value of None for missing keys instead
-        of raising a KeyError. Note: doesn't add item to dictionary.
-    """
-    def __missing__(self, key):
-        return None
-
-
-def converter(decoded_dict):
-    """ Convert any None values in decoded dict into empty NoneDict's. """
-    return {k: NoneDict() if v is None else v for k,v in decoded_dict.items()}
-
-def convert(records):
-    return json.loads(records, object_hook=converter)
-"#;
-
-        let script_path = global_config.base_path.as_ref().join(&config.file);
-        let python_script = match fs::read_to_string(script_path.clone()) {
-            Err(e) => {
-                return Err(SimbaError::new(
-                    SimbaErrorTypes::ConfigError,
-                    format!(
-                        "Python state estimator script not found ({}): {}",
-                        script_path.to_str().unwrap(),
-                        e
-                    ),
-                ))
-            }
-            Ok(s) => CString::new(s).unwrap(),
-        };
-        let res = Python::attach(|py| -> PyResult<Py<PyAny>> {
-            ensure_venv_pyo3(py)?;
-
-            let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
-            let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
-            let config_dict = convert_fn.call(py, (json_config,), None)?;
-
-            let script = PyModule::from_code(py, &python_script, c_str!(""), c_str!(""))?;
-            let state_estimator_class: Py<PyAny> =
-                script.getattr(config.class_name.as_str())?.into();
-            info!("Load State Estimator class {} ...", config.class_name);
-
-            let res = state_estimator_class.call(py, (config_dict,), None);
-            let state_estimator_instance = match res {
-                Err(err) => {
-                    err.display(py);
-                    return Err(err);
-                }
-                Ok(instance) => instance,
-            };
-            Ok(state_estimator_instance)
-        });
-        let state_estimator_instance = match res {
-            Err(err) => {
-                return Err(SimbaError::new(
-                    SimbaErrorTypes::PythonError,
-                    err.to_string(),
-                ))
-            }
-            Ok(instance) => instance,
-        };
+        let state_estimator_instance =
+            load_class_from_python_script(config, global_config, initial_time, "State Estimator")?;
         let (tx, rx) = mpsc::channel();
         Ok(Self {
             state_estimator: state_estimator_instance,
@@ -282,16 +120,7 @@ impl StateEstimator for PythonEstimator {
             debug!("Calling python implementation of prediction_step");
         }
         let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
-        Python::attach(|py| {
-            if let Err(e) =
-                self.state_estimator
-                    .bind(py)
-                    .call_method("prediction_step", (node_py, time), None)
-            {
-                e.display(py);
-                panic!("Error while calling 'prediction_step' method of PythonEstimator.");
-            }
-        });
+        call_py_method_void!(self.state_estimator, "prediction_step", node_py, time);
     }
 
     fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32) {
@@ -303,33 +132,20 @@ impl StateEstimator for PythonEstimator {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
         let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
-        Python::attach(|py| {
-            if let Err(e) = self.state_estimator.bind(py).call_method(
-                "correction_step",
-                (node_py, observation_py, time),
-                None,
-            ) {
-                e.display(py);
-                panic!("Error while calling 'correction_step' method of PythonEstimator.");
-            }
-        });
+        call_py_method_void!(
+            self.state_estimator,
+            "correction_step",
+            node_py,
+            observation_py,
+            time
+        );
     }
 
     fn world_state(&self) -> WorldState {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of state");
         }
-        let state = Python::attach(|py| -> WorldStateWrapper {
-            match self.state_estimator.bind(py).call_method("state", (), None) {
-                Err(e) => {
-                    e.display(py);
-                    panic!("Error while calling 'state' method of PythonEstimator.");
-                }
-                Ok(r) => r.extract().expect(
-                    "The 'state' method of PythonEstimator does not return a correct state vector",
-                ),
-            }
-        });
+        let state = call_py_method!(self.state_estimator, "state", WorldStateWrapper,);
         state.to_rust()
     }
 
@@ -338,20 +154,7 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of next_time_step");
         }
-        let time = Python::attach(|py| {
-            match self.state_estimator
-                .bind(py)
-                .call_method("next_time_step", (), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'next_time_step' method of PythonEstimator.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("The 'next_time_step' method of PythonEstimator does not return a correct time for next step")
-                    }
-                }
-        });
+        let time = call_py_method!(self.state_estimator, "next_time_step", f32,);
         round_precision(time, TIME_ROUND).unwrap()
     }
 
@@ -360,16 +163,7 @@ impl StateEstimator for PythonEstimator {
             debug!("Calling python implementation of pre_loop_hook");
         }
         let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
-        Python::attach(|py| {
-            if let Err(e) =
-                self.state_estimator
-                    .bind(py)
-                    .call_method("pre_loop_hook", (node_py, time), None)
-            {
-                e.display(py);
-                panic!("Error while calling 'pre_loop_hook' method of PythonEstimator.");
-            }
-        });
+        call_py_method_void!(self.state_estimator, "pre_loop_hook", node_py, time);
     }
 }
 
@@ -393,7 +187,7 @@ impl Recordable<StateEstimatorRecord> for PythonEstimator {
                 }
         });
         let record = PythonEstimatorRecord {
-            record: Value::from_str(record_str.as_str()).expect(
+            record: serde_json::from_str(&record_str).expect(
                 "Impossible to get serde_json::Value from the input serialized python structure",
             ),
         };

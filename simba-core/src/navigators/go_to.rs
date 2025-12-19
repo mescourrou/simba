@@ -4,8 +4,8 @@ trajectory.
 */
 
 use std::sync::{
-    mpsc::{self, Receiver, Sender},
     Arc, Mutex,
+    mpsc::{self, Receiver, Sender},
 };
 
 #[cfg(feature = "gui")]
@@ -18,12 +18,12 @@ use crate::{
 };
 
 extern crate nalgebra as na;
-use config_checker::macros::Check;
 use libm::atan2;
 
 use nalgebra::SVector;
 use pyo3::{pyclass, pymethods};
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all, set_all)]
@@ -41,9 +41,7 @@ impl GoToMessage {
 }
 
 /// Configuration of the [`GoTo`] strategy.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct GoToConfig {
     pub target_point: Option<[f32; 2]>,
     #[check(ge(0.))]
@@ -233,7 +231,7 @@ impl GoTo {
     /// * `config` - GoTo configuration
     /// * `plugin_api` - Not used there.
     /// * `global_config` - Global configuration of the simulator.
-    pub fn from_config(config: &GoToConfig) -> Self {
+    pub fn from_config(config: &GoToConfig, _initial_time: f32) -> Self {
         let (tx, rx) = mpsc::channel();
         Self {
             target_speed: config.target_speed,
@@ -272,7 +270,7 @@ impl Navigator for GoTo {
                 longitudinal: 0.,
                 lateral: 0.,
                 theta: 0.,
-                velocity: state.velocity,
+                velocity: state.velocity.norm(),
             };
         }
         let target_point = SVector::from_row_slice(&self.current_point.unwrap());
@@ -297,7 +295,7 @@ impl Navigator for GoTo {
         self.error.lateral = 0.;
 
         // Compute the velocity error
-        self.error.velocity = self.target_speed - state.velocity;
+        self.error.velocity = self.target_speed - state.velocity.norm();
 
         self.error.clone()
     }

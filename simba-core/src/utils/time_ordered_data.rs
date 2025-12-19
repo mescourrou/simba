@@ -106,7 +106,7 @@ impl<T> TimeOrderedData<T> {
     /// * `Some(time, mutable reference on data)` if a data was found.
     /// * `None` if no data was found, e.g. if `time` is below the minimal time.
     pub fn get_data_beq_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
-        for (data_time, ref mut data) in self.data.iter_mut().rev() {
+        for (data_time, data) in self.data.iter_mut().rev() {
             if data_time <= &mut time {
                 return Some((time, data));
             }
@@ -136,7 +136,7 @@ impl<T> TimeOrderedData<T> {
     /// * `Some(time, mutable reference on data)` if a data was found.
     /// * `None` if no data was found, e.g. if `time` is below the minimal time.
     pub fn get_data_before_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
-        for (data_time, ref mut data) in self.data.iter_mut().rev() {
+        for (data_time, data) in self.data.iter_mut().rev() {
             if data_time < &mut time {
                 return Some((time, data));
             }
@@ -166,7 +166,7 @@ impl<T> TimeOrderedData<T> {
     /// * `Some(time, mutable reference on data)` if a data was found.
     /// * `None` if no data was found, e.g. if `time` is after the maximal time.
     pub fn get_data_geq_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
-        for (data_time, ref mut data) in self.data.iter_mut() {
+        for (data_time, data) in self.data.iter_mut() {
             if data_time >= &mut time {
                 return Some((time, data));
             }
@@ -196,7 +196,7 @@ impl<T> TimeOrderedData<T> {
     /// * `Some(time, mutable reference on data)` if a data was found.
     /// * `None` if no data was found, e.g. if `time` is after the maximal time.
     pub fn get_data_after_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
-        for (data_time, ref mut data) in self.data.iter_mut() {
+        for (data_time, data) in self.data.iter_mut() {
             if data_time > &mut time {
                 return Some((time, data));
             }
@@ -241,7 +241,7 @@ impl<T> TimeOrderedData<T> {
     /// * `Some(time, mutable reference on data)` if a data was found.
     /// * `None` if no data was found at this `time`.
     pub fn get_data_at_time_mut(&mut self, time: f32) -> Option<(f32, &mut T)> {
-        for (data_time, ref mut data) in self.data.iter_mut() {
+        for (data_time, data) in self.data.iter_mut() {
             if (*data_time - time).abs() < TIME_ROUND / 2. {
                 return Some((time, data));
             }

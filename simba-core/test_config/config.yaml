@@ -1,55 +1,64 @@
+# yaml-language-server: $schema=../../config.schema.json
 log:
-  # log_level: !Internal ["All"]
-  log_level: !Off
+  log_level: {type: Debug}
 time_analysis:
-  exporter: TraceEventExporter
+  exporter: 
+    type: TraceEventExporter
   output_path: "time_performance"
   keep_last: true
-results: !ResultConfig #default results
+results: {} #default results
 max_time: 60.
 random_seed: 85646513.6849618
 robots:
   - name: "robot1"
-    navigator: !TrajectoryFollower
+    navigator: 
+      type: TrajectoryFollower
       trajectory_path: "paths/path1.yaml"
       target_speed: 0.5
       forward_distance: 0.2
-    controller: !PID
+    controller:
+      type: PID
       proportional_gains: [1.0, 6.0]
     sensor_manager:
       sensors:
         - name: "RobotSensor"
           send_to: ["Central Unit"]
-          config: !RobotSensor
+          config:
+            type: RobotSensor
             period: 0.1
             detection_distance: 100.0
         - name: "LandmarkSensor"
-          config: !OrientedLandmarkSensor
+          config: 
+            type: OrientedLandmarkSensor
             map_path: "maps/landmarks_square.yaml"
             detection_distance: 10.0
             faults:
-              - !AdditiveRobotCentered # Gaussian White Noise
+              - type: AdditiveRobotCentered # Gaussian White Noise
                 variable_order: [x, y, orientation]
                 distributions:
-                  - !Normal
-                    unique_seed: 95698.956258563245
+                  - type: Normal
                     mean: [0, 0, 0]
                     covariance: [0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01]
                     
   - name: "robot2"
-    navigator: !TrajectoryFollower
+    navigator:
+      type: TrajectoryFollower
       trajectory_path: "paths/path1.yaml"
       target_speed: 0.3
       forward_distance: 0.2
-    physics: !Internal
-      model: !Honolomic
-    controller: !PID
+    physics: 
+      type: Internal
+      model:
+        type: Holonomic
+    controller: 
+      type: PID
       proportional_gains: [1.0, 3.0]
     sensor_manager:
       sensors:
         - name: "RobotSensor"
           send_to: ["Central Unit"]
-          config: !RobotSensor
+          config: 
+            type: RobotSensor
             period: 0.1
             detection_distance: 100.0
 computation_units:
@@ -58,6 +67,7 @@ computation_units:
       reception_delay: 0.
     state_estimators:
       - name: "central_perfect"
-        config: !Perfect
+        config: 
+          type: Perfect
           targets: ["robot1", "robot2"]
           prediction_period: 0.1

@@ -23,13 +23,20 @@ Here is a list of available and considered features. The order is not a priority
 - [ ] Gazebo interface (maybe)
 - [ ] C++ bindings
 - [X] Advanced Graphical User Interface (real time + replay)
-- [ ] Extend PluginAPI to sensors
-- [ ] Controllable sensors
+- [X] Extend PluginAPI to sensors
+- [X] Controllable sensors
 - [ ] New faults: delay, activation windows
 - [X] Central algorithm possibility
 
+## Crates
+- `simba-core`: Main library.
+- `simba-cmd`: Command line tool to launch the simulator on a given configuration file.
+- `simba-tools`: Command line tool for developers.
+- `simba-macros`: Procedural macros used in `simba-core`.
+
 ## Cargo Features:
 - "gui": enable GUI running. Use `gui::run_gui` to start a GUI.
+- "force_hard_determinism": disable features that are not fully time-deterministic.
 
 ## Documentation
 You can compile the documentation using Cargo:
@@ -41,9 +48,12 @@ The last Rust documentation is available [here](https://homepages.laas.fr/mescou
 
 The last user documentation is available [here](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/user).
 
+**Configuration autocompletion**: To autocomplete YAML config files, you can use the json schemas available in the repo or in the release.
+Just add the following line at the beginning of your file: `# yaml-language-server: $schema=path/to/your/config.schema.json`
+
 ## Build
 ```
-cargo build --all-features
+cargo build
 ```
 
 ## Spirit of this simulator

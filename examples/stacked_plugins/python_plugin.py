@@ -7,8 +7,8 @@ from typing import Dict, List, Tuple
 import json
 
 class StateEstimator(simba.StateEstimator):
-    def __init__(self, config: dict):
-        self.last_time = 0
+    def __init__(self, config: dict, initial_time: float):
+        self.last_time = initial_time
         self.period = config["period"]
         self.filter_name = "anonyme"
         if "filter_name" in config:
@@ -22,7 +22,8 @@ class StateEstimator(simba.StateEstimator):
         world_state.ego.pose.x = 1
         world_state.ego.pose.y = 2
         world_state.ego.pose.theta = 0
-        world_state.ego.velocity = 3
+        world_state.ego.velocity.x = 3
+        world_state.ego.velocity.y = 0
         return world_state
 
     def record(self) -> str:
@@ -66,10 +67,10 @@ class StateEstimator(simba.StateEstimator):
 
 
 class SimulatorAPI(simba.PluginAPI):
-    def get_state_estimator(self, config, global_config):
+    def get_state_estimator(self, config, global_config, initial_time: float):
         config = json.loads(config)
         print(f"Config received by python: {type(config)} {config}")
-        return StateEstimator(config)
+        return StateEstimator(config, initial_time)
 
 def main():
 

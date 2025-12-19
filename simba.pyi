@@ -7,10 +7,15 @@ class Pose:
         self.y: float
         self.theta: float
 
+class Vec2:
+    def __init__(self):
+        self.x: float
+        self.y: float
+
 class State:
     def __init__(self):
         self.pose: Pose
-        self.velocity: float
+        self.velocity: Vec2  # (longitudinal_velocity, lateral_velocity)
         
 class WorldState:
     def __init__(self):
@@ -93,6 +98,8 @@ class OrientedLandmarkObservation:
         self.id: int
         self.pose: Pose
         self.applied_faults: str """ Applied faults in JSON format """
+        self.width: float
+        self.height: float
 
 class OdometryObservation:
     def __init__(self):
@@ -102,8 +109,8 @@ class OdometryObservation:
 
 class GNSSObservation: 
     def __init__(self):
-        self.position: List[float]
-        self.velocity: List[float]
+        self.position: Vec2
+        self.velocity: Vec2
         self.applied_faults: str """ Applied faults in JSON format """
 
 class OrientedRobotObservation:
@@ -143,7 +150,7 @@ class Observation:
 
 class Command(Enum):
     Unicycle: UnicycleCommand
-    Honolomic: HonolomicCommand
+    Holonomic: HolonomicCommand
 
     def __init__(self):
         self.kind: str
@@ -151,13 +158,13 @@ class Command(Enum):
     def as_unicycle_command(self) -> UnicycleCommand | None:
         raise NotImplementedError()
 
-    def as_honolomic_command(self) -> HonolomicCommand | None: 
+    def as_holonomic_command(self) -> HolonomicCommand | None: 
         raise NotImplementedError()
 
     def from_unicycle_command(cmd: UnicycleCommand) -> Command:
         raise NotImplementedError()
 
-    def from_honolomic_command(cmd: HonolomicCommand) -> Command:
+    def from_holonomic_command(cmd: HolonomicCommand) -> Command:
         raise NotImplementedError()
 
 class UnicycleCommand:
@@ -166,7 +173,7 @@ class UnicycleCommand:
         self.right_wheel_speed: float
 
 
-class HonolomicCommand:
+class HolonomicCommand:
     def __init__(self):
         self.longitudinal_velocity: float
         self.lateral_velocity: float
@@ -176,6 +183,10 @@ class HonolomicCommand:
 class GoToMessage:
     def __init__(self, target:Tuple[float, float]|None=None):
         self.target_point: Tuple[float, float]|None
+
+class SensorTriggerMessage:
+    def __init__(self, sensor_name: str):
+        self.sensor_name: str
         
 class MessageFlag(Enum):
     # God mode, messages are instaneous.
@@ -188,6 +199,7 @@ class MessageFlag(Enum):
 class MessageTypes(Enum):
     String: str
     GoTo: GoToMessage
+    SensorTrigger: SensorTriggerMessage
 
 class Envelope:
     def __init__(self):
@@ -206,6 +218,9 @@ class Node:
         raise NotImplementedError()
 
 class StateEstimator:
+    def __init__(self, config: dict, initial_time: float):
+        raise NotImplementedError()
+    
     def state(self) -> WorldState:
         raise NotImplementedError()
     
@@ -258,16 +273,16 @@ class Physics:
         raise NotImplementedError()
 
 class PluginAPI:
-    def get_state_estimator(self, config: Dict, global_config: Dict) -> StateEstimator:
+    def get_state_estimator(self, config: Dict, global_config: Dict, initial_time: float) -> StateEstimator:
         raise NotImplementedError()
     
-    def get_controller(self, config: Dict, global_config: Dict) -> Controller:
+    def get_controller(self, config: Dict, global_config: Dict, initial_time: float) -> Controller:
         raise NotImplementedError()
     
-    def get_navigator(self, config: Dict, global_config: Dict) -> Navigator:
+    def get_navigator(self, config: Dict, global_config: Dict, initial_time: float) -> Navigator:
         raise NotImplementedError()
     
-    def get_physics(self, config: Dict, global_config: Dict) -> Physics:
+    def get_physics(self, config: Dict, global_config: Dict, initial_time: float) -> Physics:
         raise NotImplementedError()
     
 class Simulator:
@@ -278,4 +293,17 @@ class Simulator:
         raise NotImplementedError()
     
 def run_gui(plugin_api: PluginAPI | None):
+        raise NotImplementedError()
+
+
+class FaultModel:
+    def add_faults(self, time: float, period: float, obs_list: List[SensorObservation]) -> List[SensorObservation]:
+        raise NotImplementedError()
+
+class PhysicsFaultModel:
+    def add_faults(self, time: float, state: State) -> State:
+        raise NotImplementedError()
+
+class SensorFilter:
+    def filter_observations(self, time: float, observation: SensorObservation, observer_state: State, observee_state: State | None) -> SensorObservation|None:
         raise NotImplementedError()

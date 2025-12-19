@@ -15,25 +15,26 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 
 use std::sync::Arc;
 
-use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
-use serde_json::Value;
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::json_config, UIComponent};
+use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
 use crate::networking::service::HasService;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
+use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 use serde_derive::{Deserialize, Serialize};
 
+external_config!(
 /// Config for the external physics (generic).
 ///
 /// The config for [`ExternalPhysics`] uses a [`serde_json::Value`] to
@@ -45,57 +46,12 @@ use serde_derive::{Deserialize, Serialize};
 ///     External:
 ///         parameter_of_my_own_physics: true
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-pub struct ExternalPhysicsConfig {
-    /// Config serialized.
-    #[serde(flatten)]
-    pub config: Value,
-}
+    ExternalPhysicsConfig,
+    "External Physics",
+    "external-physics"
+);
 
-impl Default for ExternalPhysicsConfig {
-    fn default() -> Self {
-        Self {
-            config: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalPhysicsConfig {
-    fn show_mut(
-        &mut self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External Physics").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                json_config(
-                    ui,
-                    &format!("external-physics-key-{}", &unique_id),
-                    &format!("external-physics-error-key-{}", &unique_id),
-                    buffer_stack,
-                    &mut self.config,
-                );
-            });
-        });
-    }
-
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        egui::CollapsingHeader::new("External Physics").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                ui.label(self.config.to_string());
-            });
-        });
-    }
-}
-
+external_record_python_methods!(
 /// Record for the external physics (generic).
 ///
 /// Like [`ExternalPhysicsConfig`], [`ExternalPhysics`] uses a [`serde_json::Value`]
@@ -103,36 +59,8 @@ impl UIComponent for ExternalPhysicsConfig {
 ///
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::record`] implementations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
-pub struct ExternalPhysicsRecord {
-    /// Record serialized.
-    #[serde(flatten)]
-    pub record: Value,
-}
-
-impl Default for ExternalPhysicsRecord {
-    fn default() -> Self {
-        Self {
-            record: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalPhysicsRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(self.record.to_string());
-    }
-}
-
-#[pymethods]
-impl ExternalPhysicsRecord {
-    #[getter]
-    fn record(&self) -> String {
-        self.record.to_string()
-    }
-}
+ExternalPhysicsRecord,
+);
 
 use super::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 
@@ -150,6 +78,7 @@ impl ExternalPhysics {
             &None,
             &SimulatorConfig::default(),
             &Arc::new(DeterministRandomVariableFactory::default()),
+            0.0,
         )
     }
 
@@ -167,6 +96,7 @@ impl ExternalPhysics {
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Self {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
@@ -175,7 +105,7 @@ impl ExternalPhysics {
             physics: plugin_api
                 .as_ref()
                 .expect("Plugin API not set!")
-                .get_physics(&config.config, global_config, va_factory),
+                .get_physics(&config.config, global_config, va_factory, initial_time),
         }
     }
 }

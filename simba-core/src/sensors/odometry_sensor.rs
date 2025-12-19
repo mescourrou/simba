@@ -5,7 +5,7 @@ Provides a [`Sensor`] which can provide linear velocity and angular velocity.
 use std::sync::{Arc, Mutex};
 
 use super::fault_models::fault_model::{
-    make_fault_model_from_config, FaultModel, FaultModelConfig,
+    FaultModel, FaultModelConfig, make_fault_model_from_config,
 };
 use super::{Sensor, SensorObservation, SensorRecord};
 
@@ -17,39 +17,40 @@ use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::sensor_filters::{
-    make_sensor_filter_from_config, SensorFilter, SensorFilterConfig,
+    SensorFilter, SensorFilterConfig, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
-use config_checker::macros::Check;
+use libm::atan2f;
 use log::debug;
+use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 extern crate nalgebra as na;
 
 /// Configuration of the [`OdometrySensor`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct OdometrySensorConfig {
     /// Observation period of the sensor.
-    #[check[ge(0.)]]
-    pub period: f32,
+    pub period: Option<f32>,
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
     pub filters: Vec<SensorFilterConfig>,
+    pub lie_integration: bool,
 }
 
 impl Default for OdometrySensorConfig {
     fn default() -> Self {
         Self {
-            period: 0.1,
+            period: Some(0.1),
             faults: Vec::new(),
             filters: Vec::new(),
+            lie_integration: true,
         }
     }
 }
@@ -70,10 +71,22 @@ impl UIComponent for OdometrySensorConfig {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
-                    if self.period < TIME_ROUND {
-                        self.period = TIME_ROUND;
+                    if let Some(p) = &mut self.period {
+                        if *p <= TIME_ROUND {
+                            *p = TIME_ROUND;
+                        }
+                        ui.add(egui::DragValue::new(p));
+                        if ui.button("X").clicked() {
+                            self.period = None;
+                        }
+                    } else if ui.button("+").clicked() {
+                        self.period = Self::default().period;
                     }
-                    ui.add(egui::DragValue::new(&mut self.period));
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Lie integration:");
+                    ui.checkbox(&mut self.lie_integration, "");
                 });
 
                 SensorFilterConfig::show_filters_mut(
@@ -103,7 +116,17 @@ impl UIComponent for OdometrySensorConfig {
             .id_salt(format!("odometry-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(format!("Period: {}", self.period));
+                    ui.label("Period:");
+                    if let Some(p) = &self.period {
+                        ui.label(format!("{}", p));
+                    } else {
+                        ui.label("None");
+                    }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label("Lie integration:");
+                    ui.label(format!("{}", self.lie_integration));
                 });
 
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
@@ -142,6 +165,7 @@ impl UIComponent for OdometrySensorRecord {
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct OdometryObservation {
     pub linear_velocity: f32,
+    pub lateral_velocity: f32,
     pub angular_velocity: f32,
     pub applied_faults: Vec<FaultModelConfig>,
 }
@@ -150,6 +174,7 @@ impl Recordable<OdometryObservationRecord> for OdometryObservation {
     fn record(&self) -> OdometryObservationRecord {
         OdometryObservationRecord {
             linear_velocity: self.linear_velocity,
+            lateral_velocity: self.lateral_velocity,
             angular_velocity: self.angular_velocity,
         }
     }
@@ -158,6 +183,7 @@ impl Recordable<OdometryObservationRecord> for OdometryObservation {
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct OdometryObservationRecord {
     pub linear_velocity: f32,
+    pub lateral_velocity: f32,
     pub angular_velocity: f32,
 }
 
@@ -166,6 +192,7 @@ impl UIComponent for OdometryObservationRecord {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Linear velocity: {}", self.linear_velocity));
+            ui.label(format!("Lateral velocity: {}", self.lateral_velocity));
             ui.label(format!("Angular velocity: {}", self.angular_velocity));
         });
     }
@@ -176,12 +203,14 @@ impl UIComponent for OdometryObservationRecord {
 pub struct OdometrySensor {
     /// Last state to compute the velocity.
     last_state: State,
+    last_lie_action: Matrix3<f32>,
     /// Observation period
-    period: f32,
+    period: Option<f32>,
     /// Last observation time.
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
     filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
+    lie_integration: bool,
 }
 
 impl OdometrySensor {
@@ -193,6 +222,7 @@ impl OdometrySensor {
             &SimulatorConfig::default(),
             &"NoName".to_string(),
             &DeterministRandomVariableFactory::default(),
+            0.0,
         )
     }
 
@@ -203,6 +233,7 @@ impl OdometrySensor {
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
+        initial_time: f32,
     ) -> Self {
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
@@ -212,6 +243,7 @@ impl OdometrySensor {
                 global_config,
                 robot_name,
                 va_factory,
+                initial_time,
             ));
         }
         drop(unlock_fault_model);
@@ -219,16 +251,22 @@ impl OdometrySensor {
         let filters = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_filters = filters.lock().unwrap();
         for filter_config in &config.filters {
-            unlock_filters.push(make_sensor_filter_from_config(filter_config));
+            unlock_filters.push(make_sensor_filter_from_config(
+                filter_config,
+                global_config,
+                initial_time,
+            ));
         }
         drop(unlock_filters);
 
         Self {
             last_state: State::new(),
+            last_lie_action: Matrix3::zeros(),
             period: config.period,
-            last_time: 0.,
+            last_time: initial_time,
             faults: fault_models,
             filters,
+            lie_integration: config.lie_integration,
         }
     }
 }
@@ -245,7 +283,7 @@ impl Sensor for OdometrySensor {
     fn init(&mut self, robot: &mut Node) {
         self.last_state = robot
             .physics()
-            .expect("Node with GNSS sensor should have Physics")
+            .expect("Node with Odometry sensor should have Physics")
             .read()
             .unwrap()
             .state(0.)
@@ -254,7 +292,7 @@ impl Sensor for OdometrySensor {
 
     fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.next_time_step()).abs() >= TIME_ROUND {
+        if (time - self.last_time).abs() < TIME_ROUND {
             return observation_list;
         }
         let arc_physic = robot
@@ -265,24 +303,41 @@ impl Sensor for OdometrySensor {
 
         let dt = time - self.last_time;
 
-        let obs = SensorObservation::Odometry(OdometryObservation {
-            linear_velocity: state.velocity,
-            angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
-            applied_faults: Vec::new(),
-        });
+        let obs = if self.lie_integration
+            && let Some(lie_action) = physic.cummulative_lie_action()
+        {
+            let delta_lie = lie_action - self.last_lie_action;
+            let delta_lie = delta_lie * dt;
+            let displacement = delta_lie.exp();
+            self.last_lie_action = lie_action;
+            SensorObservation::Odometry(OdometryObservation {
+                linear_velocity: displacement[(0, 2)] / dt,
+                lateral_velocity: displacement[(1, 2)] / dt,
+                angular_velocity: atan2f(displacement[(1, 0)], displacement[(0, 0)]) / dt,
+                applied_faults: Vec::new(),
+            })
+        } else {
+            // No lie action available, fall back to previous method
+            SensorObservation::Odometry(OdometryObservation {
+                linear_velocity: state.velocity.x,
+                lateral_velocity: state.velocity.y,
+                angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
+                applied_faults: Vec::new(),
+            })
+        };
 
         if let Some(obs) = self
             .filters
             .lock()
             .unwrap()
             .iter()
-            .try_fold(obs, |obs, filter| filter.filter(obs, &state, None))
+            .try_fold(obs, |obs, filter| filter.filter(time, obs, &state, None))
         {
             observation_list.push(obs);
             for fault_model in self.faults.lock().unwrap().iter() {
                 fault_model.add_faults(
                     time,
-                    self.period,
+                    self.period.unwrap_or(TIME_ROUND),
                     &mut observation_list,
                     SensorObservation::Odometry(OdometryObservation::default()),
                 );
@@ -297,11 +352,11 @@ impl Sensor for OdometrySensor {
     }
 
     fn next_time_step(&self) -> f32 {
-        round_precision(self.last_time + self.period, TIME_ROUND).unwrap()
-    }
-
-    fn period(&self) -> f32 {
-        self.period
+        if let Some(period) = &self.period {
+            round_precision(self.last_time + period, TIME_ROUND).unwrap()
+        } else {
+            f32::INFINITY
+        }
     }
 }
 

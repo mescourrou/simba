@@ -2,7 +2,7 @@ use std::{collections::BTreeMap, path::Path};
 
 use crate::simulator::SimulatorConfig;
 
-use super::{utils::path_finder, UIComponent};
+use super::{UIComponent, utils::path_finder};
 
 pub struct Configurator {
     current_config: SimulatorConfig,

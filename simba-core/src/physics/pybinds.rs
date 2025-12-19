@@ -1,7 +1,7 @@
 use std::{str::FromStr, sync::Arc};
 
 use log::debug;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict};
 use serde_json::Value;
 
 use crate::{
@@ -11,7 +11,10 @@ use crate::{
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
     state_estimators::State,
-    utils::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+    utils::{
+        python::{call_py_method, call_py_method_void},
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+    },
 };
 
 use super::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
@@ -59,8 +62,6 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysicAsyncClient {
 }
 
 #[derive(Debug)]
-#[pyclass(subclass)]
-#[pyo3(name = "Physics")]
 pub struct PythonPhysics {
     model: Py<PyAny>,
     client: PythonPhysicAsyncClient,
@@ -70,9 +71,7 @@ pub struct PythonPhysics {
     record: Arc<RemoteFunctionCallHost<(), PhysicsRecord>>,
 }
 
-#[pymethods]
 impl PythonPhysics {
-    #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonPhysics {
         if is_enabled(crate::logger::InternalLog::API) {
             Python::attach(|py| {
@@ -124,34 +123,19 @@ impl PythonPhysics {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of apply_command");
         }
-        // let robot_record = robot.record();
-        Python::attach(|py| {
-            if let Err(e) = self.model.bind(py).call_method(
-                "apply_command",
-                (CommandWrapper::from_rust(command), time),
-                None,
-            ) {
-                e.display(py);
-                panic!("Error while calling 'apply_command' method of PythonPhysics.");
-            }
-        });
+        call_py_method_void!(
+            self.model,
+            "apply_command",
+            CommandWrapper::from_rust(command),
+            time
+        );
     }
 
     fn update_state(&mut self, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of update_state");
         }
-        // let robot_record = robot.record();
-        Python::attach(|py| {
-            if let Err(e) = self
-                .model
-                .bind(py)
-                .call_method("update_state", (time,), None)
-            {
-                e.display(py);
-                panic!("Error while calling 'update_state' method of PythonPhysics.");
-            }
-        });
+        call_py_method_void!(self.model, "update_state", (time,));
     }
 
     fn state(&mut self, time: f32) -> State {
@@ -159,17 +143,7 @@ impl PythonPhysics {
             debug!("Calling python implementation of state");
         }
         // let robot_record = robot.record();
-        let state = Python::attach(|py| -> StateWrapper {
-            match self.model.bind(py).call_method("state", (time,), None) {
-                Err(e) => {
-                    e.display(py);
-                    panic!("Error while calling 'state' method of PythonPhysics.");
-                }
-                Ok(s) => s.extract().expect(
-                    "The 'state' method of PythonPhysics does not return a correct state vector",
-                ),
-            }
-        });
+        let state = call_py_method!(self.model, "state", StateWrapper, (time,));
         state.to_rust()
     }
 
@@ -177,27 +151,42 @@ impl PythonPhysics {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::attach(|py| {
-            match self.model
-                .bind(py)
-                .call_method("record", (), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'record' method of PythonPhysics.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("The 'record' method of PythonPhysics does not return a valid EstimatorRecord type")
-                    }
-                }
-        });
+        let record_str: String = call_py_method!(self.model, "record", String,);
         let record = ExternalPhysicsRecord {
-            record: Value::from_str(record_str.as_str()).expect(
+            record: Value::from_str(&record_str).expect(
                 "Impossible to get serde_json::Value from the input serialized python structure",
             ),
         };
         // record.clone()
         // StateEstimatorRecord::External(PythonPhysics::record(&self))
         PhysicsRecord::External(record)
+    }
+}
+
+#[pyclass(subclass)]
+#[pyo3(name = "Physics")]
+pub struct PhysicsWrapper {}
+
+#[pymethods]
+impl PhysicsWrapper {
+    #[new]
+    pub fn new(_config: Py<PyAny>, _initial_time: f32) -> PhysicsWrapper {
+        Self {}
+    }
+
+    fn apply_command(&mut self, _command: CommandWrapper, _time: f32) {
+        unimplemented!()
+    }
+
+    fn update_state(&mut self, _time: f32) {
+        unimplemented!()
+    }
+
+    fn state(&mut self, _time: f32) -> StateWrapper {
+        unimplemented!()
+    }
+
+    fn record(&self) -> Py<PyDict> {
+        unimplemented!()
     }
 }

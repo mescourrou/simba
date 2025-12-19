@@ -28,7 +28,7 @@ There are two main ways to communicate between nodes.
 use pyo3::pyclass;
 use serde::{Deserialize, Serialize};
 
-use crate::navigators::go_to::GoToMessage;
+use crate::{navigators::go_to::GoToMessage, sensors::sensor_manager::SensorTriggerMessage};
 
 pub mod message_handler;
 pub mod network;
@@ -50,14 +50,15 @@ pub enum NetworkError {
 pub enum MessageTypes {
     String(String),
     GoTo(GoToMessage),
+    SensorTrigger(SensorTriggerMessage),
 }
 
 // Network message exchange test
 #[cfg(test)]
 mod tests {
     use std::sync::{
-        mpsc::{self, Receiver, Sender},
         Arc, Mutex,
+        mpsc::{self, Receiver, Sender},
     };
 
     use log::debug;
@@ -71,19 +72,19 @@ mod tests {
             message_handler::MessageHandler,
             network::{Envelope, NetworkConfig},
         },
-        node::{node_factory::RobotConfig, Node},
+        node::{Node, node_factory::RobotConfig},
         plugin_api::PluginAPI,
         recordable::Recordable,
         sensors::{
+            Observation, SensorConfig,
             robot_sensor::RobotSensorConfig,
             sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
-            Observation, SensorConfig,
         },
         simulator::{Simulator, SimulatorConfig},
         state_estimators::{
-            external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
             BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
             WorldState,
+            external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
         },
         utils::{
             determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
@@ -184,6 +185,7 @@ mod tests {
             config: &serde_json::Value,
             _global_config: &SimulatorConfig,
             _va_factory: &Arc<DeterministRandomVariableFactory>,
+            initial_time: f32,
         ) -> Box<dyn StateEstimator> {
             let (tx, rx) = if config.as_bool().unwrap() {
                 let (tx, rx) = mpsc::channel();
@@ -192,7 +194,7 @@ mod tests {
                 (None, None)
             };
             Box::new(StateEstimatorTest {
-                last_time: 0.,
+                last_time: initial_time,
                 message: self.message.clone(),
                 last_from: self.last_from.clone(),
                 last_message: self.last_message.clone(),
@@ -219,7 +221,7 @@ mod tests {
         let mut config = SimulatorConfig::default();
         config.log.log_level = LogLevel::Off;
         // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
-        config.max_time = RobotSensorConfig::default().period * 1.1;
+        config.max_time = RobotSensorConfig::default().period.unwrap() * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             state_estimator_bench: vec![BenchStateEstimatorConfig {
@@ -253,7 +255,7 @@ mod tests {
         };
 
         let plugin_api = Arc::new(plugin_api);
-        let mut simulator = Simulator::from_config(&config, &Some(plugin_api.clone())).unwrap();
+        let mut simulator = Simulator::from_config(&config, Some(plugin_api.clone())).unwrap();
 
         simulator.run().unwrap();
 
@@ -284,7 +286,7 @@ mod tests {
         let mut config = SimulatorConfig::default();
         config.log.log_level = LogLevel::Off;
         // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
-        config.max_time = RobotSensorConfig::default().period * 1.1;
+        config.max_time = RobotSensorConfig::default().period.unwrap() * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             sensor_manager: SensorManagerConfig {
@@ -292,6 +294,7 @@ mod tests {
                     name: "RobotSensor".to_string(),
                     send_to: Vec::new(),
                     config: SensorConfig::RobotSensor(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other node poses.
+                    ..Default::default()
                 }],
             },
             ..Default::default()
@@ -303,12 +306,13 @@ mod tests {
                     name: "RobotSensor".to_string(),
                     send_to: Vec::new(),
                     config: SensorConfig::RobotSensor(RobotSensorConfig::default()),
+                    ..Default::default()
                 }],
             },
             ..Default::default()
         });
 
-        let mut simulator = Simulator::from_config(&config, &None).unwrap();
+        let mut simulator = Simulator::from_config(&config, None).unwrap();
 
         simulator.run().unwrap();
     }

@@ -13,22 +13,22 @@ type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
-use std::sync::mpsc::Sender;
 use std::sync::Arc;
+use std::sync::mpsc::Sender;
 
-use config_checker::macros::Check;
 use log::debug;
 use pyo3::{pyclass, pymethods};
-use serde_json::Value;
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{utils::json_config, UIComponent};
+use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
+use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -36,6 +36,7 @@ use crate::{
 use super::{Controller, ControllerError, ControllerRecord};
 use serde_derive::{Deserialize, Serialize};
 
+external_config!(
 /// Config for the external controller (generic).
 ///
 /// The config for [`ExternalController`] uses a [`serde_json::Value`] to
@@ -47,57 +48,12 @@ use serde_derive::{Deserialize, Serialize};
 ///     External:
 ///         parameter_of_my_own_controller: true
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-pub struct ExternalControllerConfig {
-    /// Config serialized.
-    #[serde(flatten)]
-    pub config: Value,
-}
+    ExternalControllerConfig,
+    "External Controller",
+    "external-controller"
+);
 
-impl Default for ExternalControllerConfig {
-    fn default() -> Self {
-        Self {
-            config: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalControllerConfig {
-    fn show_mut(
-        &mut self,
-        ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        unique_id: &str,
-    ) {
-        egui::CollapsingHeader::new("External Controller").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                json_config(
-                    ui,
-                    &format!("external-controller-key-{}", &unique_id),
-                    &format!("external-controller-error-key-{}", &unique_id),
-                    buffer_stack,
-                    &mut self.config,
-                );
-            });
-        });
-    }
-
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        egui::CollapsingHeader::new("External Controller").show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.label("Config (JSON):");
-                ui.label(self.config.to_string());
-            });
-        });
-    }
-}
-
+external_record_python_methods!(
 /// Record for the external controller (generic).
 ///
 /// Like [`ExternalControllerConfig`], [`ExternalController`] uses a [`serde_json::Value`]
@@ -105,36 +61,8 @@ impl UIComponent for ExternalControllerConfig {
 ///
 /// The record is not automatically cast to your own type, the cast should be done
 /// in [`Stateful::record`] implementations.
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[pyclass]
-pub struct ExternalControllerRecord {
-    /// Record serialized.
-    #[serde(flatten)]
-    pub record: Value,
-}
-
-impl Default for ExternalControllerRecord {
-    fn default() -> Self {
-        Self {
-            record: Value::Null,
-        }
-    }
-}
-
-#[cfg(feature = "gui")]
-impl UIComponent for ExternalControllerRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(self.record.to_string());
-    }
-}
-
-#[pymethods]
-impl ExternalControllerRecord {
-    #[getter]
-    fn record(&self) -> String {
-        self.record.to_string()
-    }
-}
+    ExternalControllerRecord,
+);
 
 use crate::node::Node;
 
@@ -152,6 +80,7 @@ impl ExternalController {
             &None,
             &SimulatorConfig::default(),
             &Arc::new(DeterministRandomVariableFactory::default()),
+            0.0,
         )
     }
 
@@ -169,6 +98,7 @@ impl ExternalController {
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Self {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
@@ -177,7 +107,7 @@ impl ExternalController {
             controller: plugin_api
                 .as_ref()
                 .expect("Plugin API not set!")
-                .get_controller(&config.config, global_config, va_factory),
+                .get_controller(&config.config, global_config, va_factory, initial_time),
         }
     }
 }

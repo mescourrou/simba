@@ -1,27 +1,32 @@
-use config_checker::macros::Check;
-use serde::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::{gui::UIComponent, simulator::SimulatorConfig, utils::enum_tools::ToVec};
+use crate::{gui::UIComponent, utils::enum_tools::ToVec};
 use crate::{
     sensors::{
-        sensor_filters::range_filter::{RangeFilter, RangeFilterConfig},
         SensorObservation,
+        sensor_filters::{
+            python_filter::{PythonFilter, PythonFilterConfig},
+            range_filter::{RangeFilter, RangeFilterConfig},
+        },
     },
+    simulator::SimulatorConfig,
     state_estimators::State,
 };
 
+pub mod python_filter;
 pub mod range_filter;
 
-#[derive(Debug, Clone, Serialize, Deserialize, Check, EnumToString, ToVec)]
+#[config_derives]
 pub enum SensorFilterConfig {
     RangeFilter(RangeFilterConfig),
+    PythonFilter(PythonFilterConfig),
 }
 
 pub trait SensorFilter: Send + Sync + std::fmt::Debug {
     fn filter(
         &self,
+        time: f32,
         observation: SensorObservation,
         observer_state: &State,
         observee_state: Option<&State>,
@@ -42,17 +47,23 @@ impl UIComponent for SensorFilterConfig {
         let self_str = self.to_string();
         egui::CollapsingHeader::new(self_str)
             .id_salt(format!("sensor-filter-{}", unique_id))
-            .show(ui, |ui| {
-                match self {
-                    Self::RangeFilter(cfg) => cfg.show_mut(
-                        ui,
-                        ctx,
-                        buffer_stack,
-                        global_config,
-                        current_node_name,
-                        unique_id,
-                    ),
-                };
+            .show(ui, |ui| match self {
+                Self::RangeFilter(cfg) => cfg.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                ),
+                Self::PythonFilter(cfg) => cfg.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                ),
             });
     }
 
@@ -63,6 +74,7 @@ impl UIComponent for SensorFilterConfig {
             .show(ui, |ui| {
                 match self {
                     Self::RangeFilter(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::PythonFilter(cfg) => cfg.show(ui, ctx, unique_id),
                 };
             });
     }
@@ -113,7 +125,7 @@ impl SensorFilterConfig {
                 ui,
                 &SensorFilterConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 buffer_stack.get_mut(&buffer_key).unwrap(),
                 format!("filter-choice-{}", unique_id),
@@ -124,6 +136,9 @@ impl SensorFilterConfig {
                     "RangeFilter" => {
                         filters.push(SensorFilterConfig::RangeFilter(RangeFilterConfig::default()))
                     }
+                    "PythonFilter" => filters.push(SensorFilterConfig::PythonFilter(
+                        PythonFilterConfig::default(),
+                    )),
                     _ => panic!("Where did you find this fault?"),
                 };
             }
@@ -146,10 +161,18 @@ impl SensorFilterConfig {
     }
 }
 
-pub fn make_sensor_filter_from_config(config: &SensorFilterConfig) -> Box<dyn SensorFilter> {
+pub fn make_sensor_filter_from_config(
+    config: &SensorFilterConfig,
+    global_config: &SimulatorConfig,
+    initial_time: f32,
+) -> Box<dyn SensorFilter> {
     match &config {
         SensorFilterConfig::RangeFilter(cfg) => {
-            Box::new(RangeFilter::from_config(cfg)) as Box<dyn SensorFilter>
+            Box::new(RangeFilter::from_config(cfg, initial_time)) as Box<dyn SensorFilter>
+        }
+        SensorFilterConfig::PythonFilter(cfg) => {
+            Box::new(PythonFilter::from_config(cfg, global_config, initial_time).unwrap())
+                as Box<dyn SensorFilter>
         }
     }
 }

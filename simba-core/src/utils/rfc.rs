@@ -1,4 +1,4 @@
-use std::sync::{mpsc, Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 
 #[derive(Debug, Clone)]
 pub struct RemoteFunctionCall<ParamType, ReturnType> {
@@ -8,19 +8,19 @@ pub struct RemoteFunctionCall<ParamType, ReturnType> {
 
 impl<ParamType, ReturnType> RemoteFunctionCall<ParamType, ReturnType> {
     pub fn call(&self, param: ParamType) -> Option<ReturnType> {
-        self.sender.send(param).unwrap();
-        let result = self.receiver.lock().unwrap().recv().unwrap();
-        Some(result)
+        if self.sender.send(param).is_err() {
+            return None;
+        }
+        self.receiver.lock().unwrap().recv().ok()
     }
 
     pub fn async_call(&self, param: ParamType) {
-        self.sender.send(param).unwrap();
+        let _ = self.sender.send(param);
     }
 
     /// Blocking
     pub fn wait_result(&self) -> Option<ReturnType> {
-        let result = self.receiver.lock().unwrap().recv().unwrap();
-        Some(result)
+        self.receiver.lock().unwrap().recv().ok()
     }
 
     /// Non Blocking
@@ -44,7 +44,7 @@ impl<ParamType, ReturnType> RemoteFunctionCallHost<ParamType, ReturnType> {
                 return;
             }
             let result = exe(param);
-            self.sender.send(result).unwrap();
+            let _ = self.sender.send(result);
         }
     }
 
@@ -54,7 +54,7 @@ impl<ParamType, ReturnType> RemoteFunctionCallHost<ParamType, ReturnType> {
                 return;
             }
             let result = exe(param);
-            self.sender.send(result).unwrap();
+            let _ = self.sender.send(result);
         }
     }
 
@@ -64,7 +64,7 @@ impl<ParamType, ReturnType> RemoteFunctionCallHost<ParamType, ReturnType> {
                 return;
             }
             let result = exe(param);
-            self.sender.send(result).unwrap();
+            let _ = self.sender.send(result);
         }
     }
 
@@ -74,7 +74,7 @@ impl<ParamType, ReturnType> RemoteFunctionCallHost<ParamType, ReturnType> {
                 return;
             }
             let result = exe(param);
-            self.sender.send(result).unwrap();
+            let _ = self.sender.send(result);
         }
     }
 
@@ -84,7 +84,7 @@ impl<ParamType, ReturnType> RemoteFunctionCallHost<ParamType, ReturnType> {
                 return;
             }
             let result = exe(param);
-            self.sender.send(result).unwrap();
+            let _ = self.sender.send(result);
         }
     }
 
@@ -94,7 +94,7 @@ impl<ParamType, ReturnType> RemoteFunctionCallHost<ParamType, ReturnType> {
                 return;
             }
             let result = exe(param);
-            self.sender.send(result).unwrap();
+            let _ = self.sender.send(result);
         }
     }
 }

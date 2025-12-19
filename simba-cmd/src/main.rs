@@ -31,7 +31,7 @@ fn doit(args: Cli) -> SimbaResult<()> {
         println!("Load configuration...");
         let mut simulator = Simulator::from_config_path(
             config_path.unwrap(),
-            &None, //<- plugin API, to load external modules
+            None, //<- plugin API, to load external modules
         )?;
 
         // Show the simulator loaded configuration

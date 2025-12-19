@@ -1,13 +1,11 @@
 use std::path::Path;
 
-use serde::{Deserialize, Serialize};
-#[cfg(feature = "gui")]
-use simba_macros::{EnumToString, ToVec};
+use serde::Serialize;
+use simba_macros::config_derives;
 
 use crate::time_analysis::TimeAnalysisFactory;
 
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "gui", derive(ToVec, EnumToString))]
+#[config_derives]
 pub enum ProfileExporterConfig {
     TraceEventExporter,
 }

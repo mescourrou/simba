@@ -11,23 +11,22 @@ use crate::{
     networking::service::HasService,
     physics::{
         fault_models::fault_model::{
-            make_physics_fault_model_from_config, PhysicsFaultModel, PhysicsFaultModelConfig,
+            PhysicsFaultModel, PhysicsFaultModelConfig, make_physics_fault_model_from_config,
         },
         robot_models::{
-            make_model_from_config, unicycle::UnicycleConfig, Command, RobotModel, RobotModelConfig,
+            Command, RobotModel, RobotModelConfig, make_model_from_config, unicycle::UnicycleConfig,
         },
     },
     recordable::Recordable,
     state_estimators::{State, StateConfig, StateRecord},
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
-use config_checker::macros::Check;
+use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 /// Config for the [`InternalPhysics`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct InternalPhysicConfig {
     #[check]
     pub model: RobotModelConfig,
@@ -146,6 +145,7 @@ pub struct InternalPhysics {
     last_time_update: f32,
     /// Current command applied.
     current_command: Command,
+    cum_lie_action: Matrix3<f32>,
     faults: Arc<Mutex<Vec<Box<dyn PhysicsFaultModel>>>>,
 }
 
@@ -160,21 +160,31 @@ impl InternalPhysics {
         config: &InternalPhysicConfig,
         robot_name: &String,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Self {
         let model = make_model_from_config(&config.model);
         let current_command = model.default_command();
         InternalPhysics {
             model,
-            state: State::from_config(&config.initial_state),
-            last_time_update: 0.,
+            state: State::from_config(&config.initial_state, va_factory),
+            last_time_update: initial_time,
             current_command,
             faults: Arc::new(Mutex::new(
                 config
                     .faults
                     .iter()
-                    .map(|f| make_physics_fault_model_from_config(f, robot_name, va_factory))
+                    .map(|f| {
+                        make_physics_fault_model_from_config(
+                            f,
+                            config.model.clone(),
+                            robot_name,
+                            va_factory,
+                            initial_time,
+                        )
+                    })
                     .collect(),
             )),
+            cum_lie_action: Matrix3::zeros(),
         }
     }
 
@@ -192,8 +202,12 @@ impl InternalPhysics {
             return;
         }
 
-        self.model
-            .update_state(&mut self.state, &self.current_command, dt);
+        self.model.update_state(
+            &mut self.state,
+            &self.current_command,
+            &mut self.cum_lie_action,
+            dt,
+        );
 
         self.last_time_update = time;
 
@@ -221,6 +235,10 @@ impl Physics for InternalPhysics {
     fn state(&self, time: f32) -> State {
         assert!(time == self.last_time_update);
         self.state.clone()
+    }
+
+    fn cummulative_lie_action(&self) -> Option<Matrix3<f32>> {
+        Some(self.cum_lie_action)
     }
 }
 

@@ -82,6 +82,24 @@ impl Map {
                     width: 0.05 * scale,
                 },
             ));
+            if landmark.width > 0.0 {
+                let half_width = landmark.width / 2.0;
+                let dir_vector = Vec2::new(
+                    half_width * (landmark.pose[2] + std::f32::consts::FRAC_PI_2).cos(),
+                    half_width * (landmark.pose[2] + std::f32::consts::FRAC_PI_2).sin(),
+                );
+                let p1 = position + dir_vector * scale;
+                let p2 = position - dir_vector * scale;
+                shapes.push(Shape::line_segment(
+                    [p1, p2],
+                    Stroke {
+                        color: self.color,
+                        width: 0.01 * scale,
+                    },
+                ));
+                shapes.push(Shape::circle_filled(p1, 0.05 * scale, self.color));
+                shapes.push(Shape::circle_filled(p2, 0.05 * scale, self.color));
+            }
         }
         Ok(shapes)
     }

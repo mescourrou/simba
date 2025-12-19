@@ -12,7 +12,7 @@ Simulator::init_environment();
 println!("Load configuration...");
 let mut simulator = Simulator::from_config_path(
     Path::new("config_example/config.yaml"),
-    &None, //<- plugin API, to load external modules
+    None, //<- plugin API, to load external modules
 ).unwrap();
 
 // Show the simulator loaded configuration
@@ -46,29 +46,37 @@ use pyo3::{ffi::c_str, prelude::*};
 use serde_derive::{Deserialize, Serialize};
 
 use crate::{
+    VERSION,
     api::internal_api::NodeClient,
     constants::TIME_ROUND,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
-    logger::{init_log, is_enabled, LoggerConfig},
-    networking::network_manager::NetworkManager,
+    logger::{LoggerConfig, init_log, is_enabled},
+    networking::{network_manager::NetworkManager, service_manager::ServiceManager},
     node::{
-        node_factory::{ComputationUnitConfig, NodeFactory, NodeRecord, RobotConfig},
-        Node,
+        Node, NodeState,
+        node_factory::{
+            ComputationUnitConfig, MakeNodeParams, NodeFactory, NodeRecord, RobotConfig,
+        },
     },
     plugin_api::PluginAPI,
     recordable::Recordable,
+    scenario::{Scenario, config::ScenarioConfig},
     state_estimators::State,
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
     utils::{
-        barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory,
-        maths::round_precision, time_ordered_data::TimeOrderedData,
+        barrier::Barrier,
+        determinist_random_variable::DeterministRandomVariableFactory,
+        maths::round_precision,
+        python::CONVERT_TO_DICT,
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+        time_ordered_data::TimeOrderedData,
     },
-    VERSION,
 };
 use core::f32;
 use std::{
     cmp::Ordering,
     path::{Path, PathBuf},
+    thread::JoinHandle,
 };
 use std::{collections::BTreeMap, ffi::CString};
 
@@ -155,6 +163,24 @@ impl Default for TimeCv {
     }
 }
 
+pub(crate) struct RunningParameters {
+    max_time: f32,
+    nb_nodes: Arc<RwLock<usize>>,
+    finishing_cv: Arc<(Mutex<usize>, Condvar)>,
+    barrier: Arc<Barrier>,
+    handles: Vec<JoinHandle<SimbaResult<Option<Node>>>>,
+    end_time_step_sync_hosts: Vec<RemoteFunctionCallHost<(), ()>>,
+    running_nodes_names: Vec<String>,
+}
+
+struct NodeSyncParams {
+    nb_nodes: Arc<RwLock<usize>>,
+    time_cv: Arc<TimeCv>,
+    common_time: Arc<RwLock<f32>>,
+    barrier: Arc<Barrier>,
+    end_time_step_sync: RemoteFunctionCall<(), ()>,
+}
+
 /// This is the central structure which manages the run of the scenario.
 ///
 /// To run the scenario, there are two mandatory steps:
@@ -180,7 +206,7 @@ impl Default for TimeCv {
 /// info!("Load configuration...");
 /// let mut simulator = Simulator::from_config_path(
 ///     Path::new("config_example/config.yaml"), //<- configuration path
-///     &None,                                      //<- plugin API, to load external modules
+///     None,                                      //<- plugin API, to load external modules
 /// ).unwrap();
 ///
 /// // Show the simulator loaded configuration
@@ -215,6 +241,9 @@ pub struct Simulator {
     records: Vec<Record>,
     time_analysis_factory: TimeAnalysisFactory,
     force_send_results: bool,
+    scenario: Arc<Mutex<Scenario>>,
+    plugin_api: Option<Arc<dyn PluginAPI>>,
+    service_managers: BTreeMap<String, Arc<RwLock<ServiceManager>>>,
 }
 
 impl Simulator {
@@ -222,11 +251,12 @@ impl Simulator {
     pub fn new() -> Simulator {
         let rng = rand::random();
         let time_cv = Arc::new(TimeCv::new());
+        let va_factory = Arc::new(DeterministRandomVariableFactory::new(rng));
         Simulator {
             nodes: Vec::new(),
             config: SimulatorConfig::default(),
             network_manager: NetworkManager::new(time_cv.clone()),
-            determinist_va_factory: Arc::new(DeterministRandomVariableFactory::new(rng)),
+            determinist_va_factory: va_factory.clone(),
             time_cv,
             async_api: None,
             async_api_server: None,
@@ -239,6 +269,12 @@ impl Simulator {
             )
             .unwrap(),
             force_send_results: false,
+            scenario: Arc::new(Mutex::new(Scenario::from_config(
+                &ScenarioConfig::default(),
+                &va_factory,
+            ))),
+            plugin_api: None,
+            service_managers: BTreeMap::new(),
         }
     }
 
@@ -255,7 +291,7 @@ impl Simulator {
     /// Returns a [`Simulator`] ready to be run.
     pub fn from_config_path(
         config_path: &Path,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
+        plugin_api: Option<Arc<dyn PluginAPI>>,
     ) -> SimbaResult<Simulator> {
         let mut sim = Simulator::new();
         sim.load_config_path(config_path, plugin_api)?;
@@ -272,14 +308,14 @@ impl Simulator {
     /// Returns a [`Simulator`] ready to be run.
     pub fn from_config(
         config: &SimulatorConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
+        plugin_api: Option<Arc<dyn PluginAPI>>,
     ) -> SimbaResult<Simulator> {
         let mut simulator = Simulator::new();
         simulator.load_config(config, plugin_api)?;
         Ok(simulator)
     }
 
-    pub fn reset(&mut self, plugin_api: &Option<Arc<dyn PluginAPI>>) -> SimbaResult<()> {
+    pub fn reset(&mut self, plugin_api: Option<Arc<dyn PluginAPI>>) -> SimbaResult<()> {
         info!("Reset node");
         self.nodes = Vec::new();
         self.time_cv = Arc::new(TimeCv::new());
@@ -298,37 +334,46 @@ impl Simulator {
             ..Default::default()
         });
 
-        let mut service_managers = BTreeMap::new();
+        self.plugin_api = plugin_api.clone();
+
+        self.service_managers = BTreeMap::new();
         // Create robots
         for robot_config in &config.robots {
-            self.add_robot(robot_config, plugin_api, &config, self.force_send_results);
+            self.add_robot(robot_config, &config, self.force_send_results, 0.);
             let node = self.nodes.last().unwrap();
-            service_managers.insert(node.name(), node.service_manager());
+            self.service_managers
+                .insert(node.name(), node.service_manager());
         }
         // Create computation units
         for computation_unit_config in &config.computation_units {
             self.add_computation_unit(
                 computation_unit_config,
-                plugin_api,
                 &config,
                 self.force_send_results,
+                0.,
             );
             let node = self.nodes.last().unwrap();
-            service_managers.insert(node.name(), node.service_manager());
+            self.service_managers
+                .insert(node.name(), node.service_manager());
         }
 
         for node in self.nodes.iter_mut() {
             info!("Finishing initialization of {}", node.name());
             self.node_apis
-                .insert(node.name(), node.post_creation_init(&service_managers));
+                .insert(node.name(), node.post_creation_init(&self.service_managers));
         }
+
+        self.scenario = Arc::new(Mutex::new(Scenario::from_config(
+            &config.scenario,
+            &self.determinist_va_factory,
+        )));
         Ok(())
     }
 
     pub(crate) fn load_config_path(
         &mut self,
         config_path: &Path,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
+        plugin_api: Option<Arc<dyn PluginAPI>>,
     ) -> SimbaResult<()> {
         self.load_config_path_full(config_path, plugin_api, false)
     }
@@ -336,7 +381,7 @@ impl Simulator {
     pub(crate) fn load_config_path_full(
         &mut self,
         config_path: &Path,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
+        plugin_api: Option<Arc<dyn PluginAPI>>,
         force_send_results: bool,
     ) -> SimbaResult<()> {
         println!("Load configuration from {:?}", config_path);
@@ -347,7 +392,7 @@ impl Simulator {
     pub fn load_config(
         &mut self,
         config: &SimulatorConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
+        plugin_api: Option<Arc<dyn PluginAPI>>,
     ) -> SimbaResult<()> {
         self.load_config_full(config, plugin_api, false)
     }
@@ -355,7 +400,7 @@ impl Simulator {
     pub(crate) fn load_config_full(
         &mut self,
         config: &SimulatorConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
+        plugin_api: Option<Arc<dyn PluginAPI>>,
         force_send_results: bool,
     ) -> SimbaResult<()> {
         println!("Checking configuration...");
@@ -472,6 +517,9 @@ impl Simulator {
             .format_module_path(false)
             .format_target(false)
             .filter_level(log_config.log_level.clone().into())
+            .filter_module("tracing::span", log::LevelFilter::Off)
+            .filter_module("winit", log::LevelFilter::Off)
+            .filter_module("eframe", log::LevelFilter::Off)
             .try_init()
             .is_err()
         {
@@ -494,19 +542,26 @@ impl Simulator {
     fn add_robot(
         &mut self,
         robot_config: &RobotConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         force_send_results: bool,
+        initial_time: f32,
     ) {
         let mut new_node = NodeFactory::make_robot(
             robot_config,
-            plugin_api,
-            global_config,
-            &self.determinist_va_factory,
-            &mut self.time_analysis_factory,
-            self.time_cv.clone(),
-            force_send_results,
+            &mut MakeNodeParams {
+                plugin_api: &self.plugin_api,
+                global_config,
+                va_factory: &self.determinist_va_factory,
+                time_analysis_factory: &mut self.time_analysis_factory,
+                time_cv: self.time_cv.clone(),
+                force_send_results,
+                new_name: None,
+                initial_time,
+            },
         );
+        if new_node.state() != NodeState::Running {
+            return;
+        }
         self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
     }
@@ -514,19 +569,26 @@ impl Simulator {
     fn add_computation_unit(
         &mut self,
         computation_unit_config: &ComputationUnitConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         force_send_results: bool,
+        initial_time: f32,
     ) {
         let mut new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
-            plugin_api,
-            global_config,
-            &self.determinist_va_factory,
-            &mut self.time_analysis_factory,
-            self.time_cv.clone(),
-            force_send_results,
+            &mut MakeNodeParams {
+                plugin_api: &self.plugin_api,
+                global_config,
+                va_factory: &self.determinist_va_factory,
+                time_analysis_factory: &mut self.time_analysis_factory,
+                time_cv: self.time_cv.clone(),
+                force_send_results,
+                new_name: None,
+                initial_time,
+            },
         );
+        if new_node.state() != NodeState::Running {
+            return;
+        }
         self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
     }
@@ -552,11 +614,15 @@ impl Simulator {
     /// After the scenario is done, the results are saved, and they are analysed, following
     /// the configuration give ([`SimulatorConfig`]).
     pub fn run(&mut self) -> SimbaResult<()> {
-        let mut handles = vec![];
-        let max_time = self.config.max_time;
-        let nb_nodes = Arc::new(RwLock::new(self.nodes.len()));
-        let barrier = Arc::new(Barrier::new(self.nodes.len()));
-        let finishing_cv = Arc::new((Mutex::new(0usize), Condvar::new()));
+        let mut running_parameters = RunningParameters {
+            max_time: self.config.max_time,
+            nb_nodes: Arc::new(RwLock::new(0)),
+            finishing_cv: Arc::new((Mutex::new(0usize), Condvar::new())),
+            barrier: Arc::new(Barrier::new(1)),
+            handles: vec![],
+            end_time_step_sync_hosts: Vec::new(),
+            running_nodes_names: Vec::new(),
+        };
 
         if let Some(data) = &self.result_saving_data {
             match data.save_mode {
@@ -565,44 +631,19 @@ impl Simulator {
             }
         }
         while let Some(node) = self.nodes.pop() {
-            let time_cv = self.time_cv.clone();
-            let async_api_server = self.async_api_server.clone();
-            let common_time_clone = self.common_time.clone();
-            let finishing_cv_clone = finishing_cv.clone();
-            let barrier_clone = barrier.clone();
-            let nb_nodes = nb_nodes.clone();
-            let handle = thread::spawn(move || -> SimbaResult<Option<Node>> {
-                let ret = Self::run_one_node(
-                    node,
-                    max_time,
-                    nb_nodes,
-                    time_cv.clone(),
-                    async_api_server,
-                    common_time_clone,
-                    barrier_clone,
-                );
-                match &ret {
-                    Err(_) => *time_cv.force_finish.lock().unwrap() = true,
-                    Ok(Some(_)) => {
-                        // Increase finishing nodes only if the node is still existing
-                        // as in case of zombie, the total number of node has been decreased.
-                        *finishing_cv_clone.0.lock().unwrap() += 1;
-                        finishing_cv_clone.1.notify_all();
-                    }
-                    _ => {}
-                };
-
-                ret
-            });
-            handles.push(handle);
+            self.spawn_node(node, &mut running_parameters)?;
         }
 
         let mut error = None;
-        if let Err(e) = self.simulator_spin(finishing_cv, nb_nodes) {
+        running_parameters.barrier.wait();
+        running_parameters.barrier.remove_one();
+        if let Err(e) = self.simulator_spin(&mut running_parameters) {
+            log::error!("Error in simulator spin: {}", e.detailed_error());
             error = Some(e);
+            *self.time_cv.force_finish.lock().unwrap() = true;
         }
 
-        for handle in handles {
+        for handle in running_parameters.handles.drain(0..) {
             match handle.join().unwrap() {
                 Err(e) => error = Some(e),
                 Ok(node) => {
@@ -621,6 +662,105 @@ impl Simulator {
         }
 
         self.process_records(None)
+    }
+
+    #[cfg(not(feature = "force_hard_determinism"))]
+    pub(crate) fn spawn_node_from_name(
+        &mut self,
+        node_name: &str,
+        new_node_name: &str,
+        running_parameters: &mut RunningParameters,
+        time: f32,
+    ) -> SimbaResult<()> {
+        let mut node = NodeFactory::make_node_from_name(
+            node_name,
+            &mut MakeNodeParams {
+                plugin_api: &self.plugin_api,
+                global_config: &self.config,
+                va_factory: &self.determinist_va_factory,
+                time_analysis_factory: &mut self.time_analysis_factory,
+                time_cv: self.time_cv.clone(),
+                force_send_results: self.force_send_results,
+                new_name: Some(new_node_name),
+                initial_time: time,
+            },
+        )
+        .ok_or(SimbaError::new(
+            SimbaErrorTypes::ImplementationError,
+            format!(
+                "Impossible to spawn node `{}`: not found in configuration",
+                node_name
+            ),
+        ))?;
+        node.set_state(NodeState::Running);
+        self.network_manager.register_node_network(&mut node);
+        self.service_managers
+            .insert(node.name(), node.service_manager());
+        self.node_apis
+            .insert(node.name(), node.post_creation_init(&self.service_managers));
+        self.spawn_node(node, running_parameters)
+    }
+
+    pub(crate) fn spawn_node(
+        &mut self,
+        node: Node,
+        running_parameters: &mut RunningParameters,
+    ) -> SimbaResult<()> {
+        if running_parameters
+            .running_nodes_names
+            .contains(&node.name())
+        {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ImplementationError,
+                format!(
+                    "Node with name '{}' is already running, cannot spawn another node with the same name",
+                    node.name()
+                ),
+            ));
+        }
+
+        let max_time = running_parameters.max_time;
+        let time_cv = self.time_cv.clone();
+        let async_api_server = self.async_api_server.clone();
+        let common_time_clone = self.common_time.clone();
+        let finishing_cv_clone = running_parameters.finishing_cv.clone();
+        let barrier_clone = running_parameters.barrier.clone();
+        barrier_clone.add_one();
+        let nb_nodes = running_parameters.nb_nodes.clone();
+        *nb_nodes.write().unwrap() += 1;
+        let (end_time_step_sync_tx, end_time_step_sync_rx) = rfc::make_pair();
+        running_parameters
+            .end_time_step_sync_hosts
+            .push(end_time_step_sync_rx);
+        running_parameters.running_nodes_names.push(node.name());
+        let handle = thread::spawn(move || -> SimbaResult<Option<Node>> {
+            let ret = Self::run_one_node(
+                node,
+                max_time,
+                async_api_server,
+                NodeSyncParams {
+                    nb_nodes,
+                    time_cv: time_cv.clone(),
+                    common_time: common_time_clone,
+                    barrier: barrier_clone,
+                    end_time_step_sync: end_time_step_sync_tx,
+                },
+            );
+            match &ret {
+                Err(_) => *time_cv.force_finish.lock().unwrap() = true,
+                Ok(Some(_)) => {
+                    // Increase finishing nodes only if the node is still existing
+                    // as in case of zombie, the total number of node has been decreased.
+                    *finishing_cv_clone.0.lock().unwrap() += 1;
+                    finishing_cv_clone.1.notify_all();
+                }
+                _ => {}
+            };
+
+            ret
+        });
+        running_parameters.handles.push(handle);
+        Ok(())
     }
 
     /// Returns the list of all [`Record`]s produced by [`Simulator::run`].
@@ -836,20 +976,28 @@ impl Simulator {
     fn run_one_node(
         mut node: Node,
         max_time: f32,
-        nb_nodes: Arc<RwLock<usize>>,
-        time_cv: Arc<TimeCv>,
         async_api_server: Option<SimulatorAsyncApiServer>,
-        common_time: Arc<RwLock<f32>>,
-        barrier: Arc<Barrier>,
+        node_sync_params: NodeSyncParams,
     ) -> SimbaResult<Option<Node>> {
+        if node.state() != NodeState::Running {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::ImplementationError,
+                format!(
+                    "Node {} not in Running state at start of run_one_node",
+                    node.name()
+                ),
+            ));
+        }
         info!("Start thread of node {}", node.name());
         let mut thread_ids = THREAD_IDS.write().unwrap();
         thread_ids.push(thread::current().id());
         THREAD_NAMES.write().unwrap().push(node.name());
         drop(thread_ids);
         let mut next_time = -1.;
+        node_sync_params.barrier.wait();
+        node_sync_params.barrier.wait();
         loop {
-            if *time_cv.force_finish.lock().unwrap() {
+            if *node_sync_params.time_cv.force_finish.lock().unwrap() {
                 break;
             }
             next_time = node.next_time_step(next_time)?;
@@ -861,7 +1009,7 @@ impl Simulator {
                 if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                     debug!("Get common time (next_time is {next_time})");
                 }
-                let mut unlocked_common_time = common_time.write().unwrap();
+                let mut unlocked_common_time = node_sync_params.common_time.write().unwrap();
                 if *unlocked_common_time > next_time {
                     *unlocked_common_time = next_time;
                     if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
@@ -869,15 +1017,15 @@ impl Simulator {
                     }
                 }
             }
-            barrier.wait();
+            node_sync_params.barrier.wait();
 
-            next_time = *common_time.read().unwrap();
+            next_time = *node_sync_params.common_time.read().unwrap();
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Barrier... final next_time is {next_time}");
             }
-            barrier.wait();
-            *common_time.write().unwrap() = f32::INFINITY;
-            barrier.wait();
+            node_sync_params.barrier.wait();
+            *node_sync_params.common_time.write().unwrap() = f32::INFINITY;
+            node_sync_params.barrier.wait();
             if let Some(async_api_server) = &async_api_server {
                 async_api_server.update_time(next_time);
             }
@@ -886,69 +1034,107 @@ impl Simulator {
                 break;
             }
 
-            let nb_nodes_unlocked = *nb_nodes.read().unwrap();
-            node.run_next_time_step(next_time, &time_cv, nb_nodes_unlocked)?;
-            node.sync_with_others(&time_cv, nb_nodes_unlocked, next_time);
-            if node.send_records() {
-                if let Some(async_api_server) = &async_api_server {
-                    async_api_server.send_record(&Record {
-                        time: next_time,
-                        node: node.record(),
-                    });
-                }
+            let nb_nodes_unlocked = *node_sync_params.nb_nodes.read().unwrap();
+            node.run_next_time_step(next_time, &node_sync_params.time_cv, nb_nodes_unlocked)?;
+            node.sync_with_others(&node_sync_params.time_cv, nb_nodes_unlocked, next_time);
+            if node.send_records()
+                && let Some(async_api_server) = &async_api_server
+            {
+                async_api_server.send_record(&Record {
+                    time: next_time,
+                    node: node.record(),
+                });
             }
-            if node.zombie() {
-                // Only place where nb_node should change.
-                if is_enabled(crate::logger::InternalLog::NodeRunning) {
-                    debug!("Killing node {}", node.name());
-                }
+            node_sync_params.end_time_step_sync.call(());
+            node_sync_params.barrier.wait();
+            if node.process_messages() > 0 {
+                node.handle_messages(next_time);
+            }
+            if node.state() == NodeState::Zombie {
+                info!("Killing node {}", node.name());
                 if node.process_messages() > 0 {
                     node.handle_messages(next_time);
                 }
-                *nb_nodes.write().unwrap() -= 1;
-                time_cv.condvar.notify_all();
-                node.kill();
-                barrier.remove_one();
+                *node_sync_params.nb_nodes.write().unwrap() -= 1;
+                node_sync_params.time_cv.condvar.notify_all();
+                node.kill(next_time);
+                node_sync_params.barrier.remove_one();
                 return Ok(None);
             }
 
-            barrier.wait();
+            node_sync_params.barrier.wait();
         }
 
         Ok(Some(node))
     }
 
-    fn simulator_spin(
-        &mut self,
-        finishing_cv: Arc<(Mutex<usize>, Condvar)>,
-        nb_nodes: Arc<RwLock<usize>>,
-    ) -> SimbaResult<()> {
+    fn simulator_spin(&mut self, running_parameters: &mut RunningParameters) -> SimbaResult<()> {
         // self.nodes is empty
-        let mut node_states: BTreeMap<String, TimeOrderedData<State>> = BTreeMap::new();
+        let mut node_states: BTreeMap<String, TimeOrderedData<(State, NodeState)>> =
+            BTreeMap::new();
         for (k, _) in self.node_apis.iter() {
-            node_states.insert(k.clone(), TimeOrderedData::<State>::new());
+            node_states.insert(k.clone(), TimeOrderedData::<(State, NodeState)>::new());
         }
-        let mut previous_time = *self.common_time.read().unwrap();
+        let mut waiting_nodes = 0;
         loop {
             for (node_name, node_api) in self.node_apis.iter() {
-                if let Some(state_update) = &node_api.state_update {
-                    if let Ok((time, state)) = state_update.try_recv() {
-                        node_states
-                            .get_mut(node_name)
-                            .unwrap_or_else(|| panic!("Unknown node {node_name}"))
-                            .insert(time, state, true);
+                if let Some(state_update) = &node_api.state_update
+                    && let Ok((time, state)) = state_update.try_recv()
+                {
+                    if !node_states.contains_key(node_name) {
+                        node_states.insert(
+                            node_name.clone(),
+                            TimeOrderedData::<(State, NodeState)>::new(),
+                        );
+                    }
+                    if let Some(node_state) = node_states.get_mut(node_name) {
+                        node_state.insert(time, state, true);
                     }
                 }
             }
-            if let Some(async_api) = &self.async_api {
-                let current_time = *async_api.current_time.read().unwrap();
-                if (current_time - previous_time).abs() >= TIME_ROUND {
-                    previous_time = current_time;
-                    self.process_records(Some(current_time))?;
-                }
+            let mut time_end_procedure = false;
+            for end_time_step_sync in running_parameters.end_time_step_sync_hosts.iter() {
+                end_time_step_sync.try_recv_closure_mut(|()| {
+                    waiting_nodes += 1;
+                    if waiting_nodes >= *running_parameters.nb_nodes.read().unwrap() {
+                        running_parameters.barrier.add_one();
+                        time_end_procedure = true;
+                        waiting_nodes = 0;
+                    }
+                });
             }
+
+            if time_end_procedure {
+                let current_time = *TIME.read().unwrap();
+                if let Err(e) = self.process_records(Some(current_time)) {
+                    log::error!(
+                        "Error in processing records at time {}: {}",
+                        current_time,
+                        e.detailed_error()
+                    );
+                    return Err(e);
+                }
+                let scenario = self.scenario.clone();
+                scenario
+                    .lock()
+                    .unwrap()
+                    .execute_scenario(current_time, self, &node_states, running_parameters)
+                    .unwrap();
+                if let Err(e) = self.network_manager.process_messages(&node_states) {
+                    log::error!(
+                        "Error in processing network messages at time {}: {}",
+                        current_time,
+                        e.detailed_error()
+                    );
+                    return Err(e);
+                }
+                running_parameters.barrier.remove_one();
+            }
+
             self.network_manager.process_messages(&node_states)?;
-            if *finishing_cv.0.lock().unwrap() >= *nb_nodes.read().unwrap() {
+            if *running_parameters.finishing_cv.0.lock().unwrap()
+                >= *running_parameters.nb_nodes.read().unwrap()
+            {
                 return Ok(());
             }
         }
@@ -992,24 +1178,6 @@ def show():
     plt.show()
 "#;
 
-        let convert_to_dict = cr#"
-import json
-class NoneDict(dict):
-    """ dict subclass that returns a value of None for missing keys instead
-        of raising a KeyError. Note: doesn't add item to dictionary.
-    """
-    def __missing__(self, key):
-        return None
-
-
-def converter(decoded_dict):
-    """ Convert any None values in decoded dict into empty NoneDict's. """
-    return {k: NoneDict() if v is None else v for k,v in decoded_dict.items()}
-
-def convert(records):
-    return json.loads(records, object_hook=converter)
-"#;
-
         let script_path = self
             .config
             .base_path
@@ -1024,12 +1192,12 @@ def convert(records):
                         script_path.to_str().unwrap(),
                         e
                     ),
-                ))
+                ));
             }
             Ok(s) => CString::new(s).unwrap(),
         };
         let res = Python::attach(|py| -> PyResult<()> {
-            let script = PyModule::from_code(py, convert_to_dict, c_str!(""), c_str!(""))?;
+            let script = PyModule::from_code(py, CONVERT_TO_DICT, c_str!(""), c_str!(""))?;
             let convert_fn: Py<PyAny> = script.getattr("convert")?.into();
             let result_dict = convert_fn.call(py, (json_results,), None)?;
             let config_dict = convert_fn.call(py, (json_config,), None)?;
@@ -1084,205 +1252,15 @@ def convert(records):
         }
         Arc::new(self.async_api_server.as_mut().unwrap().new_client())
     }
+
+    #[cfg(not(feature = "force_hard_determinism"))]
+    pub(crate) fn get_network_manager_mut(&mut self) -> &mut NetworkManager {
+        &mut self.network_manager
+    }
 }
 
 impl Default for Simulator {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use core::f32;
-    use std::{path::Path, sync::mpsc::Sender};
-
-    use serde_json::Value;
-
-    use crate::{
-        constants::TIME_ROUND,
-        logger::LogLevel,
-        networking::{
-            message_handler::MessageHandler,
-            network::{Envelope, MessageFlag},
-        },
-        sensors::Observation,
-        state_estimators::{
-            external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
-            perfect_estimator::PerfectEstimatorConfig,
-            BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
-            WorldState,
-        },
-    };
-
-    use super::*;
-
-    #[test]
-    fn replication_test() {
-        let nb_replications = 10;
-
-        let mut results: Vec<Vec<Record>> = Vec::new();
-
-        for i in 0..nb_replications {
-            print!("Run {}/{nb_replications} ... ", i + 1);
-            let mut simulator =
-                Simulator::from_config_path(Path::new("test_config/config.yaml"), &None).unwrap();
-
-            simulator.run().unwrap();
-
-            results.push(simulator.get_records(true));
-            println!("OK");
-        }
-
-        let reference_result = &results[0];
-        assert!(!reference_result.is_empty());
-        for result in results.iter().skip(1) {
-            assert_eq!(result.len(), reference_result.len());
-            for (j, ref_result) in reference_result.iter().enumerate() {
-                let result_as_str = format!("{:?}", result[j]);
-                let reference_result_as_str = format!("{:?}", ref_result);
-                assert_eq!(
-                    result_as_str, reference_result_as_str,
-                    "{result_as_str} != {reference_result_as_str}"
-                );
-            }
-        }
-    }
-
-    #[derive(Debug)]
-    struct StateEstimatorTest {
-        pub last_time: f32,
-        pub kill_time: f32,
-    }
-
-    impl StateEstimator for StateEstimatorTest {
-        fn correction_step(
-            &mut self,
-            _node: &mut crate::node::Node,
-            _observations: &[Observation],
-            _time: f32,
-        ) {
-        }
-
-        fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-            if time >= self.kill_time {
-                node.network()
-                    .as_ref()
-                    .unwrap()
-                    .write()
-                    .unwrap()
-                    .send_to(
-                        "node2".to_string(),
-                        Value::Null,
-                        time,
-                        vec![MessageFlag::Kill],
-                    )
-                    .unwrap();
-                self.kill_time = f32::INFINITY;
-            }
-        }
-
-        fn prediction_step(&mut self, _node: &mut crate::node::Node, time: f32) {
-            self.last_time = time;
-        }
-
-        fn next_time_step(&self) -> f32 {
-            round_precision(self.last_time + 0.1, TIME_ROUND).unwrap()
-        }
-        fn world_state(&self) -> WorldState {
-            WorldState::new()
-        }
-    }
-
-    impl Recordable<StateEstimatorRecord> for StateEstimatorTest {
-        fn record(&self) -> StateEstimatorRecord {
-            StateEstimatorRecord::External(ExternalEstimatorRecord {
-                record: Value::Null,
-            })
-        }
-    }
-
-    impl MessageHandler for StateEstimatorTest {
-        fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-            None
-        }
-    }
-
-    struct PluginAPITest {}
-
-    impl PluginAPI for PluginAPITest {
-        fn get_state_estimator(
-            &self,
-            config: &serde_json::Value,
-            _global_config: &SimulatorConfig,
-            _va_factory: &Arc<DeterministRandomVariableFactory>,
-        ) -> Box<dyn StateEstimator> {
-            Box::new(StateEstimatorTest {
-                last_time: 0.,
-                kill_time: config.as_number().unwrap().as_f64().unwrap() as f32,
-            }) as Box<dyn StateEstimator>
-        }
-    }
-
-    #[test]
-    fn kill_node() {
-        let kill_time = 5.;
-        let mut config = SimulatorConfig::default();
-        config.log.log_level = LogLevel::Off;
-        // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
-        config.max_time = 10.;
-        config.results = Some(ResultConfig::default());
-        config.robots.push(RobotConfig {
-            name: "node1".to_string(),
-            state_estimator: StateEstimatorConfig::Perfect(PerfectEstimatorConfig {
-                targets: vec!["self".to_string(), "node2".to_string(), "node3".to_string()],
-                ..Default::default()
-            }),
-            state_estimator_bench: vec![BenchStateEstimatorConfig {
-                name: "own".to_string(),
-                config: StateEstimatorConfig::External(ExternalEstimatorConfig {
-                    config: serde_json::to_value(kill_time).unwrap(),
-                }),
-            }],
-            ..Default::default()
-        });
-        config.robots.push(RobotConfig {
-            name: "node2".to_string(),
-            state_estimator: StateEstimatorConfig::Perfect(PerfectEstimatorConfig {
-                targets: vec!["self".to_string(), "node1".to_string(), "node3".to_string()],
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-        config.robots.push(RobotConfig {
-            name: "node3".to_string(),
-            state_estimator: StateEstimatorConfig::Perfect(PerfectEstimatorConfig {
-                targets: vec!["self".to_string(), "node1".to_string(), "node2".to_string()],
-                ..Default::default()
-            }),
-            ..Default::default()
-        });
-
-        let plugin_api = PluginAPITest {};
-
-        let mut simulator = Simulator::from_config(&config, &Some(Arc::new(plugin_api))).unwrap();
-
-        simulator.run().unwrap();
-
-        let records = simulator.get_records(false);
-        let mut last_node2_time: f32 = 0.;
-        for record in records {
-            let t = record.time;
-            if let NodeRecord::Robot(r) = record.node {
-                if r.name.as_str() == "node2" {
-                    last_node2_time = last_node2_time.max(t);
-                }
-            }
-        }
-        assert!(
-            kill_time == last_node2_time,
-            "Node not killed at right time (last time is {})",
-            last_node2_time
-        );
     }
 }

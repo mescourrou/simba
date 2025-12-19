@@ -2,9 +2,8 @@
 //!
 //! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
 
-use config_checker::macros::Check;
 use log::debug;
-use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
@@ -23,9 +22,7 @@ use crate::{
 
 use super::fault_model::FaultModel;
 
-#[derive(Debug, Serialize, Deserialize, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct MisdetectionFaultConfig {
     #[check(eq(self.apparition.probability.len(), 1))]
     pub apparition: BernouilliRandomVariableConfig,
@@ -36,7 +33,6 @@ impl Default for MisdetectionFaultConfig {
         Self {
             apparition: BernouilliRandomVariableConfig {
                 probability: vec![0.1],
-                ..Default::default()
             },
         }
     }
@@ -87,6 +83,7 @@ impl MisdetectionFault {
     pub fn from_config(
         config: &MisdetectionFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
+        _initial_time: f32,
     ) -> Self {
         Self {
             apparition: DeterministBernouilliRandomVariable::from_config(
@@ -109,7 +106,7 @@ impl FaultModel for MisdetectionFault {
         let mut seed = time;
         for i in (0..obs_list.len()).rev() {
             seed += obs_seed_increment;
-            if self.apparition.gen(seed)[0] > 0. {
+            if self.apparition.generate(seed)[0] > 0. {
                 if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
                     debug!("Remove observation {i}");
                 }

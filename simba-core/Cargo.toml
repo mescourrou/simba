@@ -10,8 +10,10 @@ crate-type = ["cdylib", "rlib"]  # cdylib for Python, rlib for Rust deps and tes
 doctest = false
 
 [features]
+default = ["gui"]
 gui = ["egui", "eframe"] # Enable GUI features
-
+schema = ["schemars"]  # Enable schemars for schema generation
+force_hard_determinism = []  # Disable features that may introduce non-determinism
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -22,6 +24,7 @@ serde = { version = "^1.0", features = ["derive"] }
 serde_path_to_error = "0.1"
 libm = "^0.2.15"
 serde_json = { version = "1.0.145", features = ["float_roundtrip"] }
+serde_yaml = "0.9.34"
 lazy_static = "1.5.0"
 colored = "^3.0.0"
 
@@ -40,7 +43,7 @@ rand = "0.8.5"
 rand_chacha = "0.3.1"
 statrs = "0.17.1"
 
-config-checker = { git = "https://github.com/mescourrou/rust_config_checker", rev = "fdfcd15"}
+config-checker = { git = "https://github.com/mescourrou/rust_config_checker", rev = "53a575a"}
 
 simba-macros ={ path = "../simba-macros" , version = "*"}
 
@@ -49,7 +52,8 @@ csv ={ version = "^1.3.1"}
 pyo3 ={ version = "^0.27", features = ["auto-initialize"]}
 libc ={ version = "*" }
 rsdoc = "0.3.0"
-serde_yaml = "0.9.34"
+
+schemars = { version = "1.1.0", optional = true }
 
 [dependencies.confy]
 version = "^1.0"

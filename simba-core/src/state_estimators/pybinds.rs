@@ -1,14 +1,13 @@
 use std::{
     str::FromStr,
     sync::{
-        mpsc::{self, Receiver, Sender},
         Arc, Mutex,
+        mpsc::{self, Receiver, Sender},
     },
 };
 
 use log::debug;
-use pyo3::prelude::*;
-use serde_json::Value;
+use pyo3::{prelude::*, types::PyDict};
 
 use crate::{
     constants::TIME_ROUND,
@@ -20,6 +19,7 @@ use crate::{
     sensors::Observation,
     utils::{
         maths::round_precision,
+        python::{call_py_method, call_py_method_void},
         rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
@@ -110,8 +110,8 @@ impl MessageHandler for PythonStateEstimatorAsyncClient {
 }
 
 #[derive(Debug)]
-#[pyclass(subclass)]
-#[pyo3(name = "StateEstimator")]
+// #[pyclass(subclass)]
+// #[pyo3(name = "StateEstimator")]
 pub struct PythonStateEstimator {
     model: Py<PyAny>,
     client: PythonStateEstimatorAsyncClient,
@@ -142,9 +142,9 @@ pub struct PythonStateEstimatorPreLoopHookRequest {
     pub time: f32,
 }
 
-#[pymethods]
+// #[pymethods]
 impl PythonStateEstimator {
-    #[new]
+    // #[new]
     pub fn new(py_model: Py<PyAny>) -> PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             Python::attach(|py| {
@@ -211,17 +211,7 @@ impl PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
-        // let node_record = node.record();
-        Python::attach(|py| {
-            if let Err(e) = self
-                .model
-                .bind(py)
-                .call_method("prediction_step", (node, time), None)
-            {
-                e.display(py);
-                panic!("Error while calling 'prediction_step' method of PythonStateEstimator.");
-            }
-        });
+        call_py_method_void!(self.model, "prediction_step", node, time);
     }
 
     fn correction_step(&mut self, node: NodeWrapper, observations: &Vec<Observation>, time: f32) {
@@ -232,36 +222,14 @@ impl PythonStateEstimator {
         for obs in observations {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
-        Python::attach(|py| {
-            if let Err(e) = self.model.bind(py).call_method(
-                "correction_step",
-                (node, observation_py, time),
-                None,
-            ) {
-                e.display(py);
-                panic!("Error while calling 'correction_step' method of PythonStateEstimator.");
-            }
-        });
+        call_py_method_void!(self.model, "correction_step", node, observation_py, time);
     }
 
     fn world_state(&self) -> WorldState {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of state");
         }
-        let state = Python::attach(|py| -> WorldStateWrapper {
-            match self.model
-                .bind(py)
-                .call_method("state", (), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'state' method of PythonStateEstimator.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("The 'state' method of PythonStateEstimator does not return a correct state vector")
-                    }
-                }
-        });
+        let state = call_py_method!(self.model, "state", WorldStateWrapper,);
         state.to_rust()
     }
 
@@ -270,20 +238,7 @@ impl PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of next_time_step");
         }
-        let time = Python::attach(|py| {
-            match self.model
-                .bind(py)
-                .call_method("next_time_step", (), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'next_time_step' method of PythonStateEstimator.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("The 'next_time_step' method of PythonStateEstimator does not return a correct time for next step")
-                    }
-                }
-        });
+        let time = call_py_method!(self.model, "next_time_step", f32,);
         round_precision(time, TIME_ROUND).unwrap()
     }
 
@@ -291,22 +246,9 @@ impl PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of record");
         }
-        let record_str: String = Python::attach(|py| {
-            match self.model
-                .bind(py)
-                .call_method("record", (), None) {
-                    Err(e) => {
-                        e.display(py);
-                        panic!("Error while calling 'record' method of PythonStateEstimator.");
-                    }
-                    Ok(r) => {
-                        r.extract()
-                        .expect("The 'record' method of PythonStateEstimator does not return a valid EstimatorRecord type")
-                    }
-                }
-        });
+        let record_str: String = call_py_method!(self.model, "record", String,);
         let record = ExternalEstimatorRecord {
-            record: Value::from_str(record_str.as_str()).expect(
+            record: serde_json::Value::from_str(record_str.as_str()).expect(
                 "Impossible to get serde_json::Value from the input serialized python structure",
             ),
         };
@@ -319,15 +261,52 @@ impl PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        Python::attach(|py: Python<'_>| {
-            if let Err(e) = self
-                .model
-                .bind(py)
-                .call_method("pre_loop_hook", (node, time), None)
-            {
-                e.display(py);
-                panic!("Error while calling 'pre_loop_hook' method of PythonEstimator.");
-            }
-        });
+        call_py_method_void!(self.model, "pre_loop_hook", node, time);
+    }
+}
+
+#[pyclass(subclass)]
+#[pyo3(name = "StateEstimator")]
+pub struct StateEstimatorWrapper {
+    #[pyo3(get, set)]
+    pub name: String,
+}
+
+#[pymethods]
+impl StateEstimatorWrapper {
+    #[new]
+    pub fn new(_config: Py<PyAny>, _initial_time: f32) -> StateEstimatorWrapper {
+        StateEstimatorWrapper {
+            name: String::from("anonyme"),
+        }
+    }
+
+    fn prediction_step(&mut self, _node: NodeWrapper, _time: f32) {
+        unimplemented!()
+    }
+
+    fn correction_step(
+        &mut self,
+        _node: NodeWrapper,
+        _observations: Vec<ObservationWrapper>,
+        _time: f32,
+    ) {
+        unimplemented!()
+    }
+
+    fn world_state(&self) -> WorldStateWrapper {
+        unimplemented!()
+    }
+
+    fn next_time_step(&self) -> f32 {
+        unimplemented!()
+    }
+
+    fn record(&self) -> Py<PyDict> {
+        unimplemented!()
+    }
+
+    fn pre_loop_hook(&mut self, _node: NodeWrapper, _time: f32) {
+        unimplemented!()
     }
 }

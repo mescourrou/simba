@@ -9,7 +9,7 @@ use serde_json::Value;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
 use crate::networking::NetworkError;
-use crate::node::Node;
+use crate::node::{Node, NodeState};
 use crate::simulator::TimeCv;
 use crate::state_estimators::State;
 use crate::utils::time_ordered_data::TimeOrderedData;
@@ -17,8 +17,8 @@ use crate::utils::time_ordered_data::TimeOrderedData;
 use super::network::MessageFlag;
 use std::collections::BTreeMap;
 
-use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, Sender};
 
 #[derive(Debug, Clone)]
 pub enum MessageSendMethod {
@@ -44,6 +44,7 @@ pub struct NetworkManager {
     nodes_senders: BTreeMap<String, Sender<NetworkMessage>>,
     nodes_receivers: BTreeMap<String, Receiver<NetworkMessage>>,
     time_cv: Arc<TimeCv>,
+    simulator_messages: Vec<NetworkMessage>,
 }
 
 impl NetworkManager {
@@ -52,6 +53,7 @@ impl NetworkManager {
             nodes_senders: BTreeMap::new(),
             nodes_receivers: BTreeMap::new(),
             time_cv,
+            simulator_messages: Vec::new(),
         }
     }
 
@@ -79,7 +81,7 @@ impl NetworkManager {
 
     /// Compute the distance between two nodes at the given time, using their real pose.
     fn distance_between(
-        position_history: &BTreeMap<String, TimeOrderedData<State>>,
+        position_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
         node1: &String,
         node2: &String,
         time: f32,
@@ -96,6 +98,7 @@ impl NetworkManager {
                 format!("No state data for node {node1} at time {time}"),
             ))?
             .1
+            .0
             .pose;
         let node2_pos = position_history
             .get(node2)
@@ -109,6 +112,7 @@ impl NetworkManager {
                 format!("No state data for node {node2} at time {time}"),
             ))?
             .1
+            .0
             .pose;
 
         let distance = (node1_pos.rows(0, 2) - node2_pos.rows(0, 2)).norm();
@@ -117,95 +121,141 @@ impl NetworkManager {
 
     pub fn process_messages(
         &mut self,
-        position_history: &BTreeMap<String, TimeOrderedData<State>>,
+        position_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
     ) -> SimbaResult<()> {
-        let mut message_sent = false;
-
         let time_cv = self.time_cv.clone();
         let _lk = time_cv.waiting.lock().unwrap();
 
         // Keep the lock for all the processing, otherwise nodes can think that all messages are treated between the decrease and the increase of the counter
         let mut circulating_messages = time_cv.circulating_messages.lock().unwrap();
         let mut nodes_to_remove = Vec::new();
+        let mut message_sent = false;
+        let mut messages = Vec::new();
         for (node_name, receiver) in self.nodes_receivers.iter() {
             if let Ok(msg) = receiver.try_recv() {
                 *circulating_messages -= 1;
-                match &msg.to {
-                    MessageSendMethod::Recipient(r) => {
-                        if msg.range == 0.
-                            || msg.range
-                                >= NetworkManager::distance_between(
-                                    position_history,
-                                    node_name,
-                                    r,
-                                    msg.time,
-                                )?
-                        {
-                            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                                debug!("Receiving message from `{node_name}` for `{r}`... Sending");
-                            }
-                            match self.nodes_senders.get(r) {
-                                Some(sender) => {
+                messages.push((node_name.clone(), msg));
+            }
+        }
+        for message in self.simulator_messages.drain(0..) {
+            messages.push(("simulator".to_string(), message));
+        }
+
+        for (node_name, msg) in messages {
+            match &msg.to {
+                MessageSendMethod::Recipient(r) => {
+                    if msg.range == 0.
+                        || msg.range
+                            >= NetworkManager::distance_between(
+                                position_history,
+                                &node_name,
+                                r,
+                                msg.time,
+                            )?
+                    {
+                        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                            debug!("Receiving message from `{node_name}` for `{r}`... Sending");
+                        }
+                        let r = r.clone();
+                        match self.nodes_senders.get(&r) {
+                            Some(sender) => match sender.send(msg) {
+                                Ok(_) => {
                                     *circulating_messages += 1;
-                                    sender.send(msg).unwrap();
+                                    message_sent = true;
                                 }
-                                None => {
+                                Err(e) => {
                                     if message_sent {
                                         self.time_cv.condvar.notify_all();
                                         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed)
                                         {
-                                            debug!("Notify CV");
+                                            debug!("Notify CV (network_manager line {})", line!());
                                         }
                                     }
                                     return Err(SimbaError::new(
-                                        SimbaErrorTypes::NetworkError(NetworkError::NodeUnknown),
-                                        format!("Unknown recipient node `{r}`"),
+                                        SimbaErrorTypes::NetworkError(NetworkError::Unknown(
+                                            "SendError".to_string(),
+                                        )),
+                                        format!("Error while sending message to `{r}`: {}", e),
+                                    ));
+                                }
+                            },
+                            None => {
+                                if message_sent {
+                                    self.time_cv.condvar.notify_all();
+                                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                                        debug!("Notify CV (network_manager line {})", line!());
+                                    }
+                                }
+                                return Err(SimbaError::new(
+                                    SimbaErrorTypes::NetworkError(NetworkError::NodeUnknown),
+                                    format!("Unknown recipient node `{r}`"),
+                                ));
+                            }
+                        }
+                    } else if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                        debug!("Receiving message from `{node_name}` for `{r}`... Out of range");
+                    }
+                }
+                MessageSendMethod::Broadcast => {
+                    for (recipient_name, sender) in self.nodes_senders.iter() {
+                        if msg.range == 0.
+                            || msg.range
+                                >= NetworkManager::distance_between(
+                                    position_history,
+                                    &node_name,
+                                    recipient_name,
+                                    msg.time,
+                                )?
+                        {
+                            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                                debug!(
+                                    "Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`"
+                                );
+                            }
+                            match sender.send(msg.clone()) {
+                                Ok(_) => {
+                                    *circulating_messages += 1;
+                                    message_sent = true;
+                                }
+                                Err(e) => {
+                                    if message_sent {
+                                        self.time_cv.condvar.notify_all();
+                                        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed)
+                                        {
+                                            debug!("Notify CV (network_manager line {})", line!());
+                                        }
+                                    }
+                                    return Err(SimbaError::new(
+                                        SimbaErrorTypes::NetworkError(NetworkError::Unknown(
+                                            "SendError".to_string(),
+                                        )),
+                                        format!(
+                                            "Error while sending message to `{recipient_name}`: {}",
+                                            e
+                                        ),
                                     ));
                                 }
                             }
-                            message_sent = true;
-                        } else if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                            debug!(
-                                "Receiving message from `{node_name}` for `{r}`... Out of range"
-                            );
                         }
                     }
-                    MessageSendMethod::Broadcast => {
-                        for (recipient_name, sender) in self.nodes_senders.iter() {
-                            if msg.range == 0.
-                                || msg.range
-                                    >= NetworkManager::distance_between(
-                                        position_history,
-                                        node_name,
-                                        recipient_name,
-                                        msg.time,
-                                    )?
-                            {
-                                if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                                    debug!("Receiving message from `{node_name}` for broadcast... Sending to `{recipient_name}`");
-                                }
-                                *circulating_messages += 1;
-                                sender.send(msg.clone()).unwrap();
-                                message_sent = true;
-                            }
-                        }
+                }
+                MessageSendMethod::Manager => {
+                    if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+                        debug!("Receiving message from `{node_name}` for Manager");
                     }
-                    MessageSendMethod::Manager => {
-                        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                            debug!("Receiving message from `{node_name}` for Manager");
-                        }
-                        for flag in msg.message_flags {
-                            if let MessageFlag::Unsubscribe = flag {
-                                nodes_to_remove.push(node_name.clone());
-                            }
+                    for flag in msg.message_flags {
+                        if let MessageFlag::Unsubscribe = flag {
+                            nodes_to_remove.push(node_name.clone());
                         }
                     }
                 }
             }
         }
-        self.time_cv.condvar.notify_all();
-        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-            debug!("Notify CV");
+        if message_sent {
+            self.time_cv.condvar.notify_all();
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Notify CV (network_manager line {})", line!());
+            }
         }
         for node_name in nodes_to_remove {
             self.unsubscribe_node(&node_name);
@@ -219,5 +269,33 @@ impl NetworkManager {
         }
         self.nodes_receivers.remove(node_name).unwrap();
         self.nodes_senders.remove(node_name).unwrap();
+    }
+
+    #[cfg(not(feature = "force_hard_determinism"))]
+    pub(crate) fn send_message(
+        &mut self,
+        message: Value,
+        send_method: MessageSendMethod,
+        time: f32,
+        flags: Vec<MessageFlag>,
+    ) -> SimbaResult<()> {
+        let message = NetworkMessage {
+            value: message,
+            from: "simulator".to_string(),
+            to: send_method,
+            time,
+            range: 0.,
+            message_flags: flags,
+        };
+        if let MessageSendMethod::Recipient(to) = &message.to
+            && !self.nodes_senders.contains_key(to)
+        {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::NetworkError(NetworkError::NodeUnknown),
+                format!("Unknown recipient node `{to}`"),
+            ));
+        }
+        self.simulator_messages.push(message);
+        Ok(())
     }
 }

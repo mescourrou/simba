@@ -1,47 +1,38 @@
 #[cfg(feature = "gui")]
 use egui::{CollapsingHeader, DragValue};
+use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use std::collections::BTreeMap;
 
-use config_checker::macros::Check;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-#[cfg(feature = "gui")]
-use simba_macros::EnumToString;
 
 #[cfg(feature = "gui")]
 use crate::{
     constants::TIME_ROUND,
     gui::{
-        utils::{json_config, path_finder, string_combobox},
         UIComponent,
+        utils::{json_config, path_finder, string_combobox},
     },
+    utils::enum_tools::ToVec,
 };
 
 use crate::simulator::{Record, SimulatorConfig};
 
-use crate::utils::enum_tools::ToVec;
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-#[cfg_attr(feature = "gui", derive(EnumToString))]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum ResultSaveMode {
-    #[default]
     AtTheEnd,
     Continuous,
     Batch(usize),
     Periodic(f32),
 }
 
-impl ToVec<&'static str> for ResultSaveMode {
-    fn to_vec() -> Vec<&'static str> {
-        vec!["AtTheEnd", "Continuous", "Batch", "Periodic"]
+impl Default for ResultSaveMode {
+    fn default() -> Self {
+        Self::AtTheEnd
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct ResultConfig {
     /// Filename to save the results, in JSON format. The directory of this
     /// file is used to save the figures if results are computed.
@@ -54,7 +45,7 @@ pub struct ResultConfig {
     /// If the option is none, the script is not run
     pub analyse_script: Option<String>,
     pub figures_path: Option<String>,
-    pub python_params: Value,
+    pub python_params: serde_json::Value,
     pub save_mode: ResultSaveMode,
 }
 
@@ -66,7 +57,7 @@ impl Default for ResultConfig {
             show_figures: false,
             analyse_script: None,
             figures_path: None,
-            python_params: Value::Null,
+            python_params: serde_json::Value::default(),
             save_mode: ResultSaveMode::default(),
         }
     }
@@ -105,7 +96,7 @@ impl UIComponent for ResultConfig {
                     ui,
                     &ResultSaveMode::to_vec()
                         .iter()
-                        .map(|x| String::from(*x))
+                        .map(|x: &&str| String::from(*x))
                         .collect(),
                     &mut current_str,
                     format!("result-save-mode-choice-{}", unique_id),

@@ -8,5 +8,8 @@ The structure of the configuration file is explained below. The config of the fi
 - `random_seed`: Optional seed to have a deterministic behavior. If no seed is given, a random one is chosen.
 - [`robots`](10_robots.md): List of robots.
 - [`computation_units`](11_computation_units.md): List of computation units.
+- [`scenario`](12_scenario.md): Events configuration.
 
 **Note**: The GUI version of SiMBA embed a UI tool to make the configuration. Click on the "Configurator" button at the top of the window.
+You can also use the autocompletion in VSCode. Add `# yaml-language-server: $schema=path/to/your/config.schema.json` at the top of your
+config file. The schema file can be found in the release or in the repository.

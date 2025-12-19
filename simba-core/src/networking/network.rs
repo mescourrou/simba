@@ -9,11 +9,11 @@ use std::fmt;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
-use config_checker::macros::Check;
 use log::debug;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
+use simba_macros::config_derives;
 
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
@@ -27,9 +27,7 @@ use crate::{constants::TIME_ROUND, gui::UIComponent};
 use super::network_manager::{MessageSendMethod, NetworkMessage};
 
 /// Configuration for the [`Network`].
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct NetworkConfig {
     /// Limit range communication, 0 for no limit.
     #[check(ge(0.))]
@@ -154,6 +152,7 @@ impl Network {
             &SimulatorConfig::default(),
             &DeterministRandomVariableFactory::default(),
             time_cv,
+            0.0,
         )
     }
 
@@ -164,6 +163,7 @@ impl Network {
         _global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
         time_cv: Arc<TimeCv>,
+        _initial_time: f32,
     ) -> Network {
         Network {
             from,

@@ -4,16 +4,17 @@ members = [
     "simba-cmd",
     "simba-macros",
     "simba-core",
+    "simba-tools",
     "examples/stacked_plugins",
     "examples/plugin",
 ]
-default-members = ["simba-core", "simba-cmd", "simba-macros"]  # Skip root for tests
+default-members = ["simba-core", "simba-cmd", "simba-macros", "simba-tools"]  # Skip root for tests
 
 resolver = "2"
 
 [workspace.package]
-version = "1.3.0"
-edition = "2021"
+version = "1.4.0"
+edition = "2024"
 authors = ["Maxime Escourrou <maxime.escourrou@laas.fr>"]
 license = "GPLv3"
 

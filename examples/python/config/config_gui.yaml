@@ -1,29 +1,37 @@
+# yaml-language-server: $schema=../../../config.schema.json
 log:
-  log_level: !Internal ["All"]
+  log_level: 
+    type: Internal
+    value:
+      - type: All
 results:
   result_path: "../result.json"
   show_figures: false # Disabled for automatic testing
   analyse_script: "../../../python_scripts/analyse_results.py"
   figures_path: "../figures"
 time_analysis:
-  exporter: TraceEventExporter
+  exporter: 
+    type: TraceEventExporter
   output_path: "time_performance"
   keep_last: true
 max_time: 60.
 
 robots:
   - name: "robot1"
-    navigator: !TrajectoryFollower
+    navigator: 
+      type: TrajectoryFollower
       trajectory_path: "paths/path1.yaml"
       target_speed: 0.5
       forward_distance: 0.2
-    controller: !External
-      config:
-        speed: 5
+    controller: 
+      type: External
+      speed: 5
   - name: "robot2"
-    navigator: !TrajectoryFollower
+    navigator: 
+      type: TrajectoryFollower
       trajectory_path: "paths/path1.yaml"
       target_speed: 0.5
       forward_distance: 0.2
-    controller: !PID
+    controller: 
+      type: PID
       proportional_gains: [1.0, 6.0]

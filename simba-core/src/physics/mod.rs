@@ -21,13 +21,12 @@ pub mod fault_models;
 extern crate confy;
 use std::sync::{Arc, RwLock};
 
-use config_checker::macros::Check;
+use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::config_derives;
 
 /// Enumeration of the different physic implementations.
-#[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum PhysicsConfig {
     Internal(internal_physics::InternalPhysicConfig),
     External(external_physics::ExternalPhysicsConfig),
@@ -52,7 +51,7 @@ impl UIComponent for PhysicsConfig {
                 ui,
                 &PhysicsConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 &mut current_str,
                 format!("physics-choice-{}", unique_id),
@@ -157,7 +156,7 @@ impl UIComponent for PhysicsRecord {
 
 #[cfg(feature = "gui")]
 use crate::{
-    gui::{utils::string_combobox, UIComponent},
+    gui::{UIComponent, utils::string_combobox},
     utils::enum_tools::ToVec,
 };
 use crate::{
@@ -198,6 +197,10 @@ pub trait Physics:
 
     /// Get the current real state, the groundtruth.
     fn state(&self, time: f32) -> State;
+
+    fn cummulative_lie_action(&self) -> Option<Matrix3<f32>> {
+        None
+    }
 }
 
 /// Helper function to create a physics from the given configuration.
@@ -214,19 +217,24 @@ pub fn make_physics_from_config(
     global_config: &SimulatorConfig,
     robot_name: &String,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    initial_time: f32,
 ) -> Arc<RwLock<Box<dyn Physics>>> {
     Arc::new(RwLock::new(match &config {
         PhysicsConfig::Internal(c) => Box::new(internal_physics::InternalPhysics::from_config(
-            c, robot_name, va_factory,
+            c,
+            robot_name,
+            va_factory,
+            initial_time,
         )) as Box<dyn Physics>,
         PhysicsConfig::External(c) => Box::new(external_physics::ExternalPhysics::from_config(
             c,
             plugin_api,
             global_config,
             va_factory,
+            initial_time,
         )),
-        PhysicsConfig::Python(c) => {
-            Box::new(python_physics::PythonPhysics::from_config(c, global_config).unwrap())
-        }
+        PhysicsConfig::Python(c) => Box::new(
+            python_physics::PythonPhysics::from_config(c, global_config, initial_time).unwrap(),
+        ),
     }))
 }

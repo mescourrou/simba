@@ -142,6 +142,11 @@ impl Barrier {
             self.cvar.notify_all();
         }
     }
+
+    pub fn add_one(&self) {
+        let _lk = self.lock.lock().unwrap();
+        *self.num_threads.lock().unwrap() += 1;
+    }
 }
 
 impl fmt::Debug for BarrierWaitResult {

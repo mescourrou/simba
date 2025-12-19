@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use std::{
     collections::BTreeMap,
-    sync::{mpsc::Receiver, Arc, Mutex},
+    sync::{Arc, Mutex, mpsc::Receiver},
 };
 
 use log::debug;
@@ -16,30 +16,31 @@ use std::path::Path;
 use crate::api::async_api::PluginAsyncAPI;
 
 use crate::{
-    controllers::{pybinds::PythonController, ControllerError},
-    navigators::pybinds::PythonNavigator,
+    controllers::{ControllerError, pybinds::ControllerWrapper},
+    navigators::pybinds::NavigatorWrapper,
     networking::{
-        network::{Envelope, MessageFlag},
         MessageTypes,
+        network::{Envelope, MessageFlag},
     },
     node::Node,
     physics::{
-        pybinds::PythonPhysics,
-        robot_models::{honolomic::HolonomicCommand, unicycle::UnicycleCommand, Command},
+        pybinds::PhysicsWrapper,
+        robot_models::{Command, holonomic::HolonomicCommand, unicycle::UnicycleCommand},
     },
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
-        gnss_sensor::GNSSObservation, odometry_sensor::OdometryObservation,
+        Observation, SensorObservation, gnss_sensor::GNSSObservation,
+        odometry_sensor::OdometryObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
-        robot_sensor::OrientedRobotObservation, Observation, SensorObservation,
+        robot_sensor::OrientedRobotObservation,
     },
     simulator::{AsyncSimulator, Simulator},
-    state_estimators::{pybinds::PythonStateEstimator, State, WorldState},
+    state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
     utils::occupancy_grid::OccupancyGrid,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "ControllerError")]
 pub struct ControllerErrorWrapper {
@@ -93,21 +94,29 @@ impl Default for ControllerErrorWrapper {
 
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Pose")]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Pose {
     pub x: f32,
     pub y: f32,
     pub theta: f32,
 }
 
-#[derive(Clone)]
+#[pyclass(get_all, set_all)]
+#[pyo3(name = "Vec2")]
+#[derive(Clone, Debug)]
+pub struct Vec2 {
+    pub x: f32,
+    pub y: f32,
+}
+
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "State")]
 pub struct StateWrapper {
     /// Position and orientation of the robot
     pub pose: Pose,
     /// Linear velocity.
-    pub velocity: f32,
+    pub velocity: Vec2,
 }
 
 #[pymethods]
@@ -120,7 +129,7 @@ impl StateWrapper {
                 y: 0.,
                 theta: 0.,
             },
-            velocity: 0.,
+            velocity: Vec2 { x: 0., y: 0. },
         }
     }
 }
@@ -133,13 +142,16 @@ impl StateWrapper {
                 y: s.pose[1],
                 theta: s.pose[2],
             },
-            velocity: s.velocity,
+            velocity: Vec2 {
+                x: s.velocity[0],
+                y: s.velocity[1],
+            },
         }
     }
     pub fn to_rust(&self) -> State {
         State {
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
-            velocity: self.velocity,
+            velocity: SVector::from_vec(vec![self.velocity.x, self.velocity.y]),
         }
     }
 }
@@ -150,7 +162,7 @@ impl Default for StateWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "WorldState")]
 pub struct WorldStateWrapper {
@@ -220,7 +232,7 @@ impl Default for WorldStateWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass]
 #[pyo3(name = "OccupancyGrid")]
 pub struct OccupancyGridWrapper {
@@ -284,7 +296,7 @@ impl OccupancyGridWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OrientedLandmarkObservation")]
 pub struct OrientedLandmarkObservationWrapper {
@@ -294,6 +306,10 @@ pub struct OrientedLandmarkObservationWrapper {
     pub pose: Pose,
     /// Applied fault in JSON format
     pub applied_faults: String,
+    /// Width of the landmark
+    pub width: f32,
+    /// Height of the landmark
+    pub height: f32,
 }
 
 #[pymethods]
@@ -307,6 +323,8 @@ impl OrientedLandmarkObservationWrapper {
                 y: 0.,
                 theta: 0.,
             },
+            width: 0.,
+            height: 1.,
             applied_faults: "[]".to_string(),
         }
     }
@@ -322,6 +340,8 @@ impl OrientedLandmarkObservationWrapper {
                 theta: s.pose[2],
             },
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
+            width: s.width,
+            height: s.height,
         }
     }
     pub fn to_rust(&self) -> OrientedLandmarkObservation {
@@ -329,6 +349,8 @@ impl OrientedLandmarkObservationWrapper {
             id: self.id,
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
+            width: self.width,
+            height: self.height,
         }
     }
 }
@@ -339,11 +361,12 @@ impl Default for OrientedLandmarkObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OdometryObservation")]
 pub struct OdometryObservationWrapper {
     pub linear_velocity: f32,
+    pub lateral_velocity: f32,
     pub angular_velocity: f32,
     /// Applied faults in JSON format
     pub applied_faults: String,
@@ -355,6 +378,7 @@ impl OdometryObservationWrapper {
     pub fn new() -> Self {
         Self {
             linear_velocity: 0.,
+            lateral_velocity: 0.,
             angular_velocity: 0.,
             applied_faults: "[]".to_string(),
         }
@@ -365,6 +389,7 @@ impl OdometryObservationWrapper {
     pub fn from_rust(s: &OdometryObservation) -> Self {
         Self {
             linear_velocity: s.linear_velocity,
+            lateral_velocity: s.lateral_velocity,
             angular_velocity: s.angular_velocity,
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
@@ -372,6 +397,7 @@ impl OdometryObservationWrapper {
     pub fn to_rust(&self) -> OdometryObservation {
         OdometryObservation {
             linear_velocity: self.linear_velocity,
+            lateral_velocity: self.lateral_velocity,
             angular_velocity: self.angular_velocity,
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
@@ -384,12 +410,12 @@ impl Default for OdometryObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all)]
 #[pyo3(name = "GNSSObservation")]
 pub struct GNSSObservationWrapper {
-    pub position: [f32; 2],
-    pub velocity: [f32; 2],
+    pub position: Vec2,
+    pub velocity: Vec2,
     /// Applied faults in JSON format
     pub applied_faults: String,
 }
@@ -399,8 +425,8 @@ impl GNSSObservationWrapper {
     #[new]
     pub fn new() -> Self {
         Self {
-            position: [0., 0.],
-            velocity: [0., 0.],
+            position: Vec2 { x: 0., y: 0. },
+            velocity: Vec2 { x: 0., y: 0. },
             applied_faults: "[]".to_string(),
         }
     }
@@ -409,15 +435,21 @@ impl GNSSObservationWrapper {
 impl GNSSObservationWrapper {
     pub fn from_rust(s: &GNSSObservation) -> Self {
         Self {
-            position: s.position.into(),
-            velocity: s.velocity.into(),
+            position: Vec2 {
+                x: s.position[0],
+                y: s.position[1],
+            },
+            velocity: Vec2 {
+                x: s.velocity[0],
+                y: s.velocity[1],
+            },
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
     pub fn to_rust(&self) -> GNSSObservation {
         GNSSObservation {
-            position: Vector2::from(self.position),
-            velocity: Vector2::from(self.velocity),
+            position: Vector2::from_vec(vec![self.position.x, self.position.y]),
+            velocity: Vector2::from_vec(vec![self.velocity.x, self.velocity.y]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
     }
@@ -429,7 +461,7 @@ impl Default for GNSSObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OrientedRobotObservation")]
 pub struct OrientedRobotObservationWrapper {
@@ -484,7 +516,7 @@ impl Default for OrientedRobotObservationWrapper {
     }
 }
 
-#[derive(Clone, EnumToString)]
+#[derive(Clone, EnumToString, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "SensorObservation")]
 pub enum SensorObservationWrapper {
@@ -562,6 +594,9 @@ impl SensorObservationWrapper {
             SensorObservation::OrientedRobot(o) => SensorObservationWrapper::OrientedRobot(
                 OrientedRobotObservationWrapper::from_rust(o),
             ),
+            _ => {
+                panic!("ExternalObservation cannot be converted to SensorObservationWrapper yet");
+            }
         }
     }
     pub fn to_rust(&self) -> SensorObservation {
@@ -584,7 +619,7 @@ impl Default for SensorObservationWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Observation")]
 pub struct ObservationWrapper {
@@ -632,12 +667,12 @@ impl Default for ObservationWrapper {
     }
 }
 
-#[derive(Clone, EnumToString)]
+#[derive(Clone, EnumToString, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Command")]
 pub enum CommandWrapper {
     Unicycle(UnicycleCommandWrapper),
-    Honolomic(HonolomicCommandWrapper),
+    Holonomic(HolonomicCommandWrapper),
 }
 
 #[pymethods]
@@ -657,12 +692,12 @@ impl CommandWrapper {
         }
     }
 
-    pub fn as_honolomic_command(&self) -> PyResult<HonolomicCommandWrapper> {
-        if let Self::Honolomic(o) = self {
+    pub fn as_holonomic_command(&self) -> PyResult<HolonomicCommandWrapper> {
+        if let Self::Holonomic(o) = self {
             Ok(o.clone())
         } else {
             Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                "Impossible to convert this command to a HonolomicCommand",
+                "Impossible to convert this command to a HolonomicCommand",
             ))
         }
     }
@@ -678,8 +713,8 @@ impl CommandWrapper {
     }
 
     #[staticmethod]
-    pub fn from_honolomic_command(cmd: HonolomicCommandWrapper) -> CommandWrapper {
-        Self::Honolomic(cmd)
+    pub fn from_holonomic_command(cmd: HolonomicCommandWrapper) -> CommandWrapper {
+        Self::Holonomic(cmd)
     }
 }
 
@@ -695,8 +730,8 @@ impl CommandWrapper {
             Command::Unicycle(cmd) => {
                 CommandWrapper::Unicycle(UnicycleCommandWrapper::from_rust(cmd))
             }
-            Command::Honolomic(cmd) => {
-                CommandWrapper::Honolomic(HonolomicCommandWrapper::from_rust(cmd))
+            Command::Holonomic(cmd) => {
+                CommandWrapper::Holonomic(HolonomicCommandWrapper::from_rust(cmd))
             }
         }
     }
@@ -705,14 +740,14 @@ impl CommandWrapper {
             CommandWrapper::Unicycle(cmd) => {
                 Command::Unicycle(UnicycleCommandWrapper::to_rust(cmd))
             }
-            CommandWrapper::Honolomic(cmd) => {
-                Command::Honolomic(HonolomicCommandWrapper::to_rust(cmd))
+            CommandWrapper::Holonomic(cmd) => {
+                Command::Holonomic(HolonomicCommandWrapper::to_rust(cmd))
             }
         }
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "UnicycleCommand")]
 pub struct UnicycleCommandWrapper {
@@ -754,19 +789,19 @@ impl UnicycleCommandWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
-#[pyo3(name = "HonolomicCommand")]
-pub struct HonolomicCommandWrapper {
+#[pyo3(name = "HolonomicCommand")]
+pub struct HolonomicCommandWrapper {
     pub longitudinal_velocity: f32,
     pub lateral_velocity: f32,
     pub angular_velocity: f32,
 }
 
 #[pymethods]
-impl HonolomicCommandWrapper {
+impl HolonomicCommandWrapper {
     #[new]
-    pub fn new() -> HonolomicCommandWrapper {
+    pub fn new() -> HolonomicCommandWrapper {
         Self {
             longitudinal_velocity: 0.,
             lateral_velocity: 0.,
@@ -775,13 +810,13 @@ impl HonolomicCommandWrapper {
     }
 }
 
-impl Default for HonolomicCommandWrapper {
+impl Default for HolonomicCommandWrapper {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl HonolomicCommandWrapper {
+impl HolonomicCommandWrapper {
     pub fn from_rust(s: &HolonomicCommand) -> Self {
         Self {
             longitudinal_velocity: s.longitudinal_velocity,
@@ -798,7 +833,7 @@ impl HonolomicCommandWrapper {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Envelope")]
 pub struct EnvelopeWrapper {
@@ -836,6 +871,7 @@ impl NodeWrapper {
             let msg = match message {
                 MessageTypes::String(s) => serde_json::to_value(s),
                 MessageTypes::GoTo(m) => serde_json::to_value(m),
+                MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
             }
             .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
             if let Err(e) = network.write().unwrap().send_to(to, msg, time, flags) {
@@ -904,7 +940,8 @@ impl PluginAPIWrapper {
         &self,
         _config: Py<PyAny>,
         _global_config: Py<PyAny>,
-    ) -> PythonStateEstimator {
+        _initial_time: f32,
+    ) -> StateEstimatorWrapper {
         panic!("The given PluginAPI does not provide a state estimator");
     }
 
@@ -924,7 +961,8 @@ impl PluginAPIWrapper {
         &self,
         _config: Py<PyAny>,
         _global_config: Py<PyAny>,
-    ) -> PythonController {
+        _initial_time: f32,
+    ) -> ControllerWrapper {
         panic!("The given PluginAPI does not provide a controller");
     }
 
@@ -940,7 +978,12 @@ impl PluginAPIWrapper {
     /// # Return
     ///
     /// Returns the [`Navigator`](crate::navigators::Navigator) to use.
-    pub fn get_navigator(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonNavigator {
+    pub fn get_navigator(
+        &self,
+        _config: Py<PyAny>,
+        _global_config: Py<PyAny>,
+        _initial_time: f32,
+    ) -> NavigatorWrapper {
         panic!("The given PluginAPI does not provide a navigator");
     }
 
@@ -956,7 +999,12 @@ impl PluginAPIWrapper {
     /// # Return
     ///
     /// Returns the [`Physics`](crate::physics::physics::Physics) to use.
-    pub fn get_physics(&self, _config: Py<PyAny>, _global_config: Py<PyAny>) -> PythonPhysics {
+    pub fn get_physics(
+        &self,
+        _config: Py<PyAny>,
+        _global_config: Py<PyAny>,
+        _initial_time: f32,
+    ) -> PhysicsWrapper {
         panic!("The given PluginAPI does not provide physics");
     }
 }
@@ -1035,6 +1083,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 api_client.get_controller.try_recv_closure(|request| {
@@ -1042,6 +1091,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 api_client.get_navigator.try_recv_closure(|request| {
@@ -1049,6 +1099,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 api_client.get_physics.try_recv_closure(|request| {
@@ -1056,6 +1107,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        0.,
                     )
                 });
                 python_api.check_requests();

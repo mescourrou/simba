@@ -1,20 +1,17 @@
 #[cfg(feature = "gui")]
 use std::collections::BTreeMap;
 
-use config_checker::macros::Check;
-use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{
-    utils::{enum_radio, path_finder, string_combobox},
     UIComponent,
+    utils::{enum_radio, path_finder, string_combobox},
 };
 
 use crate::time_analysis::ProfileExporterConfig;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct TimeAnalysisConfig {
     pub exporter: ProfileExporterConfig,
     pub keep_last: bool,

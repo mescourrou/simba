@@ -1,7 +1,7 @@
-use config_checker::macros::Check;
 use libm::atan2f;
-use nalgebra::SMatrix;
+use nalgebra::{Matrix3, SMatrix};
 use serde::{Deserialize, Serialize};
+use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
@@ -34,13 +34,12 @@ impl UIComponent for HolonomicCommand {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Check, Default)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
-pub struct HonolomicConfig {}
+#[config_derives]
+#[derive(Default)]
+pub struct HolonomicConfig {}
 
 #[cfg(feature = "gui")]
-impl UIComponent for HonolomicConfig {
+impl UIComponent for HolonomicConfig {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
@@ -50,32 +49,38 @@ impl UIComponent for HonolomicConfig {
         _current_node_name: Option<&String>,
         unique_id: &str,
     ) {
-        egui::CollapsingHeader::new("Honolomic model")
-            .id_salt(format!("honolomic-model-{}", unique_id))
+        egui::CollapsingHeader::new("Holonomic model")
+            .id_salt(format!("holonomic-model-{}", unique_id))
             .show(ui, |_ui| {});
     }
 
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &str) {
-        egui::CollapsingHeader::new("Honolomic model")
-            .id_salt(format!("honolomic-model-{}", unique_id))
+        egui::CollapsingHeader::new("Holonomic model")
+            .id_salt(format!("holonomic-model-{}", unique_id))
             .show(ui, |_ui| {});
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Honolomic {}
+pub struct Holonomic {}
 
-impl Honolomic {
-    pub fn from_config(_config: &HonolomicConfig) -> Self {
+impl Holonomic {
+    pub fn from_config(_config: &HolonomicConfig) -> Self {
         Self {}
     }
 }
 
-impl RobotModel for Honolomic {
-    fn update_state(&mut self, state: &mut State, command: &Command, dt: f32) {
+impl RobotModel for Holonomic {
+    fn update_state(
+        &mut self,
+        state: &mut State,
+        command: &Command,
+        cum_lie_action: &mut Matrix3<f32>,
+        dt: f32,
+    ) {
         let command = match command {
-            Command::Honolomic(cmd) => cmd,
-            _ => panic!("Honolomic robot model needs a Honolomic command"),
+            Command::Holonomic(cmd) => cmd,
+            _ => panic!("Holonomic robot model needs a Holonomic command"),
         };
         let theta = state.pose.z;
 
@@ -97,7 +102,7 @@ impl RobotModel for Honolomic {
             0.,
             0.,
         );
-
+        *cum_lie_action += lie_action;
         let rot_mat = *nalgebra::Rotation2::new(theta).matrix();
 
         let mut se2_mat = SMatrix::<f32, 3, 3>::new(
@@ -121,12 +126,11 @@ impl RobotModel for Honolomic {
         state.pose.x = se2_mat[(0, 2)];
         state.pose.y = se2_mat[(1, 2)];
 
-        state.velocity =
-            (command.longitudinal_velocity.powi(2) + command.lateral_velocity.powi(2)).sqrt();
+        state.velocity = [command.longitudinal_velocity, command.lateral_velocity].into();
     }
 
     fn default_command(&self) -> Command {
-        Command::Honolomic(HolonomicCommand {
+        Command::Holonomic(HolonomicCommand {
             angular_velocity: 0.,
             lateral_velocity: 0.,
             longitudinal_velocity: 0.,

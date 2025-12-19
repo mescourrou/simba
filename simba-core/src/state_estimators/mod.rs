@@ -34,33 +34,35 @@ pub mod pybinds;
 pub mod python_estimator;
 
 extern crate nalgebra as na;
-use config_checker::macros::Check;
 use na::SVector;
 
 extern crate confy;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::config_derives;
 
 /// Configuration for [`State`] in order to load a state from the configuration.
 ///
 /// The pose should contain 3 elements.
 /// TODO: Make a config validation scheme.
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct StateConfig {
     /// Position and orientation of the robot
+    #[check(le(self.velocity.len(), 3))]
     pub pose: Vec<f32>,
     /// Linear velocity
-    #[check(ge(0.))]
-    pub velocity: f32,
+    #[check(le(self.velocity.len(), 2))]
+    pub velocity: Vec<f32>,
+    pub random: Vec<RandomVariableTypeConfig>,
+    pub variable_order: Vec<String>,
 }
 
 impl Default for StateConfig {
     fn default() -> Self {
         Self {
             pose: vec![0., 0., 0.],
-            velocity: 0.,
+            velocity: vec![0., 0.],
+            random: Vec::new(),
+            variable_order: Vec::new(),
         }
     }
 }
@@ -70,11 +72,11 @@ impl UIComponent for StateConfig {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
-        _ctx: &egui::Context,
-        _buffer_stack: &mut std::collections::BTreeMap<String, String>,
-        _global_config: &SimulatorConfig,
-        _current_node_name: Option<&String>,
-        _unique_id: &str,
+        ctx: &egui::Context,
+        buffer_stack: &mut std::collections::BTreeMap<String, String>,
+        global_config: &SimulatorConfig,
+        current_node_name: Option<&String>,
+        unique_id: &str,
     ) {
         ui.horizontal(|ui| {
             ui.label("x: ");
@@ -89,12 +91,62 @@ impl UIComponent for StateConfig {
             ui.add(egui::DragValue::new(self.pose.get_mut(2).unwrap()).max_decimals(10));
         });
         ui.horizontal(|ui| {
-            ui.label("v: ");
-            ui.add(egui::DragValue::new(&mut self.velocity).max_decimals(10));
+            ui.label("vx: ");
+            ui.add(egui::DragValue::new(self.velocity.get_mut(0).unwrap()).max_decimals(10));
         });
+        ui.horizontal(|ui| {
+            ui.label("vy: ");
+            ui.add(egui::DragValue::new(self.velocity.get_mut(1).unwrap()).max_decimals(10));
+        });
+        egui::CollapsingHeader::new("Random State")
+            .id_salt("state-config-random-variable")
+            .show(ui, |ui| {
+                RandomVariableTypeConfig::show_vector_mut(
+                    &mut self.random,
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+                let possible_variables = [
+                    "x",
+                    "y",
+                    "orientation",
+                    "velocity",
+                    "velocity_x",
+                    "velocity_y",
+                    "vx",
+                    "vy",
+                    "r",
+                    "theta",
+                ]
+                .iter()
+                .map(|x| String::from(*x))
+                .collect();
+                ui.horizontal(|ui| {
+                    ui.label("Variable order:");
+                    for (i, var) in self.variable_order.iter_mut().enumerate() {
+                        let unique_var_id = format!("variable-{i}-{unique_id}");
+                        string_combobox(ui, &possible_variables, var, unique_var_id);
+                    }
+                    if !self.variable_order.is_empty() && ui.button("-").clicked() {
+                        self.variable_order.pop();
+                    }
+                    if ui.button("+").clicked() {
+                        self.variable_order.push(
+                            possible_variables
+                                .get(self.variable_order.len().min(possible_variables.len()))
+                                .unwrap()
+                                .clone(),
+                        );
+                    }
+                });
+            });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.horizontal(|ui| {
             ui.label(format!("x: {}", self.pose.first().unwrap()));
         });
@@ -105,7 +157,17 @@ impl UIComponent for StateConfig {
             ui.label(format!("θ: {}", self.pose.get(2).unwrap()));
         });
         ui.horizontal(|ui| {
-            ui.label(format!("v: {}", self.velocity));
+            ui.label(format!("vx: {}", self.velocity.first().unwrap()));
+        });
+        ui.horizontal(|ui| {
+            ui.label(format!("vy: {}", self.velocity.get(1).unwrap()));
+        });
+        RandomVariableTypeConfig::show_vector(&self.random, ui, ctx, unique_id);
+        ui.horizontal(|ui| {
+            ui.label("Variable order:");
+            for var in self.variable_order.iter() {
+                ui.label(format!("{}, ", var));
+            }
         });
     }
 }
@@ -116,14 +178,14 @@ pub struct StateRecord {
     /// Position and orientation of the robot
     pub pose: [f32; 3],
     /// Linear velocity.
-    pub velocity: f32,
+    pub velocity: [f32; 2],
 }
 
 impl Default for StateRecord {
     fn default() -> Self {
         Self {
             pose: [0., 0., 0.],
-            velocity: 0.,
+            velocity: [0., 0.],
         }
     }
 }
@@ -136,7 +198,10 @@ impl UIComponent for StateRecord {
                 "pose: ({}, {}, {})",
                 self.pose[0], self.pose[1], self.pose[2]
             ));
-            ui.label(format!("velocity: {}", self.velocity));
+            ui.label(format!(
+                "velocity: ({}, {})",
+                self.velocity[0], self.velocity[1]
+            ));
         });
     }
 }
@@ -147,7 +212,7 @@ pub struct State {
     /// Pose of the robot [x, y, orientation]
     pub pose: SVector<f32, 3>,
     /// Linear velocity of the robot (in the longitudinal direction).
-    pub velocity: f32,
+    pub velocity: SVector<f32, 2>,
 }
 
 impl State {
@@ -155,7 +220,7 @@ impl State {
     pub fn new() -> Self {
         Self {
             pose: SVector::<f32, 3>::new(0., 0., 0.),
-            velocity: 0.,
+            velocity: SVector::<f32, 2>::new(0., 0.),
         }
     }
 
@@ -170,20 +235,69 @@ impl State {
         if vec.len() >= 3 {
             state.pose.z = vec[2];
         }
+        if vec.len() >= 4 {
+            state.velocity.x = vec[3];
+        }
+        if vec.len() >= 5 {
+            state.velocity.y = vec[4];
+        }
         state
     }
 
     /// Load a [`State`] from the `config` ([`StateConfig`]).
-    pub fn from_config(config: &StateConfig) -> Self {
+    pub fn from_config(
+        config: &StateConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+    ) -> Self {
         let mut state = Self::new();
-
         for (i, coord) in config.pose.iter().enumerate() {
             if i >= 3 {
                 break;
             }
             state.pose[i] = *coord;
         }
-        state.velocity = config.velocity;
+        for (i, vel) in config.velocity.iter().enumerate() {
+            if i >= 2 {
+                break;
+            }
+            state.velocity[i] = *vel;
+        }
+        let mut i = 0;
+        let mut add_r = 0.;
+        let mut add_theta = 0.;
+        for rv_config in config.random.iter() {
+            let rv = va_factory.make_variable(rv_config.clone());
+            let sampled_value = rv.generate(0.);
+            for sample in sampled_value {
+                assert!(
+                    i < config.variable_order.len(),
+                    "The variable_order length ({}) is smaller than the number of random variables sampled ({}).",
+                    config.variable_order.len(),
+                    i + 1
+                );
+                match config.variable_order[i].as_str() {
+                    "x" => state.pose[0] += sample,
+                    "y" => state.pose[1] += sample,
+                    "orientation" => state.pose[2] += sample,
+                    "velocity" | "velocity_x" | "vx" => state.velocity[0] += sample,
+                    "velocity_y" | "vy" => state.velocity[1] += sample,
+                    "r" => add_r += sample,
+                    "theta" => add_theta += sample,
+                    _ => panic!(
+                        "Unknown variable name in variable_order ({}), should be in [x, y, orientation, velocity | velocity_x | vx, velocity_y | vy, r, theta]",
+                        config.variable_order[i]
+                    ),
+                }
+                i += 1;
+            }
+        }
+
+        if i != 0 && (add_r != 0. || add_theta != 0.) {
+            state.pose.z += add_theta;
+            state.pose.z = mod2pi(state.pose.z);
+            state.pose.x += add_r * state.pose.z.cos();
+            state.pose.y += add_r * state.pose.z.sin();
+        }
         state
     }
 
@@ -205,14 +319,23 @@ impl Recordable<StateRecord> for State {
             pose: {
                 let mut ve = [0., 0., 0.];
                 for (i, coord) in self.pose.iter().enumerate() {
-                    if i > ve.len() {
-                        continue;
+                    if i >= ve.len() {
+                        break;
                     }
                     ve[i] = *coord;
                 }
                 ve
             },
-            velocity: self.velocity,
+            velocity: {
+                let mut ve = [0., 0.];
+                for (i, coord) in self.velocity.iter().enumerate() {
+                    if i >= ve.len() {
+                        break;
+                    }
+                    ve[i] = *coord;
+                }
+                ve
+            },
         }
     }
 }
@@ -224,8 +347,8 @@ impl fmt::Display for State {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             formatter,
-            "pose: [{}, {}, {}], v: {}",
-            self.pose.x, self.pose.y, self.pose.z, self.velocity
+            "pose: [{}, {}, {}], v: [{}, {}]",
+            self.pose.x, self.pose.y, self.pose.z, self.velocity[0], self.velocity[1]
         )?;
         Ok(())
     }
@@ -307,10 +430,9 @@ impl Recordable<WorldStateRecord> for WorldState {
 
 #[cfg(feature = "gui")]
 use crate::gui::{
-    utils::{string_combobox, text_singleline_with_apply},
     UIComponent,
+    utils::{string_combobox, text_singleline_with_apply},
 };
-use crate::networking::message_handler::MessageHandler;
 use crate::node::Node;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
@@ -318,6 +440,10 @@ use crate::simulator::SimulatorConfig;
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
 use crate::utils::occupancy_grid::OccupancyGrid;
+use crate::{
+    networking::message_handler::MessageHandler,
+    utils::determinist_random_variable::RandomVariableTypeConfig,
+};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -332,8 +458,7 @@ use std::sync::{Arc, RwLock};
 ///     Perfect:
 ///         prediction_period: 0.01
 /// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Check, ToVec, EnumToString)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum StateEstimatorConfig {
     Perfect(perfect_estimator::PerfectEstimatorConfig),
     External(external_estimator::ExternalEstimatorConfig),
@@ -358,7 +483,7 @@ impl UIComponent for StateEstimatorConfig {
                 ui,
                 &StateEstimatorConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 &mut current_str,
                 format!("state-estimator-choice-{}", unique_id),
@@ -463,10 +588,11 @@ pub fn make_state_estimator_from_config(
     plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    initial_time: f32,
 ) -> Box<dyn StateEstimator> {
     match config {
         StateEstimatorConfig::Perfect(c) => Box::new(
-            perfect_estimator::PerfectEstimator::from_config(c, global_config),
+            perfect_estimator::PerfectEstimator::from_config(c, global_config, initial_time),
         ) as Box<dyn StateEstimator>,
         StateEstimatorConfig::External(c) => {
             Box::new(external_estimator::ExternalEstimator::from_config(
@@ -474,12 +600,12 @@ pub fn make_state_estimator_from_config(
                 plugin_api,
                 global_config,
                 va_factory,
+                initial_time,
             )) as Box<dyn StateEstimator>
         }
-        StateEstimatorConfig::Python(c) => {
-            Box::new(python_estimator::PythonEstimator::from_config(c, global_config).unwrap())
-                as Box<dyn StateEstimator>
-        }
+        StateEstimatorConfig::Python(c) => Box::new(
+            python_estimator::PythonEstimator::from_config(c, global_config, initial_time).unwrap(),
+        ) as Box<dyn StateEstimator>,
     }
 }
 
@@ -524,9 +650,7 @@ pub trait StateEstimator:
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Check)]
-#[serde(default)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub struct BenchStateEstimatorConfig {
     pub name: String,
     #[check]

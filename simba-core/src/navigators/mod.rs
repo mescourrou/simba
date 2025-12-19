@@ -17,21 +17,19 @@ pub mod pybinds;
 extern crate confy;
 use std::sync::{Arc, RwLock};
 
-use config_checker::macros::Check;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec};
+use simba_macros::config_derives;
 
 use crate::controllers::ControllerError;
 #[cfg(feature = "gui")]
-use crate::gui::{utils::string_combobox, UIComponent};
+use crate::gui::{UIComponent, utils::string_combobox};
 use crate::networking::message_handler::MessageHandler;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
 
 /// Enumerate the configuration of the different strategies.
-#[derive(Serialize, Deserialize, Debug, Clone, Check, EnumToString, ToVec)]
-#[serde(deny_unknown_fields)]
+#[config_derives]
 pub enum NavigatorConfig {
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerConfig),
     External(external_navigator::ExternalNavigatorConfig),
@@ -57,7 +55,7 @@ impl UIComponent for NavigatorConfig {
                 ui,
                 &NavigatorConfig::to_vec()
                     .iter()
-                    .map(|x| String::from(*x))
+                    .map(|x: &&str| String::from(*x))
                     .collect(),
                 &mut current_str,
                 format!("navigator-choice-{}", unique_id),
@@ -202,10 +200,11 @@ pub fn make_navigator_from_config(
     plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    initial_time: f32,
 ) -> Arc<RwLock<Box<dyn Navigator>>> {
     Arc::new(RwLock::new(match config {
         NavigatorConfig::TrajectoryFollower(c) => Box::new(
-            trajectory_follower::TrajectoryFollower::from_config(c, global_config),
+            trajectory_follower::TrajectoryFollower::from_config(c, global_config, initial_time),
         ) as Box<dyn Navigator>,
         NavigatorConfig::External(c) => {
             Box::new(external_navigator::ExternalNavigator::from_config(
@@ -213,12 +212,14 @@ pub fn make_navigator_from_config(
                 plugin_api,
                 global_config,
                 va_factory,
+                initial_time,
             )) as Box<dyn Navigator>
         }
-        NavigatorConfig::Python(c) => {
-            Box::new(python_navigator::PythonNavigator::from_config(c, global_config).unwrap())
-                as Box<dyn Navigator>
+        NavigatorConfig::Python(c) => Box::new(
+            python_navigator::PythonNavigator::from_config(c, global_config, initial_time).unwrap(),
+        ) as Box<dyn Navigator>,
+        NavigatorConfig::GoTo(c) => {
+            Box::new(go_to::GoTo::from_config(c, initial_time)) as Box<dyn Navigator>
         }
-        NavigatorConfig::GoTo(c) => Box::new(go_to::GoTo::from_config(c)) as Box<dyn Navigator>,
     }))
 }
