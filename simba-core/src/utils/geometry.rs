@@ -239,8 +239,14 @@ pub fn segment_triangle_intersection(
     let lambda2 = to_bary * p2h;
 
     // Check if both points are inside the triangle
-    let p1inside = lambda1.fold(true, |acc, x| if !(0. ..=1.).contains(&x) { false } else { acc });
-    let p2inside = lambda2.fold(true, |acc, x| if !(0. ..=1.).contains(&x) { false } else { acc });
+    let p1inside = lambda1.fold(
+        true,
+        |acc, x| if !(0. ..=1.).contains(&x) { false } else { acc },
+    );
+    let p2inside = lambda2.fold(
+        true,
+        |acc, x| if !(0. ..=1.).contains(&x) { false } else { acc },
+    );
 
     if p1inside && p2inside {
         return Some((*p1, *p2));
@@ -312,7 +318,7 @@ pub fn aligned_points(
 mod tests {
     use std::{f32::consts::PI, iter::zip};
 
-    use nalgebra::{SVector, Vector2};
+    use nalgebra::Vector2;
 
     #[test]
     pub fn test_smallest_theta_diff() {

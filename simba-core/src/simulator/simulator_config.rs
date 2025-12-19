@@ -5,7 +5,6 @@ use simba_macros::config_derives;
 use std::collections::BTreeMap;
 use std::path::Path;
 
-
 use crate::{
     VERSION,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},

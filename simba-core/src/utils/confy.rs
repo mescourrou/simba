@@ -1,6 +1,5 @@
 use confy::ConfyError;
 
-
 pub fn detailed_error(error: &ConfyError) -> String {
     format!(
         "{}: {}",

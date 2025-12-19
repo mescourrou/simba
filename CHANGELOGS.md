@@ -1,5 +1,16 @@
 # Changelogs
 
+## v1.4.0
+- [breaking] Add scenarios: kill or spawn nodes on events triggered by time, node proximity or area.
+- [breaking] Multiple robot models: Unicycle and Holonomic for now.
+- [breaking] Remove unique seeds for each sensors
+- Planar landmarks, with occlusions.
+- Physics fault models
+- Sensor triggering by message
+- [breaking] Config file autocompletion
+- External sensors, external sensor filters and external sensor fault (python)
+- Rust edition 2024
+
 ## v1.3.0
 - [breaking rust] Huge refactoring
 - [breaking] Choice on robot model, impacts PID configuration and controller implementations

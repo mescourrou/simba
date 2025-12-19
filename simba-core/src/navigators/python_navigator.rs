@@ -7,20 +7,17 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
 use log::debug;
-use pyo3::{Python, pyclass, pymethods};
 use pyo3::prelude::*;
+use pyo3::{Python, pyclass, pymethods};
 use serde_json::Value;
 
 #[cfg(feature = "gui")]
-use crate::gui::{UIComponent};
+use crate::gui::UIComponent;
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::pywrappers::NodeWrapper;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
-use crate::utils::python::{
-    call_py_method, call_py_method_void,
-    load_class_from_python_script,
-};
+use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
 use crate::{
     controllers::ControllerError,
     errors::SimbaResult,

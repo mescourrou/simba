@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use log::{debug};
+use log::debug;
 #[cfg(not(feature = "force_hard_determinism"))]
 use log::warn;
 
@@ -320,9 +320,11 @@ impl Scenario {
                     continue;
                 }
                 if let Some(target_name) = &proximity_config.protected_target
-                    && target_name != node2_name && target_name != node1_name {
-                        continue;
-                    }
+                    && target_name != node2_name
+                    && target_name != node1_name
+                {
+                    continue;
+                }
                 let distance_squared =
                     (*node1_x - *node2_x).powi(2) + (*node1_y - *node2_y).powi(2);
                 let inside = distance_squared <= distance_threshold_squared;

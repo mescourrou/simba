@@ -17,8 +17,8 @@ use crate::utils::time_ordered_data::TimeOrderedData;
 use super::network::MessageFlag;
 use std::collections::BTreeMap;
 
-use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::mpsc::{self, Receiver, Sender};
 
 #[derive(Debug, Clone)]
 pub enum MessageSendMethod {
@@ -288,12 +288,13 @@ impl NetworkManager {
             message_flags: flags,
         };
         if let MessageSendMethod::Recipient(to) = &message.to
-            && !self.nodes_senders.contains_key(to) {
-                return Err(SimbaError::new(
-                    SimbaErrorTypes::NetworkError(NetworkError::NodeUnknown),
-                    format!("Unknown recipient node `{to}`"),
-                ));
-            }
+            && !self.nodes_senders.contains_key(to)
+        {
+            return Err(SimbaError::new(
+                SimbaErrorTypes::NetworkError(NetworkError::NodeUnknown),
+                format!("Unknown recipient node `{to}`"),
+            ));
+        }
         self.simulator_messages.push(message);
         Ok(())
     }

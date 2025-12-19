@@ -6,8 +6,8 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 
 use log::debug;
-use pyo3::{Python, pyclass, pymethods};
 use pyo3::prelude::*;
+use pyo3::{Python, pyclass, pymethods};
 
 use super::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
@@ -22,10 +22,7 @@ use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::maths::round_precision;
-use crate::utils::python::{
-    call_py_method, call_py_method_void,
-    load_class_from_python_script,
-};
+use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
 
 use super::StateEstimatorRecord;
 use crate::sensors::Observation;

@@ -16,10 +16,7 @@ use std::path::Path;
 use crate::api::async_api::PluginAsyncAPI;
 
 use crate::{
-    controllers::{
-        ControllerError,
-        pybinds::ControllerWrapper,
-    },
+    controllers::{ControllerError, pybinds::ControllerWrapper},
     navigators::pybinds::NavigatorWrapper,
     networking::{
         MessageTypes,
@@ -39,10 +36,7 @@ use crate::{
         robot_sensor::OrientedRobotObservation,
     },
     simulator::{AsyncSimulator, Simulator},
-    state_estimators::{
-        State, WorldState,
-        pybinds::StateEstimatorWrapper,
-    },
+    state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
     utils::occupancy_grid::OccupancyGrid,
 };
 

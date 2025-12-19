@@ -5,18 +5,15 @@ Module providing the interface to use external Python [`Physics`].
 use std::str::FromStr;
 
 use log::debug;
-use pyo3::{Python, pyclass, pymethods};
 use pyo3::prelude::*;
+use pyo3::{Python, pyclass, pymethods};
 use serde_json::Value;
 
 #[cfg(feature = "gui")]
-use crate::gui::{UIComponent};
+use crate::gui::UIComponent;
 use crate::physics::robot_models::Command;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
-use crate::utils::python::{
-    call_py_method, call_py_method_void,
-    load_class_from_python_script,
-};
+use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
 use crate::{
     errors::SimbaResult,
     logger::is_enabled,

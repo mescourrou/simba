@@ -1,14 +1,11 @@
 use std::{
     collections::VecDeque,
-    sync::{Arc, Mutex, mpsc::Sender},
+    sync::{Arc, Mutex},
 };
-
-use egui::Atom;
-use serde_json::Value;
 
 use crate::{
     constants::TIME_ROUND,
-    logger::{InternalLog, LogLevel},
+    logger::LogLevel,
     navigators::{
         NavigatorConfig, go_to::GoToConfig, trajectory_follower::TrajectoryFollowerConfig,
     },
@@ -39,7 +36,13 @@ impl<SE: StateEstimator> PluginAPI for PluginAPITest<SE> {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _initial_time: f32,
     ) -> Box<dyn StateEstimator> {
-        let se = std::mem::replace(&mut *self.se.lock().unwrap(), None)
+        // let se = std::mem::replace(&mut *self.se.lock().unwrap(), None)
+        //     .expect("StateEstimator already taken");
+        let se = self
+            .se
+            .lock()
+            .unwrap()
+            .take()
             .expect("StateEstimator already taken");
         Box::new(se) as Box<dyn StateEstimator>
     }
@@ -181,10 +184,10 @@ fn kill_node() {
     let mut last_node2_time: f32 = 0.;
     for record in records {
         let t = record.time;
-        if let NodeRecord::Robot(r) = record.node {
-            if r.name.as_str() == "node2" {
-                last_node2_time = last_node2_time.max(t);
-            }
+        if let NodeRecord::Robot(r) = record.node
+            && r.name.as_str() == "node2"
+        {
+            last_node2_time = last_node2_time.max(t);
         }
     }
     assert!(
@@ -195,19 +198,9 @@ fn kill_node() {
 }
 
 mod trigger_sensor {
-    use std::{
-        collections::VecDeque,
-        sync::{Arc, Mutex, mpsc::Sender},
-    };
-
-    use serde_json::Value;
-
     use crate::{
         constants::TIME_ROUND,
-        networking::{
-            message_handler::MessageHandler,
-            network::{Envelope, MessageFlag},
-        },
+        networking::{message_handler::MessageHandler, network::Envelope},
         node::Node,
         plugin_api::PluginAPI,
         recordable::Recordable,
@@ -220,6 +213,10 @@ mod trigger_sensor {
         utils::{
             determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
         },
+    };
+    use std::{
+        collections::VecDeque,
+        sync::{Arc, Mutex, mpsc::Sender},
     };
 
     #[derive(Debug, Clone)]
@@ -244,8 +241,8 @@ mod trigger_sensor {
         }
 
         fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-            if !self.is_the_triggered {
-                if time
+            if !self.is_the_triggered
+                && time
                     >= self
                         .trigger_times
                         .lock()
@@ -253,25 +250,24 @@ mod trigger_sensor {
                         .front()
                         .copied()
                         .unwrap_or(f32::INFINITY)
-                {
-                    log::info!("Triggering sensor at time {}", time);
-                    node.network()
-                        .as_ref()
-                        .unwrap()
-                        .write()
-                        .unwrap()
-                        .send_to(
-                            "robot1".to_string(),
-                            serde_json::to_value(SensorTriggerMessage {
-                                sensor_name: "RobotSensor".to_string(),
-                            })
-                            .unwrap(),
-                            time,
-                            Vec::new(),
-                        )
-                        .unwrap();
-                    self.trigger_times.lock().unwrap().pop_front();
-                }
+            {
+                log::info!("Triggering sensor at time {}", time);
+                node.network()
+                    .as_ref()
+                    .unwrap()
+                    .write()
+                    .unwrap()
+                    .send_to(
+                        "robot1".to_string(),
+                        serde_json::to_value(SensorTriggerMessage {
+                            sensor_name: "RobotSensor".to_string(),
+                        })
+                        .unwrap(),
+                        time,
+                        Vec::new(),
+                    )
+                    .unwrap();
+                self.trigger_times.lock().unwrap().pop_front();
             }
         }
 
@@ -367,7 +363,6 @@ fn trigger_sensor() {
                 triggered: true,
                 ..Default::default()
             }],
-            ..Default::default()
         },
         ..Default::default()
     });

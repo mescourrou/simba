@@ -128,6 +128,9 @@ List of parameters:\n\n""")
         document_config(configs[ENTRY_CONFIG][0], docfile, configs)
         
         print("Config documention written in", DOC_FILE)
+
+    print("Cleaning up...")
+    os.remove("expanded_tmp.rs")
     
     # expanded_path = os.path.join(os.path.dirname(CRATE), EXPANDED_FILE)
     # if os.path.exists(expanded_path):

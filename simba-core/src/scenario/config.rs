@@ -9,14 +9,12 @@ pub struct ScenarioConfig {
     pub events: Vec<EventConfig>,
 }
 
-
 #[config_derives]
 #[derive(Default)]
 pub struct EventConfig {
     pub trigger: EventTriggerConfig,
     pub event_type: EventTypeConfig,
 }
-
 
 #[config_derives(tag_content)]
 pub enum EventTriggerConfig {

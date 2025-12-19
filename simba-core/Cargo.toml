@@ -10,6 +10,7 @@ crate-type = ["cdylib", "rlib"]  # cdylib for Python, rlib for Rust deps and tes
 doctest = false
 
 [features]
+default = ["gui"]
 gui = ["egui", "eframe"] # Enable GUI features
 schema = ["schemars"]  # Enable schemars for schema generation
 force_hard_determinism = []  # Disable features that may introduce non-determinism

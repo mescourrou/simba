@@ -54,7 +54,9 @@ use crate::{
     networking::{network_manager::NetworkManager, service_manager::ServiceManager},
     node::{
         Node, NodeState,
-        node_factory::{ComputationUnitConfig, MakeNodeParams, NodeFactory, NodeRecord, RobotConfig},
+        node_factory::{
+            ComputationUnitConfig, MakeNodeParams, NodeFactory, NodeRecord, RobotConfig,
+        },
     },
     plugin_api::PluginAPI,
     recordable::Recordable,
@@ -546,7 +548,7 @@ impl Simulator {
     ) {
         let mut new_node = NodeFactory::make_robot(
             robot_config,
-            &mut MakeNodeParams{
+            &mut MakeNodeParams {
                 plugin_api: &self.plugin_api,
                 global_config,
                 va_factory: &self.determinist_va_factory,
@@ -555,7 +557,7 @@ impl Simulator {
                 force_send_results,
                 new_name: None,
                 initial_time,
-            }
+            },
         );
         if new_node.state() != NodeState::Running {
             return;
@@ -573,7 +575,7 @@ impl Simulator {
     ) {
         let mut new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
-            &mut MakeNodeParams{
+            &mut MakeNodeParams {
                 plugin_api: &self.plugin_api,
                 global_config,
                 va_factory: &self.determinist_va_factory,
@@ -582,7 +584,7 @@ impl Simulator {
                 force_send_results,
                 new_name: None,
                 initial_time,
-            }
+            },
         );
         if new_node.state() != NodeState::Running {
             return;
@@ -681,7 +683,7 @@ impl Simulator {
                 force_send_results: self.force_send_results,
                 new_name: Some(new_node_name),
                 initial_time: time,
-            }
+            },
         )
         .ok_or(SimbaError::new(
             SimbaErrorTypes::ImplementationError,
@@ -976,7 +978,6 @@ impl Simulator {
         max_time: f32,
         async_api_server: Option<SimulatorAsyncApiServer>,
         node_sync_params: NodeSyncParams,
-        
     ) -> SimbaResult<Option<Node>> {
         if node.state() != NodeState::Running {
             return Err(SimbaError::new(
@@ -1037,12 +1038,13 @@ impl Simulator {
             node.run_next_time_step(next_time, &node_sync_params.time_cv, nb_nodes_unlocked)?;
             node.sync_with_others(&node_sync_params.time_cv, nb_nodes_unlocked, next_time);
             if node.send_records()
-                && let Some(async_api_server) = &async_api_server {
-                    async_api_server.send_record(&Record {
-                        time: next_time,
-                        node: node.record(),
-                    });
-                }
+                && let Some(async_api_server) = &async_api_server
+            {
+                async_api_server.send_record(&Record {
+                    time: next_time,
+                    node: node.record(),
+                });
+            }
             node_sync_params.end_time_step_sync.call(());
             node_sync_params.barrier.wait();
             if node.process_messages() > 0 {
@@ -1077,17 +1079,18 @@ impl Simulator {
         loop {
             for (node_name, node_api) in self.node_apis.iter() {
                 if let Some(state_update) = &node_api.state_update
-                    && let Ok((time, state)) = state_update.try_recv() {
-                        if !node_states.contains_key(node_name) {
-                            node_states.insert(
-                                node_name.clone(),
-                                TimeOrderedData::<(State, NodeState)>::new(),
-                            );
-                        }
-                        if let Some(node_state) = node_states.get_mut(node_name) {
-                            node_state.insert(time, state, true);
-                        }
+                    && let Ok((time, state)) = state_update.try_recv()
+                {
+                    if !node_states.contains_key(node_name) {
+                        node_states.insert(
+                            node_name.clone(),
+                            TimeOrderedData::<(State, NodeState)>::new(),
+                        );
                     }
+                    if let Some(node_state) = node_states.get_mut(node_name) {
+                        node_state.insert(time, state, true);
+                    }
+                }
             }
             let mut time_end_procedure = false;
             for end_time_step_sync in running_parameters.end_time_step_sync_hosts.iter() {

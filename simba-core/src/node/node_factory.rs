@@ -578,10 +578,7 @@ pub struct MakeNodeParams<'a> {
 pub struct NodeFactory {}
 
 impl NodeFactory {
-    pub fn make_robot(
-        config: &RobotConfig,
-        params: &mut MakeNodeParams,
-    ) -> Node {
+    pub fn make_robot(config: &RobotConfig, params: &mut MakeNodeParams) -> Node {
         let node_type = NodeType::Robot;
         let mut node = Node {
             node_type,
@@ -672,7 +669,8 @@ impl NodeFactory {
         }
 
         let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
-            &node, params.time_cv.clone(),
+            &node,
+            params.time_cv.clone(),
         ))));
         // Services
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
@@ -744,7 +742,8 @@ impl NodeFactory {
         }
 
         let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
-            &node, params.time_cv.clone(),
+            &node,
+            params.time_cv.clone(),
         ))));
         // Services
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
@@ -755,25 +754,16 @@ impl NodeFactory {
         node
     }
 
-    pub fn make_node_from_name(
-        name: &str,
-        params: &mut MakeNodeParams
-    ) -> Option<Node> {
+    pub fn make_node_from_name(name: &str, params: &mut MakeNodeParams) -> Option<Node> {
         for robot_config in params.global_config.robots.iter() {
             if robot_config.name == name {
-                return Some(Self::make_robot(
-                    robot_config,
-                    params,
-                ));
+                return Some(Self::make_robot(robot_config, params));
             }
         }
 
         for cu_config in params.global_config.computation_units.iter() {
             if cu_config.name == name {
-                return Some(Self::make_computation_unit(
-                    cu_config,
-                    params,
-                ));
+                return Some(Self::make_computation_unit(cu_config, params));
             }
         }
 

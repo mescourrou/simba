@@ -197,7 +197,6 @@ pub(crate) use python_class_config;
 //     };
 // }
 
-
 macro_rules! external_record {
     (
         $(#[$meta:meta])*  // Capture attributes including doc comments

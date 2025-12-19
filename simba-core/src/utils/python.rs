@@ -47,11 +47,15 @@ pub fn ensure_venv_pyo3(py: Python<'_>) -> PyResult<()> {
     // Heuristic: local .venv or .env in CWD (useful when not "activated")
     if let Ok(cwd) = env::current_dir() {
         let venv = cwd.join(".venv");
-        if venv.exists()&& let Some(s) = venv.to_str() {
+        if venv.exists()
+            && let Some(s) = venv.to_str()
+        {
             prefixes.push(s.to_string());
         }
         let envdir = cwd.join(".env");
-        if envdir.exists() && let Some(s) = envdir.to_str() {
+        if envdir.exists()
+            && let Some(s) = envdir.to_str()
+        {
             prefixes.push(s.to_string());
         }
     }

@@ -18,8 +18,8 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::{
-    segment_circle_intersection, segment_to_line_intersection,
-    segment_triangle_intersection, segments_intersection,
+    segment_circle_intersection, segment_to_line_intersection, segment_triangle_intersection,
+    segments_intersection,
 };
 use crate::utils::maths::round_precision;
 #[cfg(feature = "gui")]
@@ -736,7 +736,9 @@ impl Sensor for OrientedLandmarkSensor {
                                     new_intersections.extend_from_slice(&chunk_intersections);
                                     continue;
                                 }
-                                if projected1.is_none() && let Some(projected2) = projected2 {
+                                if projected1.is_none()
+                                    && let Some(projected2) = projected2
+                                {
                                     let dot2 = (projected2 - chunk_intersections[0])
                                         .dot(&(chunk_intersections[1] - chunk_intersections[0]));
                                     if dot2 - 1e-3 < 0. || dot2 + 1e-3 > chunk_length {
@@ -755,7 +757,9 @@ impl Sensor for OrientedLandmarkSensor {
                                     }
                                     new_intersections.push(projected2);
                                     new_intersections.push(chunk_intersections[1]);
-                                } else if let Some(projected1) = projected1 && projected2.is_none() {
+                                } else if let Some(projected1) = projected1
+                                    && projected2.is_none()
+                                {
                                     let dot1 = (projected1 - chunk_intersections[0])
                                         .dot(&(chunk_intersections[1] - chunk_intersections[0]));
                                     if dot1 - 1e-3 < 0. || dot1 + 1e-3 > chunk_length {

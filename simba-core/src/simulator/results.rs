@@ -13,11 +13,10 @@ use crate::{
         UIComponent,
         utils::{json_config, path_finder, string_combobox},
     },
-    utils::enum_tools::ToVec
+    utils::enum_tools::ToVec,
 };
 
 use crate::simulator::{Record, SimulatorConfig};
-
 
 #[config_derives]
 pub enum ResultSaveMode {
@@ -92,7 +91,6 @@ impl UIComponent for ResultConfig {
 
             let mut current_str = self.save_mode.to_string();
             ui.horizontal(|ui| {
-
                 ui.label("Save mode:");
                 string_combobox(
                     ui,

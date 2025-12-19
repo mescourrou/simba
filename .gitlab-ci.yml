@@ -68,15 +68,30 @@ tests:
     - maturin develop
     - ./test.sh
 
+run_tools:
+  rules:
+    - if: $CI_COMMIT_TAG                 # Run this job when a tag is created
+  stage: test
+  image: gitlab.laas.fr:4567/mescourrou/simba:latest
+  script:
+    # - cargo build --verbose
+    # - cargo build --all-features --verbose --release
+    - cargo build -p simba-tools --release
+    - target/release/simba-tools --generate-schema config.schema.json
+  artifacts:
+    when: on_success
+    paths:
+      - config.schema.json
+
 upload:
   stage: upload
   image: curlimages/curl:latest
   rules:
       - if: $CI_COMMIT_TAG
   script:
-      # - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file target/release/*.rlib ${PACKAGE_REGISTRY_URL}/simba-rust-${CI_COMMIT_TAG}.rlib'
       - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file target/wheels/*.whl ${PACKAGE_REGISTRY_URL}/'
       - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file target/release/simba-cmd ${PACKAGE_REGISTRY_URL}/simba'
+      - 'curl --header "JOB-TOKEN: ${CI_JOB_TOKEN}" --upload-file config.schema.json ${PACKAGE_REGISTRY_URL}/config.schema.json'
 
 
 release_job:
@@ -95,3 +110,5 @@ release_job:
           url: "${PACKAGE_REGISTRY_URL}/simba-${CI_COMMIT_TAG}-cp310-abi3-manylinux_2_39_x86_64.whl"
         - name: Command line binary
           url: "${PACKAGE_REGISTRY_URL}/simba"
+        - name: Schema JSON
+          url: "${PACKAGE_REGISTRY_URL}/config.schema.json"

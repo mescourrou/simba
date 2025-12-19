@@ -32,10 +32,7 @@ use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use crate::sensors::{
-    Sensor, SensorObservation,
-    SensorRecord,
-};
+use crate::sensors::{Sensor, SensorObservation, SensorRecord};
 use serde_derive::{Deserialize, Serialize};
 
 external_record_python_methods!(
