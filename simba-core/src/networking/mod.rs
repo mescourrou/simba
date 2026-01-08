@@ -25,8 +25,9 @@ There are two main ways to communicate between nodes.
    node should handle the requests in [`run_time_step`](crate::node::Node::run_time_step).
 */
 
-use pyo3::pyclass;
+use pyo3::{pyclass, pymethods};
 use serde::{Deserialize, Serialize};
+use simba_macros::EnumToString;
 
 use crate::{navigators::go_to::GoToMessage, sensors::sensor_manager::SensorTriggerMessage};
 
@@ -45,12 +46,44 @@ pub enum NetworkError {
     Other,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, EnumToString)]
 #[pyclass]
 pub enum MessageTypes {
     String(String),
     GoTo(GoToMessage),
     SensorTrigger(SensorTriggerMessage),
+}
+
+#[pymethods]
+impl MessageTypes {
+    #[staticmethod]
+    pub fn from_goto(message: GoToMessage) -> Self {
+        MessageTypes::GoTo(message)
+    }
+
+    #[staticmethod]
+    pub fn from_sensor_trigger(message: SensorTriggerMessage) -> Self {
+        MessageTypes::SensorTrigger(message)
+    }
+
+    pub fn as_goto(&self) -> Option<GoToMessage> {
+        match self {
+            MessageTypes::GoTo(msg) => Some(msg.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn as_sensor_trigger(&self) -> Option<SensorTriggerMessage> {
+        match self {
+            MessageTypes::SensorTrigger(msg) => Some(msg.clone()),
+            _ => None,
+        }
+    }
+
+    #[getter]
+    pub fn kind(&self) -> String {
+        self.to_string()
+    }
 }
 
 // Network message exchange test
@@ -62,6 +95,7 @@ mod tests {
     };
 
     use log::debug;
+    use pyo3::pymethods;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
 

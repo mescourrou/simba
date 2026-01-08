@@ -39,7 +39,7 @@ class StateEstimator(simba.StateEstimator):
             if abs(time - 30) < 0.001:
                 node.send_message("robot2", simba.MessageTypes.String("Bye Bye"), time, [simba.MessageFlag.Kill])
             elif time < 30:
-                node.send_message("robot2", simba.MessageTypes.String("Hello from robot1"), time)
+                node.send_message("robot2", simba.MessageTypes.from_goto(simba.GoToMessage((0, 0))), time)
         else:
             node.send_message("robot1", simba.MessageTypes.String("Hello from robot2"), time)
         print(f"{node.name()}: Prediction {self._state}")

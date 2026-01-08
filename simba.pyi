@@ -201,6 +201,21 @@ class MessageTypes(Enum):
     GoTo: GoToMessage
     SensorTrigger: SensorTriggerMessage
 
+    def __init__(self):
+        self.kind: str
+
+    def as_goto(self) -> GoToMessage | None:
+        raise NotImplementedError()
+
+    def as_sensor_trigger(self) -> SensorTriggerMessage | None: 
+        raise NotImplementedError()
+
+    def from_goto(cmd: GoToMessage) -> MessageTypes:
+        raise NotImplementedError()
+
+    def from_sensor_trigger(cmd: SensorTriggerMessage) -> MessageTypes:
+        raise NotImplementedError()
+
 class Envelope:
     def __init__(self):
         self.msg_from: str

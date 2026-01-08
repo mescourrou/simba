@@ -1,5 +1,9 @@
 # Changelogs
 
+
+## v1.4.1
+- hotfix: Make possible to create Goto and SensorTrigger Messages in Python
+
 ## v1.4.0
 - [breaking] Add scenarios: kill or spawn nodes on events triggered by time, node proximity or area.
 - [breaking] Multiple robot models: Unicycle and Holonomic for now.
