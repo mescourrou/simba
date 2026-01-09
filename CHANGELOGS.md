@@ -1,5 +1,7 @@
 # Changelogs
 
+## v1.4.2
+- hotfix: Use Python abi3 for Python >= 3.10 for Python call from Rust.
 
 ## v1.4.1
 - hotfix: Make possible to create Goto and SensorTrigger Messages in Python
