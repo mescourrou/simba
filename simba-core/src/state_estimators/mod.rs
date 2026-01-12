@@ -268,6 +268,7 @@ impl State {
         for rv_config in config.random.iter() {
             let rv = va_factory.make_variable(rv_config.clone());
             let sampled_value = rv.generate(0.);
+            println!("Sampled value: {:?}", sampled_value);
             for sample in sampled_value {
                 assert!(
                     i < config.variable_order.len(),
@@ -289,10 +290,12 @@ impl State {
                     ),
                 }
                 i += 1;
+                println!("Intermediate state: {:?}", state);
             }
         }
 
         if i != 0 && (add_r != 0. || add_theta != 0.) {
+            println!("Do polar things");
             state.pose.z += add_theta;
             state.pose.z = mod2pi(state.pose.z);
             state.pose.x += add_r * state.pose.z.cos();

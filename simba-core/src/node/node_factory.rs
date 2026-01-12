@@ -378,6 +378,8 @@ impl UIComponent for RobotRecord {
 
             ui.label(format!("Model Name: {}", self.model_name));
 
+            ui.label(format!("State: {}", self.state));
+
             egui::CollapsingHeader::new("Navigator").show(ui, |ui| {
                 self.navigator.show(ui, ctx, unique_id);
             });

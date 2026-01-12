@@ -35,8 +35,21 @@ impl UIComponent for HolonomicCommand {
 }
 
 #[config_derives]
-#[derive(Default)]
-pub struct HolonomicConfig {}
+pub struct HolonomicConfig {
+    pub max_longitudinal_velocity: f32,
+    pub max_lateral_velocity: f32,
+    pub max_angular_velocity: f32,
+}
+
+impl Default for HolonomicConfig {
+    fn default() -> Self {
+        Self {
+            max_longitudinal_velocity: 10.,
+            max_lateral_velocity: 10.,
+            max_angular_velocity: 1.,
+        }
+    }
+}
 
 #[cfg(feature = "gui")]
 impl UIComponent for HolonomicConfig {
@@ -51,22 +64,56 @@ impl UIComponent for HolonomicConfig {
     ) {
         egui::CollapsingHeader::new("Holonomic model")
             .id_salt(format!("holonomic-model-{}", unique_id))
-            .show(ui, |_ui| {});
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Max longitudinal velocity:");
+                    ui.add(
+                        egui::DragValue::new(&mut self.max_longitudinal_velocity)
+                            .speed(0.1)
+                    );
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Max lateral velocity:");
+                    ui.add(egui::DragValue::new(&mut self.max_lateral_velocity).speed(0.1));
+                });
+                ui.horizontal(|ui| {
+                    ui.label("Max angular velocity:");
+                    ui.add(egui::DragValue::new(&mut self.max_angular_velocity).speed(0.01));
+                });
+            });
     }
 
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Holonomic model")
             .id_salt(format!("holonomic-model-{}", unique_id))
-            .show(ui, |_ui| {});
+            .show(ui, |ui| {
+                ui.label(format!(
+                    "Max longitudinal velocity: {}",
+                    self.max_longitudinal_velocity
+                ));
+                ui.label(format!(
+                    "Max lateral velocity: {}",
+                    self.max_lateral_velocity
+                ));
+                ui.label(format!("Max angular velocity: {}", self.max_angular_velocity));
+            });
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct Holonomic {}
+pub struct Holonomic {
+    max_longitudinal_velocity: f32,
+    max_lateral_velocity: f32,
+    max_angular_velocity: f32,
+}
 
 impl Holonomic {
-    pub fn from_config(_config: &HolonomicConfig) -> Self {
-        Self {}
+    pub fn from_config(config: &HolonomicConfig) -> Self {
+        Self {
+            max_longitudinal_velocity: config.max_longitudinal_velocity,
+            max_lateral_velocity: config.max_lateral_velocity,
+            max_angular_velocity: config.max_angular_velocity,
+        }
     }
 }
 
@@ -84,9 +131,11 @@ impl RobotModel for Holonomic {
         };
         let theta = state.pose.z;
 
-        let displacement_lateral = command.lateral_velocity * dt;
-        let displacement_longitudinal = command.longitudinal_velocity * dt;
-        let rotation = command.angular_velocity * dt;
+        let lateral_velocity = command.lateral_velocity.min(self.max_lateral_velocity).max(-self.max_lateral_velocity);
+        let longitudinal_velocity = command.longitudinal_velocity.min(self.max_longitudinal_velocity).max(-self.max_longitudinal_velocity);
+        let displacement_lateral = lateral_velocity * dt;
+        let displacement_longitudinal = longitudinal_velocity * dt;
+        let rotation = command.angular_velocity.min(self.max_angular_velocity).max(-self.max_angular_velocity) * dt;
 
         // Using Lie theory
         // Reference: Sola, J., Deray, J., & Atchuthan, D. (2018). A micro lie theory for state estimation in robotics. arXiv preprint arXiv:1812.01537.
@@ -126,7 +175,7 @@ impl RobotModel for Holonomic {
         state.pose.x = se2_mat[(0, 2)];
         state.pose.y = se2_mat[(1, 2)];
 
-        state.velocity = [command.longitudinal_velocity, command.lateral_velocity].into();
+        state.velocity = [longitudinal_velocity, lateral_velocity].into();
     }
 
     fn default_command(&self) -> Command {

@@ -24,6 +24,7 @@ use crate::utils::maths::{Derivator, Integrator};
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use config_checker::ConfigCheckable;
 use log::warn;
+use nalgebra::Vector2;
 use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::{Deserializer, de};
 use serde_derive::{Deserialize, Serialize};
@@ -581,15 +582,22 @@ impl Controller for PID {
                     + self.config.kd_angular().unwrap() * theta_derivative;
 
                 self.velocity += correction_v;
+                // self.velocity = self.velocity.max(0.);
                 self.last_command_time = time;
 
                 let correction_lateral =
-                    (self.config.kp_lateral().unwrap() * error.lateral + self.config.ki_lateral().unwrap() * self.lateral_integrator.integral_value() + self.config.kd_lateral().unwrap() * lateral_derivative) * self.velocity;
+                    self.config.kp_lateral().unwrap() * error.lateral + self.config.ki_lateral().unwrap() * self.lateral_integrator.integral_value() + self.config.kd_lateral().unwrap() * lateral_derivative;
                 let correction_longitudinal =
-                    (self.config.kp_longitudinal().unwrap() * error.longitudinal + self.config.ki_longitudinal().unwrap() * self.longitudinal_integrator.integral_value() + self.config.kd_longitudinal().unwrap() * longitudinal_derivative) * self.velocity;
+                    self.config.kp_longitudinal().unwrap() * error.longitudinal + self.config.ki_longitudinal().unwrap() * self.longitudinal_integrator.integral_value() + self.config.kd_longitudinal().unwrap() * longitudinal_derivative;
+                let displacement_vector = Vector2::new(correction_longitudinal, correction_lateral);
+                let displacement_vector = if displacement_vector.norm() > self.velocity {
+                    displacement_vector.normalize() * self.velocity
+                } else {
+                    displacement_vector
+                };
                 Command::Holonomic(HolonomicCommand {
-                    longitudinal_velocity: correction_longitudinal,
-                    lateral_velocity: correction_lateral,
+                    longitudinal_velocity: displacement_vector.x,
+                    lateral_velocity: displacement_vector.y,
                     angular_velocity: correction_theta,
                 })
             }

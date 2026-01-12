@@ -1123,17 +1123,38 @@ impl Simulator {
                     .execute_scenario(current_time, self, &node_states, running_parameters)
                     .unwrap();
                 if let Err(e) = self.network_manager.process_messages(&node_states) {
-                    log::error!(
-                        "Error in processing network messages at time {}: {}",
-                        current_time,
-                        e.detailed_error()
-                    );
-                    return Err(e);
+                    if let SimbaErrorTypes::NetworkError(_) = e.error_type() {
+                        // Network errors are expected during the simulation, as nodes can go
+                        // offline at any time.
+                        warn!(
+                            "Network error in processing network messages at time {}: {}",
+                            current_time,
+                            e.detailed_error()
+                        );
+                    } else {
+                        log::error!(
+                            "Error in processing network messages at time {}: {}",
+                            current_time,
+                            e.detailed_error()
+                        );
+                        return Err(e);
+                    }
                 }
                 running_parameters.barrier.remove_one();
             }
 
-            self.network_manager.process_messages(&node_states)?;
+            if let Err(e) = self.network_manager.process_messages(&node_states) {
+                if let SimbaErrorTypes::NetworkError(_) = e.error_type() {
+                    // Network errors are expected during the simulation, as nodes can go
+                    // offline at any time.
+                    warn!(
+                        "Network error in processing network messages: {}",
+                        e.detailed_error()
+                    );
+                } else {
+                    return Err(e);
+                }
+            }
             if *running_parameters.finishing_cv.0.lock().unwrap()
                 >= *running_parameters.nb_nodes.read().unwrap()
             {

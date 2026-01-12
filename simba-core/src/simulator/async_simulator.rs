@@ -141,6 +141,16 @@ impl AsyncSimulator {
         // Stop server thread
         self.server.lock().unwrap().stop();
     }
+
+    pub fn show(&self) {
+        self.server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .show();
+    }
 }
 
 pub struct SimulatorAsyncApi {

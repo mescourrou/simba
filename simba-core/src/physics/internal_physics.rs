@@ -21,6 +21,7 @@ use crate::{
     state_estimators::{State, StateConfig, StateRecord},
     utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
+use log::debug;
 use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
@@ -202,6 +203,10 @@ impl InternalPhysics {
             return;
         }
 
+        debug!("InternalPhysics: Computing state until time {}, dt={}", time, dt);
+        debug!("  Current state: {:?}", self.state);
+        debug!("  Current command: {:?}", self.current_command);
+
         self.model.update_state(
             &mut self.state,
             &self.current_command,
@@ -209,11 +214,15 @@ impl InternalPhysics {
             dt,
         );
 
+        debug!("  New state: {:?}", self.state);
+
         self.last_time_update = time;
 
         for fault in self.faults.lock().unwrap().iter() {
             fault.add_faults(time, &mut self.state);
         }
+
+        debug!("  State after faults: {:?}", self.state);
     }
 }
 

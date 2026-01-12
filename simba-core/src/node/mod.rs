@@ -6,6 +6,7 @@ pub mod node_factory;
 
 use node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord};
 use serde::{Deserialize, Serialize};
+use simba_macros::EnumToString;
 
 use core::f32;
 use std::collections::BTreeMap;
@@ -34,7 +35,7 @@ use crate::{
     utils::maths::round_precision,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumToString)]
 pub enum NodeState {
     Created,
     Running,
@@ -535,7 +536,6 @@ impl Node {
 
     /// Computes the next time step, using state estimator, sensors and received messages.
     pub fn next_time_step(&self, min_time_excluded: f32) -> SimbaResult<f32> {
-        debug!("Computing next time step, min {}", min_time_excluded);
         let mut next_time_step = f32::INFINITY;
         if let Some(state_estimator) = &self.state_estimator {
             let next_time = state_estimator.read().unwrap().next_time_step();

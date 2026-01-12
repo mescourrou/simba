@@ -292,7 +292,14 @@ impl Navigator for GoTo {
 
         self.error.theta = theta_error;
 
-        self.error.lateral = 0.;
+
+        // Compute longitudinal and lateral errors
+        // Need to project the target point in the robot frame
+        let rot = na::Rotation2::new(-state.pose.z);
+        let relative_target = rot * (target_point - state.pose.fixed_view::<2, 1>(0, 0));
+        self.error.lateral = relative_target[1];
+        self.error.longitudinal = relative_target[0];
+
 
         // Compute the velocity error
         self.error.velocity = self.target_speed - state.velocity.norm();
