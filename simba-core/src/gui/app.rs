@@ -12,11 +12,11 @@ use crate::{
     AUTHORS, VERSION,
     api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
     constants::TIME_ROUND_DECIMALS,
-    errors::SimbaError,
+    errors::{SimbaError, SimbaErrorTypes},
     gui::{UIComponent, drawables::popup::Popup},
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
-    simulator::{Record, SimulatorConfig},
+    simulator::{Record, Results, Simulator, SimulatorConfig},
 };
 
 use super::{
@@ -120,7 +120,7 @@ impl PainterInfo {
 
 struct PrivateParams {
     server: Arc<Mutex<AsyncApiRunner>>,
-    api: AsyncApi,
+    api: Arc<Mutex<AsyncApi>>,
     config: Option<SimulatorConfig>,
     current_draw_time: f32,
     robots: BTreeMap<String, drawables::robot::Robot>,
@@ -130,12 +130,14 @@ struct PrivateParams {
     error_buffer: Vec<(time::Instant, SimbaError)>,
     painter_info: PainterInfo,
     popups: Vec<Popup>,
+    record_buffer: Arc<Mutex<Vec<Record>>>,
+    current_max_time: f32,
 }
 
 impl Default for PrivateParams {
     fn default() -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
-        let api = server.lock().unwrap().get_api();
+        let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
         server.lock().unwrap().run(None);
         Self {
             server,
@@ -149,6 +151,8 @@ impl Default for PrivateParams {
             error_buffer: Vec::new(),
             painter_info: PainterInfo::default(),
             popups: Vec::new(),
+            record_buffer: Arc::new(Mutex::new(Vec::new())),
+            current_max_time: 0.,
         }
     }
 }
@@ -159,6 +163,7 @@ impl Default for PrivateParams {
 pub struct SimbaApp {
     // Example stuff:
     config_path: String,
+    result_path: String,
     duration: f32,
     #[serde(skip_serializing, skip_deserializing)]
     p: PrivateParams,
@@ -169,10 +174,11 @@ pub struct SimbaApp {
 impl Default for SimbaApp {
     fn default() -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
-        let api = server.lock().unwrap().get_api();
+        let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
         server.lock().unwrap().run(None);
         Self {
             config_path: "".to_owned(),
+            result_path: "".to_owned(),
             duration: 60.,
             p: PrivateParams {
                 server,
@@ -215,7 +221,7 @@ impl SimbaApp {
         load_results: bool,
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
-        let api = server.lock().unwrap().get_api();
+        let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
         server.lock().unwrap().run(plugin_api);
         let mut n = Self {
             p: PrivateParams {
@@ -228,13 +234,13 @@ impl SimbaApp {
         if let Some(config) = default_config_path {
             n.config_path = config.to_str().unwrap().to_string();
             n.p.config = None;
-            n.p.api.load_config.async_call(AsyncApiLoadConfigRequest {
+            n.p.api.lock().unwrap().load_config.async_call(AsyncApiLoadConfigRequest {
                 config_path: n.config_path.clone(),
                 force_send_results: true,
             });
         }
         if load_results {
-            n.p.api.load_results.async_call(());
+            n.p.api.lock().unwrap().load_results.async_call(None);
             n.p.simulation_run = true;
         }
         n
@@ -247,7 +253,7 @@ impl SimbaApp {
         load_results: bool,
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
-        let api = server.lock().unwrap().get_api();
+        let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
         server.lock().unwrap().run(plugin_api);
         self.p.server = server;
         self.p.api = api;
@@ -256,6 +262,7 @@ impl SimbaApp {
             self.p.config = None;
             self.p
                 .api
+                .lock().unwrap()
                 .load_config
                 .async_call(AsyncApiLoadConfigRequest {
                     config_path: self.config_path.clone(),
@@ -263,7 +270,7 @@ impl SimbaApp {
                 });
         }
         if load_results {
-            self.p.api.load_results.async_call(());
+            self.p.api.lock().unwrap().load_results.async_call(None);
             self.p.simulation_run = true;
         }
         self
@@ -318,6 +325,31 @@ impl SimbaApp {
             );
         }
     }
+
+    fn add_result(&mut self, time: f32, node: NodeRecord) {
+        match node {
+            NodeRecord::ComputationUnit(_) => {}
+            NodeRecord::Robot(n) => {
+                if let Some(r) = self.p.robots.get_mut(&n.name) {
+                    r.add_record(time, *n);
+                } else if let Some(config) = &self.p.config
+                    && let Some(new_config) =
+                        config.robots.iter().find(|rc| rc.name == n.model_name)
+                {
+                    self.p.robots.insert(
+                        n.name.clone(),
+                        drawables::robot::Robot::init(new_config, config),
+                    );
+                } else {
+                    log::error!("Received record for unknown robot {}", n.name);
+                }
+            }
+        }
+        if time > self.p.current_max_time {
+            self.p.current_max_time = time;
+        }
+        print!(".");
+    }
 }
 
 impl eframe::App for SimbaApp {
@@ -328,22 +360,16 @@ impl eframe::App for SimbaApp {
 
     /// Called each time the UI needs repainting, which may be many times per second.
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        for Record { time, node } in self.p.api.simulator_api.records.lock().unwrap().try_iter() {
-            match node {
-                NodeRecord::ComputationUnit(_) => {}
-                NodeRecord::Robot(n) => {
-                    if let Some(r) = self.p.robots.get_mut(&n.name) {
-                        r.add_record(time, *n);
-                    } else if let Some(config) = &self.p.config
-                        && let Some(new_config) =
-                            config.robots.iter().find(|rc| rc.name == n.model_name)
-                    {
-                        self.p.robots.insert(
-                            n.name.clone(),
-                            drawables::robot::Robot::init(new_config, config),
-                        );
-                    }
-                }
+        {
+            let api = self.p.api.clone();
+            for Record { time, node } in api.lock().unwrap().simulator_api.records.lock().unwrap().try_iter() {
+                self.add_result(time, node);
+            }
+        }
+        {
+            let record_buffer = self.p.record_buffer.clone();
+            for Record { time, node } in record_buffer.lock().unwrap().drain(..) {
+                self.add_result(time, node);
             }
         }
 
@@ -377,7 +403,7 @@ impl eframe::App for SimbaApp {
                             self.p.popups.push(Popup::new_ok(
                                 "Version".to_string(),
                                 format!("SiMBA\nVersion {}\nGPLv3\n{}", VERSION, AUTHORS),
-                                |_| {},
+                                Box::new(|_| {}),
                             ));
                         }
                     });
@@ -397,23 +423,32 @@ impl eframe::App for SimbaApp {
                     self.p.config = None;
                     self.p
                         .api
+                        .lock().unwrap()
                         .load_config
                         .async_call(AsyncApiLoadConfigRequest {
                             config_path: self.config_path.clone(),
                             force_send_results: true,
                         });
+                    self.p.current_max_time = 0.;
                 }
-                if self.p.config.is_none()
-                    && let Some(res) = self.p.api.load_config.try_get_result()
-                {
-                    match res {
-                        Err(e) => {
-                            let now = time::Instant::now();
-                            self.p.error_buffer.push((now, e));
-                        }
-                        Ok(c) => {
-                            self.p.config = Some(c);
-                            self.init_drawables();
+                if self.p.config.is_none() {
+                    let api = self.p.api.clone();
+                    if let Some(res) = api.lock().unwrap().load_config.try_get_result() {
+                        match res {
+                            Err(e) => {
+                                let now = time::Instant::now();
+                                if let SimbaErrorTypes::ExternalAPIError = e.error_type() {
+                                    self.p.config = Some(SimulatorConfig::load_from_path(&Path::new(&self.config_path)).unwrap());
+                                }
+                                self.p.error_buffer.push((now, e));
+                            }
+                            Ok(c) => {
+                                self.p.config = Some(c);
+                                if let Some(cfg) = &self.p.config.as_ref().unwrap().results && let Some(path) = &cfg.result_path {
+                                    self.result_path = path.clone();
+                                }
+                                self.init_drawables();
+                            }
                         }
                     }
                 }
@@ -426,13 +461,45 @@ impl eframe::App for SimbaApp {
                     //Closing
                     self.p.configurator = None;
                 }
+
+                ui.add_space(50.);
+
+                ui.label("Result path: ");
+                ui.text_edit_singleline(&mut self.result_path);
+
                 if ui.button("Load results").clicked() {
                     log::info!("Load previous results");
-                    self.p.api.load_results.async_call(());
+                    let api = self.p.api.clone();
+                    let records = self.p.record_buffer.clone();
+                    let result_path = self.result_path.clone();
+                    self.p.popups.push(Popup::new_yes_no(
+                        "Viewer only?".to_string(),
+                        "Load results on the GUI only and not inside the simulator?\nResult analysis would not use these results.".to_string(),
+                        Box::new(move |btn| {
+                            if btn == 0 {
+                                log::info!("Load results in view");
+                                let results = Simulator::load_results_from_file(Path::new(&result_path)).unwrap();
+                                records.lock().unwrap().extend(results.records);
+                            } else {
+                                log::info!("Load results in simulator and view");
+                                api.lock().unwrap().load_results.async_call(Some(result_path.clone()));
+                            }
+                        }),
+                    ));
                     self.p.simulation_run = true;
                 }
+                if let Some(ret) = self.p.api.lock().unwrap().load_results.try_get_result() {
+                    match ret {
+                        Err(e) => {
+                            let now = time::Instant::now();
+                            self.p.error_buffer.push((now, e.clone()));
+                            self.p.simulation_run = false;
+                            
+                        }
+                        Ok(_) => {}
+                    }
+                }
             });
-
             ui.horizontal(|ui| {
                 ui.label("Duration: ");
                 ui.add(egui::DragValue::new(&mut self.duration).speed(0.1));
@@ -459,16 +526,15 @@ impl eframe::App for SimbaApp {
                         .clicked()
                     {
                         log::info!("Run simulation");
-                        self.p.api.run.async_call(AsyncApiRunRequest {
+                        self.p.api.lock().unwrap().run.async_call(AsyncApiRunRequest {
                             max_time: Some(self.duration),
                             reset: self.p.simulation_run,
                         });
                         self.p.simulation_run = true;
                     }
-                    if let Some(Err(e)) = self.p.api.run.try_get_result() {
+                    if let Some(Err(e)) = self.p.api.lock().unwrap().run.try_get_result() {
                         self.p.error_buffer.push((time::Instant::now(), e));
                     }
-                    let max_simulated_time = *self.p.api.simulator_api.current_time.read().unwrap();
                     let play_pause_btn = if self.p.playing.is_none() {
                         egui::Button::new("Play ")
                     } else {
@@ -493,8 +559,8 @@ impl eframe::App for SimbaApp {
                     }
                     // Set ALL slider size
                     ui.style_mut().spacing.slider_width = ui.available_width() - 180.;
-                    if self.p.current_draw_time > max_simulated_time || self.follow_sim_time {
-                        self.p.current_draw_time = max_simulated_time;
+                    if self.p.current_draw_time > self.p.current_max_time || self.follow_sim_time {
+                        self.p.current_draw_time = self.p.current_max_time;
                     }
                     ui.add(
                         egui::Slider::new(&mut self.p.current_draw_time, 0.0..=self.duration)
@@ -506,9 +572,9 @@ impl eframe::App for SimbaApp {
                         .clicked()
                     {
                         log::info!("Analysing results");
-                        self.p.api.compute_results.async_call(());
+                        self.p.api.lock().unwrap().compute_results.async_call(());
                     }
-                    if let Some(Err(e)) = self.p.api.compute_results.try_get_result() {
+                    if let Some(Err(e)) = self.p.api.lock().unwrap().compute_results.try_get_result() {
                         self.p.error_buffer.push((time::Instant::now(), e));
                     }
                 });

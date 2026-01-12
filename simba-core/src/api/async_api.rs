@@ -27,7 +27,7 @@ pub struct AsyncApi {
     // Channels
     pub load_config:
         rfc::RemoteFunctionCall<AsyncApiLoadConfigRequest, SimbaResult<SimulatorConfig>>,
-    pub load_results: rfc::RemoteFunctionCall<(), SimbaResult<f32>>,
+    pub load_results: rfc::RemoteFunctionCall<Option<String>, SimbaResult<f32>>,
     pub run: rfc::RemoteFunctionCall<AsyncApiRunRequest, SimbaResult<()>>,
     pub get_records: rfc::RemoteFunctionCall<bool, SimbaResult<Vec<Record>>>,
     pub compute_results: rfc::RemoteFunctionCall<(), SimbaResult<()>>,
@@ -38,7 +38,7 @@ pub struct AsyncApi {
 pub struct AsyncApiServer {
     pub load_config:
         Arc<rfc::RemoteFunctionCallHost<AsyncApiLoadConfigRequest, SimbaResult<SimulatorConfig>>>,
-    pub load_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<f32>>>,
+    pub load_results: Arc<rfc::RemoteFunctionCallHost<Option<String>, SimbaResult<f32>>>,
     pub run: Arc<rfc::RemoteFunctionCallHost<AsyncApiRunRequest, SimbaResult<()>>>,
     pub compute_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<()>>>,
     pub get_records: Arc<rfc::RemoteFunctionCallHost<bool, SimbaResult<Vec<Record>>>>,
@@ -160,7 +160,7 @@ impl AsyncApiRunner {
             let simulator_arc = simulator_cloned.clone();
             thread::spawn(move || {
                 while !*stopping.read().unwrap() {
-                    load_results.recv_closure(|()| {
+                    load_results.recv_closure(|result_path| {
                         let mut simulator = simulator_arc.lock().unwrap();
                         simulator.load_results()
                     });

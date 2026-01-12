@@ -3,7 +3,7 @@ pub struct Popup {
     description: String,
     buttons: Vec<String>,
     clicked_button: Option<usize>,
-    action_on_click: Box<dyn FnMut(usize)>,
+    action_on_click: Box<dyn FnMut(usize) + 'static>,
 }
 
 impl Popup {
@@ -11,7 +11,7 @@ impl Popup {
         title: String,
         description: String,
         buttons: Vec<String>,
-        action_on_click: fn(usize),
+        action_on_click: Box<dyn FnMut(usize) + 'static>,
     ) -> Self {
         Self {
             title,
@@ -22,7 +22,7 @@ impl Popup {
         }
     }
 
-    pub fn new_ok(title: String, description: String, action_on_click: fn(usize)) -> Self {
+    pub fn new_ok(title: String, description: String, action_on_click: Box<dyn FnMut(usize) + 'static>) -> Self {
         Self::new(
             title,
             description,
@@ -38,6 +38,14 @@ impl Popup {
     // ) -> Self {
     //     Self::new(title, description, Vec::from(["OK".to_string(), "Cancel".to_string()]), action_on_click)
     // }
+
+    pub fn new_yes_no(
+        title: String,
+        description: String,
+        action_on_click: Box<dyn FnMut(usize) + 'static>,
+    ) -> Self {
+        Self::new(title, description, Vec::from(["Yes".to_string(), "No".to_string()]), action_on_click)
+    }
 
     pub fn draw(&mut self, ctx: &egui::Context) -> Option<usize> {
         egui::Window::new(&self.title).show(ctx, |ui| {

@@ -339,7 +339,7 @@ impl Simulator {
         self.service_managers = BTreeMap::new();
         // Create robots
         for robot_config in &config.robots {
-            self.add_robot(robot_config, &config, self.force_send_results, 0.);
+            self.add_robot(robot_config, &config, self.force_send_results, 0.)?;
             let node = self.nodes.last().unwrap();
             self.service_managers
                 .insert(node.name(), node.service_manager());
@@ -351,7 +351,7 @@ impl Simulator {
                 &config,
                 self.force_send_results,
                 0.,
-            );
+            )?;
             let node = self.nodes.last().unwrap();
             self.service_managers
                 .insert(node.name(), node.service_manager());
@@ -545,7 +545,7 @@ impl Simulator {
         global_config: &SimulatorConfig,
         force_send_results: bool,
         initial_time: f32,
-    ) {
+    ) -> SimbaResult<()> {
         let mut new_node = NodeFactory::make_robot(
             robot_config,
             &mut MakeNodeParams {
@@ -558,12 +558,13 @@ impl Simulator {
                 new_name: None,
                 initial_time,
             },
-        );
+        )?;
         if new_node.state() != NodeState::Running {
-            return;
+            return Ok(());
         }
         self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
+        Ok(())
     }
 
     fn add_computation_unit(
@@ -572,7 +573,7 @@ impl Simulator {
         global_config: &SimulatorConfig,
         force_send_results: bool,
         initial_time: f32,
-    ) {
+    ) -> SimbaResult<()> {
         let mut new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
             &mut MakeNodeParams {
@@ -585,12 +586,13 @@ impl Simulator {
                 new_name: None,
                 initial_time,
             },
-        );
+        )?;
         if new_node.state() != NodeState::Running {
-            return;
+            return Ok(());
         }
         self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
+        Ok(())
     }
 
     /// Simply print the Simulator state, using the info channel and the debug print.
@@ -684,14 +686,7 @@ impl Simulator {
                 new_name: Some(new_node_name),
                 initial_time: time,
             },
-        )
-        .ok_or(SimbaError::new(
-            SimbaErrorTypes::ImplementationError,
-            format!(
-                "Impossible to spawn node `{}`: not found in configuration",
-                node_name
-            ),
-        ))?;
+        )?;
         node.set_state(NodeState::Running);
         self.network_manager.register_node_network(&mut node);
         self.service_managers
@@ -947,13 +942,8 @@ impl Simulator {
             ));
         }
         let filename = self.config.base_path.as_ref().join(filename.unwrap());
-        let mut recording_file = File::open(filename).expect("Impossible to open record file");
-        let mut content = String::new();
-        recording_file
-            .read_to_string(&mut content)
-            .expect("Impossible to read record file");
-
-        let results: Results = serde_json::from_str(&content).expect("Error during json parsing");
+        let results = Self::load_results_from_file(&filename)?;
+        
 
         self.records = results.records;
         let mut max_time = self.common_time.write().unwrap();
@@ -966,6 +956,18 @@ impl Simulator {
             .unwrap()
             .update_time(*max_time);
         Ok(*max_time)
+    }
+
+    pub fn load_results_from_file(filename: &Path) -> SimbaResult<Results> {
+        info!("Loading results from file `{}`", filename.to_str().unwrap());
+        let mut recording_file = File::open(filename).expect("Impossible to open record file");
+        let mut content = String::new();
+        recording_file
+            .read_to_string(&mut content)
+            .expect("Impossible to read record file");
+
+        info!("Deserialize results...");
+        Ok(serde_json::from_str(&content).expect("Error during json parsing"))
     }
 
     /// Run the loop for the given `node` until reaching `max_time`.

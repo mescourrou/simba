@@ -14,6 +14,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::constants::TIME_ROUND;
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::{
     UIComponent,
@@ -298,7 +299,7 @@ impl SensorManager {
         node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
-    ) -> Self {
+    ) -> SimbaResult<Self> {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {
             manager.sensors.push(ManagedSensor {
@@ -345,7 +346,7 @@ impl SensorManager {
                         global_config,
                         va_factory,
                         initial_time,
-                    )) as Box<dyn Sensor>,
+                    )?) as Box<dyn Sensor>,
                 })),
                 triggered: sensor_config.triggered,
                 last_triggered: None,
@@ -360,7 +361,7 @@ impl SensorManager {
                     .min(sensor.sensor.read().unwrap().next_time_step()),
             );
         }
-        manager
+        Ok(manager)
     }
 
     /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after

@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::{fmt::format, sync::{Arc, RwLock}};
 
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -8,24 +8,13 @@ use simba_macros::config_derives;
 use crate::gui::{UIComponent, utils::text_singleline_with_apply};
 
 use crate::{
-    controllers::{self, ControllerConfig, ControllerRecord, pid},
-    logger::is_enabled,
-    navigators::{self, NavigatorConfig, NavigatorRecord, trajectory_follower},
-    networking::{
+    controllers::{self, ControllerConfig, ControllerRecord, pid}, errors::{SimbaError, SimbaErrorTypes, SimbaResult}, logger::is_enabled, navigators::{self, NavigatorConfig, NavigatorRecord, trajectory_follower}, networking::{
         network::{Network, NetworkConfig},
         service_manager::ServiceManager,
-    },
-    node::{Node, NodeState},
-    physics::{self, PhysicsConfig, PhysicsRecord, internal_physics},
-    plugin_api::PluginAPI,
-    sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
-    simulator::{SimulatorConfig, TimeCv},
-    state_estimators::{
+    }, node::{Node, NodeState}, physics::{self, PhysicsConfig, PhysicsRecord, internal_physics}, plugin_api::PluginAPI, sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord}, simulator::{SimulatorConfig, TimeCv}, state_estimators::{
         self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord,
         StateEstimatorConfig, StateEstimatorRecord, perfect_estimator,
-    },
-    time_analysis::TimeAnalysisFactory,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    }, time_analysis::TimeAnalysisFactory, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -578,7 +567,7 @@ pub struct MakeNodeParams<'a> {
 pub struct NodeFactory {}
 
 impl NodeFactory {
-    pub fn make_robot(config: &RobotConfig, params: &mut MakeNodeParams) -> Node {
+    pub fn make_robot(config: &RobotConfig, params: &mut MakeNodeParams) -> SimbaResult<Node> {
         let node_type = NodeType::Robot;
         let mut node = Node {
             node_type,
@@ -590,7 +579,7 @@ impl NodeFactory {
                 params.global_config,
                 params.va_factory,
                 params.initial_time,
-            )),
+            )?),
             controller: Some(controllers::make_controller_from_config(
                 &config.controller,
                 params.plugin_api,
@@ -598,7 +587,7 @@ impl NodeFactory {
                 params.va_factory,
                 &config.physics,
                 params.initial_time,
-            )),
+            )?),
             physics: Some(physics::make_physics_from_config(
                 &config.physics,
                 params.plugin_api,
@@ -606,7 +595,7 @@ impl NodeFactory {
                 &config.name,
                 params.va_factory,
                 params.initial_time,
-            )),
+            )?),
             state_estimator: Some(Arc::new(RwLock::new(
                 state_estimators::make_state_estimator_from_config(
                     &config.state_estimator,
@@ -614,7 +603,7 @@ impl NodeFactory {
                     params.global_config,
                     params.va_factory,
                     params.initial_time,
-                ),
+                )?,
             ))),
             sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
                 &config.sensor_manager,
@@ -623,7 +612,7 @@ impl NodeFactory {
                 &config.name,
                 params.va_factory,
                 params.initial_time,
-            )))),
+            )?))),
             network: Some(Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),
                 &config.network,
@@ -663,7 +652,7 @@ impl NodeFactory {
                             params.global_config,
                             params.va_factory,
                             params.initial_time,
-                        ),
+                        )?,
                     )),
                 })
         }
@@ -678,13 +667,13 @@ impl NodeFactory {
         }
         node.service_manager = service_manager;
 
-        node
+        Ok(node)
     }
 
     pub fn make_computation_unit(
         config: &ComputationUnitConfig,
         params: &mut MakeNodeParams,
-    ) -> Node {
+    ) -> SimbaResult<Node> {
         let node_type = NodeType::ComputationUnit;
         let mut node = Node {
             node_type,
@@ -701,7 +690,7 @@ impl NodeFactory {
                 &config.name,
                 params.va_factory,
                 params.initial_time,
-            )))),
+            )?))),
             network: Some(Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),
                 &config.network,
@@ -736,7 +725,7 @@ impl NodeFactory {
                             params.global_config,
                             params.va_factory,
                             params.initial_time,
-                        ),
+                        )?,
                     )),
                 })
         }
@@ -751,23 +740,23 @@ impl NodeFactory {
         }
         node.service_manager = service_manager;
 
-        node
+        Ok(node)
     }
 
-    pub fn make_node_from_name(name: &str, params: &mut MakeNodeParams) -> Option<Node> {
+    pub fn make_node_from_name(name: &str, params: &mut MakeNodeParams) -> SimbaResult<Node> {
         for robot_config in params.global_config.robots.iter() {
             if robot_config.name == name {
-                return Some(Self::make_robot(robot_config, params));
+                return Self::make_robot(robot_config, params);
             }
         }
 
         for cu_config in params.global_config.computation_units.iter() {
             if cu_config.name == name {
-                return Some(Self::make_computation_unit(cu_config, params));
+                return Self::make_computation_unit(cu_config, params);
             }
         }
 
-        None
+        Err(SimbaError::new(SimbaErrorTypes::ImplementationError, format!("Node `{}` unknown in configuration: cannot create", name)))
     }
 }
 

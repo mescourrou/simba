@@ -433,7 +433,7 @@ use crate::gui::{
     UIComponent,
     utils::{string_combobox, text_singleline_with_apply},
 };
-use crate::node::Node;
+use crate::{errors::SimbaResult, node::Node};
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 #[cfg(feature = "gui")]
@@ -589,8 +589,8 @@ pub fn make_state_estimator_from_config(
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
     initial_time: f32,
-) -> Box<dyn StateEstimator> {
-    match config {
+) -> SimbaResult<Box<dyn StateEstimator>> {
+    Ok(match config {
         StateEstimatorConfig::Perfect(c) => Box::new(
             perfect_estimator::PerfectEstimator::from_config(c, global_config, initial_time),
         ) as Box<dyn StateEstimator>,
@@ -601,12 +601,12 @@ pub fn make_state_estimator_from_config(
                 global_config,
                 va_factory,
                 initial_time,
-            )) as Box<dyn StateEstimator>
+            )?) as Box<dyn StateEstimator>
         }
         StateEstimatorConfig::Python(c) => Box::new(
             python_estimator::PythonEstimator::from_config(c, global_config, initial_time).unwrap(),
         ) as Box<dyn StateEstimator>,
-    }
+    })
 }
 
 use crate::sensors::Observation;

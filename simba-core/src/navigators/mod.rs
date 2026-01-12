@@ -21,6 +21,7 @@ use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 use crate::controllers::ControllerError;
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::string_combobox};
 use crate::networking::message_handler::MessageHandler;
@@ -201,8 +202,8 @@ pub fn make_navigator_from_config(
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
     initial_time: f32,
-) -> Arc<RwLock<Box<dyn Navigator>>> {
-    Arc::new(RwLock::new(match config {
+) -> SimbaResult<Arc<RwLock<Box<dyn Navigator>>>> {
+    Ok(Arc::new(RwLock::new(match config {
         NavigatorConfig::TrajectoryFollower(c) => Box::new(
             trajectory_follower::TrajectoryFollower::from_config(c, global_config, initial_time),
         ) as Box<dyn Navigator>,
@@ -213,7 +214,7 @@ pub fn make_navigator_from_config(
                 global_config,
                 va_factory,
                 initial_time,
-            )) as Box<dyn Navigator>
+            )?) as Box<dyn Navigator>
         }
         NavigatorConfig::Python(c) => Box::new(
             python_navigator::PythonNavigator::from_config(c, global_config, initial_time).unwrap(),
@@ -221,5 +222,5 @@ pub fn make_navigator_from_config(
         NavigatorConfig::GoTo(c) => {
             Box::new(go_to::GoTo::from_config(c, initial_time)) as Box<dyn Navigator>
         }
-    }))
+    })))
 }
