@@ -130,7 +130,7 @@ impl Robot {
         scale: f32,
         time: f32,
     ) {
-        if let Some((_, record)) = self.records.get_data_beq_time(time) {
+        if let Some((t, record)) = self.records.get_data_beq_time(time) {
             let pose = record.physics.pose();
             let position = Vec2::new(pose[0], pose[1]);
 
@@ -143,6 +143,8 @@ impl Robot {
                         self.context_info_enabled = false;
                     }
                     let unique_id = format!("record-robot-{}", record.name);
+                    ui.label(format!("Time: {:.3} s", t));
+
                     egui::ScrollArea::both().show(ui, |ui| {
                         record.show(ui, ctx, &unique_id);
                     });

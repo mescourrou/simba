@@ -1,5 +1,5 @@
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     path::Path,
     sync::{Arc, Mutex},
     time::{self, Duration},
@@ -11,12 +11,12 @@ use serde::{Deserialize, Serialize};
 use crate::{
     AUTHORS, VERSION,
     api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
-    constants::TIME_ROUND_DECIMALS,
+    constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
     errors::{SimbaError, SimbaErrorTypes},
     gui::{UIComponent, drawables::popup::Popup},
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
-    simulator::{Record, Results, Simulator, SimulatorConfig},
+    simulator::{Record, Results, Simulator, SimulatorConfig}, utils::{maths::round_precision, numbers::OrderedF32},
 };
 
 use super::{
@@ -132,6 +132,7 @@ struct PrivateParams {
     popups: Vec<Popup>,
     record_buffer: Arc<Mutex<Vec<Record>>>,
     current_max_time: f32,
+    drawable_instants: BTreeSet<OrderedF32>,
 }
 
 impl Default for PrivateParams {
@@ -153,6 +154,7 @@ impl Default for PrivateParams {
             popups: Vec::new(),
             record_buffer: Arc::new(Mutex::new(Vec::new())),
             current_max_time: 0.,
+            drawable_instants: BTreeSet::new(),
         }
     }
 }
@@ -327,6 +329,7 @@ impl SimbaApp {
     }
 
     fn add_result(&mut self, time: f32, node: NodeRecord) {
+        let time = round_precision(time, TIME_ROUND).unwrap();
         match node {
             NodeRecord::ComputationUnit(_) => {}
             NodeRecord::Robot(n) => {
@@ -348,7 +351,7 @@ impl SimbaApp {
         if time > self.p.current_max_time {
             self.p.current_max_time = time;
         }
-        print!(".");
+        self.p.drawable_instants.insert(OrderedF32(time));
     }
 }
 
@@ -558,14 +561,30 @@ impl eframe::App for SimbaApp {
                             + (std::time::Instant::now() - begin_sys_time).as_secs_f32();
                     }
                     // Set ALL slider size
-                    ui.style_mut().spacing.slider_width = ui.available_width() - 180.;
+                    ui.style_mut().spacing.slider_width = ui.available_width() - 220.;
                     if self.p.current_draw_time > self.p.current_max_time || self.follow_sim_time {
                         self.p.current_draw_time = self.p.current_max_time;
+                    }
+                    if ui.button("<").clicked() {
+                        if let Some(&prev_instant) = self.p.drawable_instants.range(..OrderedF32(self.p.current_draw_time)).next_back() {
+                            self.p.current_draw_time = prev_instant.0;
+                        } else if self.p.current_draw_time > 0.0 {
+                            self.p.current_draw_time = 0.0;
+                        }
+                        self.follow_sim_time = false;
                     }
                     ui.add(
                         egui::Slider::new(&mut self.p.current_draw_time, 0.0..=self.duration)
                             .fixed_decimals(TIME_ROUND_DECIMALS),
                     );
+                    if ui.button(">").clicked() {
+                        if let Some(&next_instant) = self.p.drawable_instants.range(OrderedF32(self.p.current_draw_time + TIME_ROUND)..).next() {
+                            self.p.current_draw_time = next_instant.0;
+                        } else if self.p.current_draw_time < self.duration {
+                            self.p.current_draw_time = self.duration;
+                        }
+                        self.follow_sim_time = false;
+                    }
                     ui.add(egui::Checkbox::new(&mut self.follow_sim_time, "Follow"));
                     if ui
                         .add_enabled(self.p.config.is_some(), egui::Button::new("Results"))

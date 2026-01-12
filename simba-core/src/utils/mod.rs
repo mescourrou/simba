@@ -14,6 +14,7 @@ pub mod occupancy_grid;
 pub mod python;
 pub mod rfc;
 pub mod time_ordered_data;
+pub mod numbers;
 
 use serde::Serializer;
 pub fn format_f32<S>(val: &f32, serializer: S) -> Result<S::Ok, S::Error>
