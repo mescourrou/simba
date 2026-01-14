@@ -122,7 +122,6 @@ impl RobotModel for Holonomic {
         &mut self,
         state: &mut State,
         command: &Command,
-        cum_lie_action: &mut Matrix3<f32>,
         dt: f32,
     ) {
         let command = match command {
@@ -133,25 +132,22 @@ impl RobotModel for Holonomic {
 
         let lateral_velocity = command.lateral_velocity.min(self.max_lateral_velocity).max(-self.max_lateral_velocity);
         let longitudinal_velocity = command.longitudinal_velocity.min(self.max_longitudinal_velocity).max(-self.max_longitudinal_velocity);
-        let displacement_lateral = lateral_velocity * dt;
-        let displacement_longitudinal = longitudinal_velocity * dt;
-        let rotation = command.angular_velocity.min(self.max_angular_velocity).max(-self.max_angular_velocity) * dt;
+        let v_rotation = command.angular_velocity.min(self.max_angular_velocity).max(-self.max_angular_velocity);
 
         // Using Lie theory
         // Reference: Sola, J., Deray, J., & Atchuthan, D. (2018). A micro lie theory for state estimation in robotics. arXiv preprint arXiv:1812.01537.
 
         let lie_action = SMatrix::<f32, 3, 3>::new(
             0.,
-            -rotation,
-            displacement_longitudinal,
-            rotation,
+            -v_rotation,
+            longitudinal_velocity,
+            v_rotation,
             0.,
-            displacement_lateral,
+            lateral_velocity,
             0.,
             0.,
             0.,
         );
-        *cum_lie_action += lie_action;
         let rot_mat = *nalgebra::Rotation2::new(theta).matrix();
 
         let mut se2_mat = SMatrix::<f32, 3, 3>::new(
@@ -166,7 +162,7 @@ impl RobotModel for Holonomic {
             1.,
         );
 
-        se2_mat *= lie_action.exp();
+        se2_mat *= (dt * lie_action).exp();
 
         // let rot = nalgebra::Rotation2::from_matrix(&se2_mat.fixed_view::<2, 2>(0, 0).into());
         // self.state.pose.z = rot.angle();
@@ -175,7 +171,7 @@ impl RobotModel for Holonomic {
         state.pose.x = se2_mat[(0, 2)];
         state.pose.y = se2_mat[(1, 2)];
 
-        state.velocity = [longitudinal_velocity, lateral_velocity].into();
+        state.velocity = [longitudinal_velocity, lateral_velocity, v_rotation].into();
     }
 
     fn default_command(&self) -> Command {

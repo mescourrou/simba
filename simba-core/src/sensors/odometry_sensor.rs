@@ -203,13 +203,13 @@ impl UIComponent for OdometryObservationRecord {
 pub struct OdometrySensor {
     /// Last state to compute the velocity.
     last_state: State,
-    last_lie_action: Matrix3<f32>,
     /// Observation period
     period: Option<f32>,
     /// Last observation time.
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
     filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
+    #[deprecated(note = "lie_integration is deprecated; Odometry always use lie integration.")]
     lie_integration: bool,
 }
 
@@ -259,13 +259,16 @@ impl OdometrySensor {
         }
         drop(unlock_filters);
 
+        if config.lie_integration {
+            log::warn!("OdometrySensorConfig.lie_integration is deprecated and will be removed soon.");
+        }
         Self {
             last_state: State::new(),
-            last_lie_action: Matrix3::zeros(),
             period: config.period,
             last_time: initial_time,
             faults: fault_models,
             filters,
+            #[allow(deprecated)]
             lie_integration: config.lie_integration,
         }
     }
@@ -301,30 +304,12 @@ impl Sensor for OdometrySensor {
         let physic = arc_physic.read().unwrap();
         let state = physic.state(time);
 
-        let dt = time - self.last_time;
-
-        let obs = if self.lie_integration
-            && let Some(lie_action) = physic.cummulative_lie_action()
-        {
-            let delta_lie = lie_action - self.last_lie_action;
-            let delta_lie = delta_lie * dt;
-            let displacement = delta_lie.exp();
-            self.last_lie_action = lie_action;
-            SensorObservation::Odometry(OdometryObservation {
-                linear_velocity: displacement[(0, 2)] / dt,
-                lateral_velocity: displacement[(1, 2)] / dt,
-                angular_velocity: atan2f(displacement[(1, 0)], displacement[(0, 0)]) / dt,
-                applied_faults: Vec::new(),
-            })
-        } else {
-            // No lie action available, fall back to previous method
-            SensorObservation::Odometry(OdometryObservation {
+        let obs = SensorObservation::Odometry(OdometryObservation {
                 linear_velocity: state.velocity.x,
                 lateral_velocity: state.velocity.y,
-                angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
+                angular_velocity: state.velocity.z,
                 applied_faults: Vec::new(),
-            })
-        };
+            });
 
         if let Some(obs) = self
             .filters

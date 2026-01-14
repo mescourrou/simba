@@ -106,7 +106,6 @@ impl RobotModel for Unicycle {
         &mut self,
         state: &mut State,
         command: &Command,
-        cum_lie_action: &mut Matrix3<f32>,
         dt: f32,
     ) {
         let command = match command {
@@ -115,19 +114,15 @@ impl RobotModel for Unicycle {
         };
         let theta = state.pose.z;
 
-        let displacement_wheel_left = command.left_wheel_speed * dt;
-        let displacement_wheel_right = command.right_wheel_speed * dt;
-
-        let translation = (displacement_wheel_left + displacement_wheel_right) / 2.;
-        let rotation = (displacement_wheel_right - displacement_wheel_left) / self.wheel_distance;
+        let v_translation = (command.left_wheel_speed + command.right_wheel_speed) / 2.;
+        let v_rotation = (command.right_wheel_speed - command.left_wheel_speed) / self.wheel_distance;
 
         // Using Lie theory
         // Reference: Sola, J., Deray, J., & Atchuthan, D. (2018). A micro lie theory for state estimation in robotics. arXiv preprint arXiv:1812.01537.
 
         let lie_action =
-            SMatrix::<f32, 3, 3>::new(0., -rotation, translation, rotation, 0., 0., 0., 0., 0.);
+            SMatrix::<f32, 3, 3>::new(0., -v_rotation, v_translation, v_rotation, 0., 0., 0., 0., 0.);
 
-        *cum_lie_action += lie_action;
         let rot_mat = *nalgebra::Rotation2::new(theta).matrix();
 
         let mut se2_mat = SMatrix::<f32, 3, 3>::new(
@@ -142,7 +137,7 @@ impl RobotModel for Unicycle {
             1.,
         );
 
-        se2_mat *= lie_action.exp();
+        se2_mat *= (dt * lie_action).exp();
 
         // let rot = nalgebra::Rotation2::from_matrix(&se2_mat.fixed_view::<2, 2>(0, 0).into());
         // self.state.pose.z = rot.angle();
@@ -151,8 +146,9 @@ impl RobotModel for Unicycle {
         state.pose.x = se2_mat[(0, 2)];
         state.pose.y = se2_mat[(1, 2)];
 
-        state.velocity.x = translation / dt;
+        state.velocity.x = v_translation;
         state.velocity.y = 0.;
+        state.velocity.z = v_rotation;
     }
 
     fn default_command(&self) -> Command {

@@ -125,7 +125,6 @@ pub trait RobotModel: std::fmt::Debug + std::marker::Send + std::marker::Sync {
         &mut self,
         previous_state: &mut State,
         command: &Command,
-        cum_lie_action: &mut Matrix3<f32>,
         delta_time: f32,
     );
     fn default_command(&self) -> Command;

@@ -196,6 +196,7 @@ pub trait Physics:
     /// Get the current real state, the groundtruth.
     fn state(&self, time: f32) -> State;
 
+    #[deprecated(note = "This method is no longer used and will be removed in future versions.")]
     fn cummulative_lie_action(&self) -> Option<Matrix3<f32>> {
         None
     }

@@ -204,7 +204,7 @@ impl PerfectEstimator {
                     landmark.id,
                     State {
                         pose: landmark.pose,
-                        velocity: [0., 0.].into(),
+                        velocity: [0., 0., 0.].into(),
                     },
                 );
             }

@@ -146,7 +146,6 @@ pub struct InternalPhysics {
     last_time_update: f32,
     /// Current command applied.
     current_command: Command,
-    cum_lie_action: Matrix3<f32>,
     faults: Arc<Mutex<Vec<Box<dyn PhysicsFaultModel>>>>,
 }
 
@@ -185,7 +184,6 @@ impl InternalPhysics {
                     })
                     .collect(),
             )),
-            cum_lie_action: Matrix3::zeros(),
         }
     }
 
@@ -210,7 +208,6 @@ impl InternalPhysics {
         self.model.update_state(
             &mut self.state,
             &self.current_command,
-            &mut self.cum_lie_action,
             dt,
         );
 
@@ -244,10 +241,6 @@ impl Physics for InternalPhysics {
     fn state(&self, time: f32) -> State {
         assert!(time == self.last_time_update);
         self.state.clone()
-    }
-
-    fn cummulative_lie_action(&self) -> Option<Matrix3<f32>> {
-        Some(self.cum_lie_action)
     }
 }
 

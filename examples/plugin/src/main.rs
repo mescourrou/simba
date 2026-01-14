@@ -173,7 +173,7 @@ impl MyWonderfulPhysics {
         Self {
             state: State {
                 pose: Vector3::zeros(),
-                velocity: Vector2::zeros(),
+                velocity: Vector3::zeros(),
             },
         }
     }
