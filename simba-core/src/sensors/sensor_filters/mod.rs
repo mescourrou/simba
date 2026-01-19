@@ -6,8 +6,7 @@ use crate::{
     sensors::{
         SensorObservation,
         sensor_filters::{
-            python_filter::{PythonFilter, PythonFilterConfig},
-            range_filter::{RangeFilter, RangeFilterConfig},
+            id_filter::{IdFilter, IdFilterConfig}, python_filter::{PythonFilter, PythonFilterConfig}, range_filter::{RangeFilter, RangeFilterConfig}
         },
     },
     simulator::SimulatorConfig,
@@ -16,10 +15,12 @@ use crate::{
 
 pub mod python_filter;
 pub mod range_filter;
+pub mod id_filter;
 
 #[config_derives]
 pub enum SensorFilterConfig {
     RangeFilter(RangeFilterConfig),
+    IdFilter(IdFilterConfig),
     PythonFilter(PythonFilterConfig),
 }
 
@@ -64,6 +65,14 @@ impl UIComponent for SensorFilterConfig {
                     current_node_name,
                     unique_id,
                 ),
+                Self::IdFilter(cfg) => cfg.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                ),
             });
     }
 
@@ -75,6 +84,7 @@ impl UIComponent for SensorFilterConfig {
                 match self {
                     Self::RangeFilter(cfg) => cfg.show(ui, ctx, unique_id),
                     Self::PythonFilter(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::IdFilter(cfg) => cfg.show(ui, ctx, unique_id),
                 };
             });
     }
@@ -139,6 +149,9 @@ impl SensorFilterConfig {
                     "PythonFilter" => filters.push(SensorFilterConfig::PythonFilter(
                         PythonFilterConfig::default(),
                     )),
+                    "IdFilter" => {
+                        filters.push(SensorFilterConfig::IdFilter(IdFilterConfig::default()))
+                    }
                     _ => panic!("Where did you find this fault?"),
                 };
             }
@@ -173,6 +186,9 @@ pub fn make_sensor_filter_from_config(
         SensorFilterConfig::PythonFilter(cfg) => {
             Box::new(PythonFilter::from_config(cfg, global_config, initial_time).unwrap())
                 as Box<dyn SensorFilter>
+        }
+        SensorFilterConfig::IdFilter(cfg) => {
+            Box::new(IdFilter::from_config(cfg, initial_time)) as Box<dyn SensorFilter>
         }
     }
 }
