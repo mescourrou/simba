@@ -18,6 +18,7 @@ use crate::errors::{SimbaError, SimbaErrorTypes};
 use crate::networking::message_handler::MessageHandler;
 use crate::state_estimators::State;
 use crate::time_analysis::TimeAnalysisNode;
+use crate::utils::read_only_lock::ReadOnlyLock;
 use crate::{
     api::internal_api::{self, NodeClient, NodeServer},
     constants::TIME_ROUND,
@@ -41,6 +42,15 @@ pub enum NodeState {
     Running,
     Zombie,
     Terminated,
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeMetaData {
+    pub name: String,
+    pub node_type: NodeType,
+    pub model_name: String,
+    pub labels: Vec<String>,
+    pub state: NodeState,
 }
 
 // Node itself
@@ -68,11 +78,6 @@ pub enum NodeState {
 /// so that the required time is reached taking into account all past messages.
 #[derive(Debug)]
 pub struct Node {
-    pub(self) node_type: NodeType,
-    /// Name of the node. Should be unique among all [`Simulator`](crate::simulator::Simulator)
-    /// nodes.
-    pub(self) name: String,
-    pub(self) model_name: String,
     /// [`Navigator`] module, implementing the navigation strategy.
     pub(self) navigator: Option<Arc<RwLock<Box<dyn Navigator>>>>,
     /// [`Controller`] module, implementing the control strategy.
@@ -95,9 +100,11 @@ pub struct Node {
     pub(self) node_server: Option<NodeServer>,
 
     pub(self) other_node_names: Vec<String>,
-    pub(self) state: NodeState,
     pub(self) time_analysis: Arc<Mutex<TimeAnalysisNode>>,
     pub(self) send_records: bool,
+
+    pub(self) node_meta_data: Arc<RwLock<NodeMetaData>>,
+    pub(self) meta_data_list: Option<Arc<dyn ReadOnlyLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>>>,
 }
 
 impl Node {
@@ -107,6 +114,7 @@ impl Node {
     pub fn post_creation_init(
         &mut self,
         service_manager_list: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
+        meta_data_list: Arc<dyn ReadOnlyLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>>,
     ) -> NodeClient {
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Node post-creation initialization")
@@ -123,7 +131,7 @@ impl Node {
         self.other_node_names = service_manager_list
             .iter()
             .filter_map(|n| {
-                if n.0 != &self.name {
+                if n.0 != &self.node_meta_data.read().unwrap().name {
                     Some(n.0.clone())
                 } else {
                     None
@@ -168,8 +176,16 @@ impl Node {
                     .subscribe(controller.read().unwrap().get_letter_box());
             }
         }
-        let (node_server, node_client) = internal_api::make_node_api(&self.node_type);
+        let (node_server, node_client) = internal_api::make_node_api(&self.node_meta_data.read().unwrap().node_type);
         self.node_server = Some(node_server);
+        {
+            let meta_data = &mut self.node_meta_data.write().unwrap();
+            let name = meta_data.name.clone();
+            let model_name = meta_data.model_name.clone();
+            meta_data.labels.push(name);
+            meta_data.labels.push(model_name);
+        }
+        self.meta_data_list = Some(meta_data_list);
         node_client
     }
 
@@ -231,7 +247,7 @@ impl Node {
         time_cv: &TimeCv,
         nb_nodes: usize,
     ) -> SimbaResult<()> {
-        if self.state != NodeState::Running {
+        if self.node_meta_data.read().unwrap().state != NodeState::Running {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
                 "Only a Running node should be run!".to_string(),
@@ -252,7 +268,7 @@ impl Node {
                     time,
                     (
                         physics.read().unwrap().state(time).clone(),
-                        self.state.clone(),
+                        self.node_meta_data.read().unwrap().state.clone(),
                     ),
                 ))
                 .unwrap();
@@ -621,16 +637,16 @@ impl Node {
 impl Node {
     /// Get the name of the node.
     pub fn name(&self) -> String {
-        self.name.clone()
+        self.node_meta_data.read().unwrap().name.clone()
     }
 
     pub fn state(&self) -> NodeState {
-        self.state.clone()
+        self.node_meta_data.read().unwrap().state.clone()
     }
 
     #[cfg(not(feature = "force_hard_determinism"))]
     pub(crate) fn set_state(&mut self, state: NodeState) {
-        self.state = state;
+        self.node_meta_data.write().unwrap().state = state;
     }
 
     pub fn send_records(&self) -> bool {
@@ -641,8 +657,8 @@ impl Node {
         &self.other_node_names
     }
 
-    pub fn node_type(&self) -> &NodeType {
-        &self.node_type
+    pub fn node_type(&self) -> NodeType {
+        self.node_meta_data.read().unwrap().node_type.clone()
     }
 
     /// Get a Arc clone of network module.
@@ -706,12 +722,22 @@ impl Node {
         self.service_manager.as_ref().unwrap().clone()
     }
 
+    pub fn meta_data(&self) -> Arc<dyn ReadOnlyLock<NodeMetaData>> {
+        self.node_meta_data.clone() as Arc<dyn ReadOnlyLock<NodeMetaData>>
+    }
+
+    pub fn meta_data_list(
+        &self,
+    ) -> Option<Arc<dyn ReadOnlyLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>>> {
+        self.meta_data_list.as_ref().cloned()
+    }
+
     pub fn pre_kill(&mut self) {
-        self.state = NodeState::Zombie;
+        self.node_meta_data.write().unwrap().state = NodeState::Zombie;
     }
 
     pub fn kill(&mut self, time: f32) {
-        self.state = NodeState::Zombie;
+        self.node_meta_data.write().unwrap().state = NodeState::Zombie;
         if let Some(network) = &self.network {
             network.write().unwrap().unsubscribe_node().unwrap();
         }
@@ -724,7 +750,7 @@ impl Node {
             .state_update
             .as_ref()
             .unwrap()
-            .send((time, (State::new(), self.state.clone())))
+            .send((time, (State::new(), self.node_meta_data.read().unwrap().state.clone())))
             .unwrap();
     }
 }
@@ -732,9 +758,11 @@ impl Node {
 // Record part
 impl Node {
     fn robot_record(&self) -> RobotRecord {
+        let meta_data = self.node_meta_data.read().unwrap();
         let mut record = RobotRecord {
-            name: self.name.clone(),
-            model_name: self.model_name.clone(),
+            name: meta_data.name.clone(),
+            model_name: meta_data.model_name.clone(),
+            labels: meta_data.labels.clone(),
             navigator: self.navigator.as_ref().unwrap().read().unwrap().record(),
             controller: self.controller.as_ref().unwrap().read().unwrap().record(),
             physics: self.physics.as_ref().unwrap().read().unwrap().record(),
@@ -753,7 +781,7 @@ impl Node {
                 .read()
                 .unwrap()
                 .record(),
-            state: self.state.clone(),
+            state: meta_data.state.clone(),
         };
         let other_state_estimators = self.state_estimator_bench.clone();
         for additional_state_estimator in other_state_estimators
@@ -778,10 +806,13 @@ impl Node {
     }
 
     fn computation_unit_record(&self) -> ComputationUnitRecord {
+        let meta_data = self.node_meta_data.read().unwrap();
         let mut record = ComputationUnitRecord {
-            name: self.name.clone(),
+            name: meta_data.name.clone(),
             state_estimators: Vec::new(),
             sensor_manager: self.sensor_manager().unwrap().read().unwrap().record(),
+            labels: meta_data.labels.clone(),
+            model_name: meta_data.model_name.clone(),
         };
         let other_state_estimators = self.state_estimator_bench.clone();
         for additional_state_estimator in other_state_estimators
@@ -807,7 +838,7 @@ impl Node {
 impl Recordable<NodeRecord> for Node {
     /// Generate the current state record.
     fn record(&self) -> NodeRecord {
-        match &self.node_type {
+        match &self.node_meta_data.read().unwrap().node_type {
             NodeType::Robot => NodeRecord::Robot(Box::new(self.robot_record())),
             NodeType::ComputationUnit => {
                 NodeRecord::ComputationUnit(self.computation_unit_record())

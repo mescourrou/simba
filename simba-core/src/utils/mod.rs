@@ -15,6 +15,7 @@ pub mod python;
 pub mod rfc;
 pub mod time_ordered_data;
 pub mod numbers;
+pub mod read_only_lock;
 
 use serde::Serializer;
 pub fn format_f32<S>(val: &f32, serializer: S) -> Result<S::Ok, S::Error>

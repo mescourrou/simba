@@ -16,6 +16,7 @@ use crate::{
 pub mod python_filter;
 pub mod range_filter;
 pub mod id_filter;
+pub mod label_filter;
 
 #[config_derives]
 pub enum SensorFilterConfig {

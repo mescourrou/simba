@@ -324,6 +324,7 @@ impl<'de> Deserialize<'de> for OrientedRobot {
 pub struct OrientedRobotObservation {
     /// Name of the Robot
     pub name: String,
+    pub labels: Vec<String>,
     /// Pose of the Robot
     pub pose: Vector3<f32>,
     pub applied_faults: Vec<FaultModelConfig>,
@@ -333,6 +334,7 @@ impl Recordable<OrientedRobotObservationRecord> for OrientedRobotObservation {
     fn record(&self) -> OrientedRobotObservationRecord {
         OrientedRobotObservationRecord {
             name: self.name.clone(),
+            labels: self.labels.clone(),
             pose: self.pose.to_owned().into(),
         }
     }
@@ -342,6 +344,7 @@ impl Recordable<OrientedRobotObservationRecord> for OrientedRobotObservation {
 pub struct OrientedRobotObservationRecord {
     /// Name of the Robot
     pub name: String,
+    pub labels: Vec<String>,
     /// Pose of the Robot
     pub pose: [f32; 3],
 }
@@ -351,6 +354,10 @@ impl UIComponent for OrientedRobotObservationRecord {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Name: {}", self.name));
+            ui.label("Labels:");
+            for label in &self.labels {
+                ui.label(format!("- {}", label));
+            }
             ui.label(format!(
                 "Pose: ({}, {}, {})",
                 self.pose[0], self.pose[1], self.pose[2]
@@ -489,8 +496,12 @@ impl Sensor for RobotSensor {
                             1. / (100. * self.period.unwrap_or(TIME_ROUND)) * (i as f32);
                         let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
                         let mut new_obs = Vec::new();
+                        let labels = node.meta_data_list().unwrap().read().unwrap()
+                            .get(other_node_name)
+                            .map_or(Vec::new(), |md| md.read().unwrap().labels.clone());
                         let obs = SensorObservation::OrientedRobot(OrientedRobotObservation {
                             name: other_node_name.clone(),
+                            labels,
                             pose,
                             applied_faults: Vec::new(),
                         });

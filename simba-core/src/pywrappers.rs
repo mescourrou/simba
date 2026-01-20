@@ -302,6 +302,8 @@ impl OccupancyGridWrapper {
 pub struct OrientedLandmarkObservationWrapper {
     /// Id of the landmark
     pub id: i32,
+    /// Labels of the landmark
+    pub labels: Vec<String>,
     /// Pose of the landmark
     pub pose: Pose,
     /// Applied fault in JSON format
@@ -318,6 +320,7 @@ impl OrientedLandmarkObservationWrapper {
     pub fn new() -> Self {
         Self {
             id: 0,
+            labels: Vec::new(),
             pose: Pose {
                 x: 0.,
                 y: 0.,
@@ -334,6 +337,7 @@ impl OrientedLandmarkObservationWrapper {
     pub fn from_rust(s: &OrientedLandmarkObservation) -> Self {
         Self {
             id: s.id,
+            labels: s.labels.clone(),
             pose: Pose {
                 x: s.pose[0],
                 y: s.pose[1],
@@ -347,6 +351,7 @@ impl OrientedLandmarkObservationWrapper {
     pub fn to_rust(&self) -> OrientedLandmarkObservation {
         OrientedLandmarkObservation {
             id: self.id,
+            labels: self.labels.clone(),
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
             width: self.width,
@@ -467,6 +472,8 @@ impl Default for GNSSObservationWrapper {
 pub struct OrientedRobotObservationWrapper {
     /// Name of the Robot
     pub name: String,
+    /// Labels of the Robot
+    pub labels: Vec<String>,
     /// Pose of the Robot
     pub pose: Pose,
     /// Applied faults in JSON format
@@ -479,6 +486,7 @@ impl OrientedRobotObservationWrapper {
     pub fn new() -> Self {
         Self {
             name: "NoName".to_string(),
+            labels: Vec::new(),
             pose: Pose {
                 x: 0.,
                 y: 0.,
@@ -493,6 +501,7 @@ impl OrientedRobotObservationWrapper {
     pub fn from_rust(s: &OrientedRobotObservation) -> Self {
         Self {
             name: s.name.clone(),
+            labels: s.labels.clone(),
             pose: Pose {
                 x: s.pose[0],
                 y: s.pose[1],
@@ -504,6 +513,7 @@ impl OrientedRobotObservationWrapper {
     pub fn to_rust(&self) -> OrientedRobotObservation {
         OrientedRobotObservation {
             name: self.name.clone(),
+            labels: self.labels.clone(),
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
