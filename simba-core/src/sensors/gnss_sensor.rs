@@ -22,7 +22,7 @@ use crate::utils::maths::round_precision;
 #[cfg(feature = "gui")]
 use crate::{constants::TIME_ROUND_DECIMALS, gui::UIComponent};
 use log::debug;
-use nalgebra::Vector2;
+use nalgebra::{Vector2, Vector3};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -143,14 +143,14 @@ impl UIComponent for GNSSSensorRecord {
 /// Observation of the pose of the node and its speed.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GNSSObservation {
-    pub position: Vector2<f32>,
+    pub pose: Vector3<f32>,
     pub velocity: Vector2<f32>,
     pub applied_faults: Vec<FaultModelConfig>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct GNSSObservationRecord {
-    pub position: [f32; 2],
+    pub pose: [f32; 3],
     pub velocity: [f32; 2],
 }
 
@@ -159,8 +159,8 @@ impl UIComponent for GNSSObservationRecord {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!(
-                "Position: ({}, {})",
-                self.position[0], self.position[1]
+                "Position: ({}, {}, {})",
+                self.pose[0], self.pose[1], self.pose[2]
             ));
             ui.label(format!(
                 "Velocity: ({}, {})",
@@ -173,7 +173,7 @@ impl UIComponent for GNSSObservationRecord {
 impl Recordable<GNSSObservationRecord> for GNSSObservation {
     fn record(&self) -> GNSSObservationRecord {
         GNSSObservationRecord {
-            position: [self.position.x, self.position.y],
+            pose: [self.pose.x, self.pose.y, self.pose.z],
             velocity: [self.velocity.x, self.velocity.y],
         }
     }
@@ -275,7 +275,7 @@ impl Sensor for GNSSSensor {
 
         // Apply filters until one rejects the observation
         let obs = SensorObservation::GNSS(GNSSObservation {
-            position: state.pose.fixed_rows::<2>(0).into(),
+            pose: state.pose.clone(),
             velocity,
             applied_faults: Vec::new(),
         });

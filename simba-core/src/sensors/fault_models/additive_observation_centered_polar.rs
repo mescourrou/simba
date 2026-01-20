@@ -268,24 +268,29 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                 SensorObservation::GNSS(o) => {
                     let mut r_add = 0.;
                     let mut theta_add = 0.;
+                    let mut z_add = 0.;
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
+                                "orientation" | "z" => z_add = random_sample[i],
                                 &_ => panic!(
-                                    "Unknown variable name: '{}'. Available variable names: [r, theta]",
+                                    "Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]",
                                     variable
                                 ),
                             }
                         }
                     } else {
                         assert!(
-                            random_sample.len() >= 3,
-                            "The distribution of an AdditiveObservationCenteredPolar fault for GNSS observation need to be of dimension 3."
+                            random_sample.len() >= 2,
+                            "The distribution of an AdditiveObservationCenteredPolar fault for GNSS observation need to be of dimension 2."
                         );
                         theta_add = random_sample[0];
                         r_add = random_sample[1];
+                        if random_sample.len() >= 3 {
+                            z_add = random_sample[2];
+                        }
                     }
                     if self.config.proportional_to.is_some() {
                         todo!(
@@ -293,8 +298,9 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                         );
                     }
 
-                    o.position.x += r_add * theta_add.cos();
-                    o.position.y += r_add * theta_add.sin();
+                    o.pose.x += r_add * theta_add.cos();
+                    o.pose.y += r_add * theta_add.sin();
+                    o.pose.z += z_add;
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveObservationCenteredPolar(
                             self.config.clone(),

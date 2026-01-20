@@ -480,7 +480,7 @@ impl Default for OdometryObservationWrapper {
 #[pyclass(get_all)]
 #[pyo3(name = "GNSSObservation")]
 pub struct GNSSObservationWrapper {
-    pub position: Vec2,
+    pub pose: Vec3,
     pub velocity: Vec2,
     /// Applied faults in JSON format
     pub applied_faults: String,
@@ -491,7 +491,7 @@ impl GNSSObservationWrapper {
     #[new]
     pub fn new() -> Self {
         Self {
-            position: Vec2 { x: 0., y: 0. },
+            pose: Vec3 { x: 0., y: 0., z: 0. },
             velocity: Vec2 { x: 0., y: 0. },
             applied_faults: "[]".to_string(),
         }
@@ -501,9 +501,10 @@ impl GNSSObservationWrapper {
 impl GNSSObservationWrapper {
     pub fn from_rust(s: &GNSSObservation) -> Self {
         Self {
-            position: Vec2 {
-                x: s.position[0],
-                y: s.position[1],
+            pose: Vec3 {
+                x: s.pose[0],
+                y: s.pose[1],
+                z: s.pose[2],
             },
             velocity: Vec2 {
                 x: s.velocity[0],
@@ -514,7 +515,7 @@ impl GNSSObservationWrapper {
     }
     pub fn to_rust(&self) -> GNSSObservation {
         GNSSObservation {
-            position: Vector2::from_vec(vec![self.position.x, self.position.y]),
+            pose: Vector3::from_vec(vec![self.pose.x, self.pose.y, self.pose.z]),
             velocity: Vector2::from_vec(vec![self.velocity.x, self.velocity.y]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }

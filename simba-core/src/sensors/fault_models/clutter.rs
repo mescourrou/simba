@@ -248,12 +248,13 @@ impl FaultModel for ClutterFault {
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
-                                "position_x" | "x" => o.position.x = random_sample[i],
-                                "position_y" | "y" => o.position.y = random_sample[i],
+                                "position_x" | "x" => o.pose.x = random_sample[i],
+                                "position_y" | "y" => o.pose.y = random_sample[i],
+                                "orientation" | "z" => o.pose.z = random_sample[i],
                                 "velocity_x" => o.velocity.x = random_sample[i],
                                 "velocity_y" => o.velocity.y = random_sample[i],
                                 &_ => panic!(
-                                    "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y]",
+                                    "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, orientation | z, velocity_x, velocity_y]",
                                     variable
                                 ),
                             }
@@ -261,15 +262,18 @@ impl FaultModel for ClutterFault {
                     } else {
                         assert!(
                             random_sample.len() >= 2,
-                            "The distribution of an Clutter fault for GNSS observation need to be at least of dimension 2 (to 4 for velocities)."
+                            "The distribution of an Clutter fault for GNSS observation need to be at least of dimension 2 (to 5 for orientation and velocities)."
                         );
-                        o.position.x = random_sample[0];
-                        o.position.y = random_sample[1];
+                        o.pose.x = random_sample[0];
+                        o.pose.y = random_sample[1];
                         if random_sample.len() >= 3 {
-                            o.velocity.x = random_sample[2];
+                            o.pose.z = random_sample[2];
                         }
                         if random_sample.len() >= 4 {
-                            o.velocity.y = random_sample[3];
+                            o.velocity.x = random_sample[3];
+                        }
+                        if random_sample.len() >= 5 {
+                            o.velocity.y = random_sample[4];
                         }
                     }
                     o.applied_faults

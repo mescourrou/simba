@@ -130,7 +130,7 @@ class DisplacementObservation:
 
 class GNSSObservation: 
     def __init__(self):
-        self.position: Vec2
+        self.pose: Vec3
         self.velocity: Vec2
         self.applied_faults: str """ Applied faults in JSON format """
 

@@ -153,13 +153,14 @@ impl SensorFilter for RangeFilter {
             SensorObservation::GNSS(obs) => {
                 for (i, var) in self.config.variables.iter().enumerate() {
                     let value = match var.as_str() {
-                        "x" | "position_x" => obs.position.x,
-                        "y" | "position_y" => obs.position.y,
+                        "x" | "position_x" => obs.pose.x,
+                        "y" | "position_y" => obs.pose.y,
+                        "orientation" | "z" => obs.pose.z,
                         "velocity_x" => obs.velocity.x,
                         "velocity_y" => obs.velocity.y,
                         "self_velocity" => observer_state.velocity.fixed_rows::<2>(0).norm(),
                         &_ => panic!(
-                            "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y, self_velocity]",
+                            "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, orientation | z, velocity_x, velocity_y, self_velocity]",
                             self.config.variables[i]
                         ),
                     };

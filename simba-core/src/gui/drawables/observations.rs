@@ -192,7 +192,7 @@ impl GNSSObservation {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
 
-        let obs_position = Vec2::new(obs.position[0], obs.position[1]);
+        let obs_position = Vec2::new(obs.pose[0], obs.pose[1]);
         if !painter_info.is_inside(&obs_position) {
             return Err(obs_position);
         }
