@@ -31,7 +31,7 @@ use crate::{
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
-        Observation, SensorObservation, gnss_sensor::GNSSObservation, oriented_landmark_sensor::OrientedLandmarkObservation, robot_sensor::OrientedRobotObservation, speed_sensor::{OdometryObservation, SpeedObservation}
+        Observation, SensorObservation, displacement_sensor::DisplacementObservation, gnss_sensor::GNSSObservation, oriented_landmark_sensor::OrientedLandmarkObservation, robot_sensor::OrientedRobotObservation, speed_sensor::{OdometryObservation, SpeedObservation}
     },
     simulator::{AsyncSimulator, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
@@ -522,6 +522,54 @@ impl GNSSObservationWrapper {
 }
 
 impl Default for GNSSObservationWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Clone, Debug)]
+#[pyclass(get_all)]
+#[pyo3(name = "DisplacementObservation")]
+pub struct DisplacementObservationWrapper {
+    pub translation: Vec2,
+    pub rotation: f32,
+    /// Applied faults in JSON format
+    pub applied_faults: String,
+}
+
+#[pymethods]
+impl DisplacementObservationWrapper {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            translation: Vec2 { x: 0., y: 0. },
+            rotation: 0.,
+            applied_faults: "[]".to_string(),
+        }
+    }
+}
+
+impl DisplacementObservationWrapper {
+    pub fn from_rust(s: &DisplacementObservation) -> Self {
+        Self {
+            translation: Vec2 {
+                x: s.translation[0],
+                y: s.translation[1],
+            },
+            rotation: s.rotation,
+            applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
+        }
+    }
+    pub fn to_rust(&self) -> DisplacementObservation {
+        DisplacementObservation {
+            translation: Vector2::from_vec(vec![self.translation.x, self.translation.y]),
+            rotation: self.rotation,
+            applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
+        }
+    }
+}
+
+impl Default for DisplacementObservationWrapper {
     fn default() -> Self {
         Self::new()
     }

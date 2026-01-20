@@ -4,10 +4,9 @@ use nalgebra::{Rotation2, Vector2, Vector3};
 use crate::{
     gui::app::PainterInfo,
     sensors::{
-        oriented_landmark_sensor::{
+        gnss_sensor::{GNSSObservationRecord, GNSSSensorConfig}, oriented_landmark_sensor::{
             OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,
-        },
-        robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig},
+        }, robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig}
     },
     simulator::SimulatorConfig,
 };
@@ -167,6 +166,54 @@ impl OrientedLandmarkObservation {
             shapes.push(Shape::circle_filled(p1, 0.05 * scale, self.color));
             shapes.push(Shape::circle_filled(p2, 0.05 * scale, self.color));
         }
+        Ok(shapes)
+    }
+}
+
+pub struct GNSSObservation {
+    color: Color32,
+}
+
+impl GNSSObservation {
+    pub fn init(_config: &GNSSSensorConfig, _sim_config: &SimulatorConfig) -> Self {
+        Self {
+            color: Color32::from_rgb(255, 165, 0), // Orange
+        }
+    }
+
+    pub fn draw(
+        &self,
+        _ui: &mut egui::Ui,
+        _viewport: &Rect,
+        painter_info: &PainterInfo,
+        scale: f32,
+        obs: &GNSSObservationRecord,
+    ) -> Result<Vec<Shape>, Vec2> {
+        let mut shapes = Vec::new();
+        let center = painter_info.zero(scale);
+
+        let obs_position = Vec2::new(obs.position[0], obs.position[1]);
+        if !painter_info.is_inside(&obs_position) {
+            return Err(obs_position);
+        }
+        let arrow_tip = obs_position
+            + Vec2 {
+                x: obs.velocity[0],
+                y: obs.velocity[1],
+            };
+        if !painter_info.is_inside(&arrow_tip) {
+            return Err(arrow_tip);
+        }
+        let obs_position = center + obs_position * scale;
+        let arrow_tip = center + arrow_tip * scale;
+
+        shapes.push(Shape::line_segment(
+            [obs_position, arrow_tip],
+            Stroke {
+                color: self.color,
+                width: 0.01 * scale,
+            },
+        ));
         Ok(shapes)
     }
 }

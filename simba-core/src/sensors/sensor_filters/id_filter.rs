@@ -177,6 +177,9 @@ impl SensorFilter for IdFilter {
             SensorObservation::Speed(_) | SensorObservation::Odometry(_) => {
                 unimplemented!("IdFilter cannot filter SpeedObservation");
             }
+            SensorObservation::Displacement(_) => {
+                unimplemented!("IdFilter cannot filter DisplacementObservation");
+            }
             SensorObservation::OrientedLandmark(obs) => {
                 let label = &obs.id.to_string();
                 if !self.keep_label(label) {

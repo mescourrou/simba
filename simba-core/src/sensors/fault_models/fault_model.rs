@@ -274,8 +274,9 @@ pub fn make_fault_model_from_config(
 
 pub trait FaultModel: Debug + Sync + Send {
     fn add_faults(
-        &self,
+        &mut self,
         time: f32,
+        seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,

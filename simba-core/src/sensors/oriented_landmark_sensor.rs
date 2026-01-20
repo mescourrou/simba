@@ -950,8 +950,9 @@ impl Sensor for OrientedLandmarkSensor {
                     .try_fold(obs, |obs, filter| filter.filter(time, obs, &state, None))
                 {
                     new_obs.push(observation);
-                    for fault_model in self.faults.lock().unwrap().iter() {
+                    for fault_model in self.faults.lock().unwrap().iter_mut() {
                         fault_model.add_faults(
+                            time,
                             time + landmark_seed,
                             self.period.unwrap_or(TIME_ROUND),
                             &mut new_obs,

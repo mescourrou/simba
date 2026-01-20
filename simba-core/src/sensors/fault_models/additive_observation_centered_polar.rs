@@ -33,6 +33,7 @@ pub struct AdditiveObservationCenteredPolarFaultConfig {
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
+    pub proportional_to: Option<String>,
 }
 
 impl Default for AdditiveObservationCenteredPolarFaultConfig {
@@ -45,6 +46,7 @@ impl Default for AdditiveObservationCenteredPolarFaultConfig {
                 NormalRandomVariableConfig::default(),
             )],
             variable_order: Vec::new(),
+            proportional_to: None,
         }
     }
 }
@@ -103,6 +105,30 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                     );
                 }
             });
+
+            let possible_variables = ["t", "d", "time", "distance"]
+                .iter()
+                .map(|x| String::from(*x))
+                .collect();
+            ui.horizontal(|ui| {
+                ui.label("Proportional to:");
+                if let Some(variable) = &mut self.proportional_to {
+                    let unique_var_id = format!("proportional-to-{unique_id}");
+                    string_combobox(ui, &possible_variables, variable, unique_var_id);
+                    if ui.button("-").clicked() {
+                        self.proportional_to = None;
+                    }
+                } else {
+                    if ui.button("+").clicked() {
+                        self.proportional_to = Some(
+                            possible_variables
+                                .get(0)
+                                .unwrap()
+                                .clone(),
+                        );
+                    }
+                }
+            });
         });
     }
 
@@ -117,6 +143,15 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                 ui.label("Variable order: ");
                 for var in self.variable_order.iter() {
                     ui.label(format!("{}, ", var));
+                }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Proportional to: ");
+                if let Some(variable) = &self.proportional_to {
+                    ui.label(variable);
+                } else {
+                    ui.label("None");
                 }
             });
         });
@@ -170,14 +205,15 @@ impl AdditiveObservationCenteredPolarFault {
 
 impl FaultModel for AdditiveObservationCenteredPolarFault {
     fn add_faults(
-        &self,
+        &mut self,
         time: f32,
+        seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (1000. * period);
-        let mut seed = time;
+        let mut seed = seed;
         for obs in obs_list {
             seed += obs_seed_increment;
             if self.apparition.generate(seed)[0] < 1. {
@@ -213,6 +249,11 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                         r_add = random_sample[1];
                         z_add = random_sample[2];
                     }
+                    if self.config.proportional_to.is_some() {
+                        unimplemented!(
+                            "Proportional_to is not implemented for AdditiveObservationCenteredPolarFault for OrientedRobot observations"
+                        );
+                    }
 
                     let theta = atan2f(o.pose.y, o.pose.x) + theta_add; // 0 of polar angle is the direction of the robot
                     o.pose.x += r_add * theta.cos();
@@ -241,10 +282,15 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                     } else {
                         assert!(
                             random_sample.len() >= 3,
-                            "The distribution of an AdditiveObservationCenteredPolar fault for OrientedRobot observation need to be of dimension 3."
+                            "The distribution of an AdditiveObservationCenteredPolar fault for GNSS observation need to be of dimension 3."
                         );
                         theta_add = random_sample[0];
                         r_add = random_sample[1];
+                    }
+                    if self.config.proportional_to.is_some() {
+                        todo!(
+                            "Proportional_to is not implemented yet for AdditiveObservationCenteredPolarFault for GNSS observations"
+                        );
                     }
 
                     o.position.x += r_add * theta_add.cos();
@@ -257,6 +303,9 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                 #[allow(deprecated)]
                 SensorObservation::Speed(_) | SensorObservation::Odometry(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
+                }
+                SensorObservation::Displacement(_) => {
+                    panic!("Not implemented (use AdditiveRobotCenteredPolar fault instead)");
                 }
                 SensorObservation::OrientedLandmark(o) => {
                     let mut r_add = 0.;
@@ -300,6 +349,12 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                         .push(FaultModelConfig::AdditiveObservationCenteredPolar(
                             self.config.clone(),
                         ));
+
+                    if self.config.proportional_to.is_some() {
+                        unimplemented!(
+                            "Proportional_to is not implemented for AdditiveObservationCenteredPolarFault for OrientedLandmark observations"
+                        );
+                    }
                 }
                 SensorObservation::External(_) => {
                     panic!(

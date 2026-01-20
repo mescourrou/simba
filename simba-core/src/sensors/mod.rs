@@ -15,6 +15,7 @@ To add a new [`Sensor`](sensor::Sensor), you should implement the
 pub mod external_sensor;
 pub mod gnss_sensor;
 pub mod speed_sensor;
+pub mod displacement_sensor;
 pub mod oriented_landmark_sensor;
 pub mod robot_sensor;
 pub mod sensor_manager;
@@ -44,7 +45,7 @@ use crate::{
 use crate::{
     node::Node,
     recordable::Recordable,
-    sensors::{external_sensor::{ExternalObservation, ExternalObservationRecord}, speed_sensor::{OdometryObservation, OdometryObservationRecord}},
+    sensors::{displacement_sensor::{DisplacementObservation, DisplacementObservationRecord}, external_sensor::{ExternalObservation, ExternalObservationRecord}, speed_sensor::{OdometryObservation, OdometryObservationRecord}},
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -136,6 +137,7 @@ pub enum SensorObservation {
     #[allow(deprecated)]
     Odometry(OdometryObservation),
     Speed(SpeedObservation),
+    Displacement(DisplacementObservation),
     GNSS(GNSSObservation),
     OrientedRobot(OrientedRobotObservation),
     External(ExternalObservation),
@@ -152,6 +154,7 @@ impl Recordable<SensorObservationRecord> for SensorObservation {
                 SensorObservationRecord::Speed(o.record())
             }
             SensorObservation::Speed(o) => SensorObservationRecord::Speed(o.record()),
+            SensorObservation::Displacement(o) => SensorObservationRecord::Displacement(o.record()),
             SensorObservation::GNSS(o) => SensorObservationRecord::GNSS(o.record()),
             SensorObservation::OrientedRobot(o) => {
                 SensorObservationRecord::OrientedRobot(o.record())
@@ -168,6 +171,7 @@ pub enum SensorObservationRecord {
     #[allow(deprecated)]
     Odometry(OdometryObservationRecord),
     Speed(SpeedObservationRecord),
+    Displacement(DisplacementObservationRecord),
     GNSS(GNSSObservationRecord),
     OrientedRobot(OrientedRobotObservationRecord),
     External(ExternalObservationRecord),
@@ -181,6 +185,7 @@ impl UIComponent for SensorObservationRecord {
             #[allow(deprecated)]
             Self::Odometry(r) => r.show(ui, ctx, unique_id),
             Self::Speed(r) => r.show(ui, ctx, unique_id),
+            Self::Displacement(r) => r.show(ui, ctx, unique_id),
             Self::GNSS(r) => r.show(ui, ctx, unique_id),
             Self::OrientedRobot(r) => r.show(ui, ctx, unique_id),
             Self::External(r) => r.show(ui, ctx, unique_id),
@@ -196,6 +201,7 @@ pub enum SensorConfig {
     #[allow(deprecated)]
     OdometrySensor(speed_sensor::OdometrySensorConfig),
     SpeedSensor(speed_sensor::SpeedSensorConfig),
+    DisplacementSensor(displacement_sensor::DisplacementSensorConfig),
     GNSSSensor(gnss_sensor::GNSSSensorConfig),
     RobotSensor(robot_sensor::RobotSensorConfig),
     External(external_sensor::ExternalSensorConfig),
@@ -246,6 +252,11 @@ impl UIComponent for SensorConfig {
                         speed_sensor::SpeedSensorConfig::default(),
                     )
                 }
+                "DisplacementSensor" => {
+                    *self = SensorConfig::DisplacementSensor(
+                        displacement_sensor::DisplacementSensorConfig::default(),
+                    )
+                }
                 "GNSSSensor" => {
                     *self = SensorConfig::GNSSSensor(gnss_sensor::GNSSSensorConfig::default())
                 }
@@ -277,6 +288,14 @@ impl UIComponent for SensorConfig {
                 unique_id,
             ),
             SensorConfig::SpeedSensor(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
+            SensorConfig::DisplacementSensor(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -320,6 +339,7 @@ impl UIComponent for SensorConfig {
             #[allow(deprecated)]
             SensorConfig::OdometrySensor(c) => c.show(ui, ctx, unique_id),
             SensorConfig::SpeedSensor(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::DisplacementSensor(c) => c.show(ui, ctx, unique_id),
             SensorConfig::GNSSSensor(c) => c.show(ui, ctx, unique_id),
             SensorConfig::RobotSensor(c) => c.show(ui, ctx, unique_id),
             SensorConfig::External(c) => c.show(ui, ctx, unique_id),
@@ -335,6 +355,7 @@ pub enum SensorRecord {
     #[allow(deprecated)]
     OdometrySensor(speed_sensor::OdometrySensorRecord),
     SpeedSensor(speed_sensor::SpeedSensorRecord),
+    DisplacementSensor(displacement_sensor::DisplacementSensorRecord),
     GNSSSensor(gnss_sensor::GNSSSensorRecord),
     RobotSensor(robot_sensor::RobotSensorRecord),
     External(external_sensor::ExternalSensorRecord),
@@ -357,6 +378,11 @@ impl UIComponent for SensorRecord {
             }
             Self::SpeedSensor(r) => {
                 egui::CollapsingHeader::new("SpeedSensor").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::DisplacementSensor(r) => {
+                egui::CollapsingHeader::new("DisplacementSensor").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }

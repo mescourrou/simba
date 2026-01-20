@@ -516,8 +516,9 @@ impl Sensor for RobotSensor {
                             })
                         {
                             new_obs.push(observation);
-                            for fault_model in self.faults.lock().unwrap().iter() {
+                            for fault_model in self.faults.lock().unwrap().iter_mut() {
                                 fault_model.add_faults(
+                                    time,
                                     time + robot_seed,
                                     self.period.unwrap_or(TIME_ROUND),
                                     &mut observation_list,

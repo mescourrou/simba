@@ -32,6 +32,7 @@ pub struct AdditiveRobotCenteredFaultConfig {
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
+    pub proportional_to: Option<String>,
 }
 
 impl Default for AdditiveRobotCenteredFaultConfig {
@@ -44,6 +45,7 @@ impl Default for AdditiveRobotCenteredFaultConfig {
                 NormalRandomVariableConfig::default(),
             )],
             variable_order: Vec::new(),
+            proportional_to: None,
         }
     }
 }
@@ -112,6 +114,29 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                     );
                 }
             });
+            let possible_variables = ["t", "d", "time", "distance"]
+                .iter()
+                .map(|x| String::from(*x))
+                .collect();
+            ui.horizontal(|ui| {
+                ui.label("Proportional to:");
+                if let Some(variable) = &mut self.proportional_to {
+                    let unique_var_id = format!("proportional-to-{unique_id}");
+                    string_combobox(ui, &possible_variables, variable, unique_var_id);
+                    if ui.button("-").clicked() {
+                        self.proportional_to = None;
+                    }
+                } else {
+                    if ui.button("+").clicked() {
+                        self.proportional_to = Some(
+                            possible_variables
+                                .get(0)
+                                .unwrap()
+                                .clone(),
+                        );
+                    }
+                }
+            });
         });
     }
 
@@ -128,6 +153,15 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                     ui.label(format!("{}, ", var));
                 }
             });
+
+            ui.horizontal(|ui| {
+                ui.label("Proportional to: ");
+                if let Some(variable) = &self.proportional_to {
+                    ui.label(variable);
+                } else {
+                    ui.label("None");
+                }
+            });
         });
     }
 }
@@ -137,6 +171,7 @@ pub struct AdditiveRobotCenteredFault {
     apparition: DeterministBernouilliRandomVariable,
     distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
     variable_order: Vec<String>,
+    last_time: f32,
     config: AdditiveRobotCenteredFaultConfig,
 }
 
@@ -144,7 +179,7 @@ impl AdditiveRobotCenteredFault {
     pub fn from_config(
         config: &AdditiveRobotCenteredFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
-        _initial_time: f32,
+        initial_time: f32,
     ) -> Self {
         let distributions = Arc::new(Mutex::new(
             config
@@ -173,20 +208,23 @@ impl AdditiveRobotCenteredFault {
             distributions,
             variable_order: config.variable_order.clone(),
             config: config.clone(),
+            last_time: initial_time,
         }
     }
 }
 
 impl FaultModel for AdditiveRobotCenteredFault {
     fn add_faults(
-        &self,
+        &mut self,
         time: f32,
+        seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
     ) {
+        let dt = time - self.last_time;
         let obs_seed_increment = 1. / (100. * period);
-        let mut seed = time;
+        let mut seed = seed;
         for obs in obs_list {
             seed += obs_seed_increment;
             if self.apparition.generate(seed)[0] < 1. {
@@ -218,6 +256,11 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         o.pose.x += random_sample[0];
                         o.pose.y += random_sample[1];
                         o.pose.z += random_sample[2];
+                    }
+                    if self.config.proportional_to.is_some() {
+                        todo!(
+                            "Proportional_to is not implemented yet for AdditiveRobotCenteredFault for OrientedRobot observations"
+                        );
                     }
                     o.pose.z = mod2pi(o.pose.z);
                     o.applied_faults
@@ -251,6 +294,11 @@ impl FaultModel for AdditiveRobotCenteredFault {
                             o.velocity.y += random_sample[3];
                         }
                     }
+                    if self.config.proportional_to.is_some() {
+                        todo!(
+                            "Proportional_to is not implemented yet for AdditiveRobotCenteredFault for GNSS observations"
+                        );
+                    }
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
@@ -279,6 +327,63 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         o.angular_velocity += random_sample[0];
                         o.linear_velocity += random_sample[1];
                     }
+                    if self.config.proportional_to.is_some() {
+                        todo!(
+                            "Proportional_to is not implemented yet for AdditiveRobotCenteredFault for Speed observations"
+                        );
+                    }
+                    o.applied_faults
+                        .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
+                }
+                SensorObservation::Displacement(o) => {
+                    let mut dx = 0.;
+                    let mut dy = 0.;
+                    let mut dr = 0.;
+                    if !self.variable_order.is_empty() {
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
+                                "dx" | "x" => dx += random_sample[i],
+                                "dy" | "y" => dy += random_sample[i],
+                                "r" | "rotation" => dr += random_sample[i],
+                                "translation" => {
+                                    let v = o.translation.clone().normalize() * (random_sample[i]);
+                                    dx += v.x;
+                                    dy += v.y;
+                                },
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [dx | x, dy | y, r | rotation, translation]",
+                                    variable
+                                ),
+                            }
+                        }
+                    } else {
+                        assert!(
+                            random_sample.len() >= 2,
+                            "The distribution of an AdditiveRobotCentered fault for Displacement observation need to be at least of dimension 2 (to 3 for rotation)."
+                        );
+                        dx += random_sample[0];
+                        dy += random_sample[1];
+                        if random_sample.len() >= 3 {
+                            dr += random_sample[2];
+                        }
+                    }
+                    if let Some(variable) = &self.config.proportional_to {
+                        let factor = match variable.as_str() {
+                            "t" | "time" => dt,
+                            "d" | "distance" => o.translation.norm(),
+                            &_ => panic!(
+                                "Unknown proportional_to variable name: '{}'. Available variable names: [t | time, d | distance]",
+                                variable
+                            ),
+                        };
+                        dx *= factor;
+                        dy *= factor;
+                        dr *= factor;
+                    }
+                    o.translation.x += dx;
+                    o.translation.y += dy;
+                    o.rotation += dr;
+                    o.rotation = mod2pi(o.rotation);
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
@@ -306,6 +411,11 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         o.pose.y += random_sample[1];
                         o.pose.z += random_sample[2];
                     }
+                    if self.config.proportional_to.is_some() {
+                        todo!(
+                            "Proportional_to is not implemented yet for AdditiveRobotCenteredFault for OrientedLandmark observations"
+                        );
+                    }
                     o.pose.z = mod2pi(o.pose.z);
                     o.width = o.width.max(0.0);
                     o.height = o.height.max(0.0);
@@ -317,6 +427,7 @@ impl FaultModel for AdditiveRobotCenteredFault {
                 }
             }
         }
+        self.last_time = time;
     }
 }
 

@@ -287,8 +287,9 @@ impl Sensor for GNSSSensor {
             .try_fold(obs, |obs, filter| filter.filter(time, obs, &state, None))
         {
             observation_list.push(observation);
-            for fault_model in self.faults.lock().unwrap().iter() {
+            for fault_model in self.faults.lock().unwrap().iter_mut() {
                 fault_model.add_faults(
+                    time,
                     time,
                     self.period.unwrap_or(TIME_ROUND),
                     &mut observation_list,

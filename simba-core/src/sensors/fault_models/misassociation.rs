@@ -236,19 +236,20 @@ impl MisassociationFault {
 
 impl FaultModel for MisassociationFault {
     fn add_faults(
-        &self,
+        &mut self,
         time: f32,
+        seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
-        let mut seed = time;
+        let mut seed = seed;
         let mut id_list = self.id_list.clone();
 
         match self.sort {
             Sort::Random => {
-                let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + time).to_bits() as u64);
+                let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + seed).to_bits() as u64);
                 id_list.shuffle(&mut rng);
             }
             Sort::Distance => {
@@ -281,6 +282,9 @@ impl FaultModel for MisassociationFault {
                 }
                 #[allow(deprecated)]
                 SensorObservation::Speed(_) | SensorObservation::Odometry(_)  => {
+                    panic!("Not implemented (appropriated for this sensor?)");
+                }
+                SensorObservation::Displacement(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
                 SensorObservation::OrientedLandmark(o) => {

@@ -200,6 +200,32 @@ impl SensorFilter for RangeFilter {
                     }
                 }
             }
+            SensorObservation::Displacement(obs) => {
+                for (i, var) in self.config.variables.iter().enumerate() {
+                    let value = match var.as_str() {
+                        "x" | "dx" => obs.translation.x,
+                        "y" | "dy" => obs.translation.y,
+                        "r" | "rotation" => obs.rotation,
+                        "translation" => obs.translation.iter().map(|v| v * v).sum::<f32>().sqrt(),
+                        "self_velocity" => observer_state.velocity.fixed_rows::<2>(0).norm(),
+                        &_ => panic!(
+                            "Unknown variable name: '{}'. Available variable names: [dx | x, dy | y, rotation | r, translation, self_velocity]",
+                            self.config.variables[i]
+                        ),
+                    };
+                    let in_range =
+                        value >= self.config.min_range[i] && value <= self.config.max_range[i];
+                    if self.config.inside {
+                        if !in_range {
+                            keep = false;
+                            break;
+                        }
+                    } else if in_range {
+                        keep = false;
+                        break;
+                    }
+                }
+            }
             SensorObservation::OrientedLandmark(obs) => {
                 for (i, var) in self.config.variables.iter().enumerate() {
                     let in_range = match var.as_str() {

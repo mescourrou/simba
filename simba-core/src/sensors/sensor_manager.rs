@@ -24,7 +24,9 @@ use crate::logger::{InternalLog, is_enabled};
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::node::Node;
+use crate::sensors::displacement_sensor::DisplacementSensor;
 use crate::sensors::external_sensor::ExternalSensor;
+use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
@@ -299,6 +301,7 @@ impl SensorManager {
         node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
+        initial_state: &State,
     ) -> SimbaResult<Self> {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {
@@ -335,6 +338,15 @@ impl SensorManager {
                         node_name,
                         va_factory,
                         initial_time,
+                    )) as Box<dyn Sensor>,
+                    SensorConfig::DisplacementSensor(c) => Box::new(DisplacementSensor::from_config(
+                        c,
+                        plugin_api,
+                        global_config,
+                        node_name,
+                        va_factory,
+                        initial_time,
+                        initial_state,
                     )) as Box<dyn Sensor>,
                     SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
                         c,

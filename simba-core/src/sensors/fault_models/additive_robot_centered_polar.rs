@@ -170,14 +170,15 @@ impl AdditiveRobotCenteredPolarFault {
 
 impl FaultModel for AdditiveRobotCenteredPolarFault {
     fn add_faults(
-        &self,
+        &mut self,
         time: f32,
+        seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
-        let mut seed = time;
+        let mut seed = seed;
         for obs in obs_list {
             seed += obs_seed_increment;
             if self.apparition.generate(seed)[0] < 1. {
@@ -232,6 +233,44 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                 #[allow(deprecated)]
                 SensorObservation::Speed(_) | SensorObservation::Odometry(_)  => {
                     panic!("Not implemented (appropriated for this sensor?)");
+                }
+                SensorObservation::Displacement(o) => {
+                    let mut r_add = 0.;
+                    let mut z_add = 0.;
+                    let mut theta_add = 0.;
+                    if !self.variable_order.is_empty() {
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
+                                "r" => r_add = random_sample[i],
+                                "theta" => theta_add = random_sample[i],
+                                "z" | "orientation" => z_add = random_sample[i],
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]",
+                                    variable
+                                ),
+                            }
+                        }
+                    } else {
+                        assert!(
+                            random_sample.len() >= 3,
+                            "The distribution of an AdditiveRobotCenteredPolar fault for Displacement observation need to be of dimension 3."
+                        );
+                        r_add = random_sample[0];
+                        theta_add = random_sample[1];
+                        z_add = random_sample[2];
+                    }
+                    let current_r = (o.translation.x.powi(2) + o.translation.y.powi(2)).sqrt();
+                    let current_dir = atan2f(o.translation.y, o.translation.x);
+                    let r = current_r + r_add;
+                    let theta = current_dir + theta_add;
+                    let z = o.rotation + z_add;
+                    o.translation.x = r * theta.cos();
+                    o.translation.y = r * theta.sin();
+                    o.rotation = mod2pi(z);
+                    o.applied_faults
+                        .push(FaultModelConfig::AdditiveRobotCenteredPolar(
+                            self.config.clone(),
+                        ));
                 }
                 SensorObservation::OrientedLandmark(o) => {
                     let mut r_add = 0.;

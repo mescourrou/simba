@@ -12,8 +12,7 @@ use crate::{
         network::{Network, NetworkConfig},
         service_manager::ServiceManager,
     }, node::{Node, NodeMetaData, NodeState}, physics::{self, PhysicsConfig, PhysicsRecord, internal_physics}, plugin_api::PluginAPI, sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord}, simulator::{SimulatorConfig, TimeCv}, state_estimators::{
-        self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord,
-        StateEstimatorConfig, StateEstimatorRecord, perfect_estimator,
+        self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord, State, StateEstimatorConfig, StateEstimatorRecord, perfect_estimator
     }, time_analysis::TimeAnalysisFactory, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 
@@ -655,6 +654,15 @@ pub struct NodeFactory {}
 impl NodeFactory {
     pub fn make_robot(config: &RobotConfig, params: &mut MakeNodeParams) -> SimbaResult<Node> {
         let node_type = NodeType::Robot;
+        let physics = physics::make_physics_from_config(
+            &config.physics,
+            params.plugin_api,
+            params.global_config,
+            &config.name,
+            params.va_factory,
+            params.initial_time,
+        )?;
+        let initial_state = physics.read().unwrap().state(params.initial_time).clone();
         let mut node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
                 name: params.new_name.unwrap_or(&config.name).to_string(),
@@ -682,14 +690,7 @@ impl NodeFactory {
                 &config.physics,
                 params.initial_time,
             )?),
-            physics: Some(physics::make_physics_from_config(
-                &config.physics,
-                params.plugin_api,
-                params.global_config,
-                &config.name,
-                params.va_factory,
-                params.initial_time,
-            )?),
+            physics: Some(physics),
             state_estimator: Some(Arc::new(RwLock::new(
                 state_estimators::make_state_estimator_from_config(
                     &config.state_estimator,
@@ -706,6 +707,7 @@ impl NodeFactory {
                 &config.name,
                 params.va_factory,
                 params.initial_time,
+                &initial_state,
             )?))),
             network: Some(Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),
@@ -784,6 +786,7 @@ impl NodeFactory {
                 &config.name,
                 params.va_factory,
                 params.initial_time,
+                &State::default(),
             )?))),
             network: Some(Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),

@@ -36,8 +36,9 @@ impl PythonFaultModel {
 
 impl FaultModel for PythonFaultModel {
     fn add_faults(
-        &self,
+        &mut self,
         time: f32,
+        seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
@@ -51,6 +52,7 @@ impl FaultModel for PythonFaultModel {
             "add_faults",
             Vec<SensorObservationWrapper>,
             time,
+            seed,
             period,
             py_obs_list
         );

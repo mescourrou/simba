@@ -21,7 +21,7 @@ use crate::{
     },
     plugin_api::PluginAPI,
     pywrappers::{
-        CommandWrapper, ControllerErrorWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, Pose, SensorObservationWrapper, SimulatorWrapper, SpeedObservationWrapper, StateWrapper, UnicycleCommandWrapper, Vec2, Vec3, WorldStateWrapper, run_gui
+        CommandWrapper, ControllerErrorWrapper, DisplacementObservationWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, Pose, SensorObservationWrapper, SimulatorWrapper, SpeedObservationWrapper, StateWrapper, UnicycleCommandWrapper, Vec2, Vec3, WorldStateWrapper, run_gui
     },
     sensors::sensor_manager::SensorTriggerMessage,
     simulator::SimulatorConfig,
@@ -51,6 +51,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SpeedObservationWrapper>()?;
     #[allow(deprecated)]
     m.add_class::<OdometryObservationWrapper>()?;
+    m.add_class::<DisplacementObservationWrapper>()?;
     m.add_class::<OrientedLandmarkObservationWrapper>()?;
     m.add_class::<OrientedRobotObservationWrapper>()?;
     m.add_class::<ControllerWrapper>()?;

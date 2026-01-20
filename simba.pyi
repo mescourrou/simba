@@ -122,6 +122,12 @@ class OdometryObservation:
         self.angular_velocity: float
         self.applied_faults: str """ Applied faults in JSON format """
 
+class DisplacementObservation:
+    def __init__(self):
+        self.translation: Vec2
+        self.rotation: float
+        self.applied_faults: str """ Applied faults in JSON format """
+
 class GNSSObservation: 
     def __init__(self):
         self.position: Vec2
@@ -333,7 +339,7 @@ def run_gui(plugin_api: PluginAPI | None):
 
 
 class FaultModel:
-    def add_faults(self, time: float, period: float, obs_list: List[SensorObservation]) -> List[SensorObservation]:
+    def add_faults(self, time: float, seed: float, period: float, obs_list: List[SensorObservation]) -> List[SensorObservation]:
         raise NotImplementedError()
 
 class PhysicsFaultModel:
