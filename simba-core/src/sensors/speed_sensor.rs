@@ -32,9 +32,12 @@ use simba_macros::config_derives;
 
 extern crate nalgebra as na;
 
-/// Configuration of the [`OdometrySensor`].
+#[deprecated(note = "OdometrySensorConfig is renamed to SpeedSensorConfig")]
+pub type OdometrySensorConfig = SpeedSensorConfig;
+
+/// Configuration of the [`SpeedSensor`].
 #[config_derives]
-pub struct OdometrySensorConfig {
+pub struct SpeedSensorConfig {
     /// Observation period of the sensor.
     pub period: Option<f32>,
     #[check]
@@ -44,7 +47,7 @@ pub struct OdometrySensorConfig {
     pub lie_integration: bool,
 }
 
-impl Default for OdometrySensorConfig {
+impl Default for SpeedSensorConfig {
     fn default() -> Self {
         Self {
             period: Some(0.1),
@@ -56,7 +59,7 @@ impl Default for OdometrySensorConfig {
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for OdometrySensorConfig {
+impl UIComponent for SpeedSensorConfig {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
@@ -66,8 +69,8 @@ impl UIComponent for OdometrySensorConfig {
         current_node_name: Option<&String>,
         unique_id: &str,
     ) {
-        egui::CollapsingHeader::new("Odometry sensor")
-            .id_salt(format!("odometry-sensor-{}", unique_id))
+        egui::CollapsingHeader::new("Speed sensor")
+            .id_salt(format!("speed-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
@@ -112,8 +115,8 @@ impl UIComponent for OdometrySensorConfig {
     }
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
-        egui::CollapsingHeader::new("Odometry sensor")
-            .id_salt(format!("odometry-sensor-{}", unique_id))
+        egui::CollapsingHeader::new("Speed sensor")
+            .id_salt(format!("speed-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
@@ -123,12 +126,6 @@ impl UIComponent for OdometrySensorConfig {
                         ui.label("None");
                     }
                 });
-
-                ui.horizontal(|ui| {
-                    ui.label("Lie integration:");
-                    ui.label(format!("{}", self.lie_integration));
-                });
-
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
 
                 FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
@@ -136,14 +133,17 @@ impl UIComponent for OdometrySensorConfig {
     }
 }
 
-/// Record of the [`OdometrySensor`], which contains nothing for now.
+#[deprecated(note = "OdometrySensorRecord is renamed to SpeedSensorRecord")]
+pub type OdometrySensorRecord = SpeedSensorRecord;
+
+/// Record of the [`SpeedSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct OdometrySensorRecord {
+pub struct SpeedSensorRecord {
     last_time: f32,
     last_state: StateRecord,
 }
 
-impl Default for OdometrySensorRecord {
+impl Default for SpeedSensorRecord {
     fn default() -> Self {
         Self {
             last_time: 0.,
@@ -153,7 +153,7 @@ impl Default for OdometrySensorRecord {
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for OdometrySensorRecord {
+impl UIComponent for SpeedSensorRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.label(format!("Last time: {}", self.last_time));
         ui.label("Last state: ");
@@ -161,18 +161,21 @@ impl UIComponent for OdometrySensorRecord {
     }
 }
 
-/// Observation of the odometry.
+#[deprecated(note = "OdometryObservation is renamed to SpeedObservation")]
+pub type OdometryObservation = SpeedObservation;
+
+/// Observation of the speed.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct OdometryObservation {
+pub struct SpeedObservation {
     pub linear_velocity: f32,
     pub lateral_velocity: f32,
     pub angular_velocity: f32,
     pub applied_faults: Vec<FaultModelConfig>,
 }
 
-impl Recordable<OdometryObservationRecord> for OdometryObservation {
-    fn record(&self) -> OdometryObservationRecord {
-        OdometryObservationRecord {
+impl Recordable<SpeedObservationRecord> for SpeedObservation {
+    fn record(&self) -> SpeedObservationRecord {
+        SpeedObservationRecord {
             linear_velocity: self.linear_velocity,
             lateral_velocity: self.lateral_velocity,
             angular_velocity: self.angular_velocity,
@@ -180,15 +183,18 @@ impl Recordable<OdometryObservationRecord> for OdometryObservation {
     }
 }
 
+#[deprecated(note = "OdometryObservationRecord is renamed to SpeedObservationRecord")]
+pub type OdometryObservationRecord = SpeedObservationRecord;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct OdometryObservationRecord {
+pub struct SpeedObservationRecord {
     pub linear_velocity: f32,
     pub lateral_velocity: f32,
     pub angular_velocity: f32,
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for OdometryObservationRecord {
+impl UIComponent for SpeedObservationRecord {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Linear velocity: {}", self.linear_velocity));
@@ -198,9 +204,12 @@ impl UIComponent for OdometryObservationRecord {
     }
 }
 
-/// Sensor which observes the robot's odometry
+#[deprecated(note = "OdometrySensor is renamed to SpeedSensor")]
+pub type OdometrySensor = SpeedSensor;
+
+/// Sensor which observes the robot's speed
 #[derive(Debug)]
-pub struct OdometrySensor {
+pub struct SpeedSensor {
     /// Last state to compute the velocity.
     last_state: State,
     /// Observation period
@@ -209,15 +218,15 @@ pub struct OdometrySensor {
     last_time: f32,
     faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
     filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
-    #[deprecated(note = "lie_integration is deprecated; Odometry always use lie integration.")]
+    #[deprecated(note = "lie_integration is deprecated; Speed sensor always use lie integration.")]
     lie_integration: bool,
 }
 
-impl OdometrySensor {
-    /// Makes a new [`OdometrySensor`].
+impl SpeedSensor {
+    /// Makes a new [`SpeedSensor`].
     pub fn new() -> Self {
-        OdometrySensor::from_config(
-            &OdometrySensorConfig::default(),
+        SpeedSensor::from_config(
+            &SpeedSensorConfig::default(),
             &None,
             &SimulatorConfig::default(),
             &"NoName".to_string(),
@@ -226,9 +235,9 @@ impl OdometrySensor {
         )
     }
 
-    /// Makes a new [`OdometrySensor`] from the given config.
+    /// Makes a new [`SpeedSensor`] from the given config.
     pub fn from_config(
-        config: &OdometrySensorConfig,
+        config: &SpeedSensorConfig,
         _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         robot_name: &String,
@@ -260,7 +269,7 @@ impl OdometrySensor {
         drop(unlock_filters);
 
         if config.lie_integration {
-            log::warn!("OdometrySensorConfig.lie_integration is deprecated and will be removed soon.");
+            log::warn!("SpeedSensorConfig.lie_integration is deprecated and will be removed soon.");
         }
         Self {
             last_state: State::new(),
@@ -274,7 +283,7 @@ impl OdometrySensor {
     }
 }
 
-impl Default for OdometrySensor {
+impl Default for SpeedSensor {
     fn default() -> Self {
         Self::new()
     }
@@ -282,11 +291,11 @@ impl Default for OdometrySensor {
 
 use crate::node::Node;
 
-impl Sensor for OdometrySensor {
+impl Sensor for SpeedSensor {
     fn init(&mut self, robot: &mut Node) {
         self.last_state = robot
             .physics()
-            .expect("Node with Odometry sensor should have Physics")
+            .expect("Node with Speed sensor should have Physics")
             .read()
             .unwrap()
             .state(0.)
@@ -300,11 +309,11 @@ impl Sensor for OdometrySensor {
         }
         let arc_physic = robot
             .physics()
-            .expect("Node with Odometry sensor should have Physics");
+            .expect("Node with Speed sensor should have Physics");
         let physic = arc_physic.read().unwrap();
         let state = physic.state(time);
 
-        let obs = SensorObservation::Odometry(OdometryObservation {
+        let obs = SensorObservation::Speed(SpeedObservation {
                 linear_velocity: state.velocity.x,
                 lateral_velocity: state.velocity.y,
                 angular_velocity: state.velocity.z,
@@ -324,11 +333,11 @@ impl Sensor for OdometrySensor {
                     time,
                     self.period.unwrap_or(TIME_ROUND),
                     &mut observation_list,
-                    SensorObservation::Odometry(OdometryObservation::default()),
+                    SensorObservation::Speed(SpeedObservation::default()),
                 );
             }
         } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-            debug!("Odometry observation was filtered out");
+            debug!("Speed observation was filtered out");
         }
 
         self.last_time = time;
@@ -345,9 +354,9 @@ impl Sensor for OdometrySensor {
     }
 }
 
-impl Recordable<SensorRecord> for OdometrySensor {
+impl Recordable<SensorRecord> for SpeedSensor {
     fn record(&self) -> SensorRecord {
-        SensorRecord::OdometrySensor(OdometrySensorRecord {
+        SensorRecord::SpeedSensor(SpeedSensorRecord {
             last_time: self.last_time,
             last_state: self.last_state.record(),
         })

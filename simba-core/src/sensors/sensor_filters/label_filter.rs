@@ -173,8 +173,9 @@ impl SensorFilter for LabelFilter {
             SensorObservation::GNSS(_) => {
                 unimplemented!("IdFilter cannot filter GNSSObservation");
             }
-            SensorObservation::Odometry(_) => {
-                unimplemented!("IdFilter cannot filter OdometryObservation");
+            #[allow(deprecated)]
+            SensorObservation::Speed(_) | SensorObservation::Odometry(_) => {
+                unimplemented!("IdFilter cannot filter SpeedObservation");
             }
             SensorObservation::OrientedLandmark(obs) => {
                 if !self.keep_labels(&obs.labels) {

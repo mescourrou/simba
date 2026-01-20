@@ -336,7 +336,7 @@ fn trigger_sensor() {
     // config.log.included_nodes = vec!["robot1".to_string()];
     // config.log.excluded_nodes = vec!["simulator".to_string()];
     // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::SensorManager, InternalLog::SensorManagerDetailed]);
-    // config.log.log_level = LogLevel::Internal(vec![InternalLog::All]);
+    config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
     config.max_time = 25.;
     config.results = None;
     config.robots.push(RobotConfig {

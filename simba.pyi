@@ -1,5 +1,6 @@
 from typing import Dict, List, Tuple
 from enum import Enum
+# from warnings import deprecated # Available in python 3.13
 
 class Pose:
     def __init__(self):
@@ -96,11 +97,19 @@ class ControllerError:
 class OrientedLandmarkObservation:
     def __init__(self):
         self.id: int
+        self.labels: List[str]
         self.pose: Pose
         self.applied_faults: str """ Applied faults in JSON format """
         self.width: float
         self.height: float
 
+class SpeedObservation:
+    def __init__(self):
+        self.linear_velocity: float
+        self.angular_velocity: float
+        self.applied_faults: str """ Applied faults in JSON format """
+
+#@deprecated("OdometryObservation is deprecated, use SpeedObservation instead", category=DeprecationWarning)
 class OdometryObservation:
     def __init__(self):
         self.linear_velocity: float
@@ -116,12 +125,14 @@ class GNSSObservation:
 class OrientedRobotObservation:
     def __init__(self):
         self.name: str
+        self.labels: List[str]
         self.pose: Pose
         self.applied_faults: str """ Applied faults in JSON format """
 
 class SensorObservation(Enum):
     OrientedLandmark: OrientedLandmarkObservation
-    Odometry: OdometryObservation
+    Odometry: OdometryObservation # @deprecated
+    Speed: SpeedObservation
     GNSS: GNSSObservation
     OrientedRobot: OrientedRobotObservation
     
@@ -131,7 +142,11 @@ class SensorObservation(Enum):
     def as_oriented_landmark(self) -> OrientedLandmarkObservation | None:
         raise NotImplementedError()
     
+    #@deprecated("as_odometry is deprecated, use as_speed instead", category=DeprecationWarning)
     def as_odometry(self) -> OdometryObservation | None:
+        raise NotImplementedError()
+    
+    def as_speed(self) -> SpeedObservation | None:
         raise NotImplementedError()
     
     def as_gnss(self) -> GNSSObservation | None:

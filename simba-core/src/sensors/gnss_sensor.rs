@@ -140,7 +140,7 @@ impl UIComponent for GNSSSensorRecord {
     }
 }
 
-/// Observation of the odometry.
+/// Observation of the pose of the node and its speed.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GNSSObservation {
     pub position: Vector2<f32>,
@@ -179,7 +179,7 @@ impl Recordable<GNSSObservationRecord> for GNSSObservation {
     }
 }
 
-/// Sensor which observes the robot's odometry
+/// Sensor which observes the robot's pose in the global frame.
 #[derive(Debug)]
 pub struct GNSSSensor {
     /// Observation period

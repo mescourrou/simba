@@ -145,9 +145,9 @@ robots:
             variables: [x, y]
             min_range: [0, -1]
             max_range: [10, 1]
-    - name: OdomSensor
+    - name: SpeedSensor
       config: 
-        type: OdometrySensor
+        type: SpeedSensor
         period: 0.1
   network:
     range: 0.0
@@ -171,7 +171,7 @@ robots:
     sensors:
     - name: OdomSensor
       config: 
-        type: OdometrySensor
+        type: SpeedSensor
         period: 0.1
 computation_units:
 - name: Central Unit

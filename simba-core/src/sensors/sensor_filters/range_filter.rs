@@ -176,7 +176,8 @@ impl SensorFilter for RangeFilter {
                     }
                 }
             }
-            SensorObservation::Odometry(obs) => {
+            #[allow(deprecated)]
+            SensorObservation::Speed(obs) | SensorObservation::Odometry(obs) => {
                 for (i, var) in self.config.variables.iter().enumerate() {
                     let value = match var.as_str() {
                         "w" | "angular" | "angular_velocity" => obs.angular_velocity,

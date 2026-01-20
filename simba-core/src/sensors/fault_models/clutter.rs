@@ -274,7 +274,8 @@ impl FaultModel for ClutterFault {
                     o.applied_faults
                         .push(FaultModelConfig::Clutter(self.config.clone()));
                 }
-                SensorObservation::Odometry(o) => {
+                #[allow(deprecated)]
+                SensorObservation::Speed(o) | SensorObservation::Odometry(o) => {
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {

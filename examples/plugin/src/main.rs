@@ -324,7 +324,7 @@ impl Sensor for MyWonderfulSensor {
     fn get_observations(&mut self, _node: &mut Node, time: f32) -> Vec<SensorObservation> {
         self.last_observation = Some(MyWonderfulSensorObservation { data: time });
         self.last_time = time;
-        // Return a custom observation here, but you can return an existing one as well (e.g. OdometryObservation)
+        // Return a custom observation here, but you can return an existing one as well (e.g. SpeedObservation)
         vec![SensorObservation::External(ExternalObservation {
             observation: serde_json::to_value(self.last_observation.as_ref().unwrap()).unwrap(),
         })]

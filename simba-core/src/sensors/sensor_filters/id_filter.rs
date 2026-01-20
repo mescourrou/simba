@@ -173,8 +173,9 @@ impl SensorFilter for IdFilter {
             SensorObservation::GNSS(_) => {
                 unimplemented!("IdFilter cannot filter GNSSObservation");
             }
-            SensorObservation::Odometry(_) => {
-                unimplemented!("IdFilter cannot filter OdometryObservation");
+            #[allow(deprecated)]
+            SensorObservation::Speed(_) | SensorObservation::Odometry(_) => {
+                unimplemented!("IdFilter cannot filter SpeedObservation");
             }
             SensorObservation::OrientedLandmark(obs) => {
                 let label = &obs.id.to_string();

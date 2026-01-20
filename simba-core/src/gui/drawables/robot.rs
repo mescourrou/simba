@@ -28,7 +28,8 @@ impl Robot {
         for sensor_conf in &config.sensor_manager.sensors {
             match &sensor_conf.config {
                 SensorConfig::GNSSSensor(_) => {}
-                SensorConfig::OdometrySensor(_) => {}
+                #[allow(deprecated)]
+                SensorConfig::SpeedSensor(_) | SensorConfig::OdometrySensor(_) => {}
                 SensorConfig::OrientedLandmarkSensor(c) => {
                     landmark_obs = Some(OrientedLandmarkObservation::init(c, sim_config))
                 }

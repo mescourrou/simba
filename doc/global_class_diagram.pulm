@@ -114,8 +114,8 @@ interface Sensor
 Sensor <|.. GNSSSensor
 class GNSSSensor
 
-Sensor <|.. OdometrySensor
-class OdometrySensor
+Sensor <|.. SpeedSensor
+class SpeedSensor
 
 Sensor <|.. OrientedLandmarkSensor
 class OrientedLandmarkSensor
@@ -126,7 +126,7 @@ class RobotSensor
 package fault_models {
 
 GNSSSensor *-- "*" FaultModel
-OdometrySensor *-- "*" FaultModel
+SpeedSensor *-- "*" FaultModel
 OrientedLandmarkSensor *-- "*" FaultModel
 RobotSensor *-- "*" FaultModel
 interface FaultModel

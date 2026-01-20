@@ -5,7 +5,7 @@ available observations.
 
 extern crate confy;
 use core::f32;
-use log::debug;
+use log::{debug, warn};
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
@@ -29,7 +29,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
 use super::gnss_sensor::GNSSSensor;
-use super::odometry_sensor::{OdometrySensor, OdometrySensorConfig};
+use super::speed_sensor::{SpeedSensor, SpeedSensorConfig};
 use super::oriented_landmark_sensor::OrientedLandmarkSensor;
 use super::robot_sensor::RobotSensor;
 use super::{Observation, ObservationRecord, Sensor, SensorConfig, SensorRecord};
@@ -50,7 +50,7 @@ impl Default for ManagedSensorConfig {
             name: "some_sensor".to_string(),
             send_to: Vec::new(),
             triggered: false,
-            config: SensorConfig::OdometrySensor(OdometrySensorConfig::default()),
+            config: SensorConfig::SpeedSensor(SpeedSensorConfig::default()),
         }
     }
 }
@@ -316,7 +316,19 @@ impl SensorManager {
                             initial_time,
                         )) as Box<dyn Sensor>
                     }
-                    SensorConfig::OdometrySensor(c) => Box::new(OdometrySensor::from_config(
+                    #[allow(deprecated)]
+                    SensorConfig::OdometrySensor(c) => {
+                        warn!("OdometrySensor is deprecated and renamed to SpeedSensor");
+                        Box::new(SpeedSensor::from_config(
+                            c,
+                            plugin_api,
+                            global_config,
+                            node_name,
+                            va_factory,
+                            initial_time,
+                        )) as Box<dyn Sensor>
+                    }
+                    SensorConfig::SpeedSensor(c) => Box::new(SpeedSensor::from_config(
                         c,
                         plugin_api,
                         global_config,
