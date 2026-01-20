@@ -107,6 +107,15 @@ pub struct Vec2 {
     pub y: f32,
 }
 
+#[pyclass(get_all, set_all)]
+#[pyo3(name = "Vec3")]
+#[derive(Clone, Debug)]
+pub struct Vec3 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "State")]
@@ -114,7 +123,7 @@ pub struct StateWrapper {
     /// Position and orientation of the robot
     pub pose: Pose,
     /// Linear velocity.
-    pub velocity: Vec2,
+    pub velocity: Vec3,
 }
 
 #[pymethods]
@@ -127,7 +136,7 @@ impl StateWrapper {
                 y: 0.,
                 theta: 0.,
             },
-            velocity: Vec2 { x: 0., y: 0. },
+            velocity: Vec3 { x: 0., y: 0., z: 0. },
         }
     }
 }
@@ -140,16 +149,17 @@ impl StateWrapper {
                 y: s.pose[1],
                 theta: s.pose[2],
             },
-            velocity: Vec2 {
+            velocity: Vec3 {
                 x: s.velocity[0],
                 y: s.velocity[1],
+                z: s.velocity[2],
             },
         }
     }
     pub fn to_rust(&self) -> State {
         State {
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
-            velocity: SVector::from_vec(vec![self.velocity.x, self.velocity.y]),
+            velocity: SVector::from_vec(vec![self.velocity.x, self.velocity.y, self.velocity.z]),
         }
     }
 }

@@ -267,7 +267,7 @@ impl Sensor for GNSSSensor {
         let physic = arc_physic.read().unwrap();
         let state = physic.state(time);
 
-        let velocity_norm = state.velocity.norm();
+        let velocity_norm = state.velocity.fixed_rows::<2>(0).norm();
         let velocity = Vector2::<f32>::from_vec(vec![
             velocity_norm * state.pose.z.cos(),
             velocity_norm * state.pose.z.sin(),

@@ -12,11 +12,17 @@ class Vec2:
     def __init__(self):
         self.x: float
         self.y: float
+        
+class Vec3:
+    def __init__(self):
+        self.x: float
+        self.y: float
+        self.z: float
 
 class State:
     def __init__(self):
         self.pose: Pose
-        self.velocity: Vec2  # (longitudinal_velocity, lateral_velocity)
+        self.velocity: Vec3  # (longitudinal_velocity, lateral_velocity, angular_velocity)
         
 class WorldState:
     def __init__(self):

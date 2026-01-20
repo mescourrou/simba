@@ -23,7 +23,7 @@ use crate::utils::maths::{Derivator, Integrator};
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use config_checker::ConfigCheckable;
-use log::warn;
+use log::{debug, warn};
 use nalgebra::Vector2;
 use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::{Deserializer, de};
@@ -561,8 +561,8 @@ impl Controller for PID {
                 self.last_command_time = time;
 
                 Command::Unicycle(UnicycleCommand {
-                        left_wheel_speed: self.velocity - correction_theta / 2.,
-                        right_wheel_speed: self.velocity + correction_theta / 2.,
+                    left_wheel_speed: self.velocity - correction_theta / 2.,
+                    right_wheel_speed: self.velocity + correction_theta / 2.,
                 })
             },
             RobotModelConfig::Holonomic(_model) => {

@@ -152,7 +152,7 @@ impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
         let delta_time = (time - *last_time_draw)
             * self
                 .proportionnal_to_velocity
-                .map(|f| f * state.velocity.norm())
+                .map(|f| f * state.velocity.fixed_rows::<2>(0).norm())
                 .unwrap_or(1.0);
         let mut random_sample = Vec::new();
         for d in self.distributions.lock().unwrap().iter() {
