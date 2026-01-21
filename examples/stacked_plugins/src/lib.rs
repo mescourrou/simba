@@ -9,8 +9,8 @@ use simba::pybinds::PythonAPI;
 use simba::recordable::Recordable;
 use simba::simulator::{AsyncSimulator, Simulator, SimulatorConfig};
 use simba::state_estimators::{StateEstimator, WorldState};
-use simba::utils::SharedMutex;
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use simba::utils::SharedMutex;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
 

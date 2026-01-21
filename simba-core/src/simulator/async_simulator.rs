@@ -10,7 +10,8 @@ use crate::{
     errors::SimbaResult,
     logger::is_enabled,
     plugin_api::PluginAPI,
-    simulator::{Record, Simulator}, utils::{SharedMutex, SharedRwLock},
+    simulator::{Record, Simulator},
+    utils::{SharedMutex, SharedRwLock},
 };
 
 pub struct AsyncSimulator {

@@ -136,8 +136,7 @@ impl IdFilter {
             }
         } else if self.rejected.iter().any(|re| re.is_match(label)) {
             return false;
-        } else if !self.accepted.is_empty() && self.accepted.iter().any(|re| re.is_match(label))
-        {
+        } else if !self.accepted.is_empty() && self.accepted.iter().any(|re| re.is_match(label)) {
             return true;
         }
         self.accepted.is_empty()

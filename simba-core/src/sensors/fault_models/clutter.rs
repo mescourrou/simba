@@ -10,11 +10,14 @@ use crate::gui::{
 use crate::{
     sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
-        SharedMutex, determinist_random_variable::{
+        SharedMutex,
+        determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-        }, distributions::{
+        },
+        distributions::{
             poisson::PoissonRandomVariableConfig, uniform::UniformRandomVariableConfig,
-        }, geometry::mod2pi
+        },
+        geometry::mod2pi,
     },
 };
 

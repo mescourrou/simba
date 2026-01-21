@@ -5,7 +5,6 @@ use std::{
     sync::{Arc, mpsc::Receiver},
 };
 
-use log::debug;
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use simba_macros::EnumToString;
@@ -1015,9 +1014,7 @@ impl NodeWrapper {
         time: f32,
         flags: Vec<MessageFlag>,
     ) -> PyResult<()> {
-        debug!("Wait for network");
         if let Some(network) = &self.node.network() {
-            debug!("Got network");
             let msg = match message {
                 MessageTypes::String(s) => serde_json::to_value(s),
                 MessageTypes::GoTo(m) => serde_json::to_value(m),

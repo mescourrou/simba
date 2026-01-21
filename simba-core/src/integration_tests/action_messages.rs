@@ -211,7 +211,8 @@ mod trigger_sensor {
             external_estimator::ExternalEstimatorRecord,
         },
         utils::{
-            SharedMutex, determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision
+            SharedMutex, determinist_random_variable::DeterministRandomVariableFactory,
+            maths::round_precision,
         },
     };
     use std::{

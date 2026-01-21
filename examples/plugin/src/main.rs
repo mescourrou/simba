@@ -25,8 +25,8 @@ use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
 use simba::state_estimators::{
     State, StateEstimator, StateEstimatorRecord, StateRecord, WorldState,
 };
-use simba::utils::SharedMutex;
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use simba::utils::SharedMutex;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -43,7 +43,7 @@ struct MyWonderfulControllerConfig {}
 
 #[derive(Debug)]
 struct MyWonderfulController {
-    letter_box_rx: SharedMutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>,
     letter_box_tx: Sender<Envelope>,
 }
 
@@ -226,7 +226,7 @@ struct MyWonderfulStateEstimatorConfig {}
 #[derive(Debug)]
 struct MyWonderfulStateEstimator {
     last_prediction: f32,
-    letter_box_rx: SharedMutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>,
     letter_box_tx: Sender<Envelope>,
 }
 

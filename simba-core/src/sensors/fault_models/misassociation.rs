@@ -27,12 +27,14 @@ use crate::{
     },
     simulator::SimulatorConfig,
     utils::{
-        SharedMutex, determinist_random_variable::{
+        SharedMutex,
+        determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-        }, distributions::{
+        },
+        distributions::{
             bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
             uniform::UniformRandomVariableConfig,
-        }
+        },
     },
 };
 

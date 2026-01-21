@@ -9,7 +9,8 @@ use crate::{
     node::Node,
     physics::{GetRealStateReq, GetRealStateResp, Physics},
     simulator::TimeCv,
-    state_estimators::State, utils::SharedRwLock,
+    state_estimators::State,
+    utils::SharedRwLock,
 };
 
 use super::service::{Service, ServiceClient, ServiceInterface};

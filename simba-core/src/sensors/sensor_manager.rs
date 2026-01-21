@@ -27,8 +27,8 @@ use crate::node::Node;
 use crate::sensors::displacement_sensor::DisplacementSensor;
 use crate::sensors::external_sensor::ExternalSensor;
 use crate::state_estimators::State;
-use crate::utils::{SharedMutex, SharedRwLock};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::{SharedMutex, SharedRwLock};
 use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
 use super::gnss_sensor::GNSSSensor;

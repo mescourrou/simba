@@ -20,7 +20,9 @@ use crate::{
     recordable::Recordable,
     state_estimators::WorldState,
     utils::{
-        SharedMutex, python::{call_py_method, call_py_method_void}, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}
+        SharedMutex,
+        python::{call_py_method, call_py_method_void},
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
 

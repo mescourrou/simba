@@ -108,7 +108,10 @@ release_job:
       links:
         - name: Python package
           url: "${PACKAGE_REGISTRY_URL}/simba-${CI_COMMIT_TAG}-cp310-abi3-manylinux_2_39_x86_64.whl"
+          link_type: package
         - name: Command line binary
           url: "${PACKAGE_REGISTRY_URL}/simba"
+          link_type: package
         - name: Schema JSON
           url: "${PACKAGE_REGISTRY_URL}/config.schema.json"
+          link_type: other

@@ -15,7 +15,9 @@ use crate::{
     simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::StateEstimator,
     utils::{
-        SharedMutex, determinist_random_variable::DeterministRandomVariableFactory, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}
+        SharedMutex,
+        determinist_random_variable::DeterministRandomVariableFactory,
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
 

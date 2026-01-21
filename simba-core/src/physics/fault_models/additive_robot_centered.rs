@@ -10,9 +10,12 @@ use crate::{
     physics::{fault_models::fault_model::PhysicsFaultModel, robot_models::RobotModelConfig},
     state_estimators::State,
     utils::{
-        SharedMutex, determinist_random_variable::{
+        SharedMutex,
+        determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-        }, distributions::normal::NormalRandomVariableConfig, geometry::mod2pi
+        },
+        distributions::normal::NormalRandomVariableConfig,
+        geometry::mod2pi,
     },
 };
 

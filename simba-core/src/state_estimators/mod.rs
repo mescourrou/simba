@@ -440,7 +440,6 @@ use crate::gui::{
     UIComponent,
     utils::{string_combobox, text_singleline_with_apply},
 };
-use crate::{recordable::Recordable, utils::SharedRwLock};
 use crate::simulator::SimulatorConfig;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
@@ -454,6 +453,7 @@ use crate::{
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
+use crate::{recordable::Recordable, utils::SharedRwLock};
 
 use std::sync::Arc;
 

@@ -18,7 +18,10 @@ use crate::{
     recordable::Recordable,
     sensors::Observation,
     utils::{
-        SharedMutex, maths::round_precision, python::{call_py_method, call_py_method_void}, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}
+        SharedMutex,
+        maths::round_precision,
+        python::{call_py_method, call_py_method_void},
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
 

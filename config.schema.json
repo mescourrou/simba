@@ -76,7 +76,7 @@
     },
     "version": {
       "type": "string",
-      "default": "1.4.0"
+      "default": "1.4.3"
     }
   },
   "additionalProperties": false,
@@ -224,6 +224,13 @@
       "description": "Configuration of the [`NodeType::ComputationUnit`].",
       "type": "object",
       "properties": {
+        "labels": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
         "name": {
           "description": "Name of the unit.",
           "type": "string",
@@ -501,6 +508,13 @@
                 "$ref": "#/$defs/RandomVariableTypeConfig"
               }
             },
+            "proportional_to": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
             "type": {
               "type": "string",
               "const": "AdditiveRobotCentered"
@@ -590,6 +604,13 @@
               "items": {
                 "$ref": "#/$defs/RandomVariableTypeConfig"
               }
+            },
+            "proportional_to": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
             },
             "type": {
               "type": "string",
@@ -1039,7 +1060,7 @@
             "filters": [],
             "lie_integration": true,
             "period": 0.10000000149011612,
-            "type": "OdometrySensor"
+            "type": "SpeedSensor"
           }
         },
         "name": {
@@ -1746,6 +1767,13 @@
             "type": "PID"
           }
         },
+        "labels": {
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
         "name": {
           "description": "Name of the robot.",
           "type": "string",
@@ -1850,6 +1878,21 @@
         {
           "type": "object",
           "properties": {
+            "max_angular_velocity": {
+              "type": "number",
+              "format": "float",
+              "default": 1.0
+            },
+            "max_lateral_velocity": {
+              "type": "number",
+              "format": "float",
+              "default": 10.0
+            },
+            "max_longitudinal_velocity": {
+              "type": "number",
+              "format": "float",
+              "default": 10.0
+            },
             "type": {
               "type": "string",
               "const": "Holonomic"
@@ -1932,7 +1975,7 @@
           ]
         },
         {
-          "description": "Configuration of the [`OdometrySensor`].",
+          "description": "Configuration of the [`SpeedSensor`].",
           "type": "object",
           "properties": {
             "faults": {
@@ -1965,6 +2008,89 @@
             "type": {
               "type": "string",
               "const": "OdometrySensor"
+            }
+          },
+          "additionalProperties": false,
+          "deprecated": true,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Configuration of the [`SpeedSensor`].",
+          "type": "object",
+          "properties": {
+            "faults": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/FaultModelConfig"
+              }
+            },
+            "filters": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/SensorFilterConfig"
+              }
+            },
+            "lie_integration": {
+              "type": "boolean",
+              "default": true
+            },
+            "period": {
+              "description": "Observation period of the sensor.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": 0.10000000149011612
+            },
+            "type": {
+              "type": "string",
+              "const": "SpeedSensor"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Configuration of the [`DisplacementSensor`].",
+          "type": "object",
+          "properties": {
+            "faults": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/FaultModelConfig"
+              }
+            },
+            "filters": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/SensorFilterConfig"
+              }
+            },
+            "lie_movement": {
+              "type": "boolean",
+              "default": false
+            },
+            "period": {
+              "description": "Observation period of the sensor.",
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": 0.10000000149011612
+            },
+            "type": {
+              "type": "string",
+              "const": "DisplacementSensor"
             }
           },
           "additionalProperties": false,
@@ -2103,6 +2229,40 @@
               "items": {
                 "type": "string"
               }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Identifiers (id for landmark, name for robots) to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when an identifier is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Identifiers (id for landmark, name for robots) to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "IdFilter"
             }
           },
           "additionalProperties": false,

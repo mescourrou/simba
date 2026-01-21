@@ -18,8 +18,8 @@ use crate::errors::{SimbaError, SimbaErrorTypes};
 use crate::networking::message_handler::MessageHandler;
 use crate::state_estimators::State;
 use crate::time_analysis::TimeAnalysisNode;
-use crate::utils::{SharedMutex, SharedRoLock, SharedRwLock};
 use crate::utils::read_only_lock::RoLock;
+use crate::utils::{SharedMutex, SharedRoLock, SharedRwLock};
 use crate::{
     api::internal_api::{self, NodeClient, NodeServer},
     constants::TIME_ROUND,
@@ -105,8 +105,7 @@ pub struct Node {
     pub(self) send_records: bool,
 
     pub(self) node_meta_data: SharedRwLock<NodeMetaData>,
-    pub(self) meta_data_list:
-        Option<SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>>,
+    pub(self) meta_data_list: Option<SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>>,
 }
 
 impl Node {
