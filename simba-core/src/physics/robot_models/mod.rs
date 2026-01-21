@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 
-use nalgebra::Matrix3;
 use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 

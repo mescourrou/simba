@@ -455,7 +455,7 @@ use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 /// List the possible configs, to be selected in the global config.
 ///

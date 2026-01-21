@@ -124,10 +124,8 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                     if ui.button("-").clicked() {
                         self.proportional_to = None;
                     }
-                } else {
-                    if ui.button("+").clicked() {
-                        self.proportional_to = Some(possible_variables.get(0).unwrap().clone());
-                    }
+                } else if ui.button("+").clicked() {
+                    self.proportional_to = Some(possible_variables.first().unwrap().clone());
                 }
             });
         });

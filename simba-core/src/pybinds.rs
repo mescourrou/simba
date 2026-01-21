@@ -22,7 +22,7 @@ use crate::{
     plugin_api::PluginAPI,
     pywrappers::{
         CommandWrapper, ControllerErrorWrapper, DisplacementObservationWrapper,
-        GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper,
+        GNSSObservationWrapper, NodeWrapper, ObservationWrapper,
         OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper,
         Pose, SensorObservationWrapper, SimulatorWrapper, SpeedObservationWrapper, StateWrapper,
         UnicycleCommandWrapper, Vec2, Vec3, WorldStateWrapper, run_gui,
@@ -54,7 +54,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<GNSSObservationWrapper>()?;
     m.add_class::<SpeedObservationWrapper>()?;
     #[allow(deprecated)]
-    m.add_class::<OdometryObservationWrapper>()?;
+    m.add_class::<crate::pywrappers::OdometryObservationWrapper>()?;
     m.add_class::<DisplacementObservationWrapper>()?;
     m.add_class::<OrientedLandmarkObservationWrapper>()?;
     m.add_class::<OrientedRobotObservationWrapper>()?;

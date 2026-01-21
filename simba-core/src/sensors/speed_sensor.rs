@@ -23,11 +23,8 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
-use libm::atan2f;
 use log::debug;
-use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -220,6 +217,7 @@ pub struct SpeedSensor {
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
     filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
     #[deprecated(note = "lie_integration is deprecated; Speed sensor always use lie integration.")]
+    #[allow(dead_code)]
     lie_integration: bool,
 }
 

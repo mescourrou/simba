@@ -25,6 +25,7 @@ use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
 use simba::state_estimators::{
     State, StateEstimator, StateEstimatorRecord, StateRecord, WorldState,
 };
+use simba::utils::SharedMutex;
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -102,7 +103,7 @@ struct MyWonderfulNavigatorConfig {}
 
 #[derive(Debug)]
 struct MyWonderfulNavigator {
-    letter_box_rx: SharedMutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>,
     letter_box_tx: Sender<Envelope>,
 }
 

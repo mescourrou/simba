@@ -64,7 +64,7 @@ use crate::{
     state_estimators::State,
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
     utils::{
-        SharedMutex, SharedRoLock, SharedRwLock, barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision, python::CONVERT_TO_DICT, read_only_lock::RoLock, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}, time_ordered_data::TimeOrderedData
+        SharedMutex, SharedRoLock, SharedRwLock, barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision, python::CONVERT_TO_DICT, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}, time_ordered_data::TimeOrderedData
     },
 };
 use core::f32;
@@ -934,7 +934,12 @@ impl Simulator {
         Ok(())
     }
 
+    #[deprecated(note = "Will be removed in future release. Use load_results_full instead")]
     pub fn load_results(&mut self) -> SimbaResult<f32> {
+        self.load_results_full(None)
+    }
+
+    pub fn load_results_full(&mut self, filename: Option<String>) -> SimbaResult<f32> {
         if self.config.results.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ConfigError,
@@ -942,7 +947,7 @@ impl Simulator {
             ));
         }
         let result_config = self.config.results.clone().unwrap();
-        let filename = result_config.result_path;
+        let filename = filename.or(result_config.result_path);
         if filename.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ConfigError,
@@ -950,7 +955,7 @@ impl Simulator {
             ));
         }
         let filename = self.config.base_path.as_ref().join(filename.unwrap());
-        let results = Self::load_results_from_file(&filename)?;
+        let results = Self::deserialize_results_from_file(&filename)?;
 
         self.records = results.records;
         let mut max_time = self.common_time.write().unwrap();
@@ -965,7 +970,7 @@ impl Simulator {
         Ok(*max_time)
     }
 
-    pub fn load_results_from_file(filename: &Path) -> SimbaResult<Results> {
+    pub fn deserialize_results_from_file(filename: &Path) -> SimbaResult<Results> {
         info!("Loading results from file `{}`", filename.to_str().unwrap());
         let mut recording_file = File::open(filename).expect("Impossible to open record file");
         let mut content = String::new();

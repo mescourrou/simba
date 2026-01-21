@@ -1,7 +1,4 @@
-use std::{
-    fmt::format,
-    sync::{Arc, RwLock},
-};
+use std::sync::{Arc, RwLock};
 
 use log::debug;
 use serde::{Deserialize, Serialize};

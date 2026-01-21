@@ -276,7 +276,7 @@ impl Sensor for GNSSSensor {
 
         // Apply filters until one rejects the observation
         let obs = SensorObservation::GNSS(GNSSObservation {
-            pose: state.pose.clone(),
+            pose: state.pose,
             velocity,
             applied_faults: Vec::new(),
         });

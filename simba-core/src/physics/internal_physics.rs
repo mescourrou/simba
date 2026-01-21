@@ -22,7 +22,6 @@ use crate::{
     utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory},
 };
 use log::debug;
-use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 

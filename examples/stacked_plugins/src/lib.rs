@@ -9,6 +9,7 @@ use simba::pybinds::PythonAPI;
 use simba::recordable::Recordable;
 use simba::simulator::{AsyncSimulator, Simulator, SimulatorConfig};
 use simba::state_estimators::{StateEstimator, WorldState};
+use simba::utils::SharedMutex;
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -27,7 +28,7 @@ struct MyWonderfulNavigatorConfig {}
 
 #[derive(Debug)]
 struct MyWonderfulNavigator {
-    letter_box_rx: SharedMutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>,
     letter_box_tx: Sender<Envelope>,
 }
 

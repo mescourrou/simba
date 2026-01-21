@@ -91,11 +91,11 @@ impl UIComponent for IdFilterConfig {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label("Accepted identifiers (regexp):");
-            for (i, var) in self.accepted.iter().enumerate() {
+            for var in &self.accepted {
                 ui.label(format!("- '{}'", var));
             }
             ui.label("Rejected identifiers (regexp):");
-            for (i, var) in self.rejected.iter().enumerate() {
+            for var in &self.rejected {
                 ui.label(format!("- '{}'", var));
             }
             ui.label(format!("Priority Accept: {}", self.priority_accept));
@@ -134,13 +134,11 @@ impl IdFilter {
             } else if self.rejected.iter().any(|re| re.is_match(label)) {
                 return false;
             }
-        } else {
-            if self.rejected.iter().any(|re| re.is_match(label)) {
-                return false;
-            } else if !self.accepted.is_empty() && self.accepted.iter().any(|re| re.is_match(label))
-            {
-                return true;
-            }
+        } else if self.rejected.iter().any(|re| re.is_match(label)) {
+            return false;
+        } else if !self.accepted.is_empty() && self.accepted.iter().any(|re| re.is_match(label))
+        {
+            return true;
         }
         self.accepted.is_empty()
     }

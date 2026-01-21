@@ -141,19 +141,17 @@ impl LabelFilter {
             {
                 return false;
             }
-        } else {
-            if labels
+        } else if labels
+            .iter()
+            .any(|label| self.rejected.iter().any(|re| re.is_match(label)))
+        {
+            return false;
+        } else if !self.accepted.is_empty()
+            && labels
                 .iter()
-                .any(|label| self.rejected.iter().any(|re| re.is_match(label)))
-            {
-                return false;
-            } else if !self.accepted.is_empty()
-                && labels
-                    .iter()
-                    .any(|label| self.accepted.iter().any(|re| re.is_match(label)))
-            {
-                return true;
-            }
+                .any(|label| self.accepted.iter().any(|re| re.is_match(label)))
+        {
+            return true;
         }
         self.accepted.is_empty()
     }

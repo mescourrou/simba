@@ -1,3 +1,4 @@
+#![allow(deprecated)]
 /*!
 This module provides [`Sensor management`](sensor_manager::SensorManager) and
 [`Sensor Implementation`](sensor::Sensor).
@@ -25,7 +26,6 @@ pub mod sensor_filters;
 
 extern crate confy;
 
-use serde::de;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -48,7 +48,6 @@ use crate::{
     sensors::{
         displacement_sensor::{DisplacementObservation, DisplacementObservationRecord},
         external_sensor::{ExternalObservation, ExternalObservationRecord},
-        speed_sensor::{OdometryObservation, OdometryObservationRecord},
     },
 };
 
@@ -139,7 +138,7 @@ pub enum SensorObservation {
     OrientedLandmark(OrientedLandmarkObservation),
     #[deprecated(note = "Odometry is renamed to Speed")]
     #[allow(deprecated)]
-    Odometry(OdometryObservation),
+    Odometry(speed_sensor::OdometryObservation),
     Speed(SpeedObservation),
     Displacement(DisplacementObservation),
     GNSS(GNSSObservation),
@@ -171,7 +170,7 @@ pub enum SensorObservationRecord {
     OrientedLandmark(OrientedLandmarkObservationRecord),
     #[deprecated(note = "Odometry is renamed to Speed")]
     #[allow(deprecated)]
-    Odometry(OdometryObservationRecord),
+    Odometry(speed_sensor::OdometryObservationRecord),
     Speed(SpeedObservationRecord),
     Displacement(DisplacementObservationRecord),
     GNSS(GNSSObservationRecord),
@@ -200,7 +199,6 @@ impl UIComponent for SensorObservationRecord {
 pub enum SensorConfig {
     OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorConfig),
     #[deprecated(note = "OdometrySensor is renamed to SpeedSensor")]
-    #[allow(deprecated)]
     OdometrySensor(speed_sensor::OdometrySensorConfig),
     SpeedSensor(speed_sensor::SpeedSensorConfig),
     DisplacementSensor(displacement_sensor::DisplacementSensorConfig),

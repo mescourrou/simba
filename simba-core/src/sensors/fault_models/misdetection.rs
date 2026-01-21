@@ -97,7 +97,7 @@ impl MisdetectionFault {
 impl FaultModel for MisdetectionFault {
     fn add_faults(
         &mut self,
-        time: f32,
+        _time: f32,
         seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,

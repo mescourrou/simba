@@ -16,7 +16,7 @@ use crate::{
     gui::{UIComponent, drawables::popup::Popup},
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
-    simulator::{Record, Results, Simulator, SimulatorConfig},
+    simulator::{Record, Simulator, SimulatorConfig},
     utils::{SharedMutex, maths::round_precision, numbers::OrderedF32},
 };
 
@@ -495,7 +495,7 @@ impl eframe::App for SimbaApp {
                         Box::new(move |btn| {
                             if btn == 0 {
                                 log::info!("Load results in view");
-                                let results = Simulator::load_results_from_file(Path::new(&result_path)).unwrap();
+                                let results = Simulator::deserialize_results_from_file(Path::new(&result_path)).unwrap();
                                 records.lock().unwrap().extend(results.records);
                             } else {
                                 log::info!("Load results in simulator and view");

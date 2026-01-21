@@ -2,7 +2,7 @@
 #![allow(deprecated)]
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex, mpsc::Receiver},
+    sync::{Arc, mpsc::Receiver},
 };
 
 use log::debug;

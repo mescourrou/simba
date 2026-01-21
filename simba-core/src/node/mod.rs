@@ -10,7 +10,7 @@ use simba_macros::EnumToString;
 
 use core::f32;
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
 
 use log::{debug, info};
 

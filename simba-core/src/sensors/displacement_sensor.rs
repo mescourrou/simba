@@ -25,9 +25,8 @@ use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
-use libm::atan2f;
 use log::debug;
-use nalgebra::{Matrix3, Vector2, Vector3};
+use nalgebra::{Matrix3, Vector2};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 

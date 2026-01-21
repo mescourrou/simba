@@ -161,7 +161,7 @@ impl AsyncApiRunner {
                 while !*stopping.read().unwrap() {
                     load_results.recv_closure(|result_path| {
                         let mut simulator = simulator_arc.lock().unwrap();
-                        simulator.load_results()
+                        simulator.load_results_full(result_path)
                     });
                 }
             });

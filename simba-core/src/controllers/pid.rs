@@ -23,7 +23,7 @@ use crate::utils::maths::{Derivator, Integrator};
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use config_checker::ConfigCheckable;
-use log::{debug, warn};
+use log::warn;
 use nalgebra::Vector2;
 use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::{Deserializer, de};

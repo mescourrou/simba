@@ -18,7 +18,6 @@ use crate::{
 
 extern crate nalgebra as na;
 use libm::atan2;
-use log::debug;
 use na::Vector3;
 
 use serde_derive::{Deserialize, Serialize};

@@ -95,7 +95,6 @@ mod tests {
     };
 
     use log::debug;
-    use pyo3::pymethods;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
 

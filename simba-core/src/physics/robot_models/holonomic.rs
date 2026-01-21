@@ -1,5 +1,5 @@
 use libm::atan2f;
-use nalgebra::{Matrix3, SMatrix};
+use nalgebra::SMatrix;
 use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
