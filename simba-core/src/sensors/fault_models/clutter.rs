@@ -10,13 +10,11 @@ use crate::gui::{
 use crate::{
     sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
-        determinist_random_variable::{
+        SharedMutex, determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-        },
-        distributions::{
+        }, distributions::{
             poisson::PoissonRandomVariableConfig, uniform::UniformRandomVariableConfig,
-        },
-        geometry::mod2pi,
+        }, geometry::mod2pi
     },
 };
 
@@ -145,8 +143,8 @@ impl UIComponent for ClutterFaultConfig {
 
 #[derive(Debug)]
 pub struct ClutterFault {
-    apparition: Arc<Mutex<Box<dyn DeterministRandomVariable>>>,
-    distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
+    apparition: SharedMutex<Box<dyn DeterministRandomVariable>>,
+    distributions: SharedMutex<Vec<Box<dyn DeterministRandomVariable>>>,
     variable_order: Vec<String>,
     observation_id: String,
     config: ClutterFaultConfig,

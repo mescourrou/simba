@@ -15,8 +15,7 @@ use crate::{
     simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::StateEstimator,
     utils::{
-        determinist_random_variable::DeterministRandomVariableFactory,
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+        SharedMutex, determinist_random_variable::DeterministRandomVariableFactory, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}
     },
 };
 
@@ -48,9 +47,9 @@ pub struct AsyncApiServer {
 pub struct AsyncApiRunner {
     public_api: AsyncApi,
     private_api: AsyncApiServer,
-    simulator: Arc<Mutex<Simulator>>,
+    simulator: SharedMutex<Simulator>,
     keep_alive_tx: mpsc::Sender<()>,
-    keep_alive_rx: Arc<Mutex<mpsc::Receiver<()>>>,
+    keep_alive_rx: SharedMutex<mpsc::Receiver<()>>,
     thread_handle: Option<JoinHandle<()>>,
     running: bool,
 }
@@ -61,7 +60,7 @@ impl AsyncApiRunner {
         AsyncApiRunner::new_with_simulator(simulator)
     }
 
-    pub fn new_with_simulator(simulator: Arc<Mutex<Simulator>>) -> Self {
+    pub fn new_with_simulator(simulator: SharedMutex<Simulator>) -> Self {
         let (load_config_call, load_config_host) = rfc::make_pair();
         let (run_call, run_host) = rfc::make_pair();
         let (results_call, results_host) = rfc::make_pair();
@@ -97,7 +96,7 @@ impl AsyncApiRunner {
         self.public_api.clone()
     }
 
-    pub fn get_simulator(&self) -> Arc<Mutex<Simulator>> {
+    pub fn get_simulator(&self) -> SharedMutex<Simulator> {
         self.simulator.clone()
     }
 

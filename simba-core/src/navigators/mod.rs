@@ -171,6 +171,7 @@ impl UIComponent for NavigatorRecord {
 
 use crate::node::Node;
 use crate::recordable::Recordable;
+use crate::utils::SharedRwLock;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
@@ -202,7 +203,7 @@ pub fn make_navigator_from_config(
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
     initial_time: f32,
-) -> SimbaResult<Arc<RwLock<Box<dyn Navigator>>>> {
+) -> SimbaResult<SharedRwLock<Box<dyn Navigator>>> {
     Ok(Arc::new(RwLock::new(match config {
         NavigatorConfig::TrajectoryFollower(c) => Box::new(
             trajectory_follower::TrajectoryFollower::from_config(c, global_config, initial_time),

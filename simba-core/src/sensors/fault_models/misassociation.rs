@@ -27,13 +27,12 @@ use crate::{
     },
     simulator::SimulatorConfig,
     utils::{
-        determinist_random_variable::{
+        SharedMutex, determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-        },
-        distributions::{
+        }, distributions::{
             bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
             uniform::UniformRandomVariableConfig,
-        },
+        }
     },
 };
 
@@ -169,7 +168,7 @@ impl UIComponent for MisassociationFaultConfig {
 #[derive(Debug)]
 pub struct MisassociationFault {
     apparition: DeterministBernouilliRandomVariable,
-    distribution: Arc<Mutex<Box<dyn DeterministRandomVariable>>>,
+    distribution: SharedMutex<Box<dyn DeterministRandomVariable>>,
     sort: Sort,
     id_list: Vec<(String, Vector2<f32>)>,
     _source: Source,

@@ -18,7 +18,8 @@ use crate::errors::{SimbaError, SimbaErrorTypes};
 use crate::networking::message_handler::MessageHandler;
 use crate::state_estimators::State;
 use crate::time_analysis::TimeAnalysisNode;
-use crate::utils::read_only_lock::ReadOnlyLock;
+use crate::utils::{SharedMutex, SharedRoLock, SharedRwLock};
+use crate::utils::read_only_lock::RoLock;
 use crate::{
     api::internal_api::{self, NodeClient, NodeServer},
     constants::TIME_ROUND,
@@ -79,33 +80,33 @@ pub struct NodeMetaData {
 #[derive(Debug)]
 pub struct Node {
     /// [`Navigator`] module, implementing the navigation strategy.
-    pub(self) navigator: Option<Arc<RwLock<Box<dyn Navigator>>>>,
+    pub(self) navigator: Option<SharedRwLock<Box<dyn Navigator>>>,
     /// [`Controller`] module, implementing the control strategy.
-    pub(self) controller: Option<Arc<RwLock<Box<dyn Controller>>>>,
+    pub(self) controller: Option<SharedRwLock<Box<dyn Controller>>>,
     /// [`Physics`] module, implementing the physics strategy.
-    pub(self) physics: Option<Arc<RwLock<Box<dyn Physics>>>>,
+    pub(self) physics: Option<SharedRwLock<Box<dyn Physics>>>,
     /// [`StateEstimator`] module, implementing the state estimation strategy.
-    pub(self) state_estimator: Option<Arc<RwLock<Box<dyn StateEstimator>>>>,
+    pub(self) state_estimator: Option<SharedRwLock<Box<dyn StateEstimator>>>,
     /// Manages all the [`Sensor`](crate::sensors::sensor::Sensor)s and send the observations to `state_estimator`.
-    pub(self) sensor_manager: Option<Arc<RwLock<SensorManager>>>,
+    pub(self) sensor_manager: Option<SharedRwLock<SensorManager>>,
     /// [`Network`] interface to receive and send messages with other nodes.
-    pub(self) network: Option<Arc<RwLock<Network>>>,
+    pub(self) network: Option<SharedRwLock<Network>>,
     /// Additional [`StateEstimator`] to be evaluated.
-    pub(self) state_estimator_bench: Option<Arc<RwLock<Vec<BenchStateEstimator>>>>,
+    pub(self) state_estimator_bench: Option<SharedRwLock<Vec<BenchStateEstimator>>>,
 
-    // services: Vec<Arc<RwLock<Box<dyn ServiceInterface>>>>,
+    // services: Vec<SharedRwLock<Box<dyn ServiceInterface>>>>,
     /// Not really an option, but for delayed initialization
-    pub(self) service_manager: Option<Arc<RwLock<ServiceManager>>>,
+    pub(self) service_manager: Option<SharedRwLock<ServiceManager>>,
 
     pub(self) node_server: Option<NodeServer>,
 
     pub(self) other_node_names: Vec<String>,
-    pub(self) time_analysis: Arc<Mutex<TimeAnalysisNode>>,
+    pub(self) time_analysis: SharedMutex<TimeAnalysisNode>,
     pub(self) send_records: bool,
 
-    pub(self) node_meta_data: Arc<RwLock<NodeMetaData>>,
+    pub(self) node_meta_data: SharedRwLock<NodeMetaData>,
     pub(self) meta_data_list:
-        Option<Arc<dyn ReadOnlyLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>>>,
+        Option<SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>>,
 }
 
 impl Node {
@@ -114,10 +115,8 @@ impl Node {
     /// It is used to initialize the sensor manager, which need to know the list of all nodes.
     pub fn post_creation_init(
         &mut self,
-        service_manager_list: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
-        meta_data_list: Arc<
-            dyn ReadOnlyLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>,
-        >,
+        service_manager_list: &BTreeMap<String, SharedRwLock<ServiceManager>>,
+        meta_data_list: SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>,
     ) -> NodeClient {
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Node post-creation initialization")
@@ -666,7 +665,7 @@ impl Node {
     }
 
     /// Get a Arc clone of network module.
-    pub fn network(&self) -> Option<Arc<RwLock<Network>>> {
+    pub fn network(&self) -> Option<SharedRwLock<Network>> {
         match &self.network {
             Some(n) => Some(Arc::clone(n)),
             None => None,
@@ -674,7 +673,7 @@ impl Node {
     }
 
     /// Get a Arc clone of physics module.
-    pub fn physics(&self) -> Option<Arc<RwLock<Box<dyn Physics>>>> {
+    pub fn physics(&self) -> Option<SharedRwLock<Box<dyn Physics>>> {
         match &self.physics {
             Some(p) => Some(Arc::clone(p)),
             None => None,
@@ -682,7 +681,7 @@ impl Node {
     }
 
     /// Get a Arc clone of sensor manager.
-    pub fn sensor_manager(&self) -> Option<Arc<RwLock<SensorManager>>> {
+    pub fn sensor_manager(&self) -> Option<SharedRwLock<SensorManager>> {
         match &self.sensor_manager {
             Some(sm) => Some(Arc::clone(sm)),
             None => None,
@@ -690,7 +689,7 @@ impl Node {
     }
 
     /// Get a Arc clone of state estimator module.
-    pub fn state_estimator(&self) -> Option<Arc<RwLock<Box<dyn StateEstimator>>>> {
+    pub fn state_estimator(&self) -> Option<SharedRwLock<Box<dyn StateEstimator>>> {
         match &self.state_estimator {
             Some(se) => Some(Arc::clone(se)),
             None => None,
@@ -698,7 +697,7 @@ impl Node {
     }
 
     /// Get a Arc clone of state estimator module.
-    pub fn state_estimator_bench(&self) -> Option<Arc<RwLock<Vec<BenchStateEstimator>>>> {
+    pub fn state_estimator_bench(&self) -> Option<SharedRwLock<Vec<BenchStateEstimator>>> {
         match &self.state_estimator_bench {
             Some(se) => Some(Arc::clone(se)),
             None => None,
@@ -706,7 +705,7 @@ impl Node {
     }
 
     /// Get a Arc clone of navigator module.
-    pub fn navigator(&self) -> Option<Arc<RwLock<Box<dyn Navigator>>>> {
+    pub fn navigator(&self) -> Option<SharedRwLock<Box<dyn Navigator>>> {
         match &self.navigator {
             Some(n) => Some(Arc::clone(n)),
             None => None,
@@ -714,7 +713,7 @@ impl Node {
     }
 
     /// Get a Arc clone of controller module.
-    pub fn controller(&self) -> Option<Arc<RwLock<Box<dyn Controller>>>> {
+    pub fn controller(&self) -> Option<SharedRwLock<Box<dyn Controller>>> {
         match &self.controller {
             Some(c) => Some(Arc::clone(c)),
             None => None,
@@ -722,17 +721,17 @@ impl Node {
     }
 
     /// Get a Arc clone of Service Manager.
-    pub fn service_manager(&self) -> Arc<RwLock<ServiceManager>> {
+    pub fn service_manager(&self) -> SharedRwLock<ServiceManager> {
         self.service_manager.as_ref().unwrap().clone()
     }
 
-    pub fn meta_data(&self) -> Arc<dyn ReadOnlyLock<NodeMetaData>> {
-        self.node_meta_data.clone() as Arc<dyn ReadOnlyLock<NodeMetaData>>
+    pub fn meta_data(&self) -> SharedRoLock<NodeMetaData> {
+        self.node_meta_data.clone() as Arc<dyn RoLock<NodeMetaData>>
     }
 
     pub fn meta_data_list(
         &self,
-    ) -> Option<Arc<dyn ReadOnlyLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>>> {
+    ) -> Option<SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>> {
         self.meta_data_list.as_ref().cloned()
     }
 

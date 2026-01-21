@@ -18,6 +18,7 @@ use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::physics::robot_models::Command;
 use crate::pywrappers::NodeWrapper;
+use crate::utils::SharedMutex;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
 use crate::{
@@ -69,7 +70,7 @@ use crate::node::Node;
 pub struct PythonController {
     /// External controller.
     controller: Py<PyAny>,
-    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
     letter_box_sender: Sender<Envelope>,
 }
 

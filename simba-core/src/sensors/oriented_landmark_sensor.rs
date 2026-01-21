@@ -16,6 +16,7 @@ use crate::sensors::sensor_filters::{
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
+use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::{
     segment_circle_intersection, segment_to_line_intersection, segment_triangle_intersection,
@@ -510,8 +511,8 @@ pub struct OrientedLandmarkSensor {
     period: Option<f32>,
     /// Last observation time.
     last_time: f32,
-    faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
-    filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
+    faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
+    filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
     /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
     xray: bool,
 }

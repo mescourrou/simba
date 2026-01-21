@@ -27,6 +27,7 @@ use crate::node::Node;
 use crate::sensors::displacement_sensor::DisplacementSensor;
 use crate::sensors::external_sensor::ExternalSensor;
 use crate::state_estimators::State;
+use crate::utils::{SharedMutex, SharedRwLock};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
@@ -244,7 +245,7 @@ struct ManagedSensor {
     send_to: Vec<String>,
     triggered: bool,
     last_triggered: Option<f32>,
-    sensor: Arc<RwLock<Box<dyn Sensor>>>,
+    sensor: SharedRwLock<Box<dyn Sensor>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -269,7 +270,7 @@ pub struct SensorManager {
     last_observations: Vec<ObservationRecord>,
     local_observations: Vec<Observation>,
     distant_observations: Vec<Observation>,
-    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
     letter_box_sender: Sender<Envelope>,
 }
 

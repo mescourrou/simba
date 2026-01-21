@@ -27,7 +27,7 @@ struct MyWonderfulNavigatorConfig {}
 
 #[derive(Debug)]
 struct MyWonderfulNavigator {
-    letter_box_rx: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>>,
     letter_box_tx: Sender<Envelope>,
 }
 

@@ -21,6 +21,7 @@ use crate::sensors::sensor_filters::{
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
+use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
@@ -205,8 +206,8 @@ pub struct DisplacementSensor {
     period: Option<f32>,
     /// Last observation time.
     last_time: f32,
-    faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
-    filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
+    faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
+    filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
     lie_movement: bool,
 }
 

@@ -20,6 +20,7 @@ use crate::sensors::sensor_filters::{
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
+use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 use serde_derive::{Deserialize, Serialize};
@@ -375,8 +376,8 @@ pub struct RobotSensor {
     period: Option<f32>,
     /// Last observation time.
     last_time: f32,
-    faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
-    filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
+    faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
+    filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
 }
 
 impl RobotSensor {

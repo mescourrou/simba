@@ -12,14 +12,12 @@ use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
     sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
-        determinist_random_variable::{
+        SharedMutex, determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-        },
-        distributions::{
+        }, distributions::{
             bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
             normal::NormalRandomVariableConfig,
-        },
-        geometry::mod2pi,
+        }, geometry::mod2pi
     },
 };
 
@@ -156,7 +154,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
 #[derive(Debug)]
 pub struct AdditiveObservationCenteredPolarFault {
     apparition: DeterministBernouilliRandomVariable,
-    distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
+    distributions: SharedMutex<Vec<Box<dyn DeterministRandomVariable>>>,
     variable_order: Vec<String>,
     config: AdditiveObservationCenteredPolarFaultConfig,
 }

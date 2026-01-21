@@ -4,6 +4,7 @@
 GUI:
 - Previous results loading only on frontend side: possibility to load results without required plugins
 - Add < and > buttons to jump to previous/next computed instant (1st version)
+- GNSS observations visualization (position and velocity)
 
 Features:
 - Add Identifier and Label filter for landmark and robot sensors

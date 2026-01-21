@@ -10,11 +10,9 @@ use crate::{
     physics::{fault_models::fault_model::PhysicsFaultModel, robot_models::RobotModelConfig},
     state_estimators::State,
     utils::{
-        determinist_random_variable::{
+        SharedMutex, determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-        },
-        distributions::normal::NormalRandomVariableConfig,
-        geometry::mod2pi,
+        }, distributions::normal::NormalRandomVariableConfig, geometry::mod2pi
     },
 };
 
@@ -103,7 +101,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
 
 #[derive(Debug)]
 pub struct AdditiveRobotCenteredPhysicsFault {
-    distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
+    distributions: SharedMutex<Vec<Box<dyn DeterministRandomVariable>>>,
     variable_order: Vec<String>,
     proportionnal_to_velocity: Option<f32>,
     last_time_draw: Mutex<f32>,

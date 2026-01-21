@@ -157,7 +157,7 @@ impl UIComponent for PhysicsRecord {
 use crate::{
     errors::SimbaResult, networking::service::HasService, physics::robot_models::Command,
     plugin_api::PluginAPI, recordable::Recordable, simulator::SimulatorConfig,
-    state_estimators::State, utils::determinist_random_variable::DeterministRandomVariableFactory,
+    state_estimators::State, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -219,7 +219,7 @@ pub fn make_physics_from_config(
     robot_name: &String,
     va_factory: &Arc<DeterministRandomVariableFactory>,
     initial_time: f32,
-) -> SimbaResult<Arc<RwLock<Box<dyn Physics>>>> {
+) -> SimbaResult<SharedRwLock<Box<dyn Physics>>> {
     Ok(Arc::new(RwLock::new(match &config {
         PhysicsConfig::Internal(c) => Box::new(internal_physics::InternalPhysics::from_config(
             c,

@@ -17,6 +17,7 @@ use crate::sensors::sensor_filters::{
     SensorFilter, SensorFilterConfig, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
+use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
 #[cfg(feature = "gui")]
@@ -187,8 +188,8 @@ pub struct GNSSSensor {
     /// Last observation time.
     last_time: f32,
     /// Fault models for x and y positions and on x and y velocities
-    faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
-    filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
+    faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
+    filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
 }
 
 impl GNSSSensor {

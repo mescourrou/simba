@@ -209,10 +209,10 @@ mod tests {
             priority_accept: true,
         };
         let filter = LabelFilter::from_config(&config, 0.0);
-        assert!(!filter.keep_labels(&vec!["robot_1".to_string(), "robot_bad".to_string()]));
-        assert!(filter.keep_labels(&vec!["robot_good".to_string(), "robot_bad".to_string()]));
-        assert!(filter.keep_labels(&vec!["robot_bad".to_string(), "robot_good".to_string()]));
-        assert!(!filter.keep_labels(&vec!["landmark_1".to_string()]));
+        assert!(!filter.keep_labels(&["robot_1".to_string(), "robot_bad".to_string()]));
+        assert!(filter.keep_labels(&["robot_good".to_string(), "robot_bad".to_string()]));
+        assert!(filter.keep_labels(&["robot_bad".to_string(), "robot_good".to_string()]));
+        assert!(!filter.keep_labels(&["landmark_1".to_string()]));
     }
 
     #[test]
@@ -223,10 +223,10 @@ mod tests {
             priority_accept: false,
         };
         let filter = LabelFilter::from_config(&config, 0.0);
-        assert!(filter.keep_labels(&vec!["robot_1".to_string()]));
-        assert!(!filter.keep_labels(&vec!["robot_1".to_string(), "robot_bad".to_string()]));
-        assert!(!filter.keep_labels(&vec!["robot_bad".to_string(), "robot_1".to_string()]));
-        assert!(!filter.keep_labels(&vec!["landmark_1".to_string()]));
+        assert!(filter.keep_labels(&["robot_1".to_string()]));
+        assert!(!filter.keep_labels(&["robot_1".to_string(), "robot_bad".to_string()]));
+        assert!(!filter.keep_labels(&["robot_bad".to_string(), "robot_1".to_string()]));
+        assert!(!filter.keep_labels(&["landmark_1".to_string()]));
     }
 
     #[test]
@@ -237,8 +237,8 @@ mod tests {
             priority_accept: true,
         };
         let filter = LabelFilter::from_config(&config, 0.0);
-        assert!(!filter.keep_labels(&vec!["robot_1".to_string()]));
-        assert!(!filter.keep_labels(&vec!["robot_bad".to_string()]));
-        assert!(filter.keep_labels(&vec!["landmark_1".to_string()]));
+        assert!(!filter.keep_labels(&["robot_1".to_string()]));
+        assert!(!filter.keep_labels(&["robot_bad".to_string()]));
+        assert!(filter.keep_labels(&["landmark_1".to_string()]));
     }
 }

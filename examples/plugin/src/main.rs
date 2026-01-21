@@ -42,7 +42,7 @@ struct MyWonderfulControllerConfig {}
 
 #[derive(Debug)]
 struct MyWonderfulController {
-    letter_box_rx: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>>,
     letter_box_tx: Sender<Envelope>,
 }
 
@@ -102,7 +102,7 @@ struct MyWonderfulNavigatorConfig {}
 
 #[derive(Debug)]
 struct MyWonderfulNavigator {
-    letter_box_rx: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>>,
     letter_box_tx: Sender<Envelope>,
 }
 
@@ -225,7 +225,7 @@ struct MyWonderfulStateEstimatorConfig {}
 #[derive(Debug)]
 struct MyWonderfulStateEstimator {
     last_prediction: f32,
-    letter_box_rx: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>>,
     letter_box_tx: Sender<Envelope>,
 }
 

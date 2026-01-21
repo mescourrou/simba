@@ -13,7 +13,7 @@ use crate::{
     networking::message_handler::MessageHandler,
     physics::{PhysicsConfig, robot_models::Command},
     recordable::Recordable,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -210,7 +210,7 @@ pub fn make_controller_from_config(
     va_factory: &Arc<DeterministRandomVariableFactory>,
     physics_config: &PhysicsConfig,
     initial_time: f32,
-) -> SimbaResult<Arc<RwLock<Box<dyn Controller>>>> {
+) -> SimbaResult<SharedRwLock<Box<dyn Controller>>> {
     Ok(Arc::new(RwLock::new(match config {
         ControllerConfig::PID(c) => {
             Box::new(pid::PID::from_config(c, physics_config, initial_time)) as Box<dyn Controller>

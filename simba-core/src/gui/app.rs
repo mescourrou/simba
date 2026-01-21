@@ -17,7 +17,7 @@ use crate::{
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
     simulator::{Record, Results, Simulator, SimulatorConfig},
-    utils::{maths::round_precision, numbers::OrderedF32},
+    utils::{SharedMutex, maths::round_precision, numbers::OrderedF32},
 };
 
 use super::{
@@ -120,8 +120,8 @@ impl PainterInfo {
 }
 
 struct PrivateParams {
-    server: Arc<Mutex<AsyncApiRunner>>,
-    api: Arc<Mutex<AsyncApi>>,
+    server: SharedMutex<AsyncApiRunner>,
+    api: SharedMutex<AsyncApi>,
     config: Option<SimulatorConfig>,
     current_draw_time: f32,
     robots: BTreeMap<String, drawables::robot::Robot>,
@@ -131,7 +131,7 @@ struct PrivateParams {
     error_buffer: Vec<(time::Instant, SimbaError)>,
     painter_info: PainterInfo,
     popups: Vec<Popup>,
-    record_buffer: Arc<Mutex<Vec<Record>>>,
+    record_buffer: SharedMutex<Vec<Record>>,
     current_max_time: f32,
     drawable_instants: BTreeSet<OrderedF32>,
 }
@@ -455,7 +455,7 @@ impl eframe::App for SimbaApp {
                             Err(e) => {
                                 let now = time::Instant::now();
                                 if let SimbaErrorTypes::ExternalAPIError = e.error_type() {
-                                    self.p.config = Some(SimulatorConfig::load_from_path(&Path::new(&self.config_path)).unwrap());
+                                    self.p.config = Some(SimulatorConfig::load_from_path(Path::new(&self.config_path)).unwrap());
                                 }
                                 self.p.error_buffer.push((now, e));
                             }
@@ -505,15 +505,10 @@ impl eframe::App for SimbaApp {
                     ));
                     self.p.simulation_run = true;
                 }
-                if let Some(ret) = self.p.api.lock().unwrap().load_results.try_get_result() {
-                    match ret {
-                        Err(e) => {
-                            let now = time::Instant::now();
-                            self.p.error_buffer.push((now, e.clone()));
-                            self.p.simulation_run = false;
-                        }
-                        Ok(_) => {}
-                    }
+                if let Some(Err(e)) = self.p.api.lock().unwrap().load_results.try_get_result() {
+                    let now = time::Instant::now();
+                    self.p.error_buffer.push((now, e.clone()));
+                    self.p.simulation_run = false;
                 }
             });
             ui.horizontal(|ui| {

@@ -19,7 +19,7 @@ use crate::{
     },
     recordable::Recordable,
     state_estimators::{State, StateConfig, StateRecord},
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory},
 };
 use log::debug;
 use nalgebra::Matrix3;
@@ -146,7 +146,7 @@ pub struct InternalPhysics {
     last_time_update: f32,
     /// Current command applied.
     current_command: Command,
-    faults: Arc<Mutex<Vec<Box<dyn PhysicsFaultModel>>>>,
+    faults: SharedMutex<Vec<Box<dyn PhysicsFaultModel>>>,
 }
 
 impl InternalPhysics {

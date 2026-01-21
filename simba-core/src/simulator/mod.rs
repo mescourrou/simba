@@ -64,13 +64,7 @@ use crate::{
     state_estimators::State,
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
     utils::{
-        barrier::Barrier,
-        determinist_random_variable::DeterministRandomVariableFactory,
-        maths::round_precision,
-        python::CONVERT_TO_DICT,
-        read_only_lock::ReadOnlyLock,
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
-        time_ordered_data::TimeOrderedData,
+        SharedMutex, SharedRoLock, SharedRwLock, barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision, python::CONVERT_TO_DICT, read_only_lock::RoLock, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}, time_ordered_data::TimeOrderedData
     },
 };
 use core::f32;
@@ -166,7 +160,7 @@ impl Default for TimeCv {
 
 pub(crate) struct RunningParameters {
     max_time: f32,
-    nb_nodes: Arc<RwLock<usize>>,
+    nb_nodes: SharedRwLock<usize>,
     finishing_cv: Arc<(Mutex<usize>, Condvar)>,
     barrier: Arc<Barrier>,
     handles: Vec<JoinHandle<SimbaResult<Option<Node>>>>,
@@ -175,9 +169,9 @@ pub(crate) struct RunningParameters {
 }
 
 struct NodeSyncParams {
-    nb_nodes: Arc<RwLock<usize>>,
+    nb_nodes: SharedRwLock<usize>,
     time_cv: Arc<TimeCv>,
-    common_time: Arc<RwLock<f32>>,
+    common_time: SharedRwLock<f32>,
     barrier: Arc<Barrier>,
     end_time_step_sync: RemoteFunctionCall<(), ()>,
 }
@@ -231,7 +225,7 @@ pub struct Simulator {
     determinist_va_factory: Arc<DeterministRandomVariableFactory>,
 
     time_cv: Arc<TimeCv>,
-    common_time: Arc<RwLock<f32>>,
+    common_time: SharedRwLock<f32>,
 
     async_api: Option<Arc<SimulatorAsyncApi>>,
     async_api_server: Option<SimulatorAsyncApiServer>,
@@ -242,10 +236,10 @@ pub struct Simulator {
     records: Vec<Record>,
     time_analysis_factory: TimeAnalysisFactory,
     force_send_results: bool,
-    scenario: Arc<Mutex<Scenario>>,
+    scenario: SharedMutex<Scenario>,
     plugin_api: Option<Arc<dyn PluginAPI>>,
-    service_managers: BTreeMap<String, Arc<RwLock<ServiceManager>>>,
-    meta_data_list: Arc<RwLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>>,
+    service_managers: BTreeMap<String, SharedRwLock<ServiceManager>>,
+    meta_data_list: SharedRwLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>,
 }
 
 impl Simulator {

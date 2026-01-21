@@ -440,7 +440,7 @@ use crate::gui::{
     UIComponent,
     utils::{string_combobox, text_singleline_with_apply},
 };
-use crate::recordable::Recordable;
+use crate::{recordable::Recordable, utils::SharedRwLock};
 use crate::simulator::SimulatorConfig;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
@@ -728,5 +728,5 @@ pub struct BenchStateEstimatorRecord {
 #[derive(Debug)]
 pub struct BenchStateEstimator {
     pub name: String,
-    pub state_estimator: Arc<RwLock<Box<dyn StateEstimator>>>,
+    pub state_estimator: SharedRwLock<Box<dyn StateEstimator>>,
 }

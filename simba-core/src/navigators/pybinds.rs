@@ -20,8 +20,7 @@ use crate::{
     recordable::Recordable,
     state_estimators::WorldState,
     utils::{
-        python::{call_py_method, call_py_method_void},
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+        SharedMutex, python::{call_py_method, call_py_method_void}, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}
     },
 };
 
@@ -32,7 +31,7 @@ pub struct PythonNavigatorAsyncClient {
     pub compute_error: RemoteFunctionCall<(NodeWrapper, WorldState), ControllerError>,
     pub record: RemoteFunctionCall<(), NavigatorRecord>,
     pub pre_loop_hook: RemoteFunctionCall<(NodeWrapper, f32), ()>,
-    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
     letter_box_sender: Sender<Envelope>,
 }
 

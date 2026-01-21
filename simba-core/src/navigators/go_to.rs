@@ -14,7 +14,7 @@ use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use crate::{
     navigators::{Navigator, NavigatorRecord},
     networking::{message_handler::MessageHandler, network::Envelope},
-    utils::geometry::smallest_theta_diff,
+    utils::{SharedMutex, geometry::smallest_theta_diff},
 };
 
 extern crate nalgebra as na;
@@ -206,7 +206,7 @@ pub struct GoTo {
     /// Coefficient of the target velocity, multiplied by the remaining distance
     stop_ramp_coefficient: f32,
 
-    letter_box: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box: SharedMutex<Receiver<Envelope>>,
     letter_box_sender: Sender<Envelope>,
 }
 

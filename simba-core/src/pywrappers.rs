@@ -40,7 +40,7 @@ use crate::{
     },
     simulator::{AsyncSimulator, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
-    utils::occupancy_grid::OccupancyGrid,
+    utils::{SharedMutex, occupancy_grid::OccupancyGrid},
 };
 
 #[derive(Clone, Debug)]
@@ -997,7 +997,7 @@ pub struct EnvelopeWrapper {
 #[pyo3(name = "Node")]
 pub struct NodeWrapper {
     node: Arc<Node>,
-    messages_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    messages_receiver: SharedMutex<Receiver<Envelope>>,
 }
 
 #[pymethods]
@@ -1052,7 +1052,7 @@ impl NodeWrapper {
 }
 
 impl NodeWrapper {
-    pub fn from_rust(n: &Node, messages_receiver: Arc<Mutex<Receiver<Envelope>>>) -> Self {
+    pub fn from_rust(n: &Node, messages_receiver: SharedMutex<Receiver<Envelope>>) -> Self {
         Self {
             // I did not find another solution.
             // Relatively safe as Nodes lives very long, almost all the time
