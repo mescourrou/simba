@@ -6,17 +6,19 @@ use crate::{
     sensors::{
         SensorObservation,
         sensor_filters::{
-            id_filter::{IdFilter, IdFilterConfig}, python_filter::{PythonFilter, PythonFilterConfig}, range_filter::{RangeFilter, RangeFilterConfig}
+            id_filter::{IdFilter, IdFilterConfig},
+            python_filter::{PythonFilter, PythonFilterConfig},
+            range_filter::{RangeFilter, RangeFilterConfig},
         },
     },
     simulator::SimulatorConfig,
     state_estimators::State,
 };
 
-pub mod python_filter;
-pub mod range_filter;
 pub mod id_filter;
 pub mod label_filter;
+pub mod python_filter;
+pub mod range_filter;
 
 #[config_derives]
 pub enum SensorFilterConfig {

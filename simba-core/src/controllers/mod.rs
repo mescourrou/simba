@@ -8,13 +8,17 @@ pub mod python_controller;
 
 pub mod pybinds;
 
+use crate::{
+    errors::SimbaResult,
+    networking::message_handler::MessageHandler,
+    physics::{PhysicsConfig, robot_models::Command},
+    recordable::Recordable,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 #[cfg(feature = "gui")]
 use crate::{
     gui::{UIComponent, utils::string_combobox},
     utils::enum_tools::ToVec,
-};
-use crate::{
-    errors::SimbaResult, networking::message_handler::MessageHandler, physics::{PhysicsConfig, robot_models::Command}, recordable::Recordable, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 use std::sync::{Arc, RwLock};
 

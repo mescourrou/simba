@@ -125,7 +125,12 @@ impl ExternalSensor {
         Ok(Self {
             sensor: plugin_api
                 .as_ref()
-                .ok_or_else(|| SimbaError::new(SimbaErrorTypes::ExternalAPIError, "Plugin API not set!".to_string()))?
+                .ok_or_else(|| {
+                    SimbaError::new(
+                        SimbaErrorTypes::ExternalAPIError,
+                        "Plugin API not set!".to_string(),
+                    )
+                })?
                 .get_sensor(&config.config, global_config, initial_time),
         })
     }

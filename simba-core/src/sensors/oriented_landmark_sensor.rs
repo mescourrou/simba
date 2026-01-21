@@ -258,7 +258,9 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                     type Value = Field;
 
                     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                        formatter.write_str("`id` or `labels` or `x` or `y` or `theta` or `height` or `width`")
+                        formatter.write_str(
+                            "`id` or `labels` or `x` or `y` or `theta` or `height` or `width`",
+                        )
                     }
 
                     fn visit_str<E>(self, value: &str) -> Result<Field, E>

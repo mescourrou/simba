@@ -16,7 +16,8 @@ use crate::{
     gui::{UIComponent, drawables::popup::Popup},
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
-    simulator::{Record, Results, Simulator, SimulatorConfig}, utils::{maths::round_precision, numbers::OrderedF32},
+    simulator::{Record, Results, Simulator, SimulatorConfig},
+    utils::{maths::round_precision, numbers::OrderedF32},
 };
 
 use super::{
@@ -236,10 +237,14 @@ impl SimbaApp {
         if let Some(config) = default_config_path {
             n.config_path = config.to_str().unwrap().to_string();
             n.p.config = None;
-            n.p.api.lock().unwrap().load_config.async_call(AsyncApiLoadConfigRequest {
-                config_path: n.config_path.clone(),
-                force_send_results: true,
-            });
+            n.p.api
+                .lock()
+                .unwrap()
+                .load_config
+                .async_call(AsyncApiLoadConfigRequest {
+                    config_path: n.config_path.clone(),
+                    force_send_results: true,
+                });
         }
         if load_results {
             n.p.api.lock().unwrap().load_results.async_call(None);
@@ -264,7 +269,8 @@ impl SimbaApp {
             self.p.config = None;
             self.p
                 .api
-                .lock().unwrap()
+                .lock()
+                .unwrap()
                 .load_config
                 .async_call(AsyncApiLoadConfigRequest {
                     config_path: self.config_path.clone(),
@@ -365,7 +371,15 @@ impl eframe::App for SimbaApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         {
             let api = self.p.api.clone();
-            for Record { time, node } in api.lock().unwrap().simulator_api.records.lock().unwrap().try_iter() {
+            for Record { time, node } in api
+                .lock()
+                .unwrap()
+                .simulator_api
+                .records
+                .lock()
+                .unwrap()
+                .try_iter()
+            {
                 self.add_result(time, node);
             }
         }
@@ -497,7 +511,6 @@ impl eframe::App for SimbaApp {
                             let now = time::Instant::now();
                             self.p.error_buffer.push((now, e.clone()));
                             self.p.simulation_run = false;
-                            
                         }
                         Ok(_) => {}
                     }
@@ -529,10 +542,15 @@ impl eframe::App for SimbaApp {
                         .clicked()
                     {
                         log::info!("Run simulation");
-                        self.p.api.lock().unwrap().run.async_call(AsyncApiRunRequest {
-                            max_time: Some(self.duration),
-                            reset: self.p.simulation_run,
-                        });
+                        self.p
+                            .api
+                            .lock()
+                            .unwrap()
+                            .run
+                            .async_call(AsyncApiRunRequest {
+                                max_time: Some(self.duration),
+                                reset: self.p.simulation_run,
+                            });
                         self.p.simulation_run = true;
                     }
                     if let Some(Err(e)) = self.p.api.lock().unwrap().run.try_get_result() {
@@ -566,7 +584,12 @@ impl eframe::App for SimbaApp {
                         self.p.current_draw_time = self.p.current_max_time;
                     }
                     if ui.button("<").clicked() {
-                        if let Some(&prev_instant) = self.p.drawable_instants.range(..OrderedF32(self.p.current_draw_time)).next_back() {
+                        if let Some(&prev_instant) = self
+                            .p
+                            .drawable_instants
+                            .range(..OrderedF32(self.p.current_draw_time))
+                            .next_back()
+                        {
                             self.p.current_draw_time = prev_instant.0;
                         } else if self.p.current_draw_time > 0.0 {
                             self.p.current_draw_time = 0.0;
@@ -578,7 +601,12 @@ impl eframe::App for SimbaApp {
                             .fixed_decimals(TIME_ROUND_DECIMALS),
                     );
                     if ui.button(">").clicked() {
-                        if let Some(&next_instant) = self.p.drawable_instants.range(OrderedF32(self.p.current_draw_time + TIME_ROUND)..).next() {
+                        if let Some(&next_instant) = self
+                            .p
+                            .drawable_instants
+                            .range(OrderedF32(self.p.current_draw_time + TIME_ROUND)..)
+                            .next()
+                        {
                             self.p.current_draw_time = next_instant.0;
                         } else if self.p.current_draw_time < self.duration {
                             self.p.current_draw_time = self.duration;
@@ -593,7 +621,9 @@ impl eframe::App for SimbaApp {
                         log::info!("Analysing results");
                         self.p.api.lock().unwrap().compute_results.async_call(());
                     }
-                    if let Some(Err(e)) = self.p.api.lock().unwrap().compute_results.try_get_result() {
+                    if let Some(Err(e)) =
+                        self.p.api.lock().unwrap().compute_results.try_get_result()
+                    {
                         self.p.error_buffer.push((time::Instant::now(), e));
                     }
                 });

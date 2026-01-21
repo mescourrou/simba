@@ -129,30 +129,15 @@ impl IdFilter {
 
     fn keep_label(&self, label: &str) -> bool {
         if self.priority_accept {
-            if !self.accepted.is_empty() && self
-                .accepted
-                .iter()
-                .any(|re| re.is_match(label))
-            {
+            if !self.accepted.is_empty() && self.accepted.iter().any(|re| re.is_match(label)) {
                 return true;
-            } else if self
-                .rejected
-                .iter()
-                .any(|re| re.is_match(label))
-            {
+            } else if self.rejected.iter().any(|re| re.is_match(label)) {
                 return false;
             }
         } else {
-            if self
-                .rejected
-                .iter()
-                .any(|re| re.is_match(label))
-            {
+            if self.rejected.iter().any(|re| re.is_match(label)) {
                 return false;
-            } else if !self.accepted.is_empty() && self
-                .accepted
-                .iter()
-                .any(|re| re.is_match(label))
+            } else if !self.accepted.is_empty() && self.accepted.iter().any(|re| re.is_match(label))
             {
                 return true;
             }
@@ -207,7 +192,7 @@ mod tests {
 
     #[test]
     fn priority_accept() {
-        let config = IdFilterConfig {   
+        let config = IdFilterConfig {
             accepted: vec!["robot_good".to_string()],
             rejected: vec!["robot_.*".to_string()],
             priority_accept: true,
@@ -220,7 +205,7 @@ mod tests {
 
     #[test]
     fn priority_reject() {
-        let config = IdFilterConfig {   
+        let config = IdFilterConfig {
             accepted: vec!["robot_.*".to_string()],
             rejected: vec!["robot_bad".to_string()],
             priority_accept: false,
@@ -233,7 +218,7 @@ mod tests {
 
     #[test]
     fn accept_empty() {
-        let config = IdFilterConfig {   
+        let config = IdFilterConfig {
             accepted: vec![],
             rejected: vec!["robot_.*".to_string()],
             priority_accept: true,

@@ -281,7 +281,7 @@ impl FaultModel for MisassociationFault {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
                 #[allow(deprecated)]
-                SensorObservation::Speed(_) | SensorObservation::Odometry(_)  => {
+                SensorObservation::Speed(_) | SensorObservation::Odometry(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
                 SensorObservation::Displacement(_) => {

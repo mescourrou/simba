@@ -10,12 +10,12 @@ pub mod enum_tools;
 pub mod geometry;
 pub mod macros;
 pub mod maths;
+pub mod numbers;
 pub mod occupancy_grid;
 pub mod python;
+pub mod read_only_lock;
 pub mod rfc;
 pub mod time_ordered_data;
-pub mod numbers;
-pub mod read_only_lock;
 
 use serde::Serializer;
 pub fn format_f32<S>(val: &f32, serializer: S) -> Result<S::Ok, S::Error>

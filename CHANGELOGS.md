@@ -1,5 +1,25 @@
 # Changelogs
 
+## v1.4.3
+GUI:
+- Previous results loading only on frontend side: possibility to load results without required plugins
+- Add < and > buttons to jump to previous/next computed instant (1st version)
+
+Features:
+- Add Identifier and Label filter for landmark and robot sensors
+- Displacement sensor
+- Add orientation to GNSS observation
+- Additive noise option to be proportional to time or distance (only available for Displacement sensor and AdditiveRobotCentered noise).
+ 
+Fixes:
+- Goto error computation
+- PID Holonomic command computation
+- Remove lie integration in odometry sensor
+- Velocity norm. Bug introduced with the addition of angular velocity in velocity state vector
+
+Deprecated:
+- Rename OdometrySensor to SpeedSensor
+
 ## v1.4.2
 - hotfix: Use Python abi3 for Python >= 3.10 for Python call from Rust.
 

@@ -22,7 +22,11 @@ impl Popup {
         }
     }
 
-    pub fn new_ok(title: String, description: String, action_on_click: Box<dyn FnMut(usize) + 'static>) -> Self {
+    pub fn new_ok(
+        title: String,
+        description: String,
+        action_on_click: Box<dyn FnMut(usize) + 'static>,
+    ) -> Self {
         Self::new(
             title,
             description,
@@ -44,7 +48,12 @@ impl Popup {
         description: String,
         action_on_click: Box<dyn FnMut(usize) + 'static>,
     ) -> Self {
-        Self::new(title, description, Vec::from(["Yes".to_string(), "No".to_string()]), action_on_click)
+        Self::new(
+            title,
+            description,
+            Vec::from(["Yes".to_string(), "No".to_string()]),
+            action_on_click,
+        )
     }
 
     pub fn draw(&mut self, ctx: &egui::Context) -> Option<usize> {

@@ -154,13 +154,15 @@ impl UIComponent for PhysicsRecord {
     }
 }
 
+use crate::{
+    errors::SimbaResult, networking::service::HasService, physics::robot_models::Command,
+    plugin_api::PluginAPI, recordable::Recordable, simulator::SimulatorConfig,
+    state_estimators::State, utils::determinist_random_variable::DeterministRandomVariableFactory,
+};
 #[cfg(feature = "gui")]
 use crate::{
     gui::{UIComponent, utils::string_combobox},
     utils::enum_tools::ToVec,
-};
-use crate::{
-    errors::SimbaResult, networking::service::HasService, physics::robot_models::Command, plugin_api::PluginAPI, recordable::Recordable, simulator::SimulatorConfig, state_estimators::State, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 
 // Services

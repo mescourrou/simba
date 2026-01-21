@@ -251,8 +251,10 @@ impl SensorFilter for RangeFilter {
                                 && obs.pose.z <= self.config.max_range[i]
                         }
                         "self_velocity" => {
-                            observer_state.velocity.fixed_rows::<2>(0).norm() >= self.config.min_range[i]
-                                && observer_state.velocity.fixed_rows::<2>(0).norm() <= self.config.max_range[i]
+                            observer_state.velocity.fixed_rows::<2>(0).norm()
+                                >= self.config.min_range[i]
+                                && observer_state.velocity.fixed_rows::<2>(0).norm()
+                                    <= self.config.max_range[i]
                         }
                         "width" => {
                             obs.width >= self.config.min_range[i]
@@ -302,13 +304,17 @@ impl SensorFilter for RangeFilter {
                                 && obs.pose.z <= self.config.max_range[i]
                         }
                         "self_velocity" => {
-                            observer_state.velocity.fixed_rows::<2>(0).norm() >= self.config.min_range[i]
-                                && observer_state.velocity.fixed_rows::<2>(0).norm() <= self.config.max_range[i]
+                            observer_state.velocity.fixed_rows::<2>(0).norm()
+                                >= self.config.min_range[i]
+                                && observer_state.velocity.fixed_rows::<2>(0).norm()
+                                    <= self.config.max_range[i]
                         }
                         "target_velocity" => {
                             if let Some(observee_state) = observee_state {
-                                observee_state.velocity.fixed_rows::<2>(0).norm() >= self.config.min_range[i]
-                                    && observee_state.velocity.fixed_rows::<2>(0).norm() <= self.config.max_range[i]
+                                observee_state.velocity.fixed_rows::<2>(0).norm()
+                                    >= self.config.min_range[i]
+                                    && observee_state.velocity.fixed_rows::<2>(0).norm()
+                                        <= self.config.max_range[i]
                             } else {
                                 panic!(
                                     "Observee state is required to filter on target_velocity with OrientedRobot observation"

@@ -30,7 +30,9 @@ impl Robot {
         for sensor_conf in &config.sensor_manager.sensors {
             match &sensor_conf.config {
                 SensorConfig::GNSSSensor(c) => {
-                    gnss_obs = Some(drawables::observations::GNSSObservation::init(c, sim_config))
+                    gnss_obs = Some(drawables::observations::GNSSObservation::init(
+                        c, sim_config,
+                    ))
                 }
                 #[allow(deprecated)]
                 SensorConfig::SpeedSensor(_) | SensorConfig::OdometrySensor(_) => {}

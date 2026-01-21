@@ -129,30 +129,28 @@ impl LabelFilter {
 
     fn keep_labels(&self, labels: &[String]) -> bool {
         if self.priority_accept {
-            if !self.accepted.is_empty() && labels.iter().any(|label| self
-                .accepted
-                .iter()
-                .any(|re| re.is_match(label)))
+            if !self.accepted.is_empty()
+                && labels
+                    .iter()
+                    .any(|label| self.accepted.iter().any(|re| re.is_match(label)))
             {
                 return true;
-            } else if labels.iter().any(|label| self
-                .rejected
+            } else if labels
                 .iter()
-                .any(|re| re.is_match(label)))
+                .any(|label| self.rejected.iter().any(|re| re.is_match(label)))
             {
                 return false;
             }
         } else {
-            if labels.iter().any(|label| self
-                .rejected
+            if labels
                 .iter()
-                .any(|re| re.is_match(label)))
+                .any(|label| self.rejected.iter().any(|re| re.is_match(label)))
             {
                 return false;
-            } else if !self.accepted.is_empty() && labels.iter().any(|label| self
-                .accepted
-                .iter()
-                .any(|re| re.is_match(label)))
+            } else if !self.accepted.is_empty()
+                && labels
+                    .iter()
+                    .any(|label| self.accepted.iter().any(|re| re.is_match(label)))
             {
                 return true;
             }
@@ -205,7 +203,7 @@ mod tests {
 
     #[test]
     fn accept_first() {
-        let config = LabelFilterConfig {   
+        let config = LabelFilterConfig {
             accepted: vec!["robot_good".to_string()],
             rejected: vec!["robot_.*".to_string()],
             priority_accept: true,
@@ -219,7 +217,7 @@ mod tests {
 
     #[test]
     fn reject_first() {
-        let config = LabelFilterConfig {   
+        let config = LabelFilterConfig {
             accepted: vec!["robot_.*".to_string()],
             rejected: vec!["robot_bad".to_string()],
             priority_accept: false,
@@ -233,7 +231,7 @@ mod tests {
 
     #[test]
     fn accept_empty() {
-        let config = LabelFilterConfig {   
+        let config = LabelFilterConfig {
             accepted: vec![],
             rejected: vec!["robot_.*".to_string()],
             priority_accept: true,

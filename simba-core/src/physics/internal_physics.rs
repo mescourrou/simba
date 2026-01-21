@@ -201,15 +201,15 @@ impl InternalPhysics {
             return;
         }
 
-        debug!("InternalPhysics: Computing state until time {}, dt={}", time, dt);
+        debug!(
+            "InternalPhysics: Computing state until time {}, dt={}",
+            time, dt
+        );
         debug!("  Current state: {:?}", self.state);
         debug!("  Current command: {:?}", self.current_command);
 
-        self.model.update_state(
-            &mut self.state,
-            &self.current_command,
-            dt,
-        );
+        self.model
+            .update_state(&mut self.state, &self.current_command, dt);
 
         debug!("  New state: {:?}", self.state);
 

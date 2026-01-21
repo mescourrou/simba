@@ -12,13 +12,13 @@ To add a new [`Sensor`](sensor::Sensor), you should implement the
 [`SensorRecord`](sensor::SensorRecord) enumarations.
 */
 
+pub mod displacement_sensor;
 pub mod external_sensor;
 pub mod gnss_sensor;
-pub mod speed_sensor;
-pub mod displacement_sensor;
 pub mod oriented_landmark_sensor;
 pub mod robot_sensor;
 pub mod sensor_manager;
+pub mod speed_sensor;
 
 pub mod fault_models;
 pub mod sensor_filters;
@@ -31,9 +31,9 @@ use simba_macros::config_derives;
 
 use {
     gnss_sensor::{GNSSObservation, GNSSObservationRecord},
-    speed_sensor::{SpeedObservation, SpeedObservationRecord},
     oriented_landmark_sensor::{OrientedLandmarkObservation, OrientedLandmarkObservationRecord},
     robot_sensor::{OrientedRobotObservation, OrientedRobotObservationRecord},
+    speed_sensor::{SpeedObservation, SpeedObservationRecord},
 };
 
 #[cfg(feature = "gui")]
@@ -45,7 +45,11 @@ use crate::{
 use crate::{
     node::Node,
     recordable::Recordable,
-    sensors::{displacement_sensor::{DisplacementObservation, DisplacementObservationRecord}, external_sensor::{ExternalObservation, ExternalObservationRecord}, speed_sensor::{OdometryObservation, OdometryObservationRecord}},
+    sensors::{
+        displacement_sensor::{DisplacementObservation, DisplacementObservationRecord},
+        external_sensor::{ExternalObservation, ExternalObservationRecord},
+        speed_sensor::{OdometryObservation, OdometryObservationRecord},
+    },
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -150,9 +154,7 @@ impl Recordable<SensorObservationRecord> for SensorObservation {
                 SensorObservationRecord::OrientedLandmark(o.record())
             }
             #[allow(deprecated)]
-            SensorObservation::Odometry(o) => {
-                SensorObservationRecord::Speed(o.record())
-            }
+            SensorObservation::Odometry(o) => SensorObservationRecord::Speed(o.record()),
             SensorObservation::Speed(o) => SensorObservationRecord::Speed(o.record()),
             SensorObservation::Displacement(o) => SensorObservationRecord::Displacement(o.record()),
             SensorObservation::GNSS(o) => SensorObservationRecord::GNSS(o.record()),
@@ -243,14 +245,11 @@ impl UIComponent for SensorConfig {
                     use log::warn;
 
                     warn!("OdometrySensor is deprecated and renamed to SpeedSensor");
-                    *self = SensorConfig::OdometrySensor(
-                        speed_sensor::OdometrySensorConfig::default(),
-                    )
+                    *self =
+                        SensorConfig::OdometrySensor(speed_sensor::OdometrySensorConfig::default())
                 }
                 "SpeedSensor" => {
-                    *self = SensorConfig::SpeedSensor(
-                        speed_sensor::SpeedSensorConfig::default(),
-                    )
+                    *self = SensorConfig::SpeedSensor(speed_sensor::SpeedSensorConfig::default())
                 }
                 "DisplacementSensor" => {
                     *self = SensorConfig::DisplacementSensor(

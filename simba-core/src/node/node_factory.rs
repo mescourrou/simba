@@ -1,4 +1,7 @@
-use std::{fmt::format, sync::{Arc, RwLock}};
+use std::{
+    fmt::format,
+    sync::{Arc, RwLock},
+};
 
 use log::debug;
 use serde::{Deserialize, Serialize};
@@ -8,12 +11,25 @@ use simba_macros::config_derives;
 use crate::gui::{UIComponent, utils::text_singleline_with_apply};
 
 use crate::{
-    controllers::{self, ControllerConfig, ControllerRecord, pid}, errors::{SimbaError, SimbaErrorTypes, SimbaResult}, logger::is_enabled, navigators::{self, NavigatorConfig, NavigatorRecord, trajectory_follower}, networking::{
+    controllers::{self, ControllerConfig, ControllerRecord, pid},
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    logger::is_enabled,
+    navigators::{self, NavigatorConfig, NavigatorRecord, trajectory_follower},
+    networking::{
         network::{Network, NetworkConfig},
         service_manager::ServiceManager,
-    }, node::{Node, NodeMetaData, NodeState}, physics::{self, PhysicsConfig, PhysicsRecord, internal_physics}, plugin_api::PluginAPI, sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord}, simulator::{SimulatorConfig, TimeCv}, state_estimators::{
-        self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord, State, StateEstimatorConfig, StateEstimatorRecord, perfect_estimator
-    }, time_analysis::TimeAnalysisFactory, utils::determinist_random_variable::DeterministRandomVariableFactory
+    },
+    node::{Node, NodeMetaData, NodeState},
+    physics::{self, PhysicsConfig, PhysicsRecord, internal_physics},
+    plugin_api::PluginAPI,
+    sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
+    simulator::{SimulatorConfig, TimeCv},
+    state_estimators::{
+        self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord, State,
+        StateEstimatorConfig, StateEstimatorRecord, perfect_estimator,
+    },
+    time_analysis::TimeAnalysisFactory,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -240,7 +256,7 @@ impl UIComponent for RobotConfig {
 
             ui.horizontal(|ui| {
                 ui.label("Labels: ");
-                
+
                 let mut to_remove = Vec::new();
                 for (i, label) in self.labels.iter_mut().enumerate() {
                     let unique_var_id = format!("robot-labels-key-{}-{}", i, unique_id);
@@ -508,7 +524,7 @@ impl UIComponent for ComputationUnitConfig {
 
             ui.horizontal(|ui| {
                 ui.label("Labels: ");
-                
+
                 let mut to_remove = Vec::new();
                 for (i, label) in self.labels.iter_mut().enumerate() {
                     let unique_var_id = format!("cu-labels-key-{}-{}", i, unique_id);
@@ -853,7 +869,10 @@ impl NodeFactory {
             }
         }
 
-        Err(SimbaError::new(SimbaErrorTypes::ImplementationError, format!("Node `{}` unknown in configuration: cannot create", name)))
+        Err(SimbaError::new(
+            SimbaErrorTypes::ImplementationError,
+            format!("Node `{}` unknown in configuration: cannot create", name),
+        ))
     }
 }
 

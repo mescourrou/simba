@@ -98,7 +98,12 @@ impl ExternalEstimator {
         Ok(Self {
             state_estimator: plugin_api
                 .as_ref()
-                .ok_or_else(|| SimbaError::new(SimbaErrorTypes::ExternalAPIError, "Plugin API not set!".to_string()))?
+                .ok_or_else(|| {
+                    SimbaError::new(
+                        SimbaErrorTypes::ExternalAPIError,
+                        "Plugin API not set!".to_string(),
+                    )
+                })?
                 .get_state_estimator(&config.config, global_config, va_factory, initial_time),
         })
     }

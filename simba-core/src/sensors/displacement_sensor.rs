@@ -161,7 +161,6 @@ impl UIComponent for DisplacementSensorRecord {
     }
 }
 
-
 /// Observation of the displacement.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct DisplacementObservation {
@@ -302,8 +301,6 @@ impl Sensor for DisplacementSensor {
 
         let (tx, ty, r) = if self.lie_movement {
             todo!("Lie movement not implemented yet for DisplacementSensor");
-
-
         } else {
             let dx = state.pose.x - self.last_state.pose.x;
             let dy = state.pose.y - self.last_state.pose.y;
@@ -330,10 +327,10 @@ impl Sensor for DisplacementSensor {
         };
 
         let obs = SensorObservation::Displacement(DisplacementObservation {
-                translation: Vector2::new(tx, ty),
-                rotation: r,
-                applied_faults: Vec::new(),
-            });
+            translation: Vector2::new(tx, ty),
+            rotation: r,
+            applied_faults: Vec::new(),
+        });
 
         if let Some(obs) = self
             .filters

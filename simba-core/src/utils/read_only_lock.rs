@@ -1,6 +1,9 @@
-use std::{fmt::Debug, sync::{LockResult, RwLock, RwLockReadGuard}};
+use std::{
+    fmt::Debug,
+    sync::{LockResult, RwLock, RwLockReadGuard},
+};
 
-pub trait ReadOnlyLock<T: ?Sized + Send + Sync + Debug> : Send + Sync + Debug {
+pub trait ReadOnlyLock<T: ?Sized + Send + Sync + Debug>: Send + Sync + Debug {
     fn read(&self) -> LockResult<RwLockReadGuard<'_, T>>;
 }
 

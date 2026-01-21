@@ -102,12 +102,7 @@ impl Unicycle {
 }
 
 impl RobotModel for Unicycle {
-    fn update_state(
-        &mut self,
-        state: &mut State,
-        command: &Command,
-        dt: f32,
-    ) {
+    fn update_state(&mut self, state: &mut State, command: &Command, dt: f32) {
         let command = match command {
             Command::Unicycle(cmd) => cmd,
             _ => panic!("Unicycle robot model needs a Unicycle command"),
@@ -115,13 +110,23 @@ impl RobotModel for Unicycle {
         let theta = state.pose.z;
 
         let v_translation = (command.left_wheel_speed + command.right_wheel_speed) / 2.;
-        let v_rotation = (command.right_wheel_speed - command.left_wheel_speed) / self.wheel_distance;
+        let v_rotation =
+            (command.right_wheel_speed - command.left_wheel_speed) / self.wheel_distance;
 
         // Using Lie theory
         // Reference: Sola, J., Deray, J., & Atchuthan, D. (2018). A micro lie theory for state estimation in robotics. arXiv preprint arXiv:1812.01537.
 
-        let lie_action =
-            SMatrix::<f32, 3, 3>::new(0., -v_rotation, v_translation, v_rotation, 0., 0., 0., 0., 0.);
+        let lie_action = SMatrix::<f32, 3, 3>::new(
+            0.,
+            -v_rotation,
+            v_translation,
+            v_rotation,
+            0.,
+            0.,
+            0.,
+            0.,
+            0.,
+        );
 
         let rot_mat = *nalgebra::Rotation2::new(theta).matrix();
 

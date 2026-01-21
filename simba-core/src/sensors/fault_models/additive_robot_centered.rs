@@ -128,12 +128,7 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                     }
                 } else {
                     if ui.button("+").clicked() {
-                        self.proportional_to = Some(
-                            possible_variables
-                                .get(0)
-                                .unwrap()
-                                .clone(),
-                        );
+                        self.proportional_to = Some(possible_variables.get(0).unwrap().clone());
                     }
                 }
             });
@@ -307,7 +302,7 @@ impl FaultModel for AdditiveRobotCenteredFault {
                         .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
                 #[allow(deprecated)]
-                SensorObservation::Speed(o) | SensorObservation::Odometry(o)  => {
+                SensorObservation::Speed(o) | SensorObservation::Odometry(o) => {
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
@@ -353,7 +348,7 @@ impl FaultModel for AdditiveRobotCenteredFault {
                                     let v = o.translation.clone().normalize() * (random_sample[i]);
                                     dx += v.x;
                                     dy += v.y;
-                                },
+                                }
                                 &_ => panic!(
                                     "Unknown variable name: '{}'. Available variable names: [dx | x, dy | y, r | rotation, translation]",
                                     variable

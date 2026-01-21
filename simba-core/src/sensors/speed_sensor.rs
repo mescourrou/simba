@@ -314,11 +314,11 @@ impl Sensor for SpeedSensor {
         let state = physic.state(time);
 
         let obs = SensorObservation::Speed(SpeedObservation {
-                linear_velocity: state.velocity.x,
-                lateral_velocity: state.velocity.y,
-                angular_velocity: state.velocity.z,
-                applied_faults: Vec::new(),
-            });
+            linear_velocity: state.velocity.x,
+            lateral_velocity: state.velocity.y,
+            angular_velocity: state.velocity.z,
+            applied_faults: Vec::new(),
+        });
 
         if let Some(obs) = self
             .filters

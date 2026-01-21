@@ -21,7 +21,11 @@ use crate::{
     },
     plugin_api::PluginAPI,
     pywrappers::{
-        CommandWrapper, ControllerErrorWrapper, DisplacementObservationWrapper, GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper, OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper, Pose, SensorObservationWrapper, SimulatorWrapper, SpeedObservationWrapper, StateWrapper, UnicycleCommandWrapper, Vec2, Vec3, WorldStateWrapper, run_gui
+        CommandWrapper, ControllerErrorWrapper, DisplacementObservationWrapper,
+        GNSSObservationWrapper, NodeWrapper, ObservationWrapper, OdometryObservationWrapper,
+        OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper,
+        Pose, SensorObservationWrapper, SimulatorWrapper, SpeedObservationWrapper, StateWrapper,
+        UnicycleCommandWrapper, Vec2, Vec3, WorldStateWrapper, run_gui,
     },
     sensors::sensor_manager::SensorTriggerMessage,
     simulator::SimulatorConfig,

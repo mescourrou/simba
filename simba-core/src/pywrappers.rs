@@ -31,7 +31,12 @@ use crate::{
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
-        Observation, SensorObservation, displacement_sensor::DisplacementObservation, gnss_sensor::GNSSObservation, oriented_landmark_sensor::OrientedLandmarkObservation, robot_sensor::OrientedRobotObservation, speed_sensor::{OdometryObservation, SpeedObservation}
+        Observation, SensorObservation,
+        displacement_sensor::DisplacementObservation,
+        gnss_sensor::GNSSObservation,
+        oriented_landmark_sensor::OrientedLandmarkObservation,
+        robot_sensor::OrientedRobotObservation,
+        speed_sensor::{OdometryObservation, SpeedObservation},
     },
     simulator::{AsyncSimulator, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
@@ -136,7 +141,11 @@ impl StateWrapper {
                 y: 0.,
                 theta: 0.,
             },
-            velocity: Vec3 { x: 0., y: 0., z: 0. },
+            velocity: Vec3 {
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
         }
     }
 }
@@ -423,13 +432,10 @@ impl Default for SpeedObservationWrapper {
     }
 }
 
-
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OdometryObservation")]
-#[deprecated(
-    note = "OdometryObservation is deprecated, use SpeedObservation instead"
-)]
+#[deprecated(note = "OdometryObservation is deprecated, use SpeedObservation instead")]
 pub struct OdometryObservationWrapper {
     pub linear_velocity: f32,
     pub lateral_velocity: f32,
@@ -491,7 +497,11 @@ impl GNSSObservationWrapper {
     #[new]
     pub fn new() -> Self {
         Self {
-            pose: Vec3 { x: 0., y: 0., z: 0. },
+            pose: Vec3 {
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
             velocity: Vec2 { x: 0., y: 0. },
             applied_faults: "[]".to_string(),
         }
@@ -641,9 +651,7 @@ impl Default for OrientedRobotObservationWrapper {
 #[pyo3(name = "SensorObservation")]
 pub enum SensorObservationWrapper {
     OrientedLandmark(OrientedLandmarkObservationWrapper),
-    #[deprecated(
-        note = "OdometryObservation is deprecated, use SpeedObservation instead"
-    )]
+    #[deprecated(note = "OdometryObservation is deprecated, use SpeedObservation instead")]
     Odometry(OdometryObservationWrapper),
     Speed(SpeedObservationWrapper),
     GNSS(GNSSObservationWrapper),
@@ -667,9 +675,7 @@ impl SensorObservationWrapper {
         }
     }
 
-    #[deprecated(
-        note = "as_odometry is deprecated, use as_speed instead",
-    )]
+    #[deprecated(note = "as_odometry is deprecated, use as_speed instead")]
     #[allow(deprecated)]
     pub fn as_odometry(&self) -> PyResult<OdometryObservationWrapper> {
         if let Self::Odometry(o) = self {

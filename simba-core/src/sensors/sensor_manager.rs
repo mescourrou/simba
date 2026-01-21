@@ -31,9 +31,9 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
 use super::gnss_sensor::GNSSSensor;
-use super::speed_sensor::{SpeedSensor, SpeedSensorConfig};
 use super::oriented_landmark_sensor::OrientedLandmarkSensor;
 use super::robot_sensor::RobotSensor;
+use super::speed_sensor::{SpeedSensor, SpeedSensorConfig};
 use super::{Observation, ObservationRecord, Sensor, SensorConfig, SensorRecord};
 use crate::plugin_api::PluginAPI;
 
@@ -339,15 +339,17 @@ impl SensorManager {
                         va_factory,
                         initial_time,
                     )) as Box<dyn Sensor>,
-                    SensorConfig::DisplacementSensor(c) => Box::new(DisplacementSensor::from_config(
-                        c,
-                        plugin_api,
-                        global_config,
-                        node_name,
-                        va_factory,
-                        initial_time,
-                        initial_state,
-                    )) as Box<dyn Sensor>,
+                    SensorConfig::DisplacementSensor(c) => {
+                        Box::new(DisplacementSensor::from_config(
+                            c,
+                            plugin_api,
+                            global_config,
+                            node_name,
+                            va_factory,
+                            initial_time,
+                            initial_state,
+                        )) as Box<dyn Sensor>
+                    }
                     SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
                         c,
                         plugin_api,

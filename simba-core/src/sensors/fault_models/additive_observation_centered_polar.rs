@@ -120,12 +120,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                     }
                 } else {
                     if ui.button("+").clicked() {
-                        self.proportional_to = Some(
-                            possible_variables
-                                .get(0)
-                                .unwrap()
-                                .clone(),
-                        );
+                        self.proportional_to = Some(possible_variables.get(0).unwrap().clone());
                     }
                 }
             });

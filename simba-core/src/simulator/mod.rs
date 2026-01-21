@@ -53,9 +53,10 @@ use crate::{
     logger::{LoggerConfig, init_log, is_enabled},
     networking::{network_manager::NetworkManager, service_manager::ServiceManager},
     node::{
-        Node, NodeMetaData, NodeState, node_factory::{
+        Node, NodeMetaData, NodeState,
+        node_factory::{
             ComputationUnitConfig, MakeNodeParams, NodeFactory, NodeRecord, RobotConfig,
-        }
+        },
     },
     plugin_api::PluginAPI,
     recordable::Recordable,
@@ -63,7 +64,13 @@ use crate::{
     state_estimators::State,
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
     utils::{
-        barrier::Barrier, determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision, python::CONVERT_TO_DICT, read_only_lock::ReadOnlyLock, rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost}, time_ordered_data::TimeOrderedData
+        barrier::Barrier,
+        determinist_random_variable::DeterministRandomVariableFactory,
+        maths::round_precision,
+        python::CONVERT_TO_DICT,
+        read_only_lock::ReadOnlyLock,
+        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+        time_ordered_data::TimeOrderedData,
     },
 };
 use core::f32;
@@ -356,8 +363,10 @@ impl Simulator {
 
         for node in self.nodes.iter_mut() {
             info!("Finishing initialization of {}", node.name());
-            self.node_apis
-                .insert(node.name(), node.post_creation_init(&self.service_managers, self.meta_data_list.clone()));
+            self.node_apis.insert(
+                node.name(),
+                node.post_creation_init(&self.service_managers, self.meta_data_list.clone()),
+            );
         }
 
         self.scenario = Arc::new(Mutex::new(Scenario::from_config(
@@ -558,10 +567,7 @@ impl Simulator {
         )?;
         let meta_data = new_node.meta_data();
         let name = meta_data.read().unwrap().name.clone();
-        self.meta_data_list.write().unwrap().insert(
-            name,
-            meta_data,
-        );
+        self.meta_data_list.write().unwrap().insert(name, meta_data);
         if new_node.state() != NodeState::Running {
             return Ok(());
         }
@@ -592,10 +598,7 @@ impl Simulator {
         )?;
         let meta_data = new_node.meta_data();
         let name = meta_data.read().unwrap().name.clone();
-        self.meta_data_list.write().unwrap().insert(
-            name,
-            meta_data,
-        );
+        self.meta_data_list.write().unwrap().insert(name, meta_data);
         if new_node.state() != NodeState::Running {
             return Ok(());
         }
@@ -700,8 +703,10 @@ impl Simulator {
         self.network_manager.register_node_network(&mut node);
         self.service_managers
             .insert(node.name(), node.service_manager());
-        self.node_apis
-            .insert(node.name(), node.post_creation_init(&self.service_managers, self.meta_data_list.clone()));
+        self.node_apis.insert(
+            node.name(),
+            node.post_creation_init(&self.service_managers, self.meta_data_list.clone()),
+        );
         self.spawn_node(node, running_parameters)
     }
 
@@ -952,7 +957,6 @@ impl Simulator {
         }
         let filename = self.config.base_path.as_ref().join(filename.unwrap());
         let results = Self::load_results_from_file(&filename)?;
-        
 
         self.records = results.records;
         let mut max_time = self.common_time.write().unwrap();

@@ -4,9 +4,11 @@ use nalgebra::{Rotation2, Vector2, Vector3};
 use crate::{
     gui::app::PainterInfo,
     sensors::{
-        gnss_sensor::{GNSSObservationRecord, GNSSSensorConfig}, oriented_landmark_sensor::{
+        gnss_sensor::{GNSSObservationRecord, GNSSSensorConfig},
+        oriented_landmark_sensor::{
             OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,
-        }, robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig}
+        },
+        robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig},
     },
     simulator::SimulatorConfig,
 };

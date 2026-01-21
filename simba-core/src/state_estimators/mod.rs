@@ -440,13 +440,13 @@ use crate::gui::{
     UIComponent,
     utils::{string_combobox, text_singleline_with_apply},
 };
-use crate::{errors::SimbaResult, node::Node};
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
 use crate::utils::occupancy_grid::OccupancyGrid;
+use crate::{errors::SimbaResult, node::Node};
 use crate::{
     networking::message_handler::MessageHandler,
     utils::determinist_random_variable::RandomVariableTypeConfig,

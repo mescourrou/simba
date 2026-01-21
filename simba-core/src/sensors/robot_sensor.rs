@@ -496,7 +496,11 @@ impl Sensor for RobotSensor {
                             1. / (100. * self.period.unwrap_or(TIME_ROUND)) * (i as f32);
                         let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
                         let mut new_obs = Vec::new();
-                        let labels = node.meta_data_list().unwrap().read().unwrap()
+                        let labels = node
+                            .meta_data_list()
+                            .unwrap()
+                            .read()
+                            .unwrap()
                             .get(other_node_name)
                             .map_or(Vec::new(), |md| md.read().unwrap().labels.clone());
                         let obs = SensorObservation::OrientedRobot(OrientedRobotObservation {

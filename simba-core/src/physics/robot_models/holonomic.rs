@@ -67,10 +67,7 @@ impl UIComponent for HolonomicConfig {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Max longitudinal velocity:");
-                    ui.add(
-                        egui::DragValue::new(&mut self.max_longitudinal_velocity)
-                            .speed(0.1)
-                    );
+                    ui.add(egui::DragValue::new(&mut self.max_longitudinal_velocity).speed(0.1));
                 });
                 ui.horizontal(|ui| {
                     ui.label("Max lateral velocity:");
@@ -95,7 +92,10 @@ impl UIComponent for HolonomicConfig {
                     "Max lateral velocity: {}",
                     self.max_lateral_velocity
                 ));
-                ui.label(format!("Max angular velocity: {}", self.max_angular_velocity));
+                ui.label(format!(
+                    "Max angular velocity: {}",
+                    self.max_angular_velocity
+                ));
             });
     }
 }
@@ -118,21 +118,25 @@ impl Holonomic {
 }
 
 impl RobotModel for Holonomic {
-    fn update_state(
-        &mut self,
-        state: &mut State,
-        command: &Command,
-        dt: f32,
-    ) {
+    fn update_state(&mut self, state: &mut State, command: &Command, dt: f32) {
         let command = match command {
             Command::Holonomic(cmd) => cmd,
             _ => panic!("Holonomic robot model needs a Holonomic command"),
         };
         let theta = state.pose.z;
 
-        let lateral_velocity = command.lateral_velocity.min(self.max_lateral_velocity).max(-self.max_lateral_velocity);
-        let longitudinal_velocity = command.longitudinal_velocity.min(self.max_longitudinal_velocity).max(-self.max_longitudinal_velocity);
-        let v_rotation = command.angular_velocity.min(self.max_angular_velocity).max(-self.max_angular_velocity);
+        let lateral_velocity = command
+            .lateral_velocity
+            .min(self.max_lateral_velocity)
+            .max(-self.max_lateral_velocity);
+        let longitudinal_velocity = command
+            .longitudinal_velocity
+            .min(self.max_longitudinal_velocity)
+            .max(-self.max_longitudinal_velocity);
+        let v_rotation = command
+            .angular_velocity
+            .min(self.max_angular_velocity)
+            .max(-self.max_angular_velocity);
 
         // Using Lie theory
         // Reference: Sola, J., Deray, J., & Atchuthan, D. (2018). A micro lie theory for state estimation in robotics. arXiv preprint arXiv:1812.01537.

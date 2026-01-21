@@ -104,7 +104,8 @@ pub struct Node {
     pub(self) send_records: bool,
 
     pub(self) node_meta_data: Arc<RwLock<NodeMetaData>>,
-    pub(self) meta_data_list: Option<Arc<dyn ReadOnlyLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>>>,
+    pub(self) meta_data_list:
+        Option<Arc<dyn ReadOnlyLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>>>,
 }
 
 impl Node {
@@ -114,7 +115,9 @@ impl Node {
     pub fn post_creation_init(
         &mut self,
         service_manager_list: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
-        meta_data_list: Arc<dyn ReadOnlyLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>>,
+        meta_data_list: Arc<
+            dyn ReadOnlyLock<BTreeMap<String, Arc<dyn ReadOnlyLock<NodeMetaData>>>>,
+        >,
     ) -> NodeClient {
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Node post-creation initialization")
@@ -176,7 +179,8 @@ impl Node {
                     .subscribe(controller.read().unwrap().get_letter_box());
             }
         }
-        let (node_server, node_client) = internal_api::make_node_api(&self.node_meta_data.read().unwrap().node_type);
+        let (node_server, node_client) =
+            internal_api::make_node_api(&self.node_meta_data.read().unwrap().node_type);
         self.node_server = Some(node_server);
         {
             let meta_data = &mut self.node_meta_data.write().unwrap();
@@ -750,7 +754,13 @@ impl Node {
             .state_update
             .as_ref()
             .unwrap()
-            .send((time, (State::new(), self.node_meta_data.read().unwrap().state.clone())))
+            .send((
+                time,
+                (
+                    State::new(),
+                    self.node_meta_data.read().unwrap().state.clone(),
+                ),
+            ))
             .unwrap();
     }
 }
