@@ -19,6 +19,7 @@ use crate::{
     pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
     recordable::Recordable,
     utils::{
+        SharedMutex,
         python::{call_py_method, call_py_method_void},
         rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
@@ -31,7 +32,7 @@ pub struct PythonControllerAsyncClient {
     pub make_command: RemoteFunctionCall<(NodeWrapper, ControllerError, f32), Command>,
     pub record: RemoteFunctionCall<(), ControllerRecord>,
     pub pre_loop_hook: RemoteFunctionCall<(NodeWrapper, f32), ()>,
-    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
     letter_box_sender: Sender<Envelope>,
 }
 

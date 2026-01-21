@@ -11,10 +11,11 @@ use crate::{
     logger::is_enabled,
     plugin_api::PluginAPI,
     simulator::{Record, Simulator},
+    utils::{SharedMutex, SharedRwLock},
 };
 
 pub struct AsyncSimulator {
-    server: Arc<Mutex<AsyncApiRunner>>,
+    server: SharedMutex<AsyncApiRunner>,
     api: AsyncApi,
     async_plugin_api: Option<Arc<PluginAsyncAPI>>,
     // python_api: Option<PythonAPI>,
@@ -141,16 +142,26 @@ impl AsyncSimulator {
         // Stop server thread
         self.server.lock().unwrap().stop();
     }
+
+    pub fn show(&self) {
+        self.server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .show();
+    }
 }
 
 pub struct SimulatorAsyncApi {
-    pub current_time: Arc<RwLock<f32>>,
-    pub records: Arc<Mutex<mpsc::Receiver<Record>>>,
+    pub current_time: SharedRwLock<f32>,
+    pub records: SharedMutex<mpsc::Receiver<Record>>,
 }
 
 #[derive(Clone)]
 pub(super) struct SimulatorAsyncApiServer {
-    current_time: Arc<RwLock<f32>>,
+    current_time: SharedRwLock<f32>,
     records: Vec<mpsc::Sender<Record>>,
 }
 

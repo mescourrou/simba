@@ -10,6 +10,7 @@ use crate::{
     physics::{fault_models::fault_model::PhysicsFaultModel, robot_models::RobotModelConfig},
     state_estimators::State,
     utils::{
+        SharedMutex,
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
         },
@@ -103,7 +104,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
 
 #[derive(Debug)]
 pub struct AdditiveRobotCenteredPhysicsFault {
-    distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
+    distributions: SharedMutex<Vec<Box<dyn DeterministRandomVariable>>>,
     variable_order: Vec<String>,
     proportionnal_to_velocity: Option<f32>,
     last_time_draw: Mutex<f32>,
@@ -152,7 +153,7 @@ impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
         let delta_time = (time - *last_time_draw)
             * self
                 .proportionnal_to_velocity
-                .map(|f| f * state.velocity.norm())
+                .map(|f| f * state.velocity.fixed_rows::<2>(0).norm())
                 .unwrap_or(1.0);
         let mut random_sample = Vec::new();
         for d in self.distributions.lock().unwrap().iter() {

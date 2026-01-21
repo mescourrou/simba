@@ -12,6 +12,7 @@ use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
     sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
+        SharedMutex,
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
         },
@@ -33,6 +34,7 @@ pub struct AdditiveObservationCenteredPolarFaultConfig {
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
+    pub proportional_to: Option<String>,
 }
 
 impl Default for AdditiveObservationCenteredPolarFaultConfig {
@@ -45,6 +47,7 @@ impl Default for AdditiveObservationCenteredPolarFaultConfig {
                 NormalRandomVariableConfig::default(),
             )],
             variable_order: Vec::new(),
+            proportional_to: None,
         }
     }
 }
@@ -103,6 +106,23 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                     );
                 }
             });
+
+            let possible_variables = ["t", "d", "time", "distance"]
+                .iter()
+                .map(|x| String::from(*x))
+                .collect();
+            ui.horizontal(|ui| {
+                ui.label("Proportional to:");
+                if let Some(variable) = &mut self.proportional_to {
+                    let unique_var_id = format!("proportional-to-{unique_id}");
+                    string_combobox(ui, &possible_variables, variable, unique_var_id);
+                    if ui.button("-").clicked() {
+                        self.proportional_to = None;
+                    }
+                } else if ui.button("+").clicked() {
+                    self.proportional_to = Some(possible_variables.first().unwrap().clone());
+                }
+            });
         });
     }
 
@@ -119,6 +139,15 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                     ui.label(format!("{}, ", var));
                 }
             });
+
+            ui.horizontal(|ui| {
+                ui.label("Proportional to: ");
+                if let Some(variable) = &self.proportional_to {
+                    ui.label(variable);
+                } else {
+                    ui.label("None");
+                }
+            });
         });
     }
 }
@@ -126,7 +155,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
 #[derive(Debug)]
 pub struct AdditiveObservationCenteredPolarFault {
     apparition: DeterministBernouilliRandomVariable,
-    distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
+    distributions: SharedMutex<Vec<Box<dyn DeterministRandomVariable>>>,
     variable_order: Vec<String>,
     config: AdditiveObservationCenteredPolarFaultConfig,
 }
@@ -170,14 +199,15 @@ impl AdditiveObservationCenteredPolarFault {
 
 impl FaultModel for AdditiveObservationCenteredPolarFault {
     fn add_faults(
-        &self,
-        time: f32,
+        &mut self,
+        _time: f32,
+        seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (1000. * period);
-        let mut seed = time;
+        let mut seed = seed;
         for obs in obs_list {
             seed += obs_seed_increment;
             if self.apparition.generate(seed)[0] < 1. {
@@ -213,6 +243,11 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                         r_add = random_sample[1];
                         z_add = random_sample[2];
                     }
+                    if self.config.proportional_to.is_some() {
+                        unimplemented!(
+                            "Proportional_to is not implemented for AdditiveObservationCenteredPolarFault for OrientedRobot observations"
+                        );
+                    }
 
                     let theta = atan2f(o.pose.y, o.pose.x) + theta_add; // 0 of polar angle is the direction of the robot
                     o.pose.x += r_add * theta.cos();
@@ -227,35 +262,50 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                 SensorObservation::GNSS(o) => {
                     let mut r_add = 0.;
                     let mut theta_add = 0.;
+                    let mut z_add = 0.;
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
                                 "r" => r_add = random_sample[i],
                                 "theta" => theta_add = random_sample[i],
+                                "orientation" | "z" => z_add = random_sample[i],
                                 &_ => panic!(
-                                    "Unknown variable name: '{}'. Available variable names: [r, theta]",
+                                    "Unknown variable name: '{}'. Available variable names: [r, theta, z | orientation]",
                                     variable
                                 ),
                             }
                         }
                     } else {
                         assert!(
-                            random_sample.len() >= 3,
-                            "The distribution of an AdditiveObservationCenteredPolar fault for OrientedRobot observation need to be of dimension 3."
+                            random_sample.len() >= 2,
+                            "The distribution of an AdditiveObservationCenteredPolar fault for GNSS observation need to be of dimension 2."
                         );
                         theta_add = random_sample[0];
                         r_add = random_sample[1];
+                        if random_sample.len() >= 3 {
+                            z_add = random_sample[2];
+                        }
+                    }
+                    if self.config.proportional_to.is_some() {
+                        todo!(
+                            "Proportional_to is not implemented yet for AdditiveObservationCenteredPolarFault for GNSS observations"
+                        );
                     }
 
-                    o.position.x += r_add * theta_add.cos();
-                    o.position.y += r_add * theta_add.sin();
+                    o.pose.x += r_add * theta_add.cos();
+                    o.pose.y += r_add * theta_add.sin();
+                    o.pose.z += z_add;
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveObservationCenteredPolar(
                             self.config.clone(),
                         ));
                 }
-                SensorObservation::Odometry(_) => {
+                #[allow(deprecated)]
+                SensorObservation::Speed(_) | SensorObservation::Odometry(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
+                }
+                SensorObservation::Displacement(_) => {
+                    panic!("Not implemented (use AdditiveRobotCenteredPolar fault instead)");
                 }
                 SensorObservation::OrientedLandmark(o) => {
                     let mut r_add = 0.;
@@ -299,6 +349,12 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                         .push(FaultModelConfig::AdditiveObservationCenteredPolar(
                             self.config.clone(),
                         ));
+
+                    if self.config.proportional_to.is_some() {
+                        unimplemented!(
+                            "Proportional_to is not implemented for AdditiveObservationCenteredPolarFault for OrientedLandmark observations"
+                        );
+                    }
                 }
                 SensorObservation::External(_) => {
                     panic!(

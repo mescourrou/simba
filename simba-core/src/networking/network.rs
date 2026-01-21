@@ -19,6 +19,7 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
 use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCv};
+use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::time_ordered_data::TimeOrderedData;
 #[cfg(feature = "gui")]
@@ -126,7 +127,7 @@ pub struct Network {
     /// List of subscribed letter boxes.
     letter_boxes: Vec<Sender<Envelope>>,
     to_network_manager: Option<Sender<NetworkMessage>>,
-    from_network_manager: Option<Arc<Mutex<Receiver<NetworkMessage>>>>,
+    from_network_manager: Option<SharedMutex<Receiver<NetworkMessage>>>,
     /// Message list
     messages_buffer: TimeOrderedData<(String, Value, Vec<MessageFlag>)>,
 

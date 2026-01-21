@@ -9,19 +9,20 @@ use crate::gui::{UIComponent, utils::text_singleline_with_apply};
 
 use crate::{
     controllers::{self, ControllerConfig, ControllerRecord, pid},
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
     navigators::{self, NavigatorConfig, NavigatorRecord, trajectory_follower},
     networking::{
         network::{Network, NetworkConfig},
         service_manager::ServiceManager,
     },
-    node::{Node, NodeState},
+    node::{Node, NodeMetaData, NodeState},
     physics::{self, PhysicsConfig, PhysicsRecord, internal_physics},
     plugin_api::PluginAPI,
     sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
     simulator::{SimulatorConfig, TimeCv},
     state_estimators::{
-        self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord,
+        self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord, State,
         StateEstimatorConfig, StateEstimatorRecord, perfect_estimator,
     },
     time_analysis::TimeAnalysisFactory,
@@ -195,6 +196,7 @@ pub struct RobotConfig {
     #[check]
     pub state_estimator_bench: Vec<BenchStateEstimatorConfig>,
     pub autospawn: bool,
+    pub labels: Vec<String>,
 }
 
 impl Default for RobotConfig {
@@ -220,6 +222,7 @@ impl Default for RobotConfig {
             network: NetworkConfig::default(),
             state_estimator_bench: Vec::new(),
             autospawn: true,
+            labels: Vec::new(),
         }
     }
 }
@@ -246,6 +249,27 @@ impl UIComponent for RobotConfig {
                     buffer_stack,
                     &mut self.name,
                 );
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Labels: ");
+
+                let mut to_remove = Vec::new();
+                for (i, label) in self.labels.iter_mut().enumerate() {
+                    let unique_var_id = format!("robot-labels-key-{}-{}", i, unique_id);
+                    ui.horizontal(|ui| {
+                        text_singleline_with_apply(ui, &unique_var_id, buffer_stack, label);
+                    });
+                    if ui.button("-").clicked() {
+                        to_remove.push(i);
+                    }
+                }
+                for i in to_remove.iter().rev() {
+                    self.labels.remove(*i);
+                }
+                if ui.button("+").clicked() {
+                    self.labels.push(String::new());
+                }
             });
 
             ui.horizontal(|ui| {
@@ -336,6 +360,15 @@ impl UIComponent for RobotConfig {
             });
 
             ui.horizontal(|ui| {
+                ui.label("Labels: ");
+                ui.vertical(|ui| {
+                    for label in &self.labels {
+                        ui.label(format!("- '{}'", label));
+                    }
+                });
+            });
+
+            ui.horizontal(|ui| {
                 ui.label(format!("Autospawn: {}", self.autospawn));
             });
 
@@ -379,6 +412,7 @@ pub struct RobotRecord {
 
     pub sensors: SensorManagerRecord,
     pub state: NodeState,
+    pub labels: Vec<String>,
 }
 
 #[cfg(feature = "gui")]
@@ -388,6 +422,15 @@ impl UIComponent for RobotRecord {
             ui.label(format!("Name: {}", self.name));
 
             ui.label(format!("Model Name: {}", self.model_name));
+
+            ui.label("Labels:");
+            ui.vertical(|ui| {
+                for label in &self.labels {
+                    ui.label(format!("- '{}'", label));
+                }
+            });
+
+            ui.label(format!("State: {}", self.state));
 
             egui::CollapsingHeader::new("Navigator").show(ui, |ui| {
                 self.navigator.show(ui, ctx, unique_id);
@@ -435,6 +478,8 @@ pub struct ComputationUnitConfig {
     /// [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator)s
     #[check]
     pub state_estimators: Vec<BenchStateEstimatorConfig>,
+
+    pub labels: Vec<String>,
 }
 
 impl Default for ComputationUnitConfig {
@@ -445,6 +490,7 @@ impl Default for ComputationUnitConfig {
             name: String::from("NoName"),
             network: NetworkConfig::default(),
             state_estimators: Vec::new(),
+            labels: Vec::new(),
         }
     }
 }
@@ -471,6 +517,27 @@ impl UIComponent for ComputationUnitConfig {
                     buffer_stack,
                     &mut self.name,
                 );
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Labels: ");
+
+                let mut to_remove = Vec::new();
+                for (i, label) in self.labels.iter_mut().enumerate() {
+                    let unique_var_id = format!("cu-labels-key-{}-{}", i, unique_id);
+                    ui.horizontal(|ui| {
+                        text_singleline_with_apply(ui, &unique_var_id, buffer_stack, label);
+                    });
+                    if ui.button("-").clicked() {
+                        to_remove.push(i);
+                    }
+                }
+                for i in to_remove.iter().rev() {
+                    self.labels.remove(*i);
+                }
+                if ui.button("+").clicked() {
+                    self.labels.push(String::new());
+                }
             });
 
             self.network.show_mut(
@@ -516,6 +583,15 @@ impl UIComponent for ComputationUnitConfig {
                 ui.label(format!("Name: {}", self.name));
             });
 
+            ui.horizontal(|ui| {
+                ui.label("Labels: ");
+                ui.vertical(|ui| {
+                    for label in &self.labels {
+                        ui.label(format!("- '{}'", label));
+                    }
+                });
+            });
+
             self.network.show(ui, ctx, unique_id);
 
             ui.label("State estimators:");
@@ -538,6 +614,8 @@ pub struct ComputationUnitRecord {
     pub name: String,
     pub state_estimators: Vec<BenchStateEstimatorRecord>,
     pub sensor_manager: SensorManagerRecord,
+    pub model_name: String,
+    pub labels: Vec<String>,
 }
 
 #[cfg(feature = "gui")]
@@ -545,6 +623,15 @@ impl UIComponent for ComputationUnitRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Name: {}", self.name));
+
+            ui.label(format!("Model Name: {}", self.model_name));
+
+            ui.label("Labels:");
+            ui.vertical(|ui| {
+                for label in &self.labels {
+                    ui.label(format!("- '{}'", label));
+                }
+            });
 
             ui.label("State Estimators:");
             for se in &self.state_estimators {
@@ -578,19 +665,36 @@ pub struct MakeNodeParams<'a> {
 pub struct NodeFactory {}
 
 impl NodeFactory {
-    pub fn make_robot(config: &RobotConfig, params: &mut MakeNodeParams) -> Node {
+    pub fn make_robot(config: &RobotConfig, params: &mut MakeNodeParams) -> SimbaResult<Node> {
         let node_type = NodeType::Robot;
+        let physics = physics::make_physics_from_config(
+            &config.physics,
+            params.plugin_api,
+            params.global_config,
+            &config.name,
+            params.va_factory,
+            params.initial_time,
+        )?;
+        let initial_state = physics.read().unwrap().state(params.initial_time).clone();
         let mut node = Node {
-            node_type,
-            name: params.new_name.unwrap_or(&config.name).to_string(),
-            model_name: config.name.clone(),
+            node_meta_data: Arc::new(RwLock::new(NodeMetaData {
+                name: params.new_name.unwrap_or(&config.name).to_string(),
+                node_type,
+                model_name: config.name.clone(),
+                labels: config.labels.clone(),
+                state: if config.autospawn {
+                    NodeState::Running
+                } else {
+                    NodeState::Created
+                },
+            })),
             navigator: Some(navigators::make_navigator_from_config(
                 &config.navigator,
                 params.plugin_api,
                 params.global_config,
                 params.va_factory,
                 params.initial_time,
-            )),
+            )?),
             controller: Some(controllers::make_controller_from_config(
                 &config.controller,
                 params.plugin_api,
@@ -598,15 +702,8 @@ impl NodeFactory {
                 params.va_factory,
                 &config.physics,
                 params.initial_time,
-            )),
-            physics: Some(physics::make_physics_from_config(
-                &config.physics,
-                params.plugin_api,
-                params.global_config,
-                &config.name,
-                params.va_factory,
-                params.initial_time,
-            )),
+            )?),
+            physics: Some(physics),
             state_estimator: Some(Arc::new(RwLock::new(
                 state_estimators::make_state_estimator_from_config(
                     &config.state_estimator,
@@ -614,7 +711,7 @@ impl NodeFactory {
                     params.global_config,
                     params.va_factory,
                     params.initial_time,
-                ),
+                )?,
             ))),
             sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
                 &config.sensor_manager,
@@ -623,7 +720,8 @@ impl NodeFactory {
                 &config.name,
                 params.va_factory,
                 params.initial_time,
-            )))),
+                &initial_state,
+            )?))),
             network: Some(Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),
                 &config.network,
@@ -639,13 +737,9 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            state: if config.autospawn {
-                NodeState::Running
-            } else {
-                NodeState::Created
-            },
             time_analysis: params.time_analysis_factory.new_node(config.name.clone()),
             send_records: params.force_send_results || params.global_config.results.is_some(),
+            meta_data_list: None,
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -663,7 +757,7 @@ impl NodeFactory {
                             params.global_config,
                             params.va_factory,
                             params.initial_time,
-                        ),
+                        )?,
                     )),
                 })
         }
@@ -678,18 +772,22 @@ impl NodeFactory {
         }
         node.service_manager = service_manager;
 
-        node
+        Ok(node)
     }
 
     pub fn make_computation_unit(
         config: &ComputationUnitConfig,
         params: &mut MakeNodeParams,
-    ) -> Node {
+    ) -> SimbaResult<Node> {
         let node_type = NodeType::ComputationUnit;
         let mut node = Node {
-            node_type,
-            name: params.new_name.unwrap_or(&config.name).to_string(),
-            model_name: config.name.clone(),
+            node_meta_data: Arc::new(RwLock::new(NodeMetaData {
+                name: params.new_name.unwrap_or(&config.name).to_string(),
+                node_type,
+                model_name: config.name.clone(),
+                labels: config.labels.clone(),
+                state: NodeState::Running,
+            })),
             navigator: None,
             controller: None,
             physics: None,
@@ -701,7 +799,8 @@ impl NodeFactory {
                 &config.name,
                 params.va_factory,
                 params.initial_time,
-            )))),
+                &State::default(),
+            )?))),
             network: Some(Arc::new(RwLock::new(Network::from_config(
                 config.name.clone(),
                 &config.network,
@@ -716,9 +815,9 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            state: NodeState::Running,
             time_analysis: params.time_analysis_factory.new_node(config.name.clone()),
             send_records: params.force_send_results || params.global_config.results.is_some(),
+            meta_data_list: None,
         };
 
         for state_estimator_config in &config.state_estimators {
@@ -736,7 +835,7 @@ impl NodeFactory {
                             params.global_config,
                             params.va_factory,
                             params.initial_time,
-                        ),
+                        )?,
                     )),
                 })
         }
@@ -751,23 +850,26 @@ impl NodeFactory {
         }
         node.service_manager = service_manager;
 
-        node
+        Ok(node)
     }
 
-    pub fn make_node_from_name(name: &str, params: &mut MakeNodeParams) -> Option<Node> {
+    pub fn make_node_from_name(name: &str, params: &mut MakeNodeParams) -> SimbaResult<Node> {
         for robot_config in params.global_config.robots.iter() {
             if robot_config.name == name {
-                return Some(Self::make_robot(robot_config, params));
+                return Self::make_robot(robot_config, params);
             }
         }
 
         for cu_config in params.global_config.computation_units.iter() {
             if cu_config.name == name {
-                return Some(Self::make_computation_unit(cu_config, params));
+                return Self::make_computation_unit(cu_config, params);
             }
         }
 
-        None
+        Err(SimbaError::new(
+            SimbaErrorTypes::ImplementationError,
+            format!("Node `{}` unknown in configuration: cannot create", name),
+        ))
     }
 }
 

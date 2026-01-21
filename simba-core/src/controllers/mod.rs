@@ -8,16 +8,17 @@ pub mod python_controller;
 
 pub mod pybinds;
 
+use crate::{
+    errors::SimbaResult,
+    networking::message_handler::MessageHandler,
+    physics::{PhysicsConfig, robot_models::Command},
+    recordable::Recordable,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
+};
 #[cfg(feature = "gui")]
 use crate::{
     gui::{UIComponent, utils::string_combobox},
     utils::enum_tools::ToVec,
-};
-use crate::{
-    networking::message_handler::MessageHandler,
-    physics::{PhysicsConfig, robot_models::Command},
-    recordable::Recordable,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use std::sync::{Arc, RwLock};
 
@@ -209,8 +210,8 @@ pub fn make_controller_from_config(
     va_factory: &Arc<DeterministRandomVariableFactory>,
     physics_config: &PhysicsConfig,
     initial_time: f32,
-) -> Arc<RwLock<Box<dyn Controller>>> {
-    Arc::new(RwLock::new(match config {
+) -> SimbaResult<SharedRwLock<Box<dyn Controller>>> {
+    Ok(Arc::new(RwLock::new(match config {
         ControllerConfig::PID(c) => {
             Box::new(pid::PID::from_config(c, physics_config, initial_time)) as Box<dyn Controller>
         }
@@ -221,11 +222,11 @@ pub fn make_controller_from_config(
                 global_config,
                 va_factory,
                 initial_time,
-            )) as Box<dyn Controller>
+            )?) as Box<dyn Controller>
         }
         ControllerConfig::Python(c) => Box::new(
             python_controller::PythonController::from_config(c, global_config, initial_time)
                 .unwrap(),
         ) as Box<dyn Controller>,
-    }))
+    })))
 }

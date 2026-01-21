@@ -19,9 +19,8 @@ use crate::{
     },
     recordable::Recordable,
     state_estimators::{State, StateConfig, StateRecord},
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory},
 };
-use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -145,8 +144,7 @@ pub struct InternalPhysics {
     last_time_update: f32,
     /// Current command applied.
     current_command: Command,
-    cum_lie_action: Matrix3<f32>,
-    faults: Arc<Mutex<Vec<Box<dyn PhysicsFaultModel>>>>,
+    faults: SharedMutex<Vec<Box<dyn PhysicsFaultModel>>>,
 }
 
 impl InternalPhysics {
@@ -184,7 +182,6 @@ impl InternalPhysics {
                     })
                     .collect(),
             )),
-            cum_lie_action: Matrix3::zeros(),
         }
     }
 
@@ -202,12 +199,8 @@ impl InternalPhysics {
             return;
         }
 
-        self.model.update_state(
-            &mut self.state,
-            &self.current_command,
-            &mut self.cum_lie_action,
-            dt,
-        );
+        self.model
+            .update_state(&mut self.state, &self.current_command, dt);
 
         self.last_time_update = time;
 
@@ -235,10 +228,6 @@ impl Physics for InternalPhysics {
     fn state(&self, time: f32) -> State {
         assert!(time == self.last_time_update);
         self.state.clone()
-    }
-
-    fn cummulative_lie_action(&self) -> Option<Matrix3<f32>> {
-        Some(self.cum_lie_action)
     }
 }
 

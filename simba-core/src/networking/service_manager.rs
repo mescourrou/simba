@@ -10,6 +10,7 @@ use crate::{
     physics::{GetRealStateReq, GetRealStateResp, Physics},
     simulator::TimeCv,
     state_estimators::State,
+    utils::SharedRwLock,
 };
 
 use super::service::{Service, ServiceClient, ServiceInterface};
@@ -25,7 +26,7 @@ pub enum ServiceError {
 #[derive(Debug, Clone)]
 #[allow(clippy::type_complexity)]
 pub struct ServiceManager {
-    get_real_state: Option<Arc<RwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physics>>>>,
+    get_real_state: Option<SharedRwLock<Service<GetRealStateReq, GetRealStateResp, dyn Physics>>>,
     get_real_state_clients: BTreeMap<String, ServiceClient<GetRealStateReq, GetRealStateResp>>,
 }
 
@@ -93,7 +94,7 @@ impl ServiceManager {
 
     pub fn make_links(
         &mut self,
-        service_managers: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
+        service_managers: &BTreeMap<String, SharedRwLock<ServiceManager>>,
         node: &Node,
     ) {
         let my_name = node.name();

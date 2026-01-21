@@ -96,14 +96,15 @@ impl MisdetectionFault {
 
 impl FaultModel for MisdetectionFault {
     fn add_faults(
-        &self,
-        time: f32,
+        &mut self,
+        _time: f32,
+        seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
-        let mut seed = time;
+        let mut seed = seed;
         for i in (0..obs_list.len()).rev() {
             seed += obs_seed_increment;
             if self.apparition.generate(seed)[0] > 0. {

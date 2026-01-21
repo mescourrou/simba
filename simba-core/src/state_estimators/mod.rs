@@ -177,15 +177,15 @@ impl UIComponent for StateConfig {
 pub struct StateRecord {
     /// Position and orientation of the robot
     pub pose: [f32; 3],
-    /// Linear velocity.
-    pub velocity: [f32; 2],
+    /// Linear velocity and angular velocity.
+    pub velocity: [f32; 3],
 }
 
 impl Default for StateRecord {
     fn default() -> Self {
         Self {
             pose: [0., 0., 0.],
-            velocity: [0., 0.],
+            velocity: [0., 0., 0.],
         }
     }
 }
@@ -199,8 +199,8 @@ impl UIComponent for StateRecord {
                 self.pose[0], self.pose[1], self.pose[2]
             ));
             ui.label(format!(
-                "velocity: ({}, {})",
-                self.velocity[0], self.velocity[1]
+                "velocity: ({}, {}, {})",
+                self.velocity[0], self.velocity[1], self.velocity[2]
             ));
         });
     }
@@ -211,8 +211,8 @@ impl UIComponent for StateRecord {
 pub struct State {
     /// Pose of the robot [x, y, orientation]
     pub pose: SVector<f32, 3>,
-    /// Linear velocity of the robot (in the longitudinal direction).
-    pub velocity: SVector<f32, 2>,
+    /// Linear velocity of the robot (in the longitudinal direction), and angular velocity.
+    pub velocity: SVector<f32, 3>,
 }
 
 impl State {
@@ -220,7 +220,7 @@ impl State {
     pub fn new() -> Self {
         Self {
             pose: SVector::<f32, 3>::new(0., 0., 0.),
-            velocity: SVector::<f32, 2>::new(0., 0.),
+            velocity: SVector::<f32, 3>::new(0., 0., 0.),
         }
     }
 
@@ -241,6 +241,9 @@ impl State {
         if vec.len() >= 5 {
             state.velocity.y = vec[4];
         }
+        if vec.len() >= 6 {
+            state.velocity.z = vec[5];
+        }
         state
     }
 
@@ -257,7 +260,7 @@ impl State {
             state.pose[i] = *coord;
         }
         for (i, vel) in config.velocity.iter().enumerate() {
-            if i >= 2 {
+            if i >= 3 {
                 break;
             }
             state.velocity[i] = *vel;
@@ -268,6 +271,7 @@ impl State {
         for rv_config in config.random.iter() {
             let rv = va_factory.make_variable(rv_config.clone());
             let sampled_value = rv.generate(0.);
+            println!("Sampled value: {:?}", sampled_value);
             for sample in sampled_value {
                 assert!(
                     i < config.variable_order.len(),
@@ -281,6 +285,7 @@ impl State {
                     "orientation" => state.pose[2] += sample,
                     "velocity" | "velocity_x" | "vx" => state.velocity[0] += sample,
                     "velocity_y" | "vy" => state.velocity[1] += sample,
+                    "w" => state.velocity[2] += sample,
                     "r" => add_r += sample,
                     "theta" => add_theta += sample,
                     _ => panic!(
@@ -289,10 +294,12 @@ impl State {
                     ),
                 }
                 i += 1;
+                println!("Intermediate state: {:?}", state);
             }
         }
 
         if i != 0 && (add_r != 0. || add_theta != 0.) {
+            println!("Do polar things");
             state.pose.z += add_theta;
             state.pose.z = mod2pi(state.pose.z);
             state.pose.x += add_r * state.pose.z.cos();
@@ -327,7 +334,7 @@ impl Recordable<StateRecord> for State {
                 ve
             },
             velocity: {
-                let mut ve = [0., 0.];
+                let mut ve = [0., 0., 0.];
                 for (i, coord) in self.velocity.iter().enumerate() {
                     if i >= ve.len() {
                         break;
@@ -433,13 +440,12 @@ use crate::gui::{
     UIComponent,
     utils::{string_combobox, text_singleline_with_apply},
 };
-use crate::node::Node;
-use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
 use crate::utils::occupancy_grid::OccupancyGrid;
+use crate::{errors::SimbaResult, node::Node};
 use crate::{
     networking::message_handler::MessageHandler,
     utils::determinist_random_variable::RandomVariableTypeConfig,
@@ -447,8 +453,9 @@ use crate::{
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
+use crate::{recordable::Recordable, utils::SharedRwLock};
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 /// List the possible configs, to be selected in the global config.
 ///
@@ -589,8 +596,8 @@ pub fn make_state_estimator_from_config(
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
     initial_time: f32,
-) -> Box<dyn StateEstimator> {
-    match config {
+) -> SimbaResult<Box<dyn StateEstimator>> {
+    Ok(match config {
         StateEstimatorConfig::Perfect(c) => Box::new(
             perfect_estimator::PerfectEstimator::from_config(c, global_config, initial_time),
         ) as Box<dyn StateEstimator>,
@@ -601,12 +608,12 @@ pub fn make_state_estimator_from_config(
                 global_config,
                 va_factory,
                 initial_time,
-            )) as Box<dyn StateEstimator>
+            )?) as Box<dyn StateEstimator>
         }
         StateEstimatorConfig::Python(c) => Box::new(
             python_estimator::PythonEstimator::from_config(c, global_config, initial_time).unwrap(),
         ) as Box<dyn StateEstimator>,
-    }
+    })
 }
 
 use crate::sensors::Observation;
@@ -721,5 +728,5 @@ pub struct BenchStateEstimatorRecord {
 #[derive(Debug)]
 pub struct BenchStateEstimator {
     pub name: String,
-    pub state_estimator: Arc<RwLock<Box<dyn StateEstimator>>>,
+    pub state_estimator: SharedRwLock<Box<dyn StateEstimator>>,
 }

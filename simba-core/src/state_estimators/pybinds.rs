@@ -18,6 +18,7 @@ use crate::{
     recordable::Recordable,
     sensors::Observation,
     utils::{
+        SharedMutex,
         maths::round_precision,
         python::{call_py_method, call_py_method_void},
         rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
@@ -37,7 +38,7 @@ pub struct PythonStateEstimatorAsyncClient {
     pub next_time_step: RemoteFunctionCall<(), f32>,
     pub record: RemoteFunctionCall<(), StateEstimatorRecord>,
     pub pre_loop_hook: RemoteFunctionCall<PythonStateEstimatorPreLoopHookRequest, ()>,
-    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
     letter_box_sender: Sender<Envelope>,
 }
 

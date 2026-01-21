@@ -5,7 +5,7 @@ available observations.
 
 extern crate confy;
 use core::f32;
-use log::debug;
+use log::{debug, warn};
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
@@ -14,6 +14,7 @@ use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::constants::TIME_ROUND;
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::{
     UIComponent,
@@ -23,14 +24,17 @@ use crate::logger::{InternalLog, is_enabled};
 use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::node::Node;
+use crate::sensors::displacement_sensor::DisplacementSensor;
 use crate::sensors::external_sensor::ExternalSensor;
+use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::{SharedMutex, SharedRwLock};
 use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
 use super::gnss_sensor::GNSSSensor;
-use super::odometry_sensor::{OdometrySensor, OdometrySensorConfig};
 use super::oriented_landmark_sensor::OrientedLandmarkSensor;
 use super::robot_sensor::RobotSensor;
+use super::speed_sensor::{SpeedSensor, SpeedSensorConfig};
 use super::{Observation, ObservationRecord, Sensor, SensorConfig, SensorRecord};
 use crate::plugin_api::PluginAPI;
 
@@ -49,7 +53,7 @@ impl Default for ManagedSensorConfig {
             name: "some_sensor".to_string(),
             send_to: Vec::new(),
             triggered: false,
-            config: SensorConfig::OdometrySensor(OdometrySensorConfig::default()),
+            config: SensorConfig::SpeedSensor(SpeedSensorConfig::default()),
         }
     }
 }
@@ -241,7 +245,7 @@ struct ManagedSensor {
     send_to: Vec<String>,
     triggered: bool,
     last_triggered: Option<f32>,
-    sensor: Arc<RwLock<Box<dyn Sensor>>>,
+    sensor: SharedRwLock<Box<dyn Sensor>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -266,7 +270,7 @@ pub struct SensorManager {
     last_observations: Vec<ObservationRecord>,
     local_observations: Vec<Observation>,
     distant_observations: Vec<Observation>,
-    letter_box_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
     letter_box_sender: Sender<Envelope>,
 }
 
@@ -298,7 +302,8 @@ impl SensorManager {
         node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
-    ) -> Self {
+        initial_state: &State,
+    ) -> SimbaResult<Self> {
         let mut manager = Self::new();
         for sensor_config in &config.sensors {
             manager.sensors.push(ManagedSensor {
@@ -315,7 +320,19 @@ impl SensorManager {
                             initial_time,
                         )) as Box<dyn Sensor>
                     }
-                    SensorConfig::OdometrySensor(c) => Box::new(OdometrySensor::from_config(
+                    #[allow(deprecated)]
+                    SensorConfig::OdometrySensor(c) => {
+                        warn!("OdometrySensor is deprecated and renamed to SpeedSensor");
+                        Box::new(SpeedSensor::from_config(
+                            c,
+                            plugin_api,
+                            global_config,
+                            node_name,
+                            va_factory,
+                            initial_time,
+                        )) as Box<dyn Sensor>
+                    }
+                    SensorConfig::SpeedSensor(c) => Box::new(SpeedSensor::from_config(
                         c,
                         plugin_api,
                         global_config,
@@ -323,6 +340,17 @@ impl SensorManager {
                         va_factory,
                         initial_time,
                     )) as Box<dyn Sensor>,
+                    SensorConfig::DisplacementSensor(c) => {
+                        Box::new(DisplacementSensor::from_config(
+                            c,
+                            plugin_api,
+                            global_config,
+                            node_name,
+                            va_factory,
+                            initial_time,
+                            initial_state,
+                        )) as Box<dyn Sensor>
+                    }
                     SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
                         c,
                         plugin_api,
@@ -345,7 +373,7 @@ impl SensorManager {
                         global_config,
                         va_factory,
                         initial_time,
-                    )) as Box<dyn Sensor>,
+                    )?) as Box<dyn Sensor>,
                 })),
                 triggered: sensor_config.triggered,
                 last_triggered: None,
@@ -360,7 +388,7 @@ impl SensorManager {
                     .min(sensor.sensor.read().unwrap().next_time_step()),
             );
         }
-        manager
+        Ok(manager)
     }
 
     /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after

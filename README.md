@@ -5,10 +5,9 @@ SiMBA is a simulator designed to abstract sensor measurements to facilitate the 
 ## Features
 Here is a list of available and considered features. The order is not a priority order.
 - [X] First simple control-state estimation-physics loop
-- [X] One-way messages exchanges between robots
-- [X] Two-way messages with client blocking (services)
+- [X] Message exchange between robots
 - [X] Automatic result treatment at the end of runs
-- [X] Basic sensors: odometry, GNSS, relative landmark, inter-robot
+- [X] Basic sensors: speed, GNSS, relative landmark, inter-robot
 - [X] State estimator test bench
 - [X] Determinist random variables for noise simulation
 - [X] Python bindings: state estimators, controllers, navigators and physics
@@ -16,7 +15,6 @@ Here is a list of available and considered features. The order is not a priority
 - [X] Time performance analysis
 - [X] Complex noise addition and faults
 - [X] Simple Graphical User Interface
-- [X] Synchronous robot run option
 - [ ] Possibility to read data from file instead of simulation: test state estimation algorithms on real data
 - [ ] Export data to file
 - [ ] ROS2 interface (rosbag reading)

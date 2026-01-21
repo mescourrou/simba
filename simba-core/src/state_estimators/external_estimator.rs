@@ -21,6 +21,7 @@ use simba_macros::config_derives;
 
 use super::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
+use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
@@ -75,17 +76,6 @@ pub struct ExternalEstimator {
 }
 
 impl ExternalEstimator {
-    /// Creates a new [`ExternalEstimator`]
-    pub fn new() -> Self {
-        Self::from_config(
-            &ExternalEstimatorConfig::default(),
-            &None,
-            &SimulatorConfig::default(),
-            &Arc::new(DeterministRandomVariableFactory::default()),
-            0.0,
-        )
-    }
-
     /// Creates a new [`ExternalEstimator`] from the given config.
     ///
     /// <div class="warning">The `plugin_api` is required here !</div>
@@ -101,22 +91,21 @@ impl ExternalEstimator {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
-    ) -> Self {
+    ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
         }
-        Self {
+        Ok(Self {
             state_estimator: plugin_api
                 .as_ref()
-                .expect("Plugin API not set!")
+                .ok_or_else(|| {
+                    SimbaError::new(
+                        SimbaErrorTypes::ExternalAPIError,
+                        "Plugin API not set!".to_string(),
+                    )
+                })?
                 .get_state_estimator(&config.config, global_config, va_factory, initial_time),
-        }
-    }
-}
-
-impl Default for ExternalEstimator {
-    fn default() -> Self {
-        Self::new()
+        })
     }
 }
 

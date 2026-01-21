@@ -265,11 +265,13 @@ impl Scenario {
                         && state.pose[1] >= rect_config.bottom_left.1
                         && state.pose[1] <= rect_config.top_right.1;
                     if inside == rect_config.inside {
-                        debug!(
-                            "Node `{}` triggered an Area event at time {}",
-                            node_name,
-                            hstate.unwrap().0
-                        );
+                        if is_enabled(InternalLog::Scenario) {
+                            debug!(
+                                "Node `{}` triggered an Area event at time {}",
+                                node_name,
+                                hstate.unwrap().0
+                            );
+                        }
                         triggering_nodes.push(vec![node_name.clone()]);
                     }
                 }
@@ -329,10 +331,12 @@ impl Scenario {
                     (*node1_x - *node2_x).powi(2) + (*node1_y - *node2_y).powi(2);
                 let inside = distance_squared <= distance_threshold_squared;
                 if inside == proximity_config.inside {
-                    debug!(
-                        "Nodes `{}` and `{}` triggered a Proximity event at time {}",
-                        node1_name, node2_name, time
-                    );
+                    if is_enabled(InternalLog::Scenario) {
+                        debug!(
+                            "Nodes `{}` and `{}` triggered a Proximity event at time {}",
+                            node1_name, node2_name, time
+                        );
+                    }
                     triggering_nodes.insert(node1_name.clone());
                     triggering_nodes.insert(node2_name.clone());
                 }

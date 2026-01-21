@@ -153,13 +153,14 @@ impl SensorFilter for RangeFilter {
             SensorObservation::GNSS(obs) => {
                 for (i, var) in self.config.variables.iter().enumerate() {
                     let value = match var.as_str() {
-                        "x" | "position_x" => obs.position.x,
-                        "y" | "position_y" => obs.position.y,
+                        "x" | "position_x" => obs.pose.x,
+                        "y" | "position_y" => obs.pose.y,
+                        "orientation" | "z" => obs.pose.z,
                         "velocity_x" => obs.velocity.x,
                         "velocity_y" => obs.velocity.y,
-                        "self_velocity" => observer_state.velocity.norm(),
+                        "self_velocity" => observer_state.velocity.fixed_rows::<2>(0).norm(),
                         &_ => panic!(
-                            "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y, self_velocity]",
+                            "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, orientation | z, velocity_x, velocity_y, self_velocity]",
                             self.config.variables[i]
                         ),
                     };
@@ -176,13 +177,40 @@ impl SensorFilter for RangeFilter {
                     }
                 }
             }
-            SensorObservation::Odometry(obs) => {
+            #[allow(deprecated)]
+            SensorObservation::Speed(obs) | SensorObservation::Odometry(obs) => {
                 for (i, var) in self.config.variables.iter().enumerate() {
                     let value = match var.as_str() {
                         "w" | "angular" | "angular_velocity" => obs.angular_velocity,
                         "v" | "linear" | "linear_velocity" => obs.linear_velocity,
                         &_ => panic!(
                             "Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]",
+                            self.config.variables[i]
+                        ),
+                    };
+                    let in_range =
+                        value >= self.config.min_range[i] && value <= self.config.max_range[i];
+                    if self.config.inside {
+                        if !in_range {
+                            keep = false;
+                            break;
+                        }
+                    } else if in_range {
+                        keep = false;
+                        break;
+                    }
+                }
+            }
+            SensorObservation::Displacement(obs) => {
+                for (i, var) in self.config.variables.iter().enumerate() {
+                    let value = match var.as_str() {
+                        "x" | "dx" => obs.translation.x,
+                        "y" | "dy" => obs.translation.y,
+                        "r" | "rotation" => obs.rotation,
+                        "translation" => obs.translation.iter().map(|v| v * v).sum::<f32>().sqrt(),
+                        "self_velocity" => observer_state.velocity.fixed_rows::<2>(0).norm(),
+                        &_ => panic!(
+                            "Unknown variable name: '{}'. Available variable names: [dx | x, dy | y, rotation | r, translation, self_velocity]",
                             self.config.variables[i]
                         ),
                     };
@@ -223,8 +251,10 @@ impl SensorFilter for RangeFilter {
                                 && obs.pose.z <= self.config.max_range[i]
                         }
                         "self_velocity" => {
-                            observer_state.velocity.norm() >= self.config.min_range[i]
-                                && observer_state.velocity.norm() <= self.config.max_range[i]
+                            observer_state.velocity.fixed_rows::<2>(0).norm()
+                                >= self.config.min_range[i]
+                                && observer_state.velocity.fixed_rows::<2>(0).norm()
+                                    <= self.config.max_range[i]
                         }
                         "width" => {
                             obs.width >= self.config.min_range[i]
@@ -274,13 +304,17 @@ impl SensorFilter for RangeFilter {
                                 && obs.pose.z <= self.config.max_range[i]
                         }
                         "self_velocity" => {
-                            observer_state.velocity.norm() >= self.config.min_range[i]
-                                && observer_state.velocity.norm() <= self.config.max_range[i]
+                            observer_state.velocity.fixed_rows::<2>(0).norm()
+                                >= self.config.min_range[i]
+                                && observer_state.velocity.fixed_rows::<2>(0).norm()
+                                    <= self.config.max_range[i]
                         }
                         "target_velocity" => {
                             if let Some(observee_state) = observee_state {
-                                observee_state.velocity.norm() >= self.config.min_range[i]
-                                    && observee_state.velocity.norm() <= self.config.max_range[i]
+                                observee_state.velocity.fixed_rows::<2>(0).norm()
+                                    >= self.config.min_range[i]
+                                    && observee_state.velocity.fixed_rows::<2>(0).norm()
+                                        <= self.config.max_range[i]
                             } else {
                                 panic!(
                                     "Observee state is required to filter on target_velocity with OrientedRobot observation"

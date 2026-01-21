@@ -21,7 +21,7 @@ use log::info;
 use std::collections::BTreeMap;
 use std::time;
 
-use crate::errors::SimbaResult;
+use crate::{errors::SimbaResult, utils::SharedMutex};
 
 #[derive(Debug)]
 pub struct TimeAnalysisNode {
@@ -79,7 +79,7 @@ impl TimeAnalysisNode {
 
 #[derive(Debug)]
 pub struct TimeAnalysisFactory {
-    nodes: Vec<Arc<Mutex<TimeAnalysisNode>>>,
+    nodes: Vec<SharedMutex<TimeAnalysisNode>>,
     exporter: Box<dyn ProfilerExporter>,
     config: TimeAnalysisConfig,
 }
@@ -96,7 +96,7 @@ impl TimeAnalysisFactory {
         Ok(s)
     }
 
-    pub fn new_node(&mut self, name: String) -> Arc<Mutex<TimeAnalysisNode>> {
+    pub fn new_node(&mut self, name: String) -> SharedMutex<TimeAnalysisNode> {
         let node = TimeAnalysisNode {
             current_coordinates: (0, Vec::new()),
             execution_tree: ExecutionTree::new(),

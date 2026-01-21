@@ -27,6 +27,7 @@ use crate::{
     },
     simulator::SimulatorConfig,
     utils::{
+        SharedMutex,
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
         },
@@ -169,7 +170,7 @@ impl UIComponent for MisassociationFaultConfig {
 #[derive(Debug)]
 pub struct MisassociationFault {
     apparition: DeterministBernouilliRandomVariable,
-    distribution: Arc<Mutex<Box<dyn DeterministRandomVariable>>>,
+    distribution: SharedMutex<Box<dyn DeterministRandomVariable>>,
     sort: Sort,
     id_list: Vec<(String, Vector2<f32>)>,
     _source: Source,
@@ -236,19 +237,20 @@ impl MisassociationFault {
 
 impl FaultModel for MisassociationFault {
     fn add_faults(
-        &self,
-        time: f32,
+        &mut self,
+        _time: f32,
+        seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
-        let mut seed = time;
+        let mut seed = seed;
         let mut id_list = self.id_list.clone();
 
         match self.sort {
             Sort::Random => {
-                let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + time).to_bits() as u64);
+                let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + seed).to_bits() as u64);
                 id_list.shuffle(&mut rng);
             }
             Sort::Distance => {
@@ -279,7 +281,11 @@ impl FaultModel for MisassociationFault {
                 SensorObservation::GNSS(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
-                SensorObservation::Odometry(_) => {
+                #[allow(deprecated)]
+                SensorObservation::Speed(_) | SensorObservation::Odometry(_) => {
+                    panic!("Not implemented (appropriated for this sensor?)");
+                }
+                SensorObservation::Displacement(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
                 SensorObservation::OrientedLandmark(o) => {

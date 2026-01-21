@@ -1,5 +1,5 @@
 /*!
-Provides a [`Sensor`] which can provide linear velocity and angular velocity.
+Provides a [`Sensor`] which can provide the transformation since the last observation.
 */
 
 use std::sync::{Arc, Mutex};
@@ -21,42 +21,42 @@ use crate::sensors::sensor_filters::{
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
+use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::maths::round_precision;
-use libm::atan2f;
 use log::debug;
-use nalgebra::Matrix3;
+use nalgebra::{Matrix3, Vector2};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 extern crate nalgebra as na;
 
-/// Configuration of the [`OdometrySensor`].
+/// Configuration of the [`DisplacementSensor`].
 #[config_derives]
-pub struct OdometrySensorConfig {
+pub struct DisplacementSensorConfig {
     /// Observation period of the sensor.
     pub period: Option<f32>,
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
     pub filters: Vec<SensorFilterConfig>,
-    pub lie_integration: bool,
+    pub lie_movement: bool,
 }
 
-impl Default for OdometrySensorConfig {
+impl Default for DisplacementSensorConfig {
     fn default() -> Self {
         Self {
             period: Some(0.1),
             faults: Vec::new(),
             filters: Vec::new(),
-            lie_integration: true,
+            lie_movement: false,
         }
     }
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for OdometrySensorConfig {
+impl UIComponent for DisplacementSensorConfig {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
@@ -66,8 +66,8 @@ impl UIComponent for OdometrySensorConfig {
         current_node_name: Option<&String>,
         unique_id: &str,
     ) {
-        egui::CollapsingHeader::new("Odometry sensor")
-            .id_salt(format!("odometry-sensor-{}", unique_id))
+        egui::CollapsingHeader::new("Displacement sensor")
+            .id_salt(format!("displacement-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
@@ -85,8 +85,8 @@ impl UIComponent for OdometrySensorConfig {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label("Lie integration:");
-                    ui.checkbox(&mut self.lie_integration, "");
+                    ui.label("Lie movement:");
+                    ui.checkbox(&mut self.lie_movement, "");
                 });
 
                 SensorFilterConfig::show_filters_mut(
@@ -112,8 +112,8 @@ impl UIComponent for OdometrySensorConfig {
     }
 
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
-        egui::CollapsingHeader::new("Odometry sensor")
-            .id_salt(format!("odometry-sensor-{}", unique_id))
+        egui::CollapsingHeader::new("Displacement sensor")
+            .id_salt(format!("displacement-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Period:");
@@ -124,10 +124,7 @@ impl UIComponent for OdometrySensorConfig {
                     }
                 });
 
-                ui.horizontal(|ui| {
-                    ui.label("Lie integration:");
-                    ui.label(format!("{}", self.lie_integration));
-                });
+                ui.label(format!("Lie movement: {}", self.lie_movement));
 
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
 
@@ -136,104 +133,106 @@ impl UIComponent for OdometrySensorConfig {
     }
 }
 
-/// Record of the [`OdometrySensor`], which contains nothing for now.
+/// Record of the [`DisplacementSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct OdometrySensorRecord {
+pub struct DisplacementSensorRecord {
     last_time: f32,
     last_state: StateRecord,
+    lie_movement: bool,
 }
 
-impl Default for OdometrySensorRecord {
+impl Default for DisplacementSensorRecord {
     fn default() -> Self {
         Self {
             last_time: 0.,
             last_state: StateRecord::default(),
+            lie_movement: false,
         }
     }
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for OdometrySensorRecord {
+impl UIComponent for DisplacementSensorRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.label(format!("Last time: {}", self.last_time));
+        ui.label(format!("Lie movement: {}", self.lie_movement));
         ui.label("Last state: ");
         self.last_state.show(ui, ctx, unique_id);
     }
 }
 
-/// Observation of the odometry.
+/// Observation of the displacement.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct OdometryObservation {
-    pub linear_velocity: f32,
-    pub lateral_velocity: f32,
-    pub angular_velocity: f32,
+pub struct DisplacementObservation {
+    pub translation: Vector2<f32>,
+    pub rotation: f32,
     pub applied_faults: Vec<FaultModelConfig>,
 }
 
-impl Recordable<OdometryObservationRecord> for OdometryObservation {
-    fn record(&self) -> OdometryObservationRecord {
-        OdometryObservationRecord {
-            linear_velocity: self.linear_velocity,
-            lateral_velocity: self.lateral_velocity,
-            angular_velocity: self.angular_velocity,
+impl Recordable<DisplacementObservationRecord> for DisplacementObservation {
+    fn record(&self) -> DisplacementObservationRecord {
+        DisplacementObservationRecord {
+            translation: self.translation,
+            rotation: self.rotation,
+            applied_faults: self.applied_faults.clone(),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct OdometryObservationRecord {
-    pub linear_velocity: f32,
-    pub lateral_velocity: f32,
-    pub angular_velocity: f32,
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DisplacementObservationRecord {
+    pub translation: Vector2<f32>,
+    pub rotation: f32,
+    pub applied_faults: Vec<FaultModelConfig>,
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for OdometryObservationRecord {
+impl UIComponent for DisplacementObservationRecord {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
-            ui.label(format!("Linear velocity: {}", self.linear_velocity));
-            ui.label(format!("Lateral velocity: {}", self.lateral_velocity));
-            ui.label(format!("Angular velocity: {}", self.angular_velocity));
+            ui.label(format!("Translation: {:?}", self.translation));
+            ui.label(format!("Rotation: {}", self.rotation));
         });
     }
 }
 
-/// Sensor which observes the robot's odometry
+/// Sensor which observes the robot displacement since last observation.
 #[derive(Debug)]
-pub struct OdometrySensor {
-    /// Last state to compute the velocity.
+pub struct DisplacementSensor {
+    /// Last state to compute the displacement.
     last_state: State,
-    last_lie_action: Matrix3<f32>,
     /// Observation period
     period: Option<f32>,
     /// Last observation time.
     last_time: f32,
-    faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
-    filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
-    lie_integration: bool,
+    faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
+    filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
+    lie_movement: bool,
 }
 
-impl OdometrySensor {
-    /// Makes a new [`OdometrySensor`].
+impl DisplacementSensor {
+    /// Makes a new [`DisplacementSensor`].
     pub fn new() -> Self {
-        OdometrySensor::from_config(
-            &OdometrySensorConfig::default(),
+        DisplacementSensor::from_config(
+            &DisplacementSensorConfig::default(),
             &None,
             &SimulatorConfig::default(),
             &"NoName".to_string(),
             &DeterministRandomVariableFactory::default(),
             0.0,
+            &State::default(),
         )
     }
 
-    /// Makes a new [`OdometrySensor`] from the given config.
+    /// Makes a new [`DisplacementSensor`] from the given config.
     pub fn from_config(
-        config: &OdometrySensorConfig,
+        config: &DisplacementSensorConfig,
         _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         robot_name: &String,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
+        initial_state: &State,
     ) -> Self {
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
@@ -260,18 +259,17 @@ impl OdometrySensor {
         drop(unlock_filters);
 
         Self {
-            last_state: State::new(),
-            last_lie_action: Matrix3::zeros(),
+            last_state: initial_state.clone(),
             period: config.period,
             last_time: initial_time,
             faults: fault_models,
             filters,
-            lie_integration: config.lie_integration,
+            lie_movement: config.lie_movement,
         }
     }
 }
 
-impl Default for OdometrySensor {
+impl Default for DisplacementSensor {
     fn default() -> Self {
         Self::new()
     }
@@ -279,11 +277,11 @@ impl Default for OdometrySensor {
 
 use crate::node::Node;
 
-impl Sensor for OdometrySensor {
+impl Sensor for DisplacementSensor {
     fn init(&mut self, robot: &mut Node) {
         self.last_state = robot
             .physics()
-            .expect("Node with Odometry sensor should have Physics")
+            .expect("Node with Speed sensor should have Physics")
             .read()
             .unwrap()
             .state(0.)
@@ -297,34 +295,42 @@ impl Sensor for OdometrySensor {
         }
         let arc_physic = robot
             .physics()
-            .expect("Node with Odometry sensor should have Physics");
+            .expect("Node with Displacement sensor should have Physics");
         let physic = arc_physic.read().unwrap();
         let state = physic.state(time);
 
-        let dt = time - self.last_time;
-
-        let obs = if self.lie_integration
-            && let Some(lie_action) = physic.cummulative_lie_action()
-        {
-            let delta_lie = lie_action - self.last_lie_action;
-            let delta_lie = delta_lie * dt;
-            let displacement = delta_lie.exp();
-            self.last_lie_action = lie_action;
-            SensorObservation::Odometry(OdometryObservation {
-                linear_velocity: displacement[(0, 2)] / dt,
-                lateral_velocity: displacement[(1, 2)] / dt,
-                angular_velocity: atan2f(displacement[(1, 0)], displacement[(0, 0)]) / dt,
-                applied_faults: Vec::new(),
-            })
+        let (tx, ty, r) = if self.lie_movement {
+            todo!("Lie movement not implemented yet for DisplacementSensor");
         } else {
-            // No lie action available, fall back to previous method
-            SensorObservation::Odometry(OdometryObservation {
-                linear_velocity: state.velocity.x,
-                lateral_velocity: state.velocity.y,
-                angular_velocity: smallest_theta_diff(state.pose.z, self.last_state.pose.z) / dt,
-                applied_faults: Vec::new(),
-            })
+            let dx = state.pose.x - self.last_state.pose.x;
+            let dy = state.pose.y - self.last_state.pose.y;
+            let dtheta = smallest_theta_diff(state.pose.z, self.last_state.pose.z);
+
+            let rotation_matrix = Matrix3::new(
+                state.pose.z.cos(),
+                state.pose.z.sin(),
+                0.,
+                -state.pose.z.sin(),
+                state.pose.z.cos(),
+                0.,
+                0.,
+                0.,
+                1.,
+            );
+
+            let local_displacement = rotation_matrix
+                .try_inverse()
+                .expect("Rotation matrix should be invertible")
+                .transform_vector(&Vector2::new(dx, dy));
+
+            (local_displacement.x, local_displacement.y, dtheta)
         };
+
+        let obs = SensorObservation::Displacement(DisplacementObservation {
+            translation: Vector2::new(tx, ty),
+            rotation: r,
+            applied_faults: Vec::new(),
+        });
 
         if let Some(obs) = self
             .filters
@@ -334,16 +340,17 @@ impl Sensor for OdometrySensor {
             .try_fold(obs, |obs, filter| filter.filter(time, obs, &state, None))
         {
             observation_list.push(obs);
-            for fault_model in self.faults.lock().unwrap().iter() {
+            for fault_model in self.faults.lock().unwrap().iter_mut() {
                 fault_model.add_faults(
+                    time,
                     time,
                     self.period.unwrap_or(TIME_ROUND),
                     &mut observation_list,
-                    SensorObservation::Odometry(OdometryObservation::default()),
+                    SensorObservation::Displacement(DisplacementObservation::default()),
                 );
             }
         } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-            debug!("Odometry observation was filtered out");
+            debug!("Displacement observation was filtered out");
         }
 
         self.last_time = time;
@@ -360,11 +367,12 @@ impl Sensor for OdometrySensor {
     }
 }
 
-impl Recordable<SensorRecord> for OdometrySensor {
+impl Recordable<SensorRecord> for DisplacementSensor {
     fn record(&self) -> SensorRecord {
-        SensorRecord::OdometrySensor(OdometrySensorRecord {
+        SensorRecord::DisplacementSensor(DisplacementSensorRecord {
             last_time: self.last_time,
             last_state: self.last_state.record(),
+            lie_movement: self.lie_movement,
         })
     }
 }

@@ -21,6 +21,7 @@ use serde_json::Value;
 use simba_macros::config_derives;
 
 use crate::constants::TIME_ROUND;
+use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
@@ -101,24 +102,7 @@ pub struct ExternalSensor {
     sensor: Box<dyn Sensor>,
 }
 
-impl Default for ExternalSensor {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ExternalSensor {
-    /// Creates a new [`ExternalSensor`]
-    pub fn new() -> Self {
-        Self::from_config(
-            &ExternalSensorConfig::default(),
-            &None,
-            &SimulatorConfig::default(),
-            &DeterministRandomVariableFactory::default(),
-            0.0,
-        )
-    }
-
     /// Creates a new [`ExternalSensor`] from the given config.
     ///
     /// <div class="warning">The `plugin_api` is required here !</div>
@@ -134,16 +118,21 @@ impl ExternalSensor {
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
-    ) -> Self {
+    ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
         }
-        Self {
+        Ok(Self {
             sensor: plugin_api
                 .as_ref()
-                .expect("Plugin API not set!")
+                .ok_or_else(|| {
+                    SimbaError::new(
+                        SimbaErrorTypes::ExternalAPIError,
+                        "Plugin API not set!".to_string(),
+                    )
+                })?
                 .get_sensor(&config.config, global_config, initial_time),
-        }
+        })
     }
 }
 

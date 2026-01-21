@@ -154,15 +154,20 @@ impl UIComponent for PhysicsRecord {
     }
 }
 
+use crate::{
+    errors::SimbaResult,
+    networking::service::HasService,
+    physics::robot_models::Command,
+    plugin_api::PluginAPI,
+    recordable::Recordable,
+    simulator::SimulatorConfig,
+    state_estimators::State,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
+};
 #[cfg(feature = "gui")]
 use crate::{
     gui::{UIComponent, utils::string_combobox},
     utils::enum_tools::ToVec,
-};
-use crate::{
-    networking::service::HasService, physics::robot_models::Command, plugin_api::PluginAPI,
-    recordable::Recordable, simulator::SimulatorConfig, state_estimators::State,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 // Services
@@ -198,6 +203,7 @@ pub trait Physics:
     /// Get the current real state, the groundtruth.
     fn state(&self, time: f32) -> State;
 
+    #[deprecated(note = "This method is no longer used and will be removed in future versions.")]
     fn cummulative_lie_action(&self) -> Option<Matrix3<f32>> {
         None
     }
@@ -218,8 +224,8 @@ pub fn make_physics_from_config(
     robot_name: &String,
     va_factory: &Arc<DeterministRandomVariableFactory>,
     initial_time: f32,
-) -> Arc<RwLock<Box<dyn Physics>>> {
-    Arc::new(RwLock::new(match &config {
+) -> SimbaResult<SharedRwLock<Box<dyn Physics>>> {
+    Ok(Arc::new(RwLock::new(match &config {
         PhysicsConfig::Internal(c) => Box::new(internal_physics::InternalPhysics::from_config(
             c,
             robot_name,
@@ -232,9 +238,9 @@ pub fn make_physics_from_config(
             global_config,
             va_factory,
             initial_time,
-        )),
+        )?),
         PhysicsConfig::Python(c) => Box::new(
             python_physics::PythonPhysics::from_config(c, global_config, initial_time).unwrap(),
         ),
-    }))
+    })))
 }

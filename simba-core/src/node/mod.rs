@@ -6,10 +6,11 @@ pub mod node_factory;
 
 use node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord};
 use serde::{Deserialize, Serialize};
+use simba_macros::EnumToString;
 
 use core::f32;
 use std::collections::BTreeMap;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::Arc;
 
 use log::{debug, info};
 
@@ -17,6 +18,8 @@ use crate::errors::{SimbaError, SimbaErrorTypes};
 use crate::networking::message_handler::MessageHandler;
 use crate::state_estimators::State;
 use crate::time_analysis::TimeAnalysisNode;
+use crate::utils::read_only_lock::RoLock;
+use crate::utils::{SharedMutex, SharedRoLock, SharedRwLock};
 use crate::{
     api::internal_api::{self, NodeClient, NodeServer},
     constants::TIME_ROUND,
@@ -34,12 +37,21 @@ use crate::{
     utils::maths::round_precision,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumToString)]
 pub enum NodeState {
     Created,
     Running,
     Zombie,
     Terminated,
+}
+
+#[derive(Debug, Clone)]
+pub struct NodeMetaData {
+    pub name: String,
+    pub node_type: NodeType,
+    pub model_name: String,
+    pub labels: Vec<String>,
+    pub state: NodeState,
 }
 
 // Node itself
@@ -67,36 +79,33 @@ pub enum NodeState {
 /// so that the required time is reached taking into account all past messages.
 #[derive(Debug)]
 pub struct Node {
-    pub(self) node_type: NodeType,
-    /// Name of the node. Should be unique among all [`Simulator`](crate::simulator::Simulator)
-    /// nodes.
-    pub(self) name: String,
-    pub(self) model_name: String,
     /// [`Navigator`] module, implementing the navigation strategy.
-    pub(self) navigator: Option<Arc<RwLock<Box<dyn Navigator>>>>,
+    pub(self) navigator: Option<SharedRwLock<Box<dyn Navigator>>>,
     /// [`Controller`] module, implementing the control strategy.
-    pub(self) controller: Option<Arc<RwLock<Box<dyn Controller>>>>,
+    pub(self) controller: Option<SharedRwLock<Box<dyn Controller>>>,
     /// [`Physics`] module, implementing the physics strategy.
-    pub(self) physics: Option<Arc<RwLock<Box<dyn Physics>>>>,
+    pub(self) physics: Option<SharedRwLock<Box<dyn Physics>>>,
     /// [`StateEstimator`] module, implementing the state estimation strategy.
-    pub(self) state_estimator: Option<Arc<RwLock<Box<dyn StateEstimator>>>>,
+    pub(self) state_estimator: Option<SharedRwLock<Box<dyn StateEstimator>>>,
     /// Manages all the [`Sensor`](crate::sensors::sensor::Sensor)s and send the observations to `state_estimator`.
-    pub(self) sensor_manager: Option<Arc<RwLock<SensorManager>>>,
+    pub(self) sensor_manager: Option<SharedRwLock<SensorManager>>,
     /// [`Network`] interface to receive and send messages with other nodes.
-    pub(self) network: Option<Arc<RwLock<Network>>>,
+    pub(self) network: Option<SharedRwLock<Network>>,
     /// Additional [`StateEstimator`] to be evaluated.
-    pub(self) state_estimator_bench: Option<Arc<RwLock<Vec<BenchStateEstimator>>>>,
+    pub(self) state_estimator_bench: Option<SharedRwLock<Vec<BenchStateEstimator>>>,
 
-    // services: Vec<Arc<RwLock<Box<dyn ServiceInterface>>>>,
+    // services: Vec<SharedRwLock<Box<dyn ServiceInterface>>>>,
     /// Not really an option, but for delayed initialization
-    pub(self) service_manager: Option<Arc<RwLock<ServiceManager>>>,
+    pub(self) service_manager: Option<SharedRwLock<ServiceManager>>,
 
     pub(self) node_server: Option<NodeServer>,
 
     pub(self) other_node_names: Vec<String>,
-    pub(self) state: NodeState,
-    pub(self) time_analysis: Arc<Mutex<TimeAnalysisNode>>,
+    pub(self) time_analysis: SharedMutex<TimeAnalysisNode>,
     pub(self) send_records: bool,
+
+    pub(self) node_meta_data: SharedRwLock<NodeMetaData>,
+    pub(self) meta_data_list: Option<SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>>,
 }
 
 impl Node {
@@ -105,7 +114,8 @@ impl Node {
     /// It is used to initialize the sensor manager, which need to know the list of all nodes.
     pub fn post_creation_init(
         &mut self,
-        service_manager_list: &BTreeMap<String, Arc<RwLock<ServiceManager>>>,
+        service_manager_list: &BTreeMap<String, SharedRwLock<ServiceManager>>,
+        meta_data_list: SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>,
     ) -> NodeClient {
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Node post-creation initialization")
@@ -122,7 +132,7 @@ impl Node {
         self.other_node_names = service_manager_list
             .iter()
             .filter_map(|n| {
-                if n.0 != &self.name {
+                if n.0 != &self.node_meta_data.read().unwrap().name {
                     Some(n.0.clone())
                 } else {
                     None
@@ -167,8 +177,17 @@ impl Node {
                     .subscribe(controller.read().unwrap().get_letter_box());
             }
         }
-        let (node_server, node_client) = internal_api::make_node_api(&self.node_type);
+        let (node_server, node_client) =
+            internal_api::make_node_api(&self.node_meta_data.read().unwrap().node_type);
         self.node_server = Some(node_server);
+        {
+            let meta_data = &mut self.node_meta_data.write().unwrap();
+            let name = meta_data.name.clone();
+            let model_name = meta_data.model_name.clone();
+            meta_data.labels.push(name);
+            meta_data.labels.push(model_name);
+        }
+        self.meta_data_list = Some(meta_data_list);
         node_client
     }
 
@@ -230,7 +249,7 @@ impl Node {
         time_cv: &TimeCv,
         nb_nodes: usize,
     ) -> SimbaResult<()> {
-        if self.state != NodeState::Running {
+        if self.node_meta_data.read().unwrap().state != NodeState::Running {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
                 "Only a Running node should be run!".to_string(),
@@ -251,7 +270,7 @@ impl Node {
                     time,
                     (
                         physics.read().unwrap().state(time).clone(),
-                        self.state.clone(),
+                        self.node_meta_data.read().unwrap().state.clone(),
                     ),
                 ))
                 .unwrap();
@@ -535,7 +554,6 @@ impl Node {
 
     /// Computes the next time step, using state estimator, sensors and received messages.
     pub fn next_time_step(&self, min_time_excluded: f32) -> SimbaResult<f32> {
-        debug!("Computing next time step, min {}", min_time_excluded);
         let mut next_time_step = f32::INFINITY;
         if let Some(state_estimator) = &self.state_estimator {
             let next_time = state_estimator.read().unwrap().next_time_step();
@@ -621,16 +639,16 @@ impl Node {
 impl Node {
     /// Get the name of the node.
     pub fn name(&self) -> String {
-        self.name.clone()
+        self.node_meta_data.read().unwrap().name.clone()
     }
 
     pub fn state(&self) -> NodeState {
-        self.state.clone()
+        self.node_meta_data.read().unwrap().state.clone()
     }
 
     #[cfg(not(feature = "force_hard_determinism"))]
     pub(crate) fn set_state(&mut self, state: NodeState) {
-        self.state = state;
+        self.node_meta_data.write().unwrap().state = state;
     }
 
     pub fn send_records(&self) -> bool {
@@ -641,12 +659,12 @@ impl Node {
         &self.other_node_names
     }
 
-    pub fn node_type(&self) -> &NodeType {
-        &self.node_type
+    pub fn node_type(&self) -> NodeType {
+        self.node_meta_data.read().unwrap().node_type.clone()
     }
 
     /// Get a Arc clone of network module.
-    pub fn network(&self) -> Option<Arc<RwLock<Network>>> {
+    pub fn network(&self) -> Option<SharedRwLock<Network>> {
         match &self.network {
             Some(n) => Some(Arc::clone(n)),
             None => None,
@@ -654,7 +672,7 @@ impl Node {
     }
 
     /// Get a Arc clone of physics module.
-    pub fn physics(&self) -> Option<Arc<RwLock<Box<dyn Physics>>>> {
+    pub fn physics(&self) -> Option<SharedRwLock<Box<dyn Physics>>> {
         match &self.physics {
             Some(p) => Some(Arc::clone(p)),
             None => None,
@@ -662,7 +680,7 @@ impl Node {
     }
 
     /// Get a Arc clone of sensor manager.
-    pub fn sensor_manager(&self) -> Option<Arc<RwLock<SensorManager>>> {
+    pub fn sensor_manager(&self) -> Option<SharedRwLock<SensorManager>> {
         match &self.sensor_manager {
             Some(sm) => Some(Arc::clone(sm)),
             None => None,
@@ -670,7 +688,7 @@ impl Node {
     }
 
     /// Get a Arc clone of state estimator module.
-    pub fn state_estimator(&self) -> Option<Arc<RwLock<Box<dyn StateEstimator>>>> {
+    pub fn state_estimator(&self) -> Option<SharedRwLock<Box<dyn StateEstimator>>> {
         match &self.state_estimator {
             Some(se) => Some(Arc::clone(se)),
             None => None,
@@ -678,7 +696,7 @@ impl Node {
     }
 
     /// Get a Arc clone of state estimator module.
-    pub fn state_estimator_bench(&self) -> Option<Arc<RwLock<Vec<BenchStateEstimator>>>> {
+    pub fn state_estimator_bench(&self) -> Option<SharedRwLock<Vec<BenchStateEstimator>>> {
         match &self.state_estimator_bench {
             Some(se) => Some(Arc::clone(se)),
             None => None,
@@ -686,7 +704,7 @@ impl Node {
     }
 
     /// Get a Arc clone of navigator module.
-    pub fn navigator(&self) -> Option<Arc<RwLock<Box<dyn Navigator>>>> {
+    pub fn navigator(&self) -> Option<SharedRwLock<Box<dyn Navigator>>> {
         match &self.navigator {
             Some(n) => Some(Arc::clone(n)),
             None => None,
@@ -694,7 +712,7 @@ impl Node {
     }
 
     /// Get a Arc clone of controller module.
-    pub fn controller(&self) -> Option<Arc<RwLock<Box<dyn Controller>>>> {
+    pub fn controller(&self) -> Option<SharedRwLock<Box<dyn Controller>>> {
         match &self.controller {
             Some(c) => Some(Arc::clone(c)),
             None => None,
@@ -702,16 +720,26 @@ impl Node {
     }
 
     /// Get a Arc clone of Service Manager.
-    pub fn service_manager(&self) -> Arc<RwLock<ServiceManager>> {
+    pub fn service_manager(&self) -> SharedRwLock<ServiceManager> {
         self.service_manager.as_ref().unwrap().clone()
     }
 
+    pub fn meta_data(&self) -> SharedRoLock<NodeMetaData> {
+        self.node_meta_data.clone() as Arc<dyn RoLock<NodeMetaData>>
+    }
+
+    pub fn meta_data_list(
+        &self,
+    ) -> Option<SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>> {
+        self.meta_data_list.as_ref().cloned()
+    }
+
     pub fn pre_kill(&mut self) {
-        self.state = NodeState::Zombie;
+        self.node_meta_data.write().unwrap().state = NodeState::Zombie;
     }
 
     pub fn kill(&mut self, time: f32) {
-        self.state = NodeState::Zombie;
+        self.node_meta_data.write().unwrap().state = NodeState::Zombie;
         if let Some(network) = &self.network {
             network.write().unwrap().unsubscribe_node().unwrap();
         }
@@ -724,7 +752,13 @@ impl Node {
             .state_update
             .as_ref()
             .unwrap()
-            .send((time, (State::new(), self.state.clone())))
+            .send((
+                time,
+                (
+                    State::new(),
+                    self.node_meta_data.read().unwrap().state.clone(),
+                ),
+            ))
             .unwrap();
     }
 }
@@ -732,9 +766,11 @@ impl Node {
 // Record part
 impl Node {
     fn robot_record(&self) -> RobotRecord {
+        let meta_data = self.node_meta_data.read().unwrap();
         let mut record = RobotRecord {
-            name: self.name.clone(),
-            model_name: self.model_name.clone(),
+            name: meta_data.name.clone(),
+            model_name: meta_data.model_name.clone(),
+            labels: meta_data.labels.clone(),
             navigator: self.navigator.as_ref().unwrap().read().unwrap().record(),
             controller: self.controller.as_ref().unwrap().read().unwrap().record(),
             physics: self.physics.as_ref().unwrap().read().unwrap().record(),
@@ -753,7 +789,7 @@ impl Node {
                 .read()
                 .unwrap()
                 .record(),
-            state: self.state.clone(),
+            state: meta_data.state.clone(),
         };
         let other_state_estimators = self.state_estimator_bench.clone();
         for additional_state_estimator in other_state_estimators
@@ -778,10 +814,13 @@ impl Node {
     }
 
     fn computation_unit_record(&self) -> ComputationUnitRecord {
+        let meta_data = self.node_meta_data.read().unwrap();
         let mut record = ComputationUnitRecord {
-            name: self.name.clone(),
+            name: meta_data.name.clone(),
             state_estimators: Vec::new(),
             sensor_manager: self.sensor_manager().unwrap().read().unwrap().record(),
+            labels: meta_data.labels.clone(),
+            model_name: meta_data.model_name.clone(),
         };
         let other_state_estimators = self.state_estimator_bench.clone();
         for additional_state_estimator in other_state_estimators
@@ -807,7 +846,7 @@ impl Node {
 impl Recordable<NodeRecord> for Node {
     /// Generate the current state record.
     fn record(&self) -> NodeRecord {
-        match &self.node_type {
+        match &self.node_meta_data.read().unwrap().node_type {
             NodeType::Robot => NodeRecord::Robot(Box::new(self.robot_record())),
             NodeType::ComputationUnit => {
                 NodeRecord::ComputationUnit(self.computation_unit_record())

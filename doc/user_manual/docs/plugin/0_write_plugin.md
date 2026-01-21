@@ -75,7 +75,7 @@ impl PluginAPI for MyWonderfulPlugin {
     fn get_message_handlers(
         &self,
         _robot: &simba::node::Node,
-    ) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
+    ) -> Option<Vec<SharedRwLock<dyn MessageHandler>>>> {
         Some(vec![Arc::new(RwLock::new(MyWonderfulMessageHandler {}))])
     }
 }

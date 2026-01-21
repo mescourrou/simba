@@ -1,10 +1,10 @@
 #![allow(clippy::useless_conversion)]
+#![allow(deprecated)]
 use std::{
     collections::BTreeMap,
-    sync::{Arc, Mutex, mpsc::Receiver},
+    sync::{Arc, mpsc::Receiver},
 };
 
-use log::debug;
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 use simba_macros::EnumToString;
@@ -30,14 +30,16 @@ use crate::{
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
-        Observation, SensorObservation, gnss_sensor::GNSSObservation,
-        odometry_sensor::OdometryObservation,
+        Observation, SensorObservation,
+        displacement_sensor::DisplacementObservation,
+        gnss_sensor::GNSSObservation,
         oriented_landmark_sensor::OrientedLandmarkObservation,
         robot_sensor::OrientedRobotObservation,
+        speed_sensor::{OdometryObservation, SpeedObservation},
     },
     simulator::{AsyncSimulator, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
-    utils::occupancy_grid::OccupancyGrid,
+    utils::{SharedMutex, occupancy_grid::OccupancyGrid},
 };
 
 #[derive(Clone, Debug)]
@@ -109,6 +111,15 @@ pub struct Vec2 {
     pub y: f32,
 }
 
+#[pyclass(get_all, set_all)]
+#[pyo3(name = "Vec3")]
+#[derive(Clone, Debug)]
+pub struct Vec3 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "State")]
@@ -116,7 +127,7 @@ pub struct StateWrapper {
     /// Position and orientation of the robot
     pub pose: Pose,
     /// Linear velocity.
-    pub velocity: Vec2,
+    pub velocity: Vec3,
 }
 
 #[pymethods]
@@ -129,7 +140,11 @@ impl StateWrapper {
                 y: 0.,
                 theta: 0.,
             },
-            velocity: Vec2 { x: 0., y: 0. },
+            velocity: Vec3 {
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
         }
     }
 }
@@ -142,16 +157,17 @@ impl StateWrapper {
                 y: s.pose[1],
                 theta: s.pose[2],
             },
-            velocity: Vec2 {
+            velocity: Vec3 {
                 x: s.velocity[0],
                 y: s.velocity[1],
+                z: s.velocity[2],
             },
         }
     }
     pub fn to_rust(&self) -> State {
         State {
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
-            velocity: SVector::from_vec(vec![self.velocity.x, self.velocity.y]),
+            velocity: SVector::from_vec(vec![self.velocity.x, self.velocity.y, self.velocity.z]),
         }
     }
 }
@@ -302,6 +318,8 @@ impl OccupancyGridWrapper {
 pub struct OrientedLandmarkObservationWrapper {
     /// Id of the landmark
     pub id: i32,
+    /// Labels of the landmark
+    pub labels: Vec<String>,
     /// Pose of the landmark
     pub pose: Pose,
     /// Applied fault in JSON format
@@ -318,6 +336,7 @@ impl OrientedLandmarkObservationWrapper {
     pub fn new() -> Self {
         Self {
             id: 0,
+            labels: Vec::new(),
             pose: Pose {
                 x: 0.,
                 y: 0.,
@@ -334,6 +353,7 @@ impl OrientedLandmarkObservationWrapper {
     pub fn from_rust(s: &OrientedLandmarkObservation) -> Self {
         Self {
             id: s.id,
+            labels: s.labels.clone(),
             pose: Pose {
                 x: s.pose[0],
                 y: s.pose[1],
@@ -347,6 +367,7 @@ impl OrientedLandmarkObservationWrapper {
     pub fn to_rust(&self) -> OrientedLandmarkObservation {
         OrientedLandmarkObservation {
             id: self.id,
+            labels: self.labels.clone(),
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
             width: self.width,
@@ -363,7 +384,57 @@ impl Default for OrientedLandmarkObservationWrapper {
 
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
+#[pyo3(name = "SpeedObservation")]
+pub struct SpeedObservationWrapper {
+    pub linear_velocity: f32,
+    pub lateral_velocity: f32,
+    pub angular_velocity: f32,
+    /// Applied faults in JSON format
+    pub applied_faults: String,
+}
+
+#[pymethods]
+impl SpeedObservationWrapper {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            linear_velocity: 0.,
+            lateral_velocity: 0.,
+            angular_velocity: 0.,
+            applied_faults: "[]".to_string(),
+        }
+    }
+}
+
+impl SpeedObservationWrapper {
+    pub fn from_rust(s: &SpeedObservation) -> Self {
+        Self {
+            linear_velocity: s.linear_velocity,
+            lateral_velocity: s.lateral_velocity,
+            angular_velocity: s.angular_velocity,
+            applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
+        }
+    }
+    pub fn to_rust(&self) -> SpeedObservation {
+        SpeedObservation {
+            linear_velocity: self.linear_velocity,
+            lateral_velocity: self.lateral_velocity,
+            angular_velocity: self.angular_velocity,
+            applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
+        }
+    }
+}
+
+impl Default for SpeedObservationWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Clone, Debug)]
+#[pyclass(get_all, set_all)]
 #[pyo3(name = "OdometryObservation")]
+#[deprecated(note = "OdometryObservation is deprecated, use SpeedObservation instead")]
 pub struct OdometryObservationWrapper {
     pub linear_velocity: f32,
     pub lateral_velocity: f32,
@@ -414,7 +485,7 @@ impl Default for OdometryObservationWrapper {
 #[pyclass(get_all)]
 #[pyo3(name = "GNSSObservation")]
 pub struct GNSSObservationWrapper {
-    pub position: Vec2,
+    pub pose: Vec3,
     pub velocity: Vec2,
     /// Applied faults in JSON format
     pub applied_faults: String,
@@ -425,7 +496,11 @@ impl GNSSObservationWrapper {
     #[new]
     pub fn new() -> Self {
         Self {
-            position: Vec2 { x: 0., y: 0. },
+            pose: Vec3 {
+                x: 0.,
+                y: 0.,
+                z: 0.,
+            },
             velocity: Vec2 { x: 0., y: 0. },
             applied_faults: "[]".to_string(),
         }
@@ -435,9 +510,10 @@ impl GNSSObservationWrapper {
 impl GNSSObservationWrapper {
     pub fn from_rust(s: &GNSSObservation) -> Self {
         Self {
-            position: Vec2 {
-                x: s.position[0],
-                y: s.position[1],
+            pose: Vec3 {
+                x: s.pose[0],
+                y: s.pose[1],
+                z: s.pose[2],
             },
             velocity: Vec2 {
                 x: s.velocity[0],
@@ -448,7 +524,7 @@ impl GNSSObservationWrapper {
     }
     pub fn to_rust(&self) -> GNSSObservation {
         GNSSObservation {
-            position: Vector2::from_vec(vec![self.position.x, self.position.y]),
+            pose: Vector3::from_vec(vec![self.pose.x, self.pose.y, self.pose.z]),
             velocity: Vector2::from_vec(vec![self.velocity.x, self.velocity.y]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
@@ -462,11 +538,61 @@ impl Default for GNSSObservationWrapper {
 }
 
 #[derive(Clone, Debug)]
+#[pyclass(get_all)]
+#[pyo3(name = "DisplacementObservation")]
+pub struct DisplacementObservationWrapper {
+    pub translation: Vec2,
+    pub rotation: f32,
+    /// Applied faults in JSON format
+    pub applied_faults: String,
+}
+
+#[pymethods]
+impl DisplacementObservationWrapper {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            translation: Vec2 { x: 0., y: 0. },
+            rotation: 0.,
+            applied_faults: "[]".to_string(),
+        }
+    }
+}
+
+impl DisplacementObservationWrapper {
+    pub fn from_rust(s: &DisplacementObservation) -> Self {
+        Self {
+            translation: Vec2 {
+                x: s.translation[0],
+                y: s.translation[1],
+            },
+            rotation: s.rotation,
+            applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
+        }
+    }
+    pub fn to_rust(&self) -> DisplacementObservation {
+        DisplacementObservation {
+            translation: Vector2::from_vec(vec![self.translation.x, self.translation.y]),
+            rotation: self.rotation,
+            applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
+        }
+    }
+}
+
+impl Default for DisplacementObservationWrapper {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OrientedRobotObservation")]
 pub struct OrientedRobotObservationWrapper {
     /// Name of the Robot
     pub name: String,
+    /// Labels of the Robot
+    pub labels: Vec<String>,
     /// Pose of the Robot
     pub pose: Pose,
     /// Applied faults in JSON format
@@ -479,6 +605,7 @@ impl OrientedRobotObservationWrapper {
     pub fn new() -> Self {
         Self {
             name: "NoName".to_string(),
+            labels: Vec::new(),
             pose: Pose {
                 x: 0.,
                 y: 0.,
@@ -493,6 +620,7 @@ impl OrientedRobotObservationWrapper {
     pub fn from_rust(s: &OrientedRobotObservation) -> Self {
         Self {
             name: s.name.clone(),
+            labels: s.labels.clone(),
             pose: Pose {
                 x: s.pose[0],
                 y: s.pose[1],
@@ -504,6 +632,7 @@ impl OrientedRobotObservationWrapper {
     pub fn to_rust(&self) -> OrientedRobotObservation {
         OrientedRobotObservation {
             name: self.name.clone(),
+            labels: self.labels.clone(),
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
         }
@@ -521,7 +650,9 @@ impl Default for OrientedRobotObservationWrapper {
 #[pyo3(name = "SensorObservation")]
 pub enum SensorObservationWrapper {
     OrientedLandmark(OrientedLandmarkObservationWrapper),
+    #[deprecated(note = "OdometryObservation is deprecated, use SpeedObservation instead")]
     Odometry(OdometryObservationWrapper),
+    Speed(SpeedObservationWrapper),
     GNSS(GNSSObservationWrapper),
     OrientedRobot(OrientedRobotObservationWrapper),
 }
@@ -543,12 +674,24 @@ impl SensorObservationWrapper {
         }
     }
 
+    #[deprecated(note = "as_odometry is deprecated, use as_speed instead")]
+    #[allow(deprecated)]
     pub fn as_odometry(&self) -> PyResult<OdometryObservationWrapper> {
         if let Self::Odometry(o) = self {
             Ok(o.clone())
         } else {
             Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                 "Impossible to convert this observation to an OdometryObservation",
+            ))
+        }
+    }
+
+    pub fn as_speed(&self) -> PyResult<SpeedObservationWrapper> {
+        if let Self::Speed(o) = self {
+            Ok(o.clone())
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this observation to a SpeedObservation",
             ))
         }
     }
@@ -585,8 +728,12 @@ impl SensorObservationWrapper {
             SensorObservation::GNSS(o) => {
                 SensorObservationWrapper::GNSS(GNSSObservationWrapper::from_rust(o))
             }
+            #[allow(deprecated)]
             SensorObservation::Odometry(o) => {
                 SensorObservationWrapper::Odometry(OdometryObservationWrapper::from_rust(o))
+            }
+            SensorObservation::Speed(o) => {
+                SensorObservationWrapper::Speed(SpeedObservationWrapper::from_rust(o))
             }
             SensorObservation::OrientedLandmark(o) => SensorObservationWrapper::OrientedLandmark(
                 OrientedLandmarkObservationWrapper::from_rust(o),
@@ -602,7 +749,9 @@ impl SensorObservationWrapper {
     pub fn to_rust(&self) -> SensorObservation {
         match self {
             SensorObservationWrapper::GNSS(o) => SensorObservation::GNSS(o.to_rust()),
+            #[allow(deprecated)]
             SensorObservationWrapper::Odometry(o) => SensorObservation::Odometry(o.to_rust()),
+            SensorObservationWrapper::Speed(o) => SensorObservation::Speed(o.to_rust()),
             SensorObservationWrapper::OrientedLandmark(o) => {
                 SensorObservation::OrientedLandmark(o.to_rust())
             }
@@ -847,7 +996,7 @@ pub struct EnvelopeWrapper {
 #[pyo3(name = "Node")]
 pub struct NodeWrapper {
     node: Arc<Node>,
-    messages_receiver: Arc<Mutex<Receiver<Envelope>>>,
+    messages_receiver: SharedMutex<Receiver<Envelope>>,
 }
 
 #[pymethods]
@@ -865,9 +1014,7 @@ impl NodeWrapper {
         time: f32,
         flags: Vec<MessageFlag>,
     ) -> PyResult<()> {
-        debug!("Wait for network");
         if let Some(network) = &self.node.network() {
-            debug!("Got network");
             let msg = match message {
                 MessageTypes::String(s) => serde_json::to_value(s),
                 MessageTypes::GoTo(m) => serde_json::to_value(m),
@@ -902,7 +1049,7 @@ impl NodeWrapper {
 }
 
 impl NodeWrapper {
-    pub fn from_rust(n: &Node, messages_receiver: Arc<Mutex<Receiver<Envelope>>>) -> Self {
+    pub fn from_rust(n: &Node, messages_receiver: SharedMutex<Receiver<Envelope>>) -> Self {
         Self {
             // I did not find another solution.
             // Relatively safe as Nodes lives very long, almost all the time

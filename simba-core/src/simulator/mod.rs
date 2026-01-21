@@ -53,7 +53,7 @@ use crate::{
     logger::{LoggerConfig, init_log, is_enabled},
     networking::{network_manager::NetworkManager, service_manager::ServiceManager},
     node::{
-        Node, NodeState,
+        Node, NodeMetaData, NodeState,
         node_factory::{
             ComputationUnitConfig, MakeNodeParams, NodeFactory, NodeRecord, RobotConfig,
         },
@@ -64,6 +64,7 @@ use crate::{
     state_estimators::State,
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
     utils::{
+        SharedMutex, SharedRoLock, SharedRwLock,
         barrier::Barrier,
         determinist_random_variable::DeterministRandomVariableFactory,
         maths::round_precision,
@@ -165,7 +166,7 @@ impl Default for TimeCv {
 
 pub(crate) struct RunningParameters {
     max_time: f32,
-    nb_nodes: Arc<RwLock<usize>>,
+    nb_nodes: SharedRwLock<usize>,
     finishing_cv: Arc<(Mutex<usize>, Condvar)>,
     barrier: Arc<Barrier>,
     handles: Vec<JoinHandle<SimbaResult<Option<Node>>>>,
@@ -174,9 +175,9 @@ pub(crate) struct RunningParameters {
 }
 
 struct NodeSyncParams {
-    nb_nodes: Arc<RwLock<usize>>,
+    nb_nodes: SharedRwLock<usize>,
     time_cv: Arc<TimeCv>,
-    common_time: Arc<RwLock<f32>>,
+    common_time: SharedRwLock<f32>,
     barrier: Arc<Barrier>,
     end_time_step_sync: RemoteFunctionCall<(), ()>,
 }
@@ -230,7 +231,7 @@ pub struct Simulator {
     determinist_va_factory: Arc<DeterministRandomVariableFactory>,
 
     time_cv: Arc<TimeCv>,
-    common_time: Arc<RwLock<f32>>,
+    common_time: SharedRwLock<f32>,
 
     async_api: Option<Arc<SimulatorAsyncApi>>,
     async_api_server: Option<SimulatorAsyncApiServer>,
@@ -241,9 +242,10 @@ pub struct Simulator {
     records: Vec<Record>,
     time_analysis_factory: TimeAnalysisFactory,
     force_send_results: bool,
-    scenario: Arc<Mutex<Scenario>>,
+    scenario: SharedMutex<Scenario>,
     plugin_api: Option<Arc<dyn PluginAPI>>,
-    service_managers: BTreeMap<String, Arc<RwLock<ServiceManager>>>,
+    service_managers: BTreeMap<String, SharedRwLock<ServiceManager>>,
+    meta_data_list: SharedRwLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>,
 }
 
 impl Simulator {
@@ -275,6 +277,7 @@ impl Simulator {
             ))),
             plugin_api: None,
             service_managers: BTreeMap::new(),
+            meta_data_list: Arc::new(RwLock::new(BTreeMap::new())),
         }
     }
 
@@ -317,6 +320,7 @@ impl Simulator {
 
     pub fn reset(&mut self, plugin_api: Option<Arc<dyn PluginAPI>>) -> SimbaResult<()> {
         info!("Reset node");
+        self.meta_data_list.write().unwrap().clear();
         self.nodes = Vec::new();
         self.time_cv = Arc::new(TimeCv::new());
         self.network_manager = NetworkManager::new(self.time_cv.clone());
@@ -339,7 +343,7 @@ impl Simulator {
         self.service_managers = BTreeMap::new();
         // Create robots
         for robot_config in &config.robots {
-            self.add_robot(robot_config, &config, self.force_send_results, 0.);
+            self.add_robot(robot_config, &config, self.force_send_results, 0.)?;
             let node = self.nodes.last().unwrap();
             self.service_managers
                 .insert(node.name(), node.service_manager());
@@ -351,7 +355,7 @@ impl Simulator {
                 &config,
                 self.force_send_results,
                 0.,
-            );
+            )?;
             let node = self.nodes.last().unwrap();
             self.service_managers
                 .insert(node.name(), node.service_manager());
@@ -359,8 +363,10 @@ impl Simulator {
 
         for node in self.nodes.iter_mut() {
             info!("Finishing initialization of {}", node.name());
-            self.node_apis
-                .insert(node.name(), node.post_creation_init(&self.service_managers));
+            self.node_apis.insert(
+                node.name(),
+                node.post_creation_init(&self.service_managers, self.meta_data_list.clone()),
+            );
         }
 
         self.scenario = Arc::new(Mutex::new(Scenario::from_config(
@@ -545,7 +551,7 @@ impl Simulator {
         global_config: &SimulatorConfig,
         force_send_results: bool,
         initial_time: f32,
-    ) {
+    ) -> SimbaResult<()> {
         let mut new_node = NodeFactory::make_robot(
             robot_config,
             &mut MakeNodeParams {
@@ -558,12 +564,16 @@ impl Simulator {
                 new_name: None,
                 initial_time,
             },
-        );
+        )?;
+        let meta_data = new_node.meta_data();
+        let name = meta_data.read().unwrap().name.clone();
+        self.meta_data_list.write().unwrap().insert(name, meta_data);
         if new_node.state() != NodeState::Running {
-            return;
+            return Ok(());
         }
         self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
+        Ok(())
     }
 
     fn add_computation_unit(
@@ -572,7 +582,7 @@ impl Simulator {
         global_config: &SimulatorConfig,
         force_send_results: bool,
         initial_time: f32,
-    ) {
+    ) -> SimbaResult<()> {
         let mut new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
             &mut MakeNodeParams {
@@ -585,12 +595,16 @@ impl Simulator {
                 new_name: None,
                 initial_time,
             },
-        );
+        )?;
+        let meta_data = new_node.meta_data();
+        let name = meta_data.read().unwrap().name.clone();
+        self.meta_data_list.write().unwrap().insert(name, meta_data);
         if new_node.state() != NodeState::Running {
-            return;
+            return Ok(());
         }
         self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
+        Ok(())
     }
 
     /// Simply print the Simulator state, using the info channel and the debug print.
@@ -684,20 +698,15 @@ impl Simulator {
                 new_name: Some(new_node_name),
                 initial_time: time,
             },
-        )
-        .ok_or(SimbaError::new(
-            SimbaErrorTypes::ImplementationError,
-            format!(
-                "Impossible to spawn node `{}`: not found in configuration",
-                node_name
-            ),
-        ))?;
+        )?;
         node.set_state(NodeState::Running);
         self.network_manager.register_node_network(&mut node);
         self.service_managers
             .insert(node.name(), node.service_manager());
-        self.node_apis
-            .insert(node.name(), node.post_creation_init(&self.service_managers));
+        self.node_apis.insert(
+            node.name(),
+            node.post_creation_init(&self.service_managers, self.meta_data_list.clone()),
+        );
         self.spawn_node(node, running_parameters)
     }
 
@@ -931,7 +940,12 @@ impl Simulator {
         Ok(())
     }
 
+    #[deprecated(note = "Will be removed in future release. Use load_results_full instead")]
     pub fn load_results(&mut self) -> SimbaResult<f32> {
+        self.load_results_full(None)
+    }
+
+    pub fn load_results_full(&mut self, filename: Option<String>) -> SimbaResult<f32> {
         if self.config.results.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ConfigError,
@@ -939,7 +953,7 @@ impl Simulator {
             ));
         }
         let result_config = self.config.results.clone().unwrap();
-        let filename = result_config.result_path;
+        let filename = filename.or(result_config.result_path);
         if filename.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ConfigError,
@@ -947,13 +961,7 @@ impl Simulator {
             ));
         }
         let filename = self.config.base_path.as_ref().join(filename.unwrap());
-        let mut recording_file = File::open(filename).expect("Impossible to open record file");
-        let mut content = String::new();
-        recording_file
-            .read_to_string(&mut content)
-            .expect("Impossible to read record file");
-
-        let results: Results = serde_json::from_str(&content).expect("Error during json parsing");
+        let results = Self::deserialize_results_from_file(&filename)?;
 
         self.records = results.records;
         let mut max_time = self.common_time.write().unwrap();
@@ -966,6 +974,18 @@ impl Simulator {
             .unwrap()
             .update_time(*max_time);
         Ok(*max_time)
+    }
+
+    pub fn deserialize_results_from_file(filename: &Path) -> SimbaResult<Results> {
+        info!("Loading results from file `{}`", filename.to_str().unwrap());
+        let mut recording_file = File::open(filename).expect("Impossible to open record file");
+        let mut content = String::new();
+        recording_file
+            .read_to_string(&mut content)
+            .expect("Impossible to read record file");
+
+        info!("Deserialize results...");
+        Ok(serde_json::from_str(&content).expect("Error during json parsing"))
     }
 
     /// Run the loop for the given `node` until reaching `max_time`.
@@ -1121,17 +1141,38 @@ impl Simulator {
                     .execute_scenario(current_time, self, &node_states, running_parameters)
                     .unwrap();
                 if let Err(e) = self.network_manager.process_messages(&node_states) {
-                    log::error!(
-                        "Error in processing network messages at time {}: {}",
-                        current_time,
-                        e.detailed_error()
-                    );
-                    return Err(e);
+                    if let SimbaErrorTypes::NetworkError(_) = e.error_type() {
+                        // Network errors are expected during the simulation, as nodes can go
+                        // offline at any time.
+                        warn!(
+                            "Network error in processing network messages at time {}: {}",
+                            current_time,
+                            e.detailed_error()
+                        );
+                    } else {
+                        log::error!(
+                            "Error in processing network messages at time {}: {}",
+                            current_time,
+                            e.detailed_error()
+                        );
+                        return Err(e);
+                    }
                 }
                 running_parameters.barrier.remove_one();
             }
 
-            self.network_manager.process_messages(&node_states)?;
+            if let Err(e) = self.network_manager.process_messages(&node_states) {
+                if let SimbaErrorTypes::NetworkError(_) = e.error_type() {
+                    // Network errors are expected during the simulation, as nodes can go
+                    // offline at any time.
+                    warn!(
+                        "Network error in processing network messages: {}",
+                        e.detailed_error()
+                    );
+                } else {
+                    return Err(e);
+                }
+            }
             if *running_parameters.finishing_cv.0.lock().unwrap()
                 >= *running_parameters.nb_nodes.read().unwrap()
             {

@@ -1,0 +1,14 @@
+use std::{
+    fmt::Debug,
+    sync::{LockResult, RwLock, RwLockReadGuard},
+};
+
+pub trait RoLock<T: ?Sized + Send + Sync + Debug>: Send + Sync + Debug {
+    fn read(&self) -> LockResult<RwLockReadGuard<'_, T>>;
+}
+
+impl<T: ?Sized + Send + Sync + Debug> RoLock<T> for RwLock<T> {
+    fn read(&self) -> LockResult<RwLockReadGuard<'_, T>> {
+        self.read()
+    }
+}

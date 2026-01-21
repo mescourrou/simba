@@ -42,7 +42,7 @@ fn doit(args: Cli) -> SimbaResult<()> {
             // It also save the results to json
             simulator.run()?;
         } else {
-            simulator.load_results()?;
+            simulator.load_results_full(None)?;
         }
         simulator.compute_results()?;
 

@@ -25,7 +25,7 @@ use crate::{
     logger::is_enabled,
     networking::service_manager::ServiceError,
     simulator::TimeCv,
-    utils::time_ordered_data::TimeOrderedData,
+    utils::{SharedMutex, SharedRwLock, time_ordered_data::TimeOrderedData},
 };
 
 use super::network::MessageFlag;
@@ -43,13 +43,13 @@ pub trait ServiceInterface: Debug + Send + Sync {
 #[derive(Debug, Clone)]
 pub struct ServiceClient<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> {
     // Channel to send the request to the server (given by the server).
-    response_channel: Arc<Mutex<mpsc::Receiver<ServiceResponse<ResponseMsg>>>>,
+    response_channel: SharedMutex<mpsc::Receiver<ServiceResponse<ResponseMsg>>>,
     // Channel to receive the response from the server (given by the server).
-    request_channel: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32)>>>,
+    request_channel: SharedMutex<mpsc::Sender<(String, RequestMsg, f32)>>,
     // Simulator condition variable needed so that all nodes wait the end of other,
     // and continue to treat messages.
     time_cv: Arc<TimeCv>,
-    living: Arc<RwLock<bool>>,
+    living: SharedRwLock<bool>,
 }
 
 impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<RequestMsg, ResponseMsg> {
@@ -155,18 +155,18 @@ pub struct Service<
     T: HasService<RequestMsg, ResponseMsg> + ?Sized,
 > {
     /// Channel to receive requests from clients.
-    request_channel: Arc<Mutex<mpsc::Receiver<(String, RequestMsg, f32)>>>,
+    request_channel: SharedMutex<mpsc::Receiver<(String, RequestMsg, f32)>>,
     /// Channel to send requests to the server, which is cloned to the clients.
-    request_channel_give: Arc<Mutex<mpsc::Sender<(String, RequestMsg, f32)>>>,
+    request_channel_give: SharedMutex<mpsc::Sender<(String, RequestMsg, f32)>>,
     /// Map of the clients and their sender channel, to send responses.
-    clients: BTreeMap<String, Arc<Mutex<mpsc::Sender<ServiceResponse<ResponseMsg>>>>>,
+    clients: BTreeMap<String, SharedMutex<mpsc::Sender<ServiceResponse<ResponseMsg>>>>,
     /// Buffer to store the requests until it is time to treat them.
-    request_buffer: Arc<RwLock<TimeOrderedData<(String, RequestMsg)>>>,
+    request_buffer: SharedRwLock<TimeOrderedData<(String, RequestMsg)>>,
     /// Simulator condition variable needed so that all nodes wait the end of others,
     /// and continue to treat messages.
     time_cv: Arc<TimeCv>,
-    target: Arc<RwLock<Box<T>>>,
-    living: Arc<RwLock<bool>>,
+    target: SharedRwLock<Box<T>>,
+    living: SharedRwLock<bool>,
 }
 
 impl<
@@ -179,7 +179,7 @@ impl<
     ///
     /// ## Arguments
     /// * `time_cv` - Condition variable of the simulator, to wait the end of the nodes.
-    pub fn new(time_cv: Arc<TimeCv>, target: Arc<RwLock<Box<T>>>) -> Self {
+    pub fn new(time_cv: Arc<TimeCv>, target: SharedRwLock<Box<T>>) -> Self {
         let (tx, rx) = mpsc::channel::<(String, RequestMsg, f32)>();
         Self {
             request_channel_give: Arc::new(Mutex::new(tx)),
@@ -321,7 +321,7 @@ pub trait ServiceHandler<RequestMsg, ResponseMsg>: Sync + Send + Debug {
 /// Common interface for all struct which manages a service.
 pub trait HasService<RequestMsg, ResponseMsg>: Debug + Sync + Send {
     // /// Create the service: should be called only once, at the beginning.
-    // fn make_service(&mut self, node: Arc<RwLock<Robot>>);
+    // fn make_service(&mut self, node: SharedRwLock<Robot>>);
     // /// Create a new client to the service, should be called by client nodes.
     // fn new_client(&mut self, client_name: &str) -> ServiceClient<RequestMsg, ResponseMsg>;
     /// Handle the requests received from the clients at the given `time`.

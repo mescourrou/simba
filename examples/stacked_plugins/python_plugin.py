@@ -49,9 +49,9 @@ class StateEstimator(simba.StateEstimator):
                 case "OrientedLandmark":
                     landmark=sensor_obs.as_oriented_landmark()
                     print(f"Observation of landmark {landmark.id}: {landmark.pose}")
-                case "Odometry":
-                    odom=sensor_obs.as_odometry()
-                    print(f"Odometry: {odom}")
+                case "Speed":
+                    speed=sensor_obs.as_speed()
+                    print(f"Speed: {speed}")
                 case _:
                     print(f"Other: {sensor_obs.kind}")
         self._state += 100

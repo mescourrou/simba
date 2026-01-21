@@ -95,7 +95,6 @@ mod tests {
     };
 
     use log::debug;
-    use pyo3::pymethods;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
 
@@ -121,7 +120,8 @@ mod tests {
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
         },
         utils::{
-            determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
+            SharedMutex, determinist_random_variable::DeterministRandomVariableFactory,
+            maths::round_precision,
         },
     };
 
@@ -134,10 +134,10 @@ mod tests {
     struct StateEstimatorTest {
         pub last_time: f32,
         pub message: String,
-        pub letter_box: Option<Arc<Mutex<Receiver<Envelope>>>>,
+        pub letter_box: Option<SharedMutex<Receiver<Envelope>>>,
         pub letter_box_sender: Option<Sender<Envelope>>,
-        pub last_message: Arc<Mutex<Option<String>>>,
-        pub last_from: Arc<Mutex<Option<String>>>,
+        pub last_message: SharedMutex<Option<String>>,
+        pub last_from: SharedMutex<Option<String>>,
     }
 
     impl StateEstimator for StateEstimatorTest {
@@ -209,8 +209,8 @@ mod tests {
 
     struct PluginAPITest {
         pub message: String,
-        pub last_message: Arc<Mutex<Option<String>>>,
-        pub last_from: Arc<Mutex<Option<String>>>,
+        pub last_message: SharedMutex<Option<String>>,
+        pub last_from: SharedMutex<Option<String>>,
     }
 
     impl PluginAPI for PluginAPITest {
@@ -240,7 +240,7 @@ mod tests {
         // fn get_message_handlers(
         //     &self,
         //     node: &Node,
-        // ) -> Option<Vec<Arc<RwLock<dyn MessageHandler>>>> {
+        // ) -> Option<Vec<SharedRwLock<dyn MessageHandler>>>> {
         //     if node.name() == "node2" {
         //         Some(vec![self.message_handler.clone()])
         //     } else {

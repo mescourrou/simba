@@ -211,19 +211,20 @@ mod trigger_sensor {
             external_estimator::ExternalEstimatorRecord,
         },
         utils::{
-            determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
+            SharedMutex, determinist_random_variable::DeterministRandomVariableFactory,
+            maths::round_precision,
         },
     };
     use std::{
         collections::VecDeque,
-        sync::{Arc, Mutex, mpsc::Sender},
+        sync::{Arc, mpsc::Sender},
     };
 
     #[derive(Debug, Clone)]
     pub struct StateEstimatorTest {
         pub last_time: f32,
         pub is_the_triggered: bool,
-        pub trigger_times: Arc<Mutex<VecDeque<f32>>>,
+        pub trigger_times: SharedMutex<VecDeque<f32>>,
     }
 
     impl StateEstimator for StateEstimatorTest {
@@ -298,8 +299,8 @@ mod trigger_sensor {
     }
 
     pub struct PluginAPITest {
-        pub trigger_times: Arc<Mutex<VecDeque<f32>>>,
-        pub triggered_times: Arc<Mutex<VecDeque<f32>>>,
+        pub trigger_times: SharedMutex<VecDeque<f32>>,
+        pub triggered_times: SharedMutex<VecDeque<f32>>,
     }
 
     impl PluginAPI for PluginAPITest {
@@ -336,7 +337,7 @@ fn trigger_sensor() {
     // config.log.included_nodes = vec!["robot1".to_string()];
     // config.log.excluded_nodes = vec!["simulator".to_string()];
     // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::SensorManager, InternalLog::SensorManagerDetailed]);
-    // config.log.log_level = LogLevel::Internal(vec![InternalLog::All]);
+    config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
     config.max_time = 25.;
     config.results = None;
     config.robots.push(RobotConfig {

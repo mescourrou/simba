@@ -10,12 +10,15 @@ pub mod enum_tools;
 pub mod geometry;
 pub mod macros;
 pub mod maths;
+pub mod numbers;
 pub mod occupancy_grid;
 pub mod python;
+pub mod read_only_lock;
 pub mod rfc;
 pub mod time_ordered_data;
 
 use serde::Serializer;
+
 pub fn format_f32<S>(val: &f32, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
@@ -34,3 +37,7 @@ where
         None => serializer.serialize_none(),
     }
 }
+
+pub type SharedRoLock<T> = std::sync::Arc<dyn read_only_lock::RoLock<T>>;
+pub type SharedRwLock<T> = std::sync::Arc<std::sync::RwLock<T>>;
+pub type SharedMutex<T> = std::sync::Arc<std::sync::Mutex<T>>;

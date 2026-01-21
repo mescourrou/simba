@@ -10,6 +10,7 @@ use crate::gui::{
 use crate::{
     sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
+        SharedMutex,
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
         },
@@ -145,8 +146,8 @@ impl UIComponent for ClutterFaultConfig {
 
 #[derive(Debug)]
 pub struct ClutterFault {
-    apparition: Arc<Mutex<Box<dyn DeterministRandomVariable>>>,
-    distributions: Arc<Mutex<Vec<Box<dyn DeterministRandomVariable>>>>,
+    apparition: SharedMutex<Box<dyn DeterministRandomVariable>>,
+    distributions: SharedMutex<Vec<Box<dyn DeterministRandomVariable>>>,
     variable_order: Vec<String>,
     observation_id: String,
     config: ClutterFaultConfig,
@@ -196,16 +197,17 @@ impl ClutterFault {
 
 impl FaultModel for ClutterFault {
     fn add_faults(
-        &self,
-        time: f32,
+        &mut self,
+        _time: f32,
+        seed: f32,
         period: f32,
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,
     ) {
         let obs_seed_increment = 1. / (100. * period);
-        let mut seed = time;
+        let mut seed = seed;
 
-        let n_obs = self.apparition.lock().unwrap().generate(time)[0]
+        let n_obs = self.apparition.lock().unwrap().generate(seed)[0]
             .abs()
             .floor() as usize;
         for _ in 0..n_obs {
@@ -247,12 +249,13 @@ impl FaultModel for ClutterFault {
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
-                                "position_x" | "x" => o.position.x = random_sample[i],
-                                "position_y" | "y" => o.position.y = random_sample[i],
+                                "position_x" | "x" => o.pose.x = random_sample[i],
+                                "position_y" | "y" => o.pose.y = random_sample[i],
+                                "orientation" | "z" => o.pose.z = random_sample[i],
                                 "velocity_x" => o.velocity.x = random_sample[i],
                                 "velocity_y" => o.velocity.y = random_sample[i],
                                 &_ => panic!(
-                                    "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, velocity_x, velocity_y]",
+                                    "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, orientation | z, velocity_x, velocity_y]",
                                     variable
                                 ),
                             }
@@ -260,21 +263,25 @@ impl FaultModel for ClutterFault {
                     } else {
                         assert!(
                             random_sample.len() >= 2,
-                            "The distribution of an Clutter fault for GNSS observation need to be at least of dimension 2 (to 4 for velocities)."
+                            "The distribution of an Clutter fault for GNSS observation need to be at least of dimension 2 (to 5 for orientation and velocities)."
                         );
-                        o.position.x = random_sample[0];
-                        o.position.y = random_sample[1];
+                        o.pose.x = random_sample[0];
+                        o.pose.y = random_sample[1];
                         if random_sample.len() >= 3 {
-                            o.velocity.x = random_sample[2];
+                            o.pose.z = random_sample[2];
                         }
                         if random_sample.len() >= 4 {
-                            o.velocity.y = random_sample[3];
+                            o.velocity.x = random_sample[3];
+                        }
+                        if random_sample.len() >= 5 {
+                            o.velocity.y = random_sample[4];
                         }
                     }
                     o.applied_faults
                         .push(FaultModelConfig::Clutter(self.config.clone()));
                 }
-                SensorObservation::Odometry(o) => {
+                #[allow(deprecated)]
+                SensorObservation::Speed(o) | SensorObservation::Odometry(o) => {
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
@@ -297,6 +304,33 @@ impl FaultModel for ClutterFault {
                         );
                         o.angular_velocity = random_sample[0];
                         o.linear_velocity = random_sample[1];
+                    }
+                    o.applied_faults
+                        .push(FaultModelConfig::Clutter(self.config.clone()));
+                }
+                SensorObservation::Displacement(o) => {
+                    if !self.variable_order.is_empty() {
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
+                                "dx" | "x" => o.translation.x = random_sample[i],
+                                "dy" | "y" => o.translation.y = random_sample[i],
+                                "r" | "rotation" => o.rotation = random_sample[i],
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [dx | x, dy | y, r | rotation]",
+                                    variable
+                                ),
+                            }
+                        }
+                    } else {
+                        assert!(
+                            random_sample.len() >= 2,
+                            "The distribution of an Clutter fault for Displacement observation need to be at least of dimension 2 (to 3 for rotation)."
+                        );
+                        o.translation.x = random_sample[0];
+                        o.translation.y = random_sample[1];
+                        if random_sample.len() >= 3 {
+                            o.rotation = random_sample[2];
+                        }
                     }
                     o.applied_faults
                         .push(FaultModelConfig::Clutter(self.config.clone()));

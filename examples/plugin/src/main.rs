@@ -26,6 +26,7 @@ use simba::state_estimators::{
     State, StateEstimator, StateEstimatorRecord, StateRecord, WorldState,
 };
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use simba::utils::SharedMutex;
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -42,7 +43,7 @@ struct MyWonderfulControllerConfig {}
 
 #[derive(Debug)]
 struct MyWonderfulController {
-    letter_box_rx: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>,
     letter_box_tx: Sender<Envelope>,
 }
 
@@ -102,7 +103,7 @@ struct MyWonderfulNavigatorConfig {}
 
 #[derive(Debug)]
 struct MyWonderfulNavigator {
-    letter_box_rx: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>,
     letter_box_tx: Sender<Envelope>,
 }
 
@@ -173,7 +174,7 @@ impl MyWonderfulPhysics {
         Self {
             state: State {
                 pose: Vector3::zeros(),
-                velocity: Vector2::zeros(),
+                velocity: Vector3::zeros(),
             },
         }
     }
@@ -225,7 +226,7 @@ struct MyWonderfulStateEstimatorConfig {}
 #[derive(Debug)]
 struct MyWonderfulStateEstimator {
     last_prediction: f32,
-    letter_box_rx: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>,
     letter_box_tx: Sender<Envelope>,
 }
 
@@ -324,7 +325,7 @@ impl Sensor for MyWonderfulSensor {
     fn get_observations(&mut self, _node: &mut Node, time: f32) -> Vec<SensorObservation> {
         self.last_observation = Some(MyWonderfulSensorObservation { data: time });
         self.last_time = time;
-        // Return a custom observation here, but you can return an existing one as well (e.g. OdometryObservation)
+        // Return a custom observation here, but you can return an existing one as well (e.g. SpeedObservation)
         vec![SensorObservation::External(ExternalObservation {
             observation: serde_json::to_value(self.last_observation.as_ref().unwrap()).unwrap(),
         })]

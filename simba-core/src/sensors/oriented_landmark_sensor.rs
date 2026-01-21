@@ -16,6 +16,7 @@ use crate::sensors::sensor_filters::{
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
+use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::{
     segment_circle_intersection, segment_to_line_intersection, segment_triangle_intersection,
@@ -195,6 +196,7 @@ impl UIComponent for OrientedLandmarkSensorRecord {
 #[derive(Debug, Clone)]
 pub struct OrientedLandmark {
     pub id: i32,
+    pub labels: Vec<String>,
     pub pose: Vector3<f32>,
     /// Height of the landmark, used for obstruction checks
     /// Use 0 for fully transparent landmarks
@@ -211,8 +213,9 @@ impl Serialize for OrientedLandmark {
         S: Serializer,
     {
         // 3 is the number of fields in the struct.
-        let mut state = serializer.serialize_struct("OrientedLandmark", 4)?;
+        let mut state = serializer.serialize_struct("OrientedLandmark", 5)?;
         state.serialize_field("id", &self.id)?;
+        state.serialize_field("labels", &self.labels)?;
         state.serialize_field("x", &self.pose.x)?;
         state.serialize_field("y", &self.pose.y)?;
         state.serialize_field("theta", &self.pose.z)?;
@@ -231,6 +234,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
     {
         enum Field {
             Id,
+            Labels,
             X,
             Y,
             Theta,
@@ -255,7 +259,9 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                     type Value = Field;
 
                     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                        formatter.write_str("`id` or `x` or `y` or `theta` or `height` or `width`")
+                        formatter.write_str(
+                            "`id` or `labels` or `x` or `y` or `theta` or `height` or `width`",
+                        )
                     }
 
                     fn visit_str<E>(self, value: &str) -> Result<Field, E>
@@ -264,6 +270,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                     {
                         match value {
                             "id" => Ok(Field::Id),
+                            "labels" => Ok(Field::Labels),
                             "x" => Ok(Field::X),
                             "y" => Ok(Field::Y),
                             "theta" => Ok(Field::Theta),
@@ -294,23 +301,27 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                 let id: i32 = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let x: f32 = seq
+                let labels: Vec<String> = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let y: f32 = seq
+                let x: f32 = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(2, &self))?;
-                let theta: f32 = seq
+                let y: f32 = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(3, &self))?;
-                let height: f32 = seq
+                let theta: f32 = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(4, &self))?;
-                let width: f32 = seq
+                let height: f32 = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::invalid_length(5, &self))?;
+                let width: f32 = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::invalid_length(6, &self))?;
                 Ok(OrientedLandmark {
                     id,
+                    labels,
                     pose: Vector3::from_vec(vec![x, y, theta]),
                     height,
                     width,
@@ -322,6 +333,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                 V: MapAccess<'de>,
             {
                 let mut id = None;
+                let mut labels = None;
                 let mut x = None;
                 let mut y = None;
                 let mut theta = None;
@@ -335,6 +347,12 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                                 return Err(de::Error::duplicate_field("id"));
                             }
                             id = Some(map.next_value()?);
+                        }
+                        Field::Labels => {
+                            if labels.is_some() {
+                                return Err(de::Error::duplicate_field("labels"));
+                            }
+                            labels = Some(map.next_value()?);
                         }
                         Field::X => {
                             if x.is_some() {
@@ -370,6 +388,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                     }
                 }
                 let id = id.ok_or_else(|| de::Error::missing_field("id"))?;
+                let labels = labels.ok_or_else(|| de::Error::missing_field("labels"))?;
                 let x = x.ok_or_else(|| de::Error::missing_field("x"))?;
                 let y = y.ok_or_else(|| de::Error::missing_field("y"))?;
                 let theta = theta.unwrap_or(0.);
@@ -377,6 +396,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                 let width = width.unwrap_or(0.);
                 Ok(OrientedLandmark {
                     id,
+                    labels,
                     pose: Vector3::from_vec(vec![x, y, theta]),
                     height,
                     width,
@@ -384,7 +404,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
             }
         }
 
-        const FIELDS: &[&str] = &["id", "x", "y", "theta", "height", "width"];
+        const FIELDS: &[&str] = &["id", "labels", "x", "y", "theta", "height", "width"];
         deserializer.deserialize_struct("OrientedLandmark", FIELDS, OrientedLandmarkVisitor)
     }
 }
@@ -394,6 +414,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
 pub struct OrientedLandmarkObservation {
     /// Id of the landmark
     pub id: i32,
+    pub labels: Vec<String>,
     /// Pose of the landmark
     pub pose: Vector3<f32>,
     /// Height of the landmark, used for obstruction checks
@@ -408,6 +429,7 @@ impl Default for OrientedLandmarkObservation {
     fn default() -> Self {
         Self {
             id: 0,
+            labels: Vec::new(),
             pose: Vector3::new(0., 0., 0.),
             height: 1.,
             width: 0.,
@@ -420,6 +442,7 @@ impl Recordable<OrientedLandmarkObservationRecord> for OrientedLandmarkObservati
     fn record(&self) -> OrientedLandmarkObservationRecord {
         OrientedLandmarkObservationRecord {
             id: self.id,
+            labels: self.labels.clone(),
             pose: self.pose.into(),
             height: self.height,
             width: self.width,
@@ -432,6 +455,7 @@ impl Recordable<OrientedLandmarkObservationRecord> for OrientedLandmarkObservati
 pub struct OrientedLandmarkObservationRecord {
     /// Id of the landmark
     pub id: i32,
+    pub labels: Vec<String>,
     /// Pose of the landmark
     pub pose: [f32; 3],
     pub height: f32,
@@ -444,6 +468,10 @@ impl UIComponent for OrientedLandmarkObservationRecord {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Id: {}", self.id));
+            ui.label("Labels:");
+            for label in &self.labels {
+                ui.label(format!("- {}", label));
+            }
             ui.label(format!(
                 "Pose: ({}, {}, {})",
                 self.pose[0], self.pose[1], self.pose[2]
@@ -483,8 +511,8 @@ pub struct OrientedLandmarkSensor {
     period: Option<f32>,
     /// Last observation time.
     last_time: f32,
-    faults: Arc<Mutex<Vec<Box<dyn FaultModel>>>>,
-    filters: Arc<Mutex<Vec<Box<dyn SensorFilter>>>>,
+    faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
+    filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
     /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
     xray: bool,
 }
@@ -911,6 +939,7 @@ impl Sensor for OrientedLandmarkSensor {
                 let mut new_obs = Vec::new();
                 let obs = SensorObservation::OrientedLandmark(OrientedLandmarkObservation {
                     id: landmark.id,
+                    labels: landmark.labels.clone(),
                     pose,
                     applied_faults: Vec::new(),
                     height: landmark.height,
@@ -924,8 +953,9 @@ impl Sensor for OrientedLandmarkSensor {
                     .try_fold(obs, |obs, filter| filter.filter(time, obs, &state, None))
                 {
                     new_obs.push(observation);
-                    for fault_model in self.faults.lock().unwrap().iter() {
+                    for fault_model in self.faults.lock().unwrap().iter_mut() {
                         fault_model.add_faults(
+                            time,
                             time + landmark_seed,
                             self.period.unwrap_or(TIME_ROUND),
                             &mut new_obs,

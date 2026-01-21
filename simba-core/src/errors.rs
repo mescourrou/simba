@@ -17,6 +17,7 @@ pub enum SimbaErrorTypes {
     PythonError,
     NetworkError(NetworkError),
     ServiceError(ServiceError),
+    ExternalAPIError,
 }
 
 #[derive(Clone)]

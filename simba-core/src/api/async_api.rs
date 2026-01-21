@@ -15,6 +15,7 @@ use crate::{
     simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::StateEstimator,
     utils::{
+        SharedMutex,
         determinist_random_variable::DeterministRandomVariableFactory,
         rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
@@ -27,7 +28,7 @@ pub struct AsyncApi {
     // Channels
     pub load_config:
         rfc::RemoteFunctionCall<AsyncApiLoadConfigRequest, SimbaResult<SimulatorConfig>>,
-    pub load_results: rfc::RemoteFunctionCall<(), SimbaResult<f32>>,
+    pub load_results: rfc::RemoteFunctionCall<Option<String>, SimbaResult<f32>>,
     pub run: rfc::RemoteFunctionCall<AsyncApiRunRequest, SimbaResult<()>>,
     pub get_records: rfc::RemoteFunctionCall<bool, SimbaResult<Vec<Record>>>,
     pub compute_results: rfc::RemoteFunctionCall<(), SimbaResult<()>>,
@@ -38,7 +39,7 @@ pub struct AsyncApi {
 pub struct AsyncApiServer {
     pub load_config:
         Arc<rfc::RemoteFunctionCallHost<AsyncApiLoadConfigRequest, SimbaResult<SimulatorConfig>>>,
-    pub load_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<f32>>>,
+    pub load_results: Arc<rfc::RemoteFunctionCallHost<Option<String>, SimbaResult<f32>>>,
     pub run: Arc<rfc::RemoteFunctionCallHost<AsyncApiRunRequest, SimbaResult<()>>>,
     pub compute_results: Arc<rfc::RemoteFunctionCallHost<(), SimbaResult<()>>>,
     pub get_records: Arc<rfc::RemoteFunctionCallHost<bool, SimbaResult<Vec<Record>>>>,
@@ -48,9 +49,9 @@ pub struct AsyncApiServer {
 pub struct AsyncApiRunner {
     public_api: AsyncApi,
     private_api: AsyncApiServer,
-    simulator: Arc<Mutex<Simulator>>,
+    simulator: SharedMutex<Simulator>,
     keep_alive_tx: mpsc::Sender<()>,
-    keep_alive_rx: Arc<Mutex<mpsc::Receiver<()>>>,
+    keep_alive_rx: SharedMutex<mpsc::Receiver<()>>,
     thread_handle: Option<JoinHandle<()>>,
     running: bool,
 }
@@ -61,7 +62,7 @@ impl AsyncApiRunner {
         AsyncApiRunner::new_with_simulator(simulator)
     }
 
-    pub fn new_with_simulator(simulator: Arc<Mutex<Simulator>>) -> Self {
+    pub fn new_with_simulator(simulator: SharedMutex<Simulator>) -> Self {
         let (load_config_call, load_config_host) = rfc::make_pair();
         let (run_call, run_host) = rfc::make_pair();
         let (results_call, results_host) = rfc::make_pair();
@@ -97,7 +98,7 @@ impl AsyncApiRunner {
         self.public_api.clone()
     }
 
-    pub fn get_simulator(&self) -> Arc<Mutex<Simulator>> {
+    pub fn get_simulator(&self) -> SharedMutex<Simulator> {
         self.simulator.clone()
     }
 
@@ -160,9 +161,9 @@ impl AsyncApiRunner {
             let simulator_arc = simulator_cloned.clone();
             thread::spawn(move || {
                 while !*stopping.read().unwrap() {
-                    load_results.recv_closure(|()| {
+                    load_results.recv_closure(|result_path| {
                         let mut simulator = simulator_arc.lock().unwrap();
-                        simulator.load_results()
+                        simulator.load_results_full(result_path)
                     });
                 }
             });

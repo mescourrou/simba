@@ -20,6 +20,7 @@ use log::debug;
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
 
+use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
@@ -73,17 +74,6 @@ pub struct ExternalController {
 }
 
 impl ExternalController {
-    /// Creates a new [`ExternalController`]
-    pub fn new() -> Self {
-        Self::from_config(
-            &ExternalControllerConfig::default(),
-            &None,
-            &SimulatorConfig::default(),
-            &Arc::new(DeterministRandomVariableFactory::default()),
-            0.0,
-        )
-    }
-
     /// Creates a new [`ExternalController`] from the given config.
     ///
     /// <div class="warning">The `plugin_api` is required here !</div>
@@ -99,22 +89,21 @@ impl ExternalController {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
-    ) -> Self {
+    ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Config given: {:?}", config);
         }
-        Self {
+        Ok(Self {
             controller: plugin_api
                 .as_ref()
-                .expect("Plugin API not set!")
+                .ok_or_else(|| {
+                    SimbaError::new(
+                        SimbaErrorTypes::ExternalAPIError,
+                        "Plugin API not set!".to_string(),
+                    )
+                })?
                 .get_controller(&config.config, global_config, va_factory, initial_time),
-        }
-    }
-}
-
-impl Default for ExternalController {
-    fn default() -> Self {
-        Self::new()
+        })
     }
 }
 

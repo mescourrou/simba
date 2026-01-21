@@ -14,7 +14,7 @@ use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use crate::{
     navigators::{Navigator, NavigatorRecord},
     networking::{message_handler::MessageHandler, network::Envelope},
-    utils::geometry::smallest_theta_diff,
+    utils::{SharedMutex, geometry::smallest_theta_diff},
 };
 
 extern crate nalgebra as na;
@@ -206,7 +206,7 @@ pub struct GoTo {
     /// Coefficient of the target velocity, multiplied by the remaining distance
     stop_ramp_coefficient: f32,
 
-    letter_box: Arc<Mutex<Receiver<Envelope>>>,
+    letter_box: SharedMutex<Receiver<Envelope>>,
     letter_box_sender: Sender<Envelope>,
 }
 
@@ -270,7 +270,7 @@ impl Navigator for GoTo {
                 longitudinal: 0.,
                 lateral: 0.,
                 theta: 0.,
-                velocity: state.velocity.norm(),
+                velocity: state.velocity.fixed_rows::<2>(0).norm(),
             };
         }
         let target_point = SVector::from_row_slice(&self.current_point.unwrap());
@@ -292,10 +292,15 @@ impl Navigator for GoTo {
 
         self.error.theta = theta_error;
 
-        self.error.lateral = 0.;
+        // Compute longitudinal and lateral errors
+        // Need to project the target point in the robot frame
+        let rot = na::Rotation2::new(-state.pose.z);
+        let relative_target = rot * (target_point - state.pose.fixed_view::<2, 1>(0, 0));
+        self.error.lateral = relative_target[1];
+        self.error.longitudinal = relative_target[0];
 
         // Compute the velocity error
-        self.error.velocity = self.target_speed - state.velocity.norm();
+        self.error.velocity = self.target_speed - state.velocity.fixed_rows::<2>(0).norm();
 
         self.error.clone()
     }
