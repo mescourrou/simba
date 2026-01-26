@@ -520,13 +520,13 @@ impl Sensor for RobotSensor {
                                 filter.filter(time, obs, &state, Some(&other_state))
                             })
                         {
-                            new_obs.push(observation);
+                            new_obs.push(observation); // Not adding directly to observation_list to apply faults only once
                             for fault_model in self.faults.lock().unwrap().iter_mut() {
                                 fault_model.add_faults(
                                     time,
                                     time + robot_seed,
                                     self.period.unwrap_or(TIME_ROUND),
-                                    &mut observation_list,
+                                    &mut new_obs,
                                     SensorObservation::OrientedRobot(
                                         OrientedRobotObservation::default(),
                                     ),

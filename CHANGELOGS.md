@@ -1,5 +1,8 @@
 # Changelogs
 
+## v1.4.4
+- Fix fault application for RobotSensor
+
 ## v1.4.3
 GUI:
 - Previous results loading only on frontend side: possibility to load results without required plugins

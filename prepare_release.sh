@@ -2,7 +2,31 @@
 
 set -e
 
-CURRENT_RELEASE=$(git branch --show-current | sed 's/release\/v//')
+
+POSITIONAL_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --hotfix)
+      USE_VERSION="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    -*|--*)
+      echo "Unknown option $1"
+      exit 1
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$1") # save positional arg
+      shift # past argument
+      ;;
+  esac
+done
+
+if [ -n "$USE_VERSION" ]; then
+    CURRENT_RELEASE="$USE_VERSION"
+else
+    CURRENT_RELEASE=$(git branch --show-current | sed 's/release\/v//')
+fi
 
 echo "Preparing release $CURRENT_RELEASE"
 

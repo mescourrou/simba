@@ -76,7 +76,7 @@
     },
     "version": {
       "type": "string",
-      "default": "1.4.3"
+      "default": "1.4.4"
     }
   },
   "additionalProperties": false,
