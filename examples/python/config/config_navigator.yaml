@@ -18,8 +18,9 @@ robots:
   - name: "robot1"
     navigator: 
       type: External
-      radius: 3
-      velocity: 2
+      config:
+        radius: 3
+        velocity: 2
   - name: "robot2"
     navigator: 
       type: TrajectoryFollower

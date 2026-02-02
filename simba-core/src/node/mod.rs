@@ -101,7 +101,7 @@ pub struct Node {
     pub(self) node_server: Option<NodeServer>,
 
     pub(self) other_node_names: Vec<String>,
-    pub(self) time_analysis: SharedMutex<TimeAnalysisNode>,
+    pub(self) time_analysis: Option<SharedMutex<TimeAnalysisNode>>,
     pub(self) send_records: bool,
 
     pub(self) node_meta_data: SharedRwLock<NodeMetaData>,
@@ -312,15 +312,21 @@ impl Node {
             && time >= state_estimator.read().unwrap().next_time_step()
         {
             // Prediction step
-            let ta = self.time_analysis.lock().unwrap().time_analysis(
-                time,
-                "control_loop_state_estimator_prediction_step".to_string(),
-            );
+            let ta = if let Some(time_analysis) = &self.time_analysis {
+                Some(time_analysis.lock().unwrap().time_analysis(
+                    time,
+                    "control_loop_state_estimator_prediction_step".to_string(),
+                ))
+            } else {
+                None
+            };
             state_estimator.write().unwrap().prediction_step(self, time);
-            self.time_analysis
-                .lock()
-                .unwrap()
-                .finished_time_analysis(ta);
+            if let Some(time_analysis) = &self.time_analysis {
+                time_analysis
+                    .lock()
+                    .unwrap()
+                    .finished_time_analysis(ta.unwrap());
+            }
             do_control_loop = true;
         }
 
@@ -333,20 +339,22 @@ impl Node {
                         .unwrap()
                         .next_time_step()
                 {
-                    let ta = self
-                        .time_analysis
-                        .lock()
-                        .unwrap()
-                        .time_analysis(time, state_estimator.name.clone() + "_prediction_step");
+                    let ta = if let Some(time_analysis) = &self.time_analysis {
+                        Some(time_analysis.lock().unwrap().time_analysis(time, state_estimator.name.clone() + "_prediction_step"))
+                    } else {
+                        None
+                    };
                     state_estimator
                         .state_estimator
                         .write()
                         .unwrap()
                         .prediction_step(self, time);
-                    self.time_analysis
-                        .lock()
-                        .unwrap()
-                        .finished_time_analysis(ta);
+                    if let Some(time_analysis) = &self.time_analysis {
+                        time_analysis
+                            .lock()
+                            .unwrap()
+                            .finished_time_analysis(ta.unwrap());
+                    }
                 }
             }
         }
@@ -381,36 +389,44 @@ impl Node {
             if !observations.is_empty() {
                 // Treat the observations
                 if let Some(state_estimator) = &self.state_estimator() {
-                    let ta = self.time_analysis.lock().unwrap().time_analysis(
-                        time,
-                        "control_loop_state_estimator_correction_step".to_string(),
-                    );
+                    let ta = if let Some(time_analysis) = &self.time_analysis {
+                        Some(time_analysis.lock().unwrap().time_analysis(
+                            time,
+                            "control_loop_state_estimator_correction_step".to_string(),
+                        ))
+                    } else {
+                        None
+                    };
                     state_estimator
                         .write()
                         .unwrap()
                         .correction_step(self, &observations, time);
-                    self.time_analysis
-                        .lock()
-                        .unwrap()
-                        .finished_time_analysis(ta);
+                    if let Some(time_analysis) = &self.time_analysis {
+                        time_analysis
+                            .lock()
+                            .unwrap()
+                            .finished_time_analysis(ta.unwrap());
+                    }
                 }
 
                 if let Some(state_estimator_bench) = &self.state_estimator_bench() {
                     for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                        let ta = self
-                            .time_analysis
-                            .lock()
-                            .unwrap()
-                            .time_analysis(time, state_estimator.name.clone() + "_correction_step");
+                        let ta = if let Some(time_analysis) = &self.time_analysis {
+                            Some(time_analysis.lock().unwrap().time_analysis(time, state_estimator.name.clone() + "_correction_step"))
+                        } else {
+                            None
+                        };
                         state_estimator
                             .state_estimator
                             .write()
                             .unwrap()
                             .correction_step(self, &observations, time);
-                        self.time_analysis
-                            .lock()
-                            .unwrap()
-                            .finished_time_analysis(ta);
+                        if let Some(time_analysis) = &self.time_analysis {
+                            time_analysis
+                                .lock()
+                                .unwrap()
+                                .finished_time_analysis(ta.unwrap());
+                        }
                     }
                 }
             }
@@ -426,11 +442,11 @@ impl Node {
             let world_state = state_estimator.read().unwrap().world_state();
 
             // Compute the error to the planned path
-            let ta = self
-                .time_analysis
-                .lock()
-                .unwrap()
-                .time_analysis(time, "control_loop_navigator_compute_error".to_string());
+            let ta = if let Some(time_analysis) = &self.time_analysis {
+                Some(time_analysis.lock().unwrap().time_analysis(time, "control_loop_navigator_compute_error".to_string()))
+            } else {
+                None
+            };
             let error = self
                 .navigator()
                 .as_ref()
@@ -438,17 +454,19 @@ impl Node {
                 .write()
                 .unwrap()
                 .compute_error(self, world_state);
-            self.time_analysis
-                .lock()
-                .unwrap()
-                .finished_time_analysis(ta);
+            if let Some(time_analysis) = &self.time_analysis {
+                time_analysis
+                    .lock()
+                    .unwrap()
+                .finished_time_analysis(ta.unwrap());
+            }
 
             // Compute the command from the error
-            let ta = self
-                .time_analysis
-                .lock()
-                .unwrap()
-                .time_analysis(time, "control_loop_controller_make_command".to_string());
+            let ta = if let Some(time_analysis) = &self.time_analysis {
+                Some(time_analysis.lock().unwrap().time_analysis(time, "control_loop_controller_make_command".to_string()))
+            } else {
+                None
+            };
             let command = self
                 .controller()
                 .as_ref()
@@ -456,10 +474,12 @@ impl Node {
                 .write()
                 .unwrap()
                 .make_command(self, &error, time);
-            self.time_analysis
-                .lock()
-                .unwrap()
-                .finished_time_analysis(ta);
+            if let Some(time_analysis) = &self.time_analysis {
+                time_analysis
+                    .lock()
+                    .unwrap()
+                    .finished_time_analysis(ta.unwrap());
+            }
 
             // Apply the command to the physics
             self.physics

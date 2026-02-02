@@ -29,7 +29,8 @@ robots:
       proportional_gains: [1.0, 6.0]
     physics: 
       type: External
-      wheel_distance: 0.25
+      config:
+        wheel_distance: 0.25
   # - name: "robot2"
   #   navigator:
   #     type: TrajectoryFollower

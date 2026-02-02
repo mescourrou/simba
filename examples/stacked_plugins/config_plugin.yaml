@@ -3,7 +3,8 @@ log:
   log_level:
     type: Info
 results:
-  result_path: "results.json"  
+  result_path: "results.json"
+time_analysis: null
 max_time: 60.
 robots:
   - name: "robot1"

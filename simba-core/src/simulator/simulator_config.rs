@@ -51,7 +51,7 @@ pub struct SimulatorConfig {
     pub max_time: f32,
 
     #[check]
-    pub time_analysis: TimeAnalysisConfig,
+    pub time_analysis: Option<TimeAnalysisConfig>,
     #[serde(serialize_with = "format_option_f32")]
     pub random_seed: Option<f32>,
     /// List of the robots to run, with their specific configuration.
@@ -71,7 +71,7 @@ impl Default for SimulatorConfig {
             log: LoggerConfig::default(),
             base_path: Box::from(Path::new(".")),
             results: None,
-            time_analysis: TimeAnalysisConfig::default(),
+            time_analysis: Some(TimeAnalysisConfig::default()),
             random_seed: None,
             robots: Vec::new(),
             computation_units: Vec::new(),
@@ -109,13 +109,15 @@ impl SimulatorConfig {
         };
 
         config.base_path = Box::from(path.parent().unwrap());
-        config.time_analysis.output_path = config
-            .base_path
-            .as_ref()
-            .join(&config.time_analysis.output_path)
-            .to_str()
-            .unwrap()
-            .to_string();
+        if let Some(time_analysis) = &mut config.time_analysis {
+            time_analysis.output_path = config
+                .base_path
+                .as_ref()
+                .join(&time_analysis.output_path)
+                .to_str()
+                .unwrap()
+                .to_string();
+        }
 
         Ok(config)
     }
@@ -182,15 +184,25 @@ impl crate::gui::UIComponent for SimulatorConfig {
                 ui.add(egui::DragValue::new(&mut self.max_time).max_decimals(TIME_ROUND_DECIMALS));
             });
 
-            ui.horizontal(|ui| {
-                self.time_analysis.show_mut(
-                    ui,
-                    ctx,
-                    buffer_stack,
-                    global_config,
-                    current_node_name,
-                    unique_id,
-                );
+            ui.horizontal_top(|ui| {
+                if let Some(time_analysis) = &mut self.time_analysis {
+                    time_analysis.show_mut(
+                        ui,
+                        ctx,
+                        buffer_stack,
+                        global_config,
+                        current_node_name,
+                        unique_id,
+                    );
+                    if ui.button("X").clicked() {
+                        self.time_analysis = None;
+                    }
+                } else {
+                    ui.label("Time Analysis: ");
+                    if ui.button("+").clicked() {
+                        self.time_analysis = Some(TimeAnalysisConfig::default());
+                    }
+                }
             });
 
             ui.vertical(|ui| {
@@ -265,7 +277,11 @@ impl crate::gui::UIComponent for SimulatorConfig {
             });
 
             ui.horizontal(|ui| {
-                self.time_analysis.show(ui, ctx, unique_id);
+                if let Some(time_analysis) = &self.time_analysis {
+                    time_analysis.show(ui, ctx, unique_id);
+                } else {
+                    ui.label("Time Analysis disabled");
+                }
             });
 
             ui.vertical(|ui| {

@@ -655,7 +655,7 @@ pub struct MakeNodeParams<'a> {
     pub plugin_api: &'a Option<Arc<dyn PluginAPI>>,
     pub global_config: &'a SimulatorConfig,
     pub va_factory: &'a Arc<DeterministRandomVariableFactory>,
-    pub time_analysis_factory: &'a mut TimeAnalysisFactory,
+    pub time_analysis_factory: Option<&'a mut TimeAnalysisFactory>,
     pub time_cv: Arc<TimeCv>,
     pub force_send_results: bool,
     pub new_name: Option<&'a str>,
@@ -737,7 +737,7 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            time_analysis: params.time_analysis_factory.new_node(config.name.clone()),
+            time_analysis: params.time_analysis_factory.as_mut().map(|taf| taf.new_node(config.name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
         };
@@ -815,7 +815,7 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            time_analysis: params.time_analysis_factory.new_node(config.name.clone()),
+            time_analysis: params.time_analysis_factory.as_mut().map(|taf| taf.new_node(config.name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
         };

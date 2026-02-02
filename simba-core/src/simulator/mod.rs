@@ -238,7 +238,7 @@ pub struct Simulator {
 
     result_saving_data: Option<ResultSavingData>,
     records: Vec<Record>,
-    time_analysis_factory: TimeAnalysisFactory,
+    time_analysis_factory: Option<TimeAnalysisFactory>,
     force_send_results: bool,
     scenario: SharedMutex<Scenario>,
     plugin_api: Option<Arc<dyn PluginAPI>>,
@@ -264,10 +264,10 @@ impl Simulator {
             node_apis: BTreeMap::new(),
             result_saving_data: Some(ResultSavingData::default()),
             records: Vec::new(),
-            time_analysis_factory: TimeAnalysisFactory::init_from_config(
+            time_analysis_factory: Some(TimeAnalysisFactory::init_from_config(
                 &TimeAnalysisConfig::default(),
             )
-            .unwrap(),
+            .unwrap()),
             force_send_results: false,
             scenario: Arc::new(Mutex::new(Scenario::from_config(
                 &ScenarioConfig::default(),
@@ -325,7 +325,10 @@ impl Simulator {
         let config = self.config.clone();
         self.common_time = Arc::new(RwLock::new(f32::INFINITY));
 
-        self.time_analysis_factory = TimeAnalysisFactory::init_from_config(&config.time_analysis)?;
+        self.time_analysis_factory = match &config.time_analysis {
+            Some(time_analysis) => Some(TimeAnalysisFactory::init_from_config(time_analysis)?),
+            None => None,
+        };
 
         if config.results.is_some() && self.async_api.is_none() {
             self.async_api = Some(self.get_async_api());
@@ -556,7 +559,7 @@ impl Simulator {
                 plugin_api: &self.plugin_api,
                 global_config,
                 va_factory: &self.determinist_va_factory,
-                time_analysis_factory: &mut self.time_analysis_factory,
+                time_analysis_factory: self.time_analysis_factory.as_mut(),
                 time_cv: self.time_cv.clone(),
                 force_send_results,
                 new_name: None,
@@ -587,7 +590,7 @@ impl Simulator {
                 plugin_api: &self.plugin_api,
                 global_config,
                 va_factory: &self.determinist_va_factory,
-                time_analysis_factory: &mut self.time_analysis_factory,
+                time_analysis_factory: self.time_analysis_factory.as_mut(),
                 time_cv: self.time_cv.clone(),
                 force_send_results,
                 new_name: None,
@@ -690,7 +693,7 @@ impl Simulator {
                 plugin_api: &self.plugin_api,
                 global_config: &self.config,
                 va_factory: &self.determinist_va_factory,
-                time_analysis_factory: &mut self.time_analysis_factory,
+                time_analysis_factory: self.time_analysis_factory.as_mut(),
                 time_cv: self.time_cv.clone(),
                 force_send_results: self.force_send_results,
                 new_name: Some(new_node_name),
@@ -915,9 +918,9 @@ impl Simulator {
             ResultSaveMode::AtTheEnd => (),
         }
 
-        if time.is_none() {
+        if time.is_none() && let Some(taf) = &mut self.time_analysis_factory {
             // Only at the end
-            self.time_analysis_factory.save_results();
+            taf.save_results();
         }
 
         let mut new_records = Vec::new();
