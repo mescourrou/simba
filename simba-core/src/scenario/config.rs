@@ -12,6 +12,10 @@ pub struct ScenarioConfig {
 #[config_derives]
 #[derive(Default)]
 pub struct EventConfig {
+    /// Names of the nodes that can trigger this event. If empty, any node can trigger it.
+    /// Regexp patterns are supported.
+    /// Only applied to non-time triggers.
+    pub triggering_nodes: Vec<String>,
     pub trigger: EventTriggerConfig,
     pub event_type: EventTypeConfig,
 }
