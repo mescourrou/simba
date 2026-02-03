@@ -11,9 +11,9 @@ use crate::utils::determinist_random_variable::DeterministRandomVariable;
 #[config_derives]
 pub struct NormalRandomVariableConfig {
     /// Mean of the normal distribution.
-    mean: Vec<f64>,
+    pub mean: Vec<f64>,
     /// Variance of the normal distribution.
-    covariance: Vec<f64>,
+    pub covariance: Vec<f64>,
 }
 
 impl Default for NormalRandomVariableConfig {
