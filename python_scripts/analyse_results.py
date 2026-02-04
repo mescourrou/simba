@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import IPython
 
-def analyse(records: dict, config: dict, figure_path: str, figure_type: str, additionnal_param: dict|None):
+def analyse(records: list, config: dict, figure_path: str, figure_type: str, additionnal_param: dict|None):
 
     # config = data["config"]
     # record = data["record"]

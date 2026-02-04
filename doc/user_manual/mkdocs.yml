@@ -1,2 +1,33 @@
 site_name: SiMBA
 theme: readthedocs
+markdown_extensions:
+  - admonition
+nav:
+  - Home: index.md
+  - Configuration:
+    - Getting Started: config_getting_started.md
+    - Reference Overview: config_reference.md
+    - Component Configuration:
+      - Overview: config/index.md
+      - Navigation: config/navigation.md
+      - Controller: config/controller.md
+      - Physics: config/physics.md
+      - Sensors: config/sensors.md
+      - State Estimator: config/state_estimator.md
+      - Network: config/network.md
+    - Advanced:
+      - Computation Units: config/computation_units.md
+      - Scenario: config/scenario.md
+    - Tips & Tricks: config_tips.md
+    - Auto-generated Docs: config_documentation.md
+  - Python Integration:
+    - Overview: python/index.md
+    - Using Python bindings: python/using_python.md
+  - Plugins:
+    - Overview: plugin/index.md
+    - Write a Plugin: plugin/0_write_plugin.md
+    - Navigator Plugin: plugin/navigator.md
+    - Controller Plugin: plugin/controller.md
+    - Physics Plugin: plugin/physics.md
+    - State Estimator Plugin: plugin/state_estimator.md
+    - Message Handler Plugin: plugin/message_handler.md

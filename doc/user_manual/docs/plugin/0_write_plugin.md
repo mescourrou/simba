@@ -23,7 +23,6 @@ Presently, you can extend the following modules:
 - The [navigator](navigator.md), which computes an error to the goal/trajectory from the world representation given by the state estimator.
 - The [controller](controller.md), which makes commands for the robot to reduce the error computed by the navigator.
 - [Physics](physics.md), which simulate the dynamics of the moving objects from the given command.
-- [Message Handlers](message_handler.md), to get the messages received by each nodes.
 
 ## Plugin API implementation
 To provide the simulator with the according module instance, a struct implementing `PluginAPI` trait should be given to it.
@@ -72,12 +71,6 @@ impl PluginAPI for MyWonderfulPlugin {
         ))
     }
 
-    fn get_message_handlers(
-        &self,
-        _robot: &simba::node::Node,
-    ) -> Option<Vec<SharedRwLock<dyn MessageHandler>>>> {
-        Some(vec![Arc::new(RwLock::new(MyWonderfulMessageHandler {}))])
-    }
 }
 ```
 

@@ -11,7 +11,7 @@ use crate::{
     controllers::{self, ControllerConfig, ControllerRecord, pid},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
-    navigators::{self, NavigatorConfig, NavigatorRecord, trajectory_follower},
+    navigators::{self, NavigatorConfig, NavigatorRecord, go_to, trajectory_follower},
     networking::{
         network::{Network, NetworkConfig},
         service_manager::ServiceManager,
@@ -201,7 +201,7 @@ pub struct RobotConfig {
 
 impl Default for RobotConfig {
     /// Default configuration, using:
-    /// * Default [`TrajectoryFollower`](trajectory_follower::TrajectoryFollower) navigator.
+    /// * Default [`GoTo`](go_to::GoTo) navigator.
     /// * Default [`PID`](pid::PID) controller.
     /// * Default [`PerfectPhysics`](perfect_physics::PerfectPhysics) physics.
     /// * Default [`PerfectEstimator`](perfect_estimator::PerfectEstimator) state estimator.
@@ -210,8 +210,8 @@ impl Default for RobotConfig {
     fn default() -> Self {
         RobotConfig {
             name: String::from("NoName"),
-            navigator: NavigatorConfig::TrajectoryFollower(
-                trajectory_follower::TrajectoryFollowerConfig::default(),
+            navigator: NavigatorConfig::GoTo(
+                go_to::GoToConfig::default(),
             ),
             controller: ControllerConfig::PID(pid::PIDConfig::default()),
             physics: PhysicsConfig::Internal(internal_physics::InternalPhysicConfig::default()),

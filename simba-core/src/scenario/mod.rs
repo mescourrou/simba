@@ -6,6 +6,7 @@ use std::{
 use log::debug;
 #[cfg(not(feature = "force_hard_determinism"))]
 use log::warn;
+use nalgebra::ComplexField;
 use regex::Regex;
 
 use crate::{
@@ -18,7 +19,7 @@ use crate::{
         AreaEventTriggerConfig, EventConfig, EventTriggerConfig, EventTypeConfig,
         ProximityEventTriggerConfig, ScenarioConfig,
     },
-    simulator::{RunningParameters, Simulator},
+    simulator::{RunningParameters, Simulator, SimulatorConfig},
     state_estimators::State,
     utils::{
         determinist_random_variable::DeterministRandomVariableFactory,
@@ -41,6 +42,7 @@ pub struct Scenario {
 impl Scenario {
     pub fn from_config(
         config: &ScenarioConfig,
+        global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Self {
         let (time_events_vec, other_events): (Vec<EventConfig>, Vec<EventConfig>) = config
@@ -60,7 +62,11 @@ impl Scenario {
                     };
                     match &t.time {
                         NumberConfig::Num(n) => {
-                            (0..occurences).map(|i| n * (i as f32 + 1.)).collect()
+                            if occurences == 0 {
+                                (0..(global_config.max_time/n).ceil() as usize).map(|i| n * (i as f32 + 1.)).collect()
+                            } else {
+                                (0..occurences).map(|i| n * (i as f32 + 1.)).collect()
+                            }
                         }
                         NumberConfig::Rand(rv_config) => {
                             let rv = va_factory.make_variable(rv_config.clone());
