@@ -264,7 +264,6 @@ $(#[$meta])*  // Re-emit all attributes, including doc
 #[config_derives(skip_jsonschema, skip_unknown_fields)]
 pub struct $struct_name {
     /// Config serialized.
-    #[serde(flatten)]
     pub config: serde_json::Value,
 }
 

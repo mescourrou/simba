@@ -1,12 +1,18 @@
+# yaml-language-server: $schema=../../config.schema.json
 log:
   log_level:
     type: Info
+results:
+  result_path: "results.json"
+time_analysis: null
 max_time: 60.
 robots:
   - name: "robot1"
     navigator:
       type: External
+      config: {}
     state_estimator: 
       type: External
-      period: 0.1
-      filter_name: "robot1"
+      config:
+        period: 0.1
+        filter_name: "robot1"

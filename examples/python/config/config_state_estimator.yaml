@@ -30,7 +30,8 @@ robots:
       - name: "Filter"
         config: 
           type: External
-          period: 0.2
+          config:
+            period: 0.2
     sensor_manager:
       sensors:
         - name: "LandmarkSensor"
@@ -54,7 +55,8 @@ robots:
       - name: "Filter"
         config: 
           type: External
-          period: 0.2
+          config:
+            period: 0.2
     sensor_manager:
       sensors:
         - name: "LandmarkSensor"

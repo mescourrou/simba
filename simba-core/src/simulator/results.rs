@@ -18,7 +18,7 @@ use crate::{
 
 use crate::simulator::{Record, SimulatorConfig};
 
-#[config_derives]
+#[config_derives(tag_content)]
 pub enum ResultSaveMode {
     AtTheEnd,
     Continuous,

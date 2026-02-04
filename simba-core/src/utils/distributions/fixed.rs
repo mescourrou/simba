@@ -8,7 +8,7 @@ use crate::utils::determinist_random_variable::DeterministRandomVariable;
 #[config_derives]
 pub struct FixedRandomVariableConfig {
     /// Fixed value to return.
-    values: Vec<f32>,
+    pub values: Vec<f32>,
 }
 
 impl Default for FixedRandomVariableConfig {

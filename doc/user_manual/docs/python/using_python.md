@@ -9,7 +9,7 @@ The built package support Python version from 3.10.
 ## Start the simulator
 Examples of Python usage are available on [Gitlab](https://gitlab.laas.fr/mescourrou/simba/-/tree/master/examples/python).
 
-Writing a Python program is close to writing a [Rust Plugin](../plugin/0_write_plugin.md), but some steps are simplified.
+Writing a Python program is close to writing a [Rust Plugin](../plugin/index.md), but some steps are simplified.
 
 ## API behind
 The API behind the Python bindings uses multiple channels to communicate with the simulator threads.

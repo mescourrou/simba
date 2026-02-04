@@ -12,6 +12,10 @@ pub struct ScenarioConfig {
 #[config_derives]
 #[derive(Default)]
 pub struct EventConfig {
+    /// Names of the nodes that can trigger this event. If empty, any node can trigger it.
+    /// Regexp patterns are supported.
+    /// Only applied to non-time triggers.
+    pub triggering_nodes: Vec<String>,
     pub trigger: EventTriggerConfig,
     pub event_type: EventTypeConfig,
 }
@@ -33,7 +37,7 @@ impl Default for EventTriggerConfig {
 pub struct TimeEventTriggerConfig {
     pub time: NumberConfig,
     /// Two cases:
-    /// - if `time` is a fixed number, it turns into a period and `occurences` is how many times the event will be triggered
+    /// - if `time` is a fixed number, it turns into a period and `occurences` is how many times the event will be triggered. Use 0 for infinite.
     /// - if `time` is a random variable, `occurences` is how many samples will be drawn from it to schedule the event
     /// - if `time` is a random variable with multiple dimensions, `occurences` is the number of repetitions of the full set of samples:
     ///   if `time` draws N samples, and `occurences` is M, then M*N event times will be scheduled

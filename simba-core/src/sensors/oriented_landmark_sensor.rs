@@ -213,7 +213,7 @@ impl Serialize for OrientedLandmark {
         S: Serializer,
     {
         // 3 is the number of fields in the struct.
-        let mut state = serializer.serialize_struct("OrientedLandmark", 5)?;
+        let mut state = serializer.serialize_struct("OrientedLandmark", 7)?;
         state.serialize_field("id", &self.id)?;
         state.serialize_field("labels", &self.labels)?;
         state.serialize_field("x", &self.pose.x)?;
@@ -388,7 +388,7 @@ impl<'de> Deserialize<'de> for OrientedLandmark {
                     }
                 }
                 let id = id.ok_or_else(|| de::Error::missing_field("id"))?;
-                let labels = labels.ok_or_else(|| de::Error::missing_field("labels"))?;
+                let labels = labels.unwrap_or(Vec::new());
                 let x = x.ok_or_else(|| de::Error::missing_field("x"))?;
                 let y = y.ok_or_else(|| de::Error::missing_field("y"))?;
                 let theta = theta.unwrap_or(0.);

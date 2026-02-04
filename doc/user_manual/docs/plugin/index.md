@@ -23,7 +23,7 @@ Presently, you can extend the following modules:
 - The [navigator](navigator.md), which computes an error to the goal/trajectory from the world representation given by the state estimator.
 - The [controller](controller.md), which makes commands for the robot to reduce the error computed by the navigator.
 - [Physics](physics.md), which simulate the dynamics of the moving objects from the given command.
-- [Message Handlers](message_handler.md), to get the messages received by each nodes.
+- The [sensor](sensor.md), which simulate sensor measurements from the physics state.
 
 ## Plugin API implementation
 To provide the simulator with the according module instance, a struct implementing `PluginAPI` trait should be given to it.
@@ -36,9 +36,12 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Controller> {
         Box::new(MyWonderfulController::from_config(
             serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
         ))
     }
 
@@ -46,9 +49,12 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Navigator> {
-        Box::new(MyWonderfulfrom_config(
+        Box::new(MyWonderfulNavigator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
         ))
     }
 
@@ -56,9 +62,12 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn Physics> {
         Box::new(MyWonderfulPhysics::from_config(
             serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
         ))
     }
 
@@ -66,17 +75,25 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         Box::new(MyWonderfulStateEstimator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
         ))
     }
 
-    fn get_message_handlers(
+    fn get_sensor(
         &self,
-        _robot: &simba::node::Node,
-    ) -> Option<Vec<SharedRwLock<dyn MessageHandler>>>> {
-        Some(vec![Arc::new(RwLock::new(MyWonderfulMessageHandler {}))])
+        config: &serde_json::Value,
+        _global_config: &SimulatorConfig,
+        initial_time: f32,
+    ) -> Box<dyn Sensor> {
+        Box::new(MyWonderfulSensor::from_config(
+            serde_json::from_value(config.clone()).unwrap(),
+            initial_time,
+        ))
     }
 }
 ```
@@ -98,6 +115,8 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         match serde_json::from_value::<StateEstimatorConfig>(config.clone()).unwrap() {
             StateEstimatorConfig::StateEstimator1(c) => Box::new(StateEstimator1::from_config(&c)) as Box<dyn StateEstimator>,
