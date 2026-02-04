@@ -9,6 +9,8 @@ use std::{
 use log::debug;
 use pyo3::{prelude::*, types::PyDict};
 
+use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
+
 use crate::{
     constants::TIME_ROUND,
     logger::is_enabled,
@@ -21,7 +23,6 @@ use crate::{
         SharedMutex,
         maths::round_precision,
         python::{call_py_method, call_py_method_void},
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
 

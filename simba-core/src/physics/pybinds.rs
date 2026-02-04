@@ -3,6 +3,7 @@ use std::{str::FromStr, sync::Arc};
 use log::debug;
 use pyo3::{prelude::*, types::PyDict};
 use serde_json::Value;
+use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
     logger::is_enabled,
@@ -13,7 +14,6 @@ use crate::{
     state_estimators::State,
     utils::{
         python::{call_py_method, call_py_method_void},
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
 

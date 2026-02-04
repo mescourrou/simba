@@ -6,6 +6,8 @@ use std::{
     time::Duration,
 };
 
+use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
+
 use crate::{
     controllers::Controller,
     errors::SimbaResult,
@@ -17,7 +19,6 @@ use crate::{
     utils::{
         SharedMutex,
         determinist_random_variable::DeterministRandomVariableFactory,
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
 

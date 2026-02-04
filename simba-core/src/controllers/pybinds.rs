@@ -9,6 +9,7 @@ use std::{
 use log::debug;
 use pyo3::{prelude::*, types::PyDict};
 use serde_json::Value;
+use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
     controllers::external_controller::ExternalControllerRecord,
@@ -21,7 +22,6 @@ use crate::{
     utils::{
         SharedMutex,
         python::{call_py_method, call_py_method_void},
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
 

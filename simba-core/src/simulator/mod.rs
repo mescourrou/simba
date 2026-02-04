@@ -45,6 +45,8 @@ use config_checker::ConfigCheckable;
 use pyo3::{ffi::c_str, prelude::*};
 use serde_derive::{Deserialize, Serialize};
 
+use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
+
 use crate::{
     VERSION,
     api::internal_api::NodeClient,
@@ -69,7 +71,6 @@ use crate::{
         determinist_random_variable::DeterministRandomVariableFactory,
         maths::round_precision,
         python::CONVERT_TO_DICT,
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
         time_ordered_data::TimeOrderedData,
     },
 };
