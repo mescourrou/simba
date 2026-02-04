@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../config.schema.json
-version: 1.4.3
+version: 1.4.5
 log:
   included_nodes: []
   excluded_nodes: []
   log_level:
-    type: Debug
+    type: Info
 results: {}
 max_time: 20.0
 time_analysis:

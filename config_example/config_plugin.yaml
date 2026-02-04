@@ -12,9 +12,13 @@ robots:
   - name: "robot1"
     navigator: 
       type: External
+      config: {}
     controller: 
       type: External
+      config: {}
     state_estimator: 
       type: External
+      config: {}
     physics: 
       type: External
+      config: {}

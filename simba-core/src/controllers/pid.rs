@@ -33,9 +33,9 @@ use simba_macros::config_derives;
 /// Configuration of the [`PID`], it contains the 3 list of gains:
 /// proportional gains, derivative gains and integral gains.
 /// The size of each gains depends on the model used, and follow this order:
-/// - longitudinal (All models)
-/// - lateral (Holonomic model)
-/// - angular (All models)
+/// - longitudinal velocity (All models)
+/// - lateral velocity (Holonomic model)
+/// - angular velocity (All models)
 #[config_derives(skip_check, skip_deserialize)]
 #[derive(Default)]
 pub struct PIDConfig {

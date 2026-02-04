@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../config.schema.json
 log:
-  log_level: {type: Debug}
+  log_level: {type: Off}
 time_analysis:
   exporter: 
     type: TraceEventExporter

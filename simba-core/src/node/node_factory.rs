@@ -11,7 +11,7 @@ use crate::{
     controllers::{self, ControllerConfig, ControllerRecord, pid},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
-    navigators::{self, NavigatorConfig, NavigatorRecord, trajectory_follower},
+    navigators::{self, NavigatorConfig, NavigatorRecord, go_to},
     networking::{
         network::{Network, NetworkConfig},
         service_manager::ServiceManager,
@@ -201,7 +201,7 @@ pub struct RobotConfig {
 
 impl Default for RobotConfig {
     /// Default configuration, using:
-    /// * Default [`TrajectoryFollower`](trajectory_follower::TrajectoryFollower) navigator.
+    /// * Default [`GoTo`](go_to::GoTo) navigator.
     /// * Default [`PID`](pid::PID) controller.
     /// * Default [`PerfectPhysics`](perfect_physics::PerfectPhysics) physics.
     /// * Default [`PerfectEstimator`](perfect_estimator::PerfectEstimator) state estimator.
@@ -210,9 +210,7 @@ impl Default for RobotConfig {
     fn default() -> Self {
         RobotConfig {
             name: String::from("NoName"),
-            navigator: NavigatorConfig::TrajectoryFollower(
-                trajectory_follower::TrajectoryFollowerConfig::default(),
-            ),
+            navigator: NavigatorConfig::GoTo(go_to::GoToConfig::default()),
             controller: ControllerConfig::PID(pid::PIDConfig::default()),
             physics: PhysicsConfig::Internal(internal_physics::InternalPhysicConfig::default()),
             state_estimator: StateEstimatorConfig::Perfect(
@@ -655,7 +653,7 @@ pub struct MakeNodeParams<'a> {
     pub plugin_api: &'a Option<Arc<dyn PluginAPI>>,
     pub global_config: &'a SimulatorConfig,
     pub va_factory: &'a Arc<DeterministRandomVariableFactory>,
-    pub time_analysis_factory: &'a mut TimeAnalysisFactory,
+    pub time_analysis_factory: Option<&'a mut TimeAnalysisFactory>,
     pub time_cv: Arc<TimeCv>,
     pub force_send_results: bool,
     pub new_name: Option<&'a str>,
@@ -737,7 +735,10 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            time_analysis: params.time_analysis_factory.new_node(config.name.clone()),
+            time_analysis: params
+                .time_analysis_factory
+                .as_mut()
+                .map(|taf| taf.new_node(config.name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
         };
@@ -815,7 +816,10 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            time_analysis: params.time_analysis_factory.new_node(config.name.clone()),
+            time_analysis: params
+                .time_analysis_factory
+                .as_mut()
+                .map(|taf| taf.new_node(config.name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
         };

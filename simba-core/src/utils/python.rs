@@ -116,7 +116,7 @@ pub trait PythonFunctionConfig: Serialize + for<'a> Deserialize<'a> {
     fn function_name(&self) -> &String;
 }
 
-pub struct PythonScriptConfig(CString);
+pub struct PythonScriptConfig(pub CString);
 
 impl PythonScriptConfig {
     pub fn new(script: String) -> Self {

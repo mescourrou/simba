@@ -1,5 +1,18 @@
 # Changelogs
 
+## v1.4.5
+Features:
+- Optional time analysis (on by default)
+- Add filtering on node name for event triggering
+- [small break] Ease External config removing the flatten configuration
+  
+Fixes:
+- User documentation update
+- Fix config struct field scope
+- Fix results saved to file erased when simulator multi-step run
+- [small break] Fix result save mode configuration: use tag mode like logger
+- Make labels optional on landmarks
+
 ## v1.4.4
 - Fix fault application for RobotSensor
 

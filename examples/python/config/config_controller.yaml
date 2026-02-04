@@ -23,7 +23,8 @@ robots:
       forward_distance: 0.2
     controller: 
       type: External
-      speed: 5
+      config:
+        speed: 5
   - name: "robot2"
     navigator: 
       type: TrajectoryFollower

@@ -6,6 +6,7 @@ use std::{
 use log::debug;
 #[cfg(not(feature = "force_hard_determinism"))]
 use log::warn;
+use regex::Regex;
 
 use crate::{
     config::NumberConfig,
@@ -17,7 +18,7 @@ use crate::{
         AreaEventTriggerConfig, EventConfig, EventTriggerConfig, EventTypeConfig,
         ProximityEventTriggerConfig, ScenarioConfig,
     },
-    simulator::{RunningParameters, Simulator},
+    simulator::{RunningParameters, Simulator, SimulatorConfig},
     state_estimators::State,
     utils::{
         determinist_random_variable::DeterministRandomVariableFactory,
@@ -31,8 +32,8 @@ use crate::networking::{network::MessageFlag, network_manager::MessageSendMethod
 pub mod config;
 
 pub struct Scenario {
-    time_events: TimeOrderedData<(usize, EventConfig)>,
-    other_events: Mutex<Vec<EventConfig>>,
+    time_events: TimeOrderedData<(usize, Event)>,
+    other_events: Mutex<Vec<Event>>,
     last_executed_time: f32,
 }
 
@@ -40,6 +41,7 @@ pub struct Scenario {
 impl Scenario {
     pub fn from_config(
         config: &ScenarioConfig,
+        global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> Self {
         let (time_events_vec, other_events): (Vec<EventConfig>, Vec<EventConfig>) = config
@@ -59,7 +61,13 @@ impl Scenario {
                     };
                     match &t.time {
                         NumberConfig::Num(n) => {
-                            (0..occurences).map(|i| n * (i as f32 + 1.)).collect()
+                            if occurences == 0 {
+                                (0..(global_config.max_time / n).ceil() as usize)
+                                    .map(|i| n * (i as f32 + 1.))
+                                    .collect()
+                            } else {
+                                (0..occurences).map(|i| n * (i as f32 + 1.)).collect()
+                            }
                         }
                         NumberConfig::Rand(rv_config) => {
                             let rv = va_factory.make_variable(rv_config.clone());
@@ -72,7 +80,7 @@ impl Scenario {
                 _ => unreachable!(),
             };
             for (occurence, t) in ts.iter().enumerate() {
-                time_events.insert(*t, (occurence, event.clone()), false);
+                time_events.insert(*t, (occurence, Event::from_config(event)), false);
             }
         }
         #[cfg(not(feature = "force_hard_determinism"))]
@@ -83,7 +91,7 @@ impl Scenario {
         }
         Self {
             time_events,
-            other_events: Mutex::new(other_events),
+            other_events: Mutex::new(other_events.iter().map(Event::from_config).collect()),
             last_executed_time: 0.,
         }
     }
@@ -118,8 +126,13 @@ impl Scenario {
         for event in other_events.iter() {
             match &event.trigger {
                 EventTriggerConfig::Proximity(proximity_config) => {
-                    let triggering_nodes =
-                        self.proximity_trigger(proximity_config, simulator, time, state_history);
+                    let triggering_nodes = self.proximity_trigger(
+                        &event.triggering_nodes,
+                        proximity_config,
+                        simulator,
+                        time,
+                        state_history,
+                    );
                     for nodes in triggering_nodes {
                         Self::execute_event(
                             event,
@@ -132,8 +145,13 @@ impl Scenario {
                     }
                 }
                 EventTriggerConfig::Area(area_config) => {
-                    let triggering_nodes =
-                        self.area_trigger(area_config, simulator, time, state_history);
+                    let triggering_nodes = self.area_trigger(
+                        &event.triggering_nodes,
+                        area_config,
+                        simulator,
+                        time,
+                        state_history,
+                    );
                     for nodes in triggering_nodes {
                         Self::execute_event(
                             event,
@@ -163,7 +181,7 @@ impl Scenario {
 
     #[cfg_attr(feature = "force_hard_determinism", allow(unused_variables))]
     fn execute_event(
-        event: &EventConfig,
+        event: &Event,
         simulator: &mut Simulator,
         time: f32,
         trigger_variables: &[String],
@@ -237,6 +255,7 @@ impl Scenario {
 
     fn area_trigger(
         &self,
+        triggering_nodes_filter: &[Regex],
         area_config: &AreaEventTriggerConfig,
         _simulator: &mut Simulator,
         time: f32,
@@ -245,6 +264,13 @@ impl Scenario {
         let mut triggering_nodes = Vec::new();
 
         for (node_name, state_history) in state_history {
+            if !triggering_nodes_filter.is_empty()
+                && !triggering_nodes_filter
+                    .iter()
+                    .any(|re| re.is_match(node_name))
+            {
+                continue;
+            }
             let hstate = state_history
                 .iter_from_time(self.last_executed_time)
                 .take_while(|(t, _)| *t <= time)
@@ -290,6 +316,7 @@ impl Scenario {
 
     fn proximity_trigger(
         &self,
+        triggering_nodes_filter: &[Regex],
         proximity_config: &ProximityEventTriggerConfig,
         _simulator: &mut Simulator,
         time: f32,
@@ -298,6 +325,13 @@ impl Scenario {
         let node_positions = state_history
             .iter()
             .filter_map(|(node_name, history)| {
+                if !triggering_nodes_filter.is_empty()
+                    && !triggering_nodes_filter
+                        .iter()
+                        .any(|re| re.is_match(node_name))
+                {
+                    return None;
+                }
                 let hstate = history
                     .iter_from_time(self.last_executed_time)
                     .take_while(|(t, _)| *t <= time)
@@ -343,5 +377,27 @@ impl Scenario {
             }
         }
         triggering_nodes.into_iter().map(|n| vec![n]).collect()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Event {
+    pub triggering_nodes: Vec<Regex>,
+    pub trigger: EventTriggerConfig,
+    pub event_type: EventTypeConfig,
+}
+
+impl Event {
+    pub fn from_config(config: &EventConfig) -> Self {
+        let triggering_nodes = config
+            .triggering_nodes
+            .iter()
+            .map(|pattern| Regex::new(pattern).unwrap())
+            .collect();
+        Self {
+            triggering_nodes,
+            trigger: config.trigger.clone(),
+            event_type: config.event_type.clone(),
+        }
     }
 }
