@@ -14,7 +14,11 @@ fn state(&self, time: f32) -> &State;
 The `Recordable<PhysicsRecord>` has to be implemented, but it can be as minimal as below if no record is needed:
 ```Rust
 impl Recordable<PhysicsRecord> for MyWonderfulController {
-    fn record(&self) -> PhysicsRecord {}
+    fn record(&self) -> PhysicsRecord {
+        PhysicsRecord::External(ExternalPhysicsRecord {
+            record: serde_json::to_value(MyWonderfulPhysicsRecord {}).unwrap(),
+        })
+    }
 }
 ```
 
@@ -34,7 +38,9 @@ pub struct GetRealStateResp {
 
 ```Rust
 #[derive(Debug, Serialize, Deserialize)]
-struct MyWonderfulPhysicsRecord {}
+struct MyWonderfulPhysicsRecord {
+    state: StateRecord,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MyWonderfulPhysicsConfig {}
@@ -45,40 +51,43 @@ struct MyWonderfulPhysics {
 }
 
 impl MyWonderfulPhysics {
-    pub fn from_config(config: MyWonderfulPhysicsConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulPhysicsConfig, _initial_time: f32) -> Self {
         Self {
             state: State {
                 pose: Vector3::zeros(),
-                velocity: 0.,
+                velocity: Vector3::zeros(),
             },
         }
     }
 }
 
 impl Physics for MyWonderfulPhysics {
-    fn apply_command(&mut self, command: &Command, time: f32) {}
+    fn apply_command(&mut self, _command: &Command, _time: f32) {}
 
-    fn state(&self, time: f32) -> &State {
-        &self.state
+    fn state(&self, _time: f32) -> State {
+        self.state.clone()
     }
 
-    fn update_state(&mut self, time: f32) {}
+    fn update_state(&mut self, _time: f32) {}
 }
 
 impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
     fn handle_service_requests(
         &mut self,
-        req: GetRealStateReq,
-        time: f32,
+        _req: GetRealStateReq,
+        _time: f32,
     ) -> Result<GetRealStateResp, String> {
-        Err(String::new())
+        Err("Unimplemented".to_string())
     }
 }
 
 impl Recordable<PhysicsRecord> for MyWonderfulPhysics {
     fn record(&self) -> PhysicsRecord {
         PhysicsRecord::External(ExternalPhysicsRecord {
-            record: serde_json::to_value(MyWonderfulNavigatorRecord {}).unwrap(),
+            record: serde_json::to_value(MyWonderfulPhysicsRecord {
+                state: self.state.record(),
+            })
+            .unwrap(),
         })
     }
 }

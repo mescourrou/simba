@@ -5,9 +5,9 @@ The state estimator produce a World representation used by the Navigator, using 
 The minimal code is composed of a struct which implements the `StateEstimator` trait and the `Recordable<StateEstimatorRecord>` trait.
 The `StateEstimator` trait has multiple functions which need to be implemented:
 ```Rust
-fn prediction_step(&mut self, robot: &mut simba::node::Node, time: f32);
+fn prediction_step(&mut self, node: &mut simba::node::Node, time: f32);
 
-fn correction_step(&mut self, robot: &mut Node, observations: &Vec<Observation>, time: f32);
+fn correction_step(&mut self, node: &mut simba::node::Node, observations: &[Observation], time: f32);
 
 fn world_state(&self) -> WorldState;
 
@@ -17,12 +17,14 @@ The `next_time_step` is very important as it will trigger the call of `predictio
 
 **Tips**: You can use `simba::utils::maths::round_precision(time, simba::constants::TIME_ROUND)` to round the returned time to the simulator precision, avoiding time drift when using additions on floats.
 
-The `Recordable<StateEstimatorRecord>` has to be implemented. At the difference of the other modules, the record is required to keep track of the last prediction time.
+The `Recordable<StateEstimatorRecord>` has to be implemented, but it can be as minimal as below if no record is needed:
 ```Rust
-impl Recordable<StateEstimatorRecord> for MyWonderfulController {
+impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
     fn record(&self) -> StateEstimatorRecord;
 }
 ```
+
+The `MessageHandler` trait must also be implemented to allow message reception. If no message handling is needed, the `get_letter_box` method can simply return `None`.
 
 ## Code template
 
@@ -38,26 +40,31 @@ struct MyWonderfulStateEstimatorConfig {}
 #[derive(Debug)]
 struct MyWonderfulStateEstimator {
     last_prediction: f32,
+    letter_box_rx: SharedMutex<Receiver<Envelope>>,
+    letter_box_tx: Sender<Envelope>,
 }
 
 impl MyWonderfulStateEstimator {
-    pub fn from_config(config: MyWonderfulStateEstimatorConfig) -> Self {
+    pub fn from_config(_config: MyWonderfulStateEstimatorConfig, initial_time: f32) -> Self {
+        let (tx, rx) = mpsc::channel();
         Self {
-            last_prediction: 0.,
+            last_prediction: initial_time,
+            letter_box_rx: Arc::new(Mutex::new(rx)),
+            letter_box_tx: tx,
         }
     }
 }
 
 impl StateEstimator for MyWonderfulStateEstimator {
-    fn prediction_step(&mut self, robot: &mut simba::node::Node, time: f32) {
+    fn prediction_step(&mut self, _robot: &mut simba::node::Node, time: f32) {
         self.last_prediction = time;
     }
 
     fn correction_step(
         &mut self,
-        robot: &mut simba::node::Node,
-        observations: &Vec<simba::sensors::sensor::Observation>,
-        time: f32,
+        _robot: &mut simba::node::Node,
+        _observations: &[Observation],
+        _time: f32,
     ) {
     }
 
@@ -68,6 +75,12 @@ impl StateEstimator for MyWonderfulStateEstimator {
     fn world_state(&self) -> WorldState {
         WorldState::new()
     }
+
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
+        while let Ok(_envelope) = self.letter_box_rx.lock().unwrap().try_recv() {
+            // i.e. Do something with received messages
+        }
+    }
 }
 
 impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
@@ -75,8 +88,15 @@ impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
         StateEstimatorRecord::External(ExternalEstimatorRecord {
             record: serde_json::to_value(MyWonderfulStateEstimatorRecord {
                 last_prediction: self.last_prediction,
-            }).unwrap(),
+            })
+            .unwrap(),
         })
+    }
+}
+
+impl MessageHandler for MyWonderfulStateEstimator {
+    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
+        Some(self.letter_box_tx.clone())
     }
 }
 ```

@@ -25,9 +25,8 @@ nav:
     - Using Python bindings: python/using_python.md
   - Plugins:
     - Overview: plugin/index.md
-    - Write a Plugin: plugin/0_write_plugin.md
     - Navigator Plugin: plugin/navigator.md
     - Controller Plugin: plugin/controller.md
     - Physics Plugin: plugin/physics.md
     - State Estimator Plugin: plugin/state_estimator.md
-    - Message Handler Plugin: plugin/message_handler.md
+    - Sensor Plugin: plugin/sensor.md
