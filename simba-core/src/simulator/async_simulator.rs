@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex, RwLock, mpsc};
+use std::{path::Path, sync::{Arc, Mutex, RwLock, mpsc}};
 
 use log::debug;
 use pyo3::Python;
@@ -10,7 +10,7 @@ use crate::{
     errors::SimbaResult,
     logger::is_enabled,
     plugin_api::PluginAPI,
-    simulator::{Record, Simulator},
+    simulator::{Record, Simulator, SimulatorConfig},
     utils::{SharedMutex, SharedRwLock},
 };
 
@@ -22,8 +22,16 @@ pub struct AsyncSimulator {
 }
 
 impl AsyncSimulator {
+    pub fn from_config_path(
+        config_path: &str,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
+    ) -> SimbaResult<AsyncSimulator> {
+        let config = SimulatorConfig::load_from_path(Path::new(config_path))?;
+        Self::from_config(config, plugin_api)
+    }
+
     pub fn from_config(
-        config_path: String,
+        config: SimulatorConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,
     ) -> SimbaResult<AsyncSimulator> {
         Simulator::init_environment();
@@ -42,7 +50,7 @@ impl AsyncSimulator {
                 .map(|api| api as Arc<dyn PluginAPI>),
         );
         sim.api.load_config.async_call(AsyncApiLoadConfigRequest {
-            config_path,
+            config,
             force_send_results: false,
         });
 

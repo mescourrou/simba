@@ -143,10 +143,9 @@ impl AsyncApiRunner {
                 while !*stopping.read().unwrap() {
                     load_config.recv_closure_mut(|request| {
                         let mut simulator = simulator_arc.lock().unwrap();
-                        println!("Loading config: {}", request.config_path);
-                        let path = Path::new(&request.config_path);
-                        simulator.load_config_path_full(
-                            path,
+                        println!("Loading config: {}", request.config.base_path.to_str().unwrap());
+                        simulator.load_config_full(
+                            &request.config,
                             plugin_api_threaded.clone(),
                             request.force_send_results,
                         )?;
@@ -377,7 +376,7 @@ pub type PluginAsyncAPIGetPhysicsRequest = PluginAsyncAPIGetStateEstimatorReques
 
 #[derive(Clone, Debug, Default)]
 pub struct AsyncApiLoadConfigRequest {
-    pub config_path: String,
+    pub config: SimulatorConfig,
     pub force_send_results: bool,
 }
 
