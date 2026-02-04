@@ -64,7 +64,14 @@
       }
     },
     "time_analysis": {
-      "$ref": "#/$defs/TimeAnalysisConfig",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TimeAnalysisConfig"
+        },
+        {
+          "type": "null"
+        }
+      ],
       "default": {
         "analysis_unit": "s",
         "exporter": {
@@ -76,7 +83,7 @@
     },
     "version": {
       "type": "string",
-      "default": "1.4.4"
+      "default": "1.4.5"
     }
   },
   "additionalProperties": false,
@@ -259,7 +266,7 @@
       "description": "Enumerates the strategies configurations.",
       "oneOf": [
         {
-          "description": "Configuration of the [`PID`], it contains the 3 list of gains:\nproportional gains, derivative gains and integral gains.\nThe size of each gains depends on the model used, and follow this order:\n- longitudinal (All models)\n- lateral (Holonomic model)\n- angular (All models)",
+          "description": "Configuration of the [`PID`], it contains the 3 list of gains:\nproportional gains, derivative gains and integral gains.\nThe size of each gains depends on the model used, and follow this order:\n- longitudinal velocity (All models)\n- lateral velocity (Holonomic model)\n- angular velocity (All models)",
           "type": "object",
           "properties": {
             "derivative_gains": {
@@ -359,6 +366,14 @@
                 "value": 0.0
               }
             }
+          }
+        },
+        "triggering_nodes": {
+          "description": "Names of the nodes that can trigger this event. If empty, any node can trigger it.\nRegexp patterns are supported.\nOnly applied to non-time triggers.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
           }
         }
       },
@@ -1721,29 +1736,39 @@
         },
         {
           "type": "object",
-          "format": "uint",
           "properties": {
             "type": {
               "type": "string",
               "const": "Batch"
+            },
+            "value": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
             }
           },
-          "minimum": 0,
+          "additionalProperties": false,
           "required": [
-            "type"
+            "type",
+            "value"
           ]
         },
         {
           "type": "object",
-          "format": "float",
           "properties": {
             "type": {
               "type": "string",
               "const": "Periodic"
+            },
+            "value": {
+              "type": "number",
+              "format": "float"
             }
           },
+          "additionalProperties": false,
           "required": [
-            "type"
+            "type",
+            "value"
           ]
         }
       ]
@@ -1783,12 +1808,11 @@
           "description": "[`Navigator`](crate::navigators::navigator::Navigator) to use, and its configuration.",
           "$ref": "#/$defs/NavigatorConfig",
           "default": {
-            "forward_distance": 1.0,
             "stop_distance": 0.20000000298023224,
             "stop_ramp_coefficient": 0.5,
+            "target_point": null,
             "target_speed": 0.5,
-            "trajectory_path": "",
-            "type": "TrajectoryFollower"
+            "type": "GoTo"
           }
         },
         "network": {
@@ -2526,7 +2550,7 @@
       "type": "object",
       "properties": {
         "occurences": {
-          "description": "Two cases:\n- if `time` is a fixed number, it turns into a period and `occurences` is how many times the event will be triggered\n- if `time` is a random variable, `occurences` is how many samples will be drawn from it to schedule the event\n- if `time` is a random variable with multiple dimensions, `occurences` is the number of repetitions of the full set of samples:\n  if `time` draws N samples, and `occurences` is M, then M*N event times will be scheduled",
+          "description": "Two cases:\n- if `time` is a fixed number, it turns into a period and `occurences` is how many times the event will be triggered. Use 0 for infinite.\n- if `time` is a random variable, `occurences` is how many samples will be drawn from it to schedule the event\n- if `time` is a random variable with multiple dimensions, `occurences` is the number of repetitions of the full set of samples:\n  if `time` draws N samples, and `occurences` is M, then M*N event times will be scheduled",
           "$ref": "#/$defs/NumberConfig",
           "default": {
             "type": "Num",

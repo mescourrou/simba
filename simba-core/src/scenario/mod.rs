@@ -6,7 +6,6 @@ use std::{
 use log::debug;
 #[cfg(not(feature = "force_hard_determinism"))]
 use log::warn;
-use nalgebra::ComplexField;
 use regex::Regex;
 
 use crate::{
@@ -63,7 +62,9 @@ impl Scenario {
                     match &t.time {
                         NumberConfig::Num(n) => {
                             if occurences == 0 {
-                                (0..(global_config.max_time/n).ceil() as usize).map(|i| n * (i as f32 + 1.)).collect()
+                                (0..(global_config.max_time / n).ceil() as usize)
+                                    .map(|i| n * (i as f32 + 1.))
+                                    .collect()
                             } else {
                                 (0..occurences).map(|i| n * (i as f32 + 1.)).collect()
                             }
@@ -79,7 +80,7 @@ impl Scenario {
                 _ => unreachable!(),
             };
             for (occurence, t) in ts.iter().enumerate() {
-                time_events.insert(*t, (occurence, Event::from_config(&event)), false);
+                time_events.insert(*t, (occurence, Event::from_config(event)), false);
             }
         }
         #[cfg(not(feature = "force_hard_determinism"))]
@@ -125,8 +126,13 @@ impl Scenario {
         for event in other_events.iter() {
             match &event.trigger {
                 EventTriggerConfig::Proximity(proximity_config) => {
-                    let triggering_nodes =
-                        self.proximity_trigger(&event.triggering_nodes, proximity_config, simulator, time, state_history);
+                    let triggering_nodes = self.proximity_trigger(
+                        &event.triggering_nodes,
+                        proximity_config,
+                        simulator,
+                        time,
+                        state_history,
+                    );
                     for nodes in triggering_nodes {
                         Self::execute_event(
                             event,
@@ -139,8 +145,13 @@ impl Scenario {
                     }
                 }
                 EventTriggerConfig::Area(area_config) => {
-                    let triggering_nodes =
-                        self.area_trigger(&event.triggering_nodes, area_config, simulator, time, state_history);
+                    let triggering_nodes = self.area_trigger(
+                        &event.triggering_nodes,
+                        area_config,
+                        simulator,
+                        time,
+                        state_history,
+                    );
                     for nodes in triggering_nodes {
                         Self::execute_event(
                             event,
@@ -244,7 +255,7 @@ impl Scenario {
 
     fn area_trigger(
         &self,
-        triggering_nodes_filter: &Vec<Regex>,
+        triggering_nodes_filter: &[Regex],
         area_config: &AreaEventTriggerConfig,
         _simulator: &mut Simulator,
         time: f32,
@@ -253,9 +264,10 @@ impl Scenario {
         let mut triggering_nodes = Vec::new();
 
         for (node_name, state_history) in state_history {
-            if !triggering_nodes_filter.is_empty() && !triggering_nodes_filter
-                .iter()
-                .any(|re| re.is_match(node_name))
+            if !triggering_nodes_filter.is_empty()
+                && !triggering_nodes_filter
+                    .iter()
+                    .any(|re| re.is_match(node_name))
             {
                 continue;
             }
@@ -304,7 +316,7 @@ impl Scenario {
 
     fn proximity_trigger(
         &self,
-        triggering_nodes_filter: &Vec<Regex>,
+        triggering_nodes_filter: &[Regex],
         proximity_config: &ProximityEventTriggerConfig,
         _simulator: &mut Simulator,
         time: f32,
@@ -313,9 +325,10 @@ impl Scenario {
         let node_positions = state_history
             .iter()
             .filter_map(|(node_name, history)| {
-                if !triggering_nodes_filter.is_empty() && !triggering_nodes_filter
-                    .iter()
-                    .any(|re| re.is_match(node_name))
+                if !triggering_nodes_filter.is_empty()
+                    && !triggering_nodes_filter
+                        .iter()
+                        .any(|re| re.is_match(node_name))
                 {
                     return None;
                 }
@@ -375,9 +388,7 @@ pub struct Event {
 }
 
 impl Event {
-    pub fn from_config(
-        config: &EventConfig,
-    ) -> Self {
+    pub fn from_config(config: &EventConfig) -> Self {
         let triggering_nodes = config
             .triggering_nodes
             .iter()

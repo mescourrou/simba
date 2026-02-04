@@ -11,7 +11,7 @@ use crate::{
     controllers::{self, ControllerConfig, ControllerRecord, pid},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
-    navigators::{self, NavigatorConfig, NavigatorRecord, go_to, trajectory_follower},
+    navigators::{self, NavigatorConfig, NavigatorRecord, go_to},
     networking::{
         network::{Network, NetworkConfig},
         service_manager::ServiceManager,
@@ -210,9 +210,7 @@ impl Default for RobotConfig {
     fn default() -> Self {
         RobotConfig {
             name: String::from("NoName"),
-            navigator: NavigatorConfig::GoTo(
-                go_to::GoToConfig::default(),
-            ),
+            navigator: NavigatorConfig::GoTo(go_to::GoToConfig::default()),
             controller: ControllerConfig::PID(pid::PIDConfig::default()),
             physics: PhysicsConfig::Internal(internal_physics::InternalPhysicConfig::default()),
             state_estimator: StateEstimatorConfig::Perfect(
@@ -737,7 +735,10 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            time_analysis: params.time_analysis_factory.as_mut().map(|taf| taf.new_node(config.name.clone())),
+            time_analysis: params
+                .time_analysis_factory
+                .as_mut()
+                .map(|taf| taf.new_node(config.name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
         };
@@ -815,7 +816,10 @@ impl NodeFactory {
             service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
-            time_analysis: params.time_analysis_factory.as_mut().map(|taf| taf.new_node(config.name.clone())),
+            time_analysis: params
+                .time_analysis_factory
+                .as_mut()
+                .map(|taf| taf.new_node(config.name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
         };

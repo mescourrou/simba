@@ -30,7 +30,7 @@ robots:
 After default application, it will result in:
 
 ```yaml
-version: 1.4.4
+version: 1.4.5
 max_time: 10.0
 log:
   log_level: 

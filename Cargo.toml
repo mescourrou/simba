@@ -13,7 +13,7 @@ default-members = ["simba-core", "simba-cmd", "simba-macros", "simba-tools"]  # 
 resolver = "2"
 
 [workspace.package]
-version = "1.4.4"
+version = "1.4.5"
 edition = "2024"
 authors = ["Maxime Escourrou <maxime.escourrou@laas.fr>"]
 license = "GPLv3"

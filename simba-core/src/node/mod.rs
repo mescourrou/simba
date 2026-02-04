@@ -312,14 +312,12 @@ impl Node {
             && time >= state_estimator.read().unwrap().next_time_step()
         {
             // Prediction step
-            let ta = if let Some(time_analysis) = &self.time_analysis {
-                Some(time_analysis.lock().unwrap().time_analysis(
+            let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                time_analysis.lock().unwrap().time_analysis(
                     time,
                     "control_loop_state_estimator_prediction_step".to_string(),
-                ))
-            } else {
-                None
-            };
+                )
+            });
             state_estimator.write().unwrap().prediction_step(self, time);
             if let Some(time_analysis) = &self.time_analysis {
                 time_analysis
@@ -339,11 +337,12 @@ impl Node {
                         .unwrap()
                         .next_time_step()
                 {
-                    let ta = if let Some(time_analysis) = &self.time_analysis {
-                        Some(time_analysis.lock().unwrap().time_analysis(time, state_estimator.name.clone() + "_prediction_step"))
-                    } else {
-                        None
-                    };
+                    let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                        time_analysis
+                            .lock()
+                            .unwrap()
+                            .time_analysis(time, state_estimator.name.clone() + "_prediction_step")
+                    });
                     state_estimator
                         .state_estimator
                         .write()
@@ -389,14 +388,12 @@ impl Node {
             if !observations.is_empty() {
                 // Treat the observations
                 if let Some(state_estimator) = &self.state_estimator() {
-                    let ta = if let Some(time_analysis) = &self.time_analysis {
-                        Some(time_analysis.lock().unwrap().time_analysis(
+                    let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                        time_analysis.lock().unwrap().time_analysis(
                             time,
                             "control_loop_state_estimator_correction_step".to_string(),
-                        ))
-                    } else {
-                        None
-                    };
+                        )
+                    });
                     state_estimator
                         .write()
                         .unwrap()
@@ -411,11 +408,12 @@ impl Node {
 
                 if let Some(state_estimator_bench) = &self.state_estimator_bench() {
                     for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                        let ta = if let Some(time_analysis) = &self.time_analysis {
-                            Some(time_analysis.lock().unwrap().time_analysis(time, state_estimator.name.clone() + "_correction_step"))
-                        } else {
-                            None
-                        };
+                        let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                            time_analysis.lock().unwrap().time_analysis(
+                                time,
+                                state_estimator.name.clone() + "_correction_step",
+                            )
+                        });
                         state_estimator
                             .state_estimator
                             .write()
@@ -442,11 +440,12 @@ impl Node {
             let world_state = state_estimator.read().unwrap().world_state();
 
             // Compute the error to the planned path
-            let ta = if let Some(time_analysis) = &self.time_analysis {
-                Some(time_analysis.lock().unwrap().time_analysis(time, "control_loop_navigator_compute_error".to_string()))
-            } else {
-                None
-            };
+            let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                time_analysis
+                    .lock()
+                    .unwrap()
+                    .time_analysis(time, "control_loop_navigator_compute_error".to_string())
+            });
             let error = self
                 .navigator()
                 .as_ref()
@@ -458,15 +457,16 @@ impl Node {
                 time_analysis
                     .lock()
                     .unwrap()
-                .finished_time_analysis(ta.unwrap());
+                    .finished_time_analysis(ta.unwrap());
             }
 
             // Compute the command from the error
-            let ta = if let Some(time_analysis) = &self.time_analysis {
-                Some(time_analysis.lock().unwrap().time_analysis(time, "control_loop_controller_make_command".to_string()))
-            } else {
-                None
-            };
+            let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                time_analysis
+                    .lock()
+                    .unwrap()
+                    .time_analysis(time, "control_loop_controller_make_command".to_string())
+            });
             let command = self
                 .controller()
                 .as_ref()

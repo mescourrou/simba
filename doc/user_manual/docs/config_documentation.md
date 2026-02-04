@@ -38,7 +38,7 @@ List of parameters:
 	`save_mode`: ResultSaveMode
 `base_path`: String
 `max_time`: Float
-`time_analysis`: [TimeAnalysisConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/time_analysis/time_analysis_config/struct.TimeAnalysisConfig.html)
+`time_analysis`: [TimeAnalysisConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/time_analysis/time_analysis_config/struct.TimeAnalysisConfig.html), Optional
 	`exporter`: [ProfileExporterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/time_analysis/exporter/enum.ProfileExporterConfig.html), Enum
 		- `type`: TraceEventExporter  
 	`keep_last`: Boolean
@@ -225,6 +225,7 @@ List of parameters:
 	`labels`: String, List
 `scenario`: [ScenarioConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/scenario/config/struct.ScenarioConfig.html)
 	`events`: [EventConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/scenario/config/struct.EventConfig.html), List
+		`triggering_nodes`: String, List
 		`trigger`: [EventTriggerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/scenario/config/enum.EventTriggerConfig.html), Enum
 			- `type`: Time => [TimeEventTriggerConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/scenario/config/struct.TimeEventTriggerConfig.html)
 				`time`: [NumberConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/config/enum.NumberConfig.html), Enum
