@@ -12,9 +12,7 @@ use crate::{
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
     state_estimators::State,
-    utils::{
-        python::{call_py_method, call_py_method_void},
-    },
+    utils::python::{call_py_method, call_py_method_void},
 };
 
 use super::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};

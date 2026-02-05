@@ -13,6 +13,7 @@ use log::debug;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
+use simba_com::time_ordered_data::TimeOrderedData;
 use simba_macros::config_derives;
 
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
@@ -21,7 +22,6 @@ use crate::node::Node;
 use crate::simulator::{SimulatorConfig, TimeCv};
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::utils::time_ordered_data::TimeOrderedData;
 #[cfg(feature = "gui")]
 use crate::{constants::TIME_ROUND, gui::UIComponent};
 
@@ -171,7 +171,7 @@ impl Network {
             range: config.range,
             reception_delay: config.reception_delay,
             letter_boxes: Vec::new(),
-            messages_buffer: TimeOrderedData::new(),
+            messages_buffer: TimeOrderedData::new(TIME_ROUND),
             time_cv,
             to_network_manager: None,
             from_network_manager: None,

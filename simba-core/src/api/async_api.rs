@@ -16,10 +16,7 @@ use crate::{
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::StateEstimator,
-    utils::{
-        SharedMutex,
-        determinist_random_variable::DeterministRandomVariableFactory,
-    },
+    utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 // Run by client
@@ -144,7 +141,10 @@ impl AsyncApiRunner {
                 while !*stopping.read().unwrap() {
                     load_config.recv_closure_mut(|request| {
                         let mut simulator = simulator_arc.lock().unwrap();
-                        println!("Loading config: {}", request.config.base_path.to_str().unwrap());
+                        println!(
+                            "Loading config: {}",
+                            request.config.base_path.to_str().unwrap()
+                        );
                         simulator.load_config_full(
                             &request.config,
                             plugin_api_threaded.clone(),

@@ -45,7 +45,10 @@ use config_checker::ConfigCheckable;
 use pyo3::{ffi::c_str, prelude::*};
 use serde_derive::{Deserialize, Serialize};
 
-use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
+use simba_com::{
+    rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+    time_ordered_data::TimeOrderedData,
+};
 
 use crate::{
     VERSION,
@@ -66,12 +69,9 @@ use crate::{
     state_estimators::State,
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
     utils::{
-        SharedMutex, SharedRoLock, SharedRwLock,
-        barrier::Barrier,
-        determinist_random_variable::DeterministRandomVariableFactory,
-        maths::round_precision,
+        SharedMutex, SharedRoLock, SharedRwLock, barrier::Barrier,
+        determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
         python::CONVERT_TO_DICT,
-        time_ordered_data::TimeOrderedData,
     },
 };
 use core::f32;
@@ -1136,7 +1136,10 @@ impl Simulator {
         let mut node_states: BTreeMap<String, TimeOrderedData<(State, NodeState)>> =
             BTreeMap::new();
         for (k, _) in self.node_apis.iter() {
-            node_states.insert(k.clone(), TimeOrderedData::<(State, NodeState)>::new());
+            node_states.insert(
+                k.clone(),
+                TimeOrderedData::<(State, NodeState)>::new(TIME_ROUND),
+            );
         }
         let mut waiting_nodes = 0;
         loop {
@@ -1147,7 +1150,7 @@ impl Simulator {
                     if !node_states.contains_key(node_name) {
                         node_states.insert(
                             node_name.clone(),
-                            TimeOrderedData::<(State, NodeState)>::new(),
+                            TimeOrderedData::<(State, NodeState)>::new(TIME_ROUND),
                         );
                     }
                     if let Some(node_state) = node_states.get_mut(node_name) {

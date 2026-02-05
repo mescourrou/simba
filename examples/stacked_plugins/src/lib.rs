@@ -135,13 +135,12 @@ fn start(python_api: Py<PyAny>) {
 
     let my_plugin = Some(Arc::new(my_plugin) as Arc<dyn PluginAPI>);
 
-    let mut simulator =
-        match AsyncSimulator::from_config_path("config_plugin.yaml", &my_plugin) {
-            Ok(simulator) => simulator,
-            Err(e) => {
-                panic!("Failed to create simulator: {}", e);
-            }
-        };
+    let mut simulator = match AsyncSimulator::from_config_path("config_plugin.yaml", &my_plugin) {
+        Ok(simulator) => simulator,
+        Err(e) => {
+            panic!("Failed to create simulator: {}", e);
+        }
+    };
     simulator.run(&my_plugin, Some(20.), false);
     let _ = simulator.get_records(false);
     simulator.run(&my_plugin, Some(40.), false);

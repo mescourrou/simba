@@ -1181,12 +1181,13 @@ impl SimulatorWrapper {
 
         let python_api = plugin_api.map(|api| Arc::new(PythonAPI::new(api)) as Arc<dyn PluginAPI>);
 
-        let simulator = AsyncSimulator::from_config_path(&config_path, &python_api).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Failed to create simulator from config: {}",
-                e.detailed_error()
-            ))
-        })?;
+        let simulator =
+            AsyncSimulator::from_config_path(&config_path, &python_api).map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to create simulator from config: {}",
+                    e.detailed_error()
+                ))
+            })?;
         Ok(SimulatorWrapper {
             simulator,
             python_api,

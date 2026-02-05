@@ -1,4 +1,7 @@
-use std::{path::Path, sync::{Arc, Mutex, RwLock, mpsc}};
+use std::{
+    path::Path,
+    sync::{Arc, Mutex, RwLock, mpsc},
+};
 
 use log::debug;
 use pyo3::Python;

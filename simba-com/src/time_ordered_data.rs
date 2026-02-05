@@ -7,8 +7,6 @@ use core::slice::{Iter, IterMut};
 use std::iter::Skip;
 use std::vec::Vec;
 
-use crate::constants::TIME_ROUND;
-
 /// Data structure to store ordered timed data.
 ///
 /// The generic is the Type to be stored. For now, the time is stored
@@ -18,7 +16,7 @@ use crate::constants::TIME_ROUND;
 /// ```
 /// use simba::utils::time_ordered_data::TimeOrderedData;
 ///
-/// let mut tod = TimeOrderedData::<String>::new();
+/// let mut tod = TimeOrderedData::<String>::new(0.001);
 /// tod.insert(2.1, String::from("Hello1"), true);
 /// tod.insert(2.9, String::from("Hello2"), true);
 /// tod.insert(2.6, String::from("Hello3"), true);
@@ -39,12 +37,16 @@ pub struct TimeOrderedData<T> {
     /// Data structure. WARNING: the sort is done during the insertion,
     /// and is not checked after !
     data: Vec<(f32, T)>,
+    time_round: f32,
 }
 
 impl<T> TimeOrderedData<T> {
     /// Creates a new empty data structure.
-    pub fn new() -> Self {
-        Self { data: Vec::new() }
+    pub fn new(time_round: f32) -> Self {
+        Self {
+            data: Vec::new(),
+            time_round,
+        }
     }
 
     /// Find the index equal or just after the required time.
@@ -63,10 +65,10 @@ impl<T> TimeOrderedData<T> {
 
         while pos > 0 {
             let pos_time = self.data[pos - 1].0;
-            if pos_time < time - TIME_ROUND / 2. {
+            if pos_time < time - self.time_round / 2. {
                 // Return.1 is if the time is exact (not here)
                 return (pos, false);
-            } else if (pos_time - time).abs() < TIME_ROUND / 2. {
+            } else if (pos_time - time).abs() < self.time_round / 2. {
                 pos -= 1;
                 // Return.1 is if the time is exact
                 return (pos, true);
@@ -219,7 +221,7 @@ impl<T> TimeOrderedData<T> {
         None
     }
 
-    /// Get a reference on the data strictly (within 1e-15) at the given `time`.
+    /// Get a reference on the data strictly (within time_round) at the given `time`.
     ///
     /// ## Return
     /// Return an Option with:
@@ -227,14 +229,14 @@ impl<T> TimeOrderedData<T> {
     /// * `None` if no data was found at this `time`.
     pub fn get_data_at_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
-            if (*data_time - time).abs() < TIME_ROUND / 2. {
+            if (*data_time - time).abs() < self.time_round / 2. {
                 return Some((time, data));
             }
         }
         None
     }
 
-    /// Get a mutable reference on the data strictly (within 1e-15) at the given `time`.
+    /// Get a mutable reference on the data strictly (within time_round) at the given `time`.
     ///
     /// ## Return
     /// Return an Option with:
@@ -242,7 +244,7 @@ impl<T> TimeOrderedData<T> {
     /// * `None` if no data was found at this `time`.
     pub fn get_data_at_time_mut(&mut self, time: f32) -> Option<(f32, &mut T)> {
         for (data_time, data) in self.data.iter_mut() {
-            if (*data_time - time).abs() < TIME_ROUND / 2. {
+            if (*data_time - time).abs() < self.time_round / 2. {
                 return Some((time, data));
             }
         }
@@ -254,7 +256,7 @@ impl<T> TimeOrderedData<T> {
     /// If `time` is an existent time, the iterator starts at this position.
     pub fn iter_from_time(&self, time: f32) -> Skip<Iter<'_, (f32, T)>> {
         let (mut pos, _) = self.find_time_position(time);
-        while pos > 0 && (self.data[pos - 1].0 - time).abs() < TIME_ROUND / 2. {
+        while pos > 0 && (self.data[pos - 1].0 - time).abs() < self.time_round / 2. {
             pos -= 1;
         }
         self.data.iter().skip(pos)
@@ -315,7 +317,7 @@ impl<T> TimeOrderedData<T> {
 
 impl<T> Default for TimeOrderedData<T> {
     fn default() -> Self {
-        Self::new()
+        Self::new(0.001)
     }
 }
 
@@ -325,13 +327,13 @@ mod tests {
 
     #[test]
     fn new() {
-        let tod = TimeOrderedData::<String>::new();
+        let tod = TimeOrderedData::<String>::new(0.001);
         assert_eq!(tod.data.len(), 0);
     }
 
     #[test]
     fn insert_when_empty() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
 
         let str_to_insert = String::from("Hello");
 
@@ -345,7 +347,7 @@ mod tests {
 
     #[test]
     fn insert_larger_time() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
 
         // Empty
         let str_to_insert = String::from("Hello1");
@@ -363,7 +365,7 @@ mod tests {
 
     #[test]
     fn insert_first_position() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
 
         // Empty
         let str_to_insert = String::from("Hello1");
@@ -381,7 +383,7 @@ mod tests {
 
     #[test]
     fn insert_in_between() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
 
         // Empty
         let str_to_insert = String::from("Hello1");
@@ -414,7 +416,7 @@ mod tests {
 
     #[test]
     fn insert_with_replacement() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
 
         // Empty
         let str_to_insert = String::from("Hello1");
@@ -432,7 +434,7 @@ mod tests {
 
     #[test]
     fn get_data_before_and_equal_time() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
         tod.insert(2.1, String::from("Hello"), true);
         tod.insert(2.3, String::from("Hello2"), true);
 
@@ -450,7 +452,7 @@ mod tests {
 
     #[test]
     fn get_data_before_and_equal_time_mut() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
         tod.insert(2.1, String::from("Hello"), true);
         tod.insert(2.3, String::from("Hello2"), true);
 
@@ -475,7 +477,7 @@ mod tests {
 
     #[test]
     fn get_data_after_and_equal_time() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
         tod.insert(2.1, String::from("Hello"), true);
         tod.insert(2.3, String::from("Hello2"), true);
 
@@ -494,7 +496,7 @@ mod tests {
 
     #[test]
     fn get_data_after_and_equal_time_mut() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
         tod.insert(2.1, String::from("Hello"), true);
         tod.insert(2.3, String::from("Hello2"), true);
 
@@ -519,7 +521,7 @@ mod tests {
 
     #[test]
     fn iter_from_time() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
         let str_to_insert = String::from("Hello1");
         tod.insert(2.1, str_to_insert, true);
         let str_to_insert = String::from("Hello2");
@@ -540,7 +542,7 @@ mod tests {
     }
     #[test]
     fn iter_from_time_mut() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
         let str_to_insert = String::from("Hello1");
         tod.insert(2.1, str_to_insert, true);
         let str_to_insert = String::from("Hello2");
@@ -565,7 +567,7 @@ mod tests {
 
     #[test]
     fn remove_element() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
         let str_to_insert = String::from("Hello1");
         tod.insert(2.1, str_to_insert, true);
         let str_to_insert = String::from("Hello2");
@@ -584,7 +586,7 @@ mod tests {
 
     #[test]
     fn do_not_erase() {
-        let mut tod = TimeOrderedData::<String>::new();
+        let mut tod = TimeOrderedData::<String>::new(0.001);
         let str_to_insert = String::from("Hello1");
         tod.insert(2.1, str_to_insert, false);
         let str_to_insert = String::from("Hello2");

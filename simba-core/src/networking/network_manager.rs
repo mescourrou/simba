@@ -5,6 +5,7 @@ Provide the Manager of the nodes [`Network`](crate::networking::network::Network
 
 use log::debug;
 use serde_json::Value;
+use simba_com::time_ordered_data::TimeOrderedData;
 
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
@@ -12,7 +13,6 @@ use crate::networking::NetworkError;
 use crate::node::{Node, NodeState};
 use crate::simulator::TimeCv;
 use crate::state_estimators::State;
-use crate::utils::time_ordered_data::TimeOrderedData;
 
 use super::network::MessageFlag;
 use std::collections::BTreeMap;

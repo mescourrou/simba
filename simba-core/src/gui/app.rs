@@ -252,7 +252,6 @@ impl SimbaApp {
                     log::error!("Error loading config: {}", e.detailed_error());
                 }
             }
-            
         }
         if load_results {
             n.p.api.lock().unwrap().load_results.async_call(None);

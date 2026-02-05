@@ -7,6 +7,7 @@ use log::debug;
 #[cfg(not(feature = "force_hard_determinism"))]
 use log::warn;
 use regex::Regex;
+use simba_com::time_ordered_data::TimeOrderedData;
 
 use crate::{
     config::NumberConfig,
@@ -20,10 +21,7 @@ use crate::{
     },
     simulator::{RunningParameters, Simulator, SimulatorConfig},
     state_estimators::State,
-    utils::{
-        determinist_random_variable::DeterministRandomVariableFactory,
-        time_ordered_data::TimeOrderedData,
-    },
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 
 #[cfg(not(feature = "force_hard_determinism"))]
@@ -49,7 +47,7 @@ impl Scenario {
             .clone()
             .into_iter()
             .partition(|e| matches!(e.trigger, EventTriggerConfig::Time(_)));
-        let mut time_events = TimeOrderedData::new();
+        let mut time_events = TimeOrderedData::new(TIME_ROUND);
         for event in &time_events_vec {
             let ts: Vec<f32> = match &event.trigger {
                 EventTriggerConfig::Time(t) => {
