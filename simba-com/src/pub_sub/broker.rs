@@ -125,4 +125,60 @@ where KeyType: std::cmp::Eq + std::hash::Hash + Clone,
 
 }
 
+pub struct GenericBroker<KeyType, MessageType, ConditionArgType>
+where
+    KeyType: std::cmp::Eq + std::hash::Hash + Clone,
+    MessageType: Clone + Send + 'static,
+    ConditionArgType: Clone + Send + 'static,
+{
+    inner: Broker<KeyType>,
+    _phantom: std::marker::PhantomData<(MessageType, ConditionArgType)>,
+}
+
+impl<KeyType, MessageType, ConditionArgType> GenericBroker<KeyType, MessageType, ConditionArgType>
+where
+    KeyType: std::cmp::Eq + std::hash::Hash + Clone,
+    MessageType: Clone + Send + 'static,
+    ConditionArgType: Clone + Send + 'static,
+{
+    pub fn new(time_round: f32) -> Self {
+        Self {
+            inner: Broker::new(time_round),
+            _phantom: std::marker::PhantomData
+        }
+    }
+
+    pub fn process_messages(&self) {
+        self.inner.process_messages();
+    }
+
+    pub fn add_channel(&mut self, key: KeyType) {
+        self.inner.add_channel_conditionnal::<MessageType, ConditionArgType>(key, |_, _| true);
+    }
+
+    pub fn get_channel(&mut self, key: &KeyType) -> Option<Channel<MessageType, ConditionArgType>> {
+        self.inner.get_channel_conditionnal(key)
+    }
+
+    pub fn subscribe_to(&mut self, key: &KeyType, reception_delay: f32) -> Option<Client<MessageType, ConditionArgType>> {
+        self.inner.subscribe_to_conditionnal(key, reception_delay)
+    }
+
+    pub fn remove_channel(&mut self, key: &KeyType) {
+        self.inner.remove_channel(key);
+    }
+
+    pub fn channel_exists(&self, key: &KeyType) -> bool {
+        self.inner.channel_exists(key)
+    }
+
+    pub fn channel_list(&self) -> Vec<&KeyType> {
+        self.inner.channel_list()
+    }
+
+    pub fn subscribe_to_list(&mut self, keys: &[KeyType], reception_delay: f32) -> Option<MultiClient<KeyType, MessageType, ConditionArgType>> {
+        self.inner.subscribe_to_list_conditionnal(keys, reception_delay)
+    }    
+}
+
 

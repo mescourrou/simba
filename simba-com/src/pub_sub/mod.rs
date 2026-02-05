@@ -4,6 +4,7 @@ mod client;
 mod multi_client;
 
 pub use broker::Broker;
+pub use broker::GenericBroker;
 pub use channel::Channel;
 pub use client::Client;
 pub use multi_client::MultiClient;
