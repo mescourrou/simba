@@ -1,10 +1,12 @@
 mod broker;
 mod channel;
 mod client;
+mod multi_client;
 
 pub use broker::Broker;
 pub use channel::Channel;
 pub use client::Client;
+pub use multi_client::MultiClient;
 
 #[cfg(test)]
 mod tests {
