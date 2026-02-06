@@ -1,16 +1,17 @@
 use std::{
-    sync::{
+    fmt::Debug, sync::{
         Arc, Mutex,
         mpsc::{self, Receiver, Sender},
-    },
+    }
 };
 
 use crate::pub_sub::client::Client;
 
-pub trait ChannelProcessing: Send + Sync {
+pub trait ChannelProcessing: Send + Sync + Debug {
     fn process_messages(&self);
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
+
 
 ///
 /// Lock order: receivers then senders
@@ -20,6 +21,15 @@ pub struct Channel<MessageType: Clone + Send + 'static, ConditionArgType: Clone 
     receivers: Arc<Mutex<Vec<Receiver<(MessageType, ConditionArgType, f32)>>>>,
     condition: Arc<Mutex<dyn Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static>>,
     time_round: f32,
+}
+
+impl<MessageType: Clone + Send + 'static, ConditionArgType: Clone + Send + 'static> Debug for Channel<MessageType, ConditionArgType> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Channel")
+            .field("senders_count", &self.senders.lock().unwrap().len())
+            .field("receivers_count", &self.receivers.lock().unwrap().len())
+            .finish()
+    }
 }
 
 impl<MessageType: Clone + Send + 'static, ConditionArgType: Clone + Send + 'static> Channel<MessageType, ConditionArgType> {
@@ -75,4 +85,5 @@ impl<MessageType: Clone + Send + 'static, ConditionArgType: Clone + Send + 'stat
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
         self
     }
+
 }

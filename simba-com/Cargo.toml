@@ -6,3 +6,4 @@ authors.workspace = true
 
 
 [dependencies]
+tree-ds = { version = "0.2.0", features = ["auto_id", "async"] }

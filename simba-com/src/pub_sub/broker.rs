@@ -1,20 +1,31 @@
-use std::collections::HashMap;
+use std::{collections::{BTreeMap, BTreeSet, HashMap}, path::Path};
+
+use tree_ds::prelude::*;
 
 use crate::pub_sub::{Client, MultiClient, channel::{Channel, ChannelProcessing}};
 
+#[derive(Debug)]
 pub struct Broker<KeyType>
-where KeyType: std::cmp::Eq + std::hash::Hash,
+where KeyType: std::cmp::Eq + std::hash::Hash + Clone + Default + Send + Sync,
 {
     channels: HashMap<KeyType, Box<dyn ChannelProcessing>>,
+    key_tree: Tree<AutomatedId, KeyType>,
+    key_to_node_id: HashMap<KeyType, AutomatedId>,
     time_round: f32,
 }
 
 impl<KeyType> Broker<KeyType> 
-where KeyType: std::cmp::Eq + std::hash::Hash,
+where KeyType: std::cmp::Eq + std::hash::Hash + Clone + Default + Send + Sync,
 {
     pub fn new(time_round: f32) -> Self {
+        let mut key_tree = Tree::new(None);
+        let root = key_tree.add_node(Node::new_with_auto_id(Some(KeyType::default())), None);
+        let mut key_to_node_id = HashMap::new();
+        key_to_node_id.insert(KeyType::default(), root.unwrap());
         Self {
             channels: HashMap::new(),
+            key_tree,
+            key_to_node_id,
             time_round,
         }
     }
@@ -30,14 +41,44 @@ where KeyType: std::cmp::Eq + std::hash::Hash,
         key: KeyType,
         condition: impl Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static + Clone,
     ) {
-        self.channels.insert(key, Box::new(Channel::<MessageType, ConditionArgType>::new_conditionnal(condition, self.time_round)));
+        self.channels.insert(key.clone(), Box::new(Channel::<MessageType, ConditionArgType>::new_conditionnal(condition, self.time_round)));
+        let new_id = self.key_tree.add_node(Node::new_with_auto_id(Some(key.clone())), Some(&self.key_to_node_id.get(&KeyType::default()).unwrap())).unwrap();
+        self.key_to_node_id.insert(key, new_id);
     }
 
     pub fn add_channel<MessageType: Clone + Send + 'static>(
         &mut self,
         key: KeyType,
     ) {
-        self.channels.insert(key, Box::new(Channel::<MessageType, ()>::new(self.time_round)));
+        self.channels.insert(key.clone(), Box::new(Channel::<MessageType, ()>::new(self.time_round)));
+        self.key_tree.add_node(Node::new_with_auto_id(Some(key.clone())), Some(&self.key_to_node_id.get(&KeyType::default()).unwrap())).unwrap();
+    }
+
+
+    pub fn add_metachannel(&mut self, key: KeyType, parent_key: &KeyType) {
+        let parent_node_id = self.key_to_node_id.get(parent_key).expect("Parent key does not exist");
+        self.key_tree.add_node(Node::new_with_auto_id(Some(key.clone())), Some(parent_node_id)).unwrap();
+    }
+
+    pub fn add_subchannel<MessageType: Clone + Send + 'static>(
+        &mut self,
+        key: KeyType,
+        parent_key: &KeyType,
+    ) {
+        self.channels.insert(key.clone(), Box::new(Channel::<MessageType, ()>::new(self.time_round)));
+        let parent_node_id = self.key_to_node_id.get(parent_key).expect("Parent key does not exist");
+        self.key_tree.add_node(Node::new_with_auto_id(Some(key.clone())), Some(parent_node_id)).unwrap();
+    }
+
+    pub fn add_subchannel_conditionnal<MessageType: Clone + Send + 'static, ConditionArgType: Clone + Send + 'static>(
+        &mut self,
+        key: KeyType,
+        parent_key: &KeyType,
+        condition: impl Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static + Clone,
+    ) {
+        self.channels.insert(key.clone(), Box::new(Channel::<MessageType, ConditionArgType>::new_conditionnal(condition, self.time_round)));
+        let parent_node_id = self.key_to_node_id.get(parent_key).expect("Parent key does not exist");
+        self.key_tree.add_node(Node::new_with_auto_id(Some(key.clone())), Some(parent_node_id)).unwrap();
     }
 
     pub fn get_channel_conditionnal<MessageType: Clone + Send + 'static, ConditionArgType: Clone + Send + 'static>(
@@ -70,6 +111,34 @@ where KeyType: std::cmp::Eq + std::hash::Hash,
         self.get_channel_conditionnal(key).map(|mut channel| channel.client(reception_delay))
     }
 
+    pub fn subscribe_to_meta<MessageType: Clone + Send + 'static>(
+        &mut self,
+        key: &KeyType,
+        reception_delay: f32,
+    ) -> Option<MultiClient<KeyType, MessageType, ()>> {
+        let parent_node_id = self.key_to_node_id.get(key).expect("Key does not exist");
+        let mut keys = Vec::new();
+        // Iterate on leaf nodes of the subtree of parent_node_id
+        for node_id in self.key_tree.get_subtree(parent_node_id, None).unwrap().traverse(parent_node_id, TraversalStrategy::PreOrder).unwrap().iter().filter(|id| self.key_tree.get_node_degree(id).unwrap() == 0) {
+            keys.push(self.key_tree.get_node_by_id(node_id).unwrap().get_value().unwrap().unwrap());
+        }
+        self.subscribe_to_list::<MessageType>(&keys, reception_delay)
+    }
+
+    pub fn subscribe_to_meta_conditionnal<MessageType: Clone + Send + 'static, ConditionArgType: Clone + Send + 'static>(
+        &mut self,
+        key: &KeyType,
+        reception_delay: f32,
+    ) -> Option<MultiClient<KeyType, MessageType, ConditionArgType>> {
+        let parent_node_id = self.key_to_node_id.get(key).expect("Key does not exist");
+        let mut keys = Vec::new();
+        // Iterate on leaf nodes of the subtree of parent_node_id
+        for node_id in self.key_tree.get_subtree(parent_node_id, None).unwrap().traverse(parent_node_id, TraversalStrategy::PreOrder).unwrap().iter().filter(|id| self.key_tree.get_node_degree(id).unwrap() == 0) {
+            keys.push(self.key_tree.get_node_by_id(node_id).unwrap().get_value().unwrap().unwrap());
+        }
+        self.subscribe_to_list_conditionnal::<MessageType, ConditionArgType>(&keys, reception_delay)
+    }
+
     pub fn remove_channel(&mut self, key: &KeyType) {
         self.channels.remove(key);
     }
@@ -81,11 +150,7 @@ where KeyType: std::cmp::Eq + std::hash::Hash,
     pub fn channel_list(&self) -> Vec<&KeyType> {
         self.channels.keys().collect()
     }
-}
 
-impl<KeyType> Broker<KeyType> 
-where KeyType: std::cmp::Eq + std::hash::Hash + Clone,
-{
     /// Subscribe to multiple channels at once. If one of the channels does not exist, return None and do not subscribe to any channel.
     /// The channels must have the same MessageType.
     pub fn subscribe_to_list<MessageType: Clone + Send + 'static>(
@@ -123,11 +188,14 @@ where KeyType: std::cmp::Eq + std::hash::Hash + Clone,
         Some(multi_client)
     }
 
+
 }
 
+
+#[derive(Debug)]
 pub struct GenericBroker<KeyType, MessageType, ConditionArgType>
 where
-    KeyType: std::cmp::Eq + std::hash::Hash + Clone,
+    KeyType: std::cmp::Eq + std::hash::Hash + Clone + Default + Send + Sync,
     MessageType: Clone + Send + 'static,
     ConditionArgType: Clone + Send + 'static,
 {
@@ -137,7 +205,7 @@ where
 
 impl<KeyType, MessageType, ConditionArgType> GenericBroker<KeyType, MessageType, ConditionArgType>
 where
-    KeyType: std::cmp::Eq + std::hash::Hash + Clone,
+    KeyType: std::cmp::Eq + std::hash::Hash + Clone + Default + Send + Sync,
     MessageType: Clone + Send + 'static,
     ConditionArgType: Clone + Send + 'static,
 {
@@ -152,8 +220,16 @@ where
         self.inner.process_messages();
     }
 
-    pub fn add_channel(&mut self, key: KeyType) {
-        self.inner.add_channel_conditionnal::<MessageType, ConditionArgType>(key, |_, _| true);
+    pub fn add_channel(&mut self, key: KeyType, condition: impl Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static + Clone) {
+        self.inner.add_channel_conditionnal::<MessageType, ConditionArgType>(key, condition);
+    }
+
+    pub fn add_metachannel(&mut self, key: KeyType, parent_key: &KeyType) {
+        self.inner.add_metachannel(key, parent_key);
+    }
+
+    pub fn add_subchannel(&mut self, key: KeyType, parent_key: &KeyType, condition: impl Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static + Clone) {
+        self.inner.add_subchannel_conditionnal::<MessageType, ConditionArgType>(key, parent_key, condition);
     }
 
     pub fn get_channel(&mut self, key: &KeyType) -> Option<Channel<MessageType, ConditionArgType>> {
@@ -180,5 +256,3 @@ where
         self.inner.subscribe_to_list_conditionnal(keys, reception_delay)
     }    
 }
-
-
