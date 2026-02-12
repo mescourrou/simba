@@ -244,7 +244,7 @@ mod trigger_sensor {
             {
                 log::info!("Triggering sensor at time {}", time);
                 node.network().as_ref().unwrap().write().unwrap().send_to(
-                    PathKey::from_str("/simba/node/robot1/sensors/RobotSensor").unwrap(),
+                    PathKey::from_str("/simba/nodes/robot1/sensors/RobotSensor").unwrap(),
                     Envelope {
                         from: node.name(),
                         message: serde_json::to_value(SensorTriggerMessage {}).unwrap(),
@@ -316,7 +316,7 @@ fn trigger_sensor() {
     config.log.log_level = LogLevel::Off;
     // config.log.included_nodes = vec!["robot1".to_string()];
     // config.log.excluded_nodes = vec!["simulator".to_string()];
-    // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::SensorManager, InternalLog::SensorManagerDetailed]);
+    // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::SensorManager, crate::logger::InternalLog::SensorManagerDetailed, crate::logger::InternalLog::NetworkMessages]);
     // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
     config.max_time = 25.;
     config.results = None;

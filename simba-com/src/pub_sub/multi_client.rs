@@ -4,6 +4,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+#[cfg(feature = "debug_mode")]
+use log::debug;
 use log::warn;
 
 use crate::pub_sub::{BrokerTrait, Client, PathKey};

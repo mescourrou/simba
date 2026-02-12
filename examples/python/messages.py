@@ -38,11 +38,11 @@ class StateEstimator(simba.StateEstimator):
         self.last_time = time
         if node.name() == "robot1":
             if abs(time - 30) < 0.001:
-                node.send_message("/simba/node/robot2/test", simba.MessageTypes.String("Bye Bye"), time, [simba.MessageFlag.Kill])
+                node.send_message("/simba/nodes/robot2/test", simba.MessageTypes.String("Bye Bye"), time, [simba.MessageFlag.Kill])
             elif time < 30:
-                node.send_message("/simba/node/robot2/test", simba.MessageTypes.from_goto(simba.GoToMessage((0, 0))), time)
+                node.send_message("/simba/nodes/robot2/test", simba.MessageTypes.from_goto(simba.GoToMessage((0, 0))), time)
         else:
-            node.send_message("/simba/node/robot1/test", simba.MessageTypes.String("Hello from robot2"), time)
+            node.send_message("/simba/nodes/robot1/test", simba.MessageTypes.String("Hello from robot2"), time)
         print(f"{node.name()}: Prediction {self._state}")
 
     def correction_step(self, node: simba.Node, observations: List[simba.Observation], t: float):

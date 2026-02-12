@@ -8,6 +8,8 @@ use std::{
     },
 };
 
+#[cfg(feature = "debug_mode")]
+use log::debug;
 use multimap::MultiMap;
 
 use crate::pub_sub::{SharedMutex, client::Client};
@@ -35,7 +37,7 @@ pub struct Channel<
     receivers: SharedMutex<MultiMap<NodeIdType, (usize, ReceiverType<MessageType>)>>,
     condition: SharedMutex<dyn Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static>,
     time_round: f32,
-    client_count: usize,
+    client_count: SharedMutex<usize>,
 }
 
 impl<
@@ -64,7 +66,7 @@ impl<
             receivers: Arc::new(Mutex::new(MultiMap::new())),
             condition: Arc::new(Mutex::new(|_, _| true)),
             time_round,
-            client_count: 0,
+            client_count: Arc::new(Mutex::new(0)),
         }
     }
 
@@ -77,15 +79,16 @@ impl<
             receivers: Arc::new(Mutex::new(MultiMap::new())),
             condition: Arc::new(Mutex::new(condition)),
             time_round,
-            client_count: 0,
+            client_count: Arc::new(Mutex::new(0)),
         }
     }
 
     pub fn client(&mut self, node_id: NodeIdType, reception_delay: f32) -> Client<MessageType> {
         let (to_client_tx, to_client_rx) = mpsc::channel();
         let (from_client_tx, from_client_rx) = mpsc::channel();
-        let id = self.client_count;
-        self.client_count += 1;
+        let mut client_count = self.client_count.lock().unwrap();
+        let id = *client_count;
+        *client_count += 1;
         self.receivers
             .lock()
             .unwrap()
@@ -128,8 +131,56 @@ impl<
                 messages_to_send.push((from_id.clone(), receiver.0, message));
             }
         }
+        for (from_id, from_sender_id, message) in messages_to_send {
+            let from_arg = client_condition_args.and_then(|args| args.get(&from_id));
+            for (to_id, senders) in senders.iter_all() {
+                let to_arg = if from_arg.is_some() {
+                    client_condition_args.and_then(|args| args.get(to_id))
+                } else {
+                    None
+                };
+                let send = if let Some(to_arg) = to_arg {
+                    (self.condition.lock().unwrap())(from_arg.unwrap().clone(), to_arg.clone())
+                } else {
+                    true
+                };
+                for (sender_id, sender) in senders {
+                    // Avoid sending the message back to the sender
+                    if &from_id == to_id && *sender_id == from_sender_id {
+                        continue;
+                    }
+                    if send {
+                        if sender.send(message.clone()).is_err() {
+                            // panic!(
+                            //     "Failed to send message from {:?} to ({:?}, {}): {:?}",
+                            //     from_id,
+                            //     to_id,
+                            //     *sender_id,
+                            //     e.to_string()
+                            // );
+                            // Assume dead client
+                            dead_clients.push((to_id.clone(), *sender_id));
+                        } else {
+                            #[cfg(feature = "debug_mode")]
+                            debug!("Message from {:?} to {:?} sent", from_id, to_id);
+                        }
+                    } else {
+                        #[cfg(feature = "debug_mode")]
+                        debug!(
+                            "Message from {:?} to {:?} not sent due to condition",
+                            from_id, to_id
+                        );
+                    }
+                }
+            }
+        }
         // Remove the dead clients
         for (key, sender_id) in dead_clients.into_iter().rev() {
+            #[cfg(feature = "debug_mode")]
+            debug!(
+                "Removing client {:?} with sender id {} from channel",
+                key, sender_id
+            );
             // Remove receivers
             let mut clients = receivers
                 .remove(&key)
@@ -151,47 +202,6 @@ impl<
                 .expect("Client to remove does not exist in senders");
             clients.remove(client_index);
             senders.insert_many(key.clone(), clients);
-        }
-        for (from_id, from_sender_id, message) in messages_to_send {
-            let from_arg = client_condition_args.and_then(|args| args.get(&from_id));
-            for (to_id, senders) in senders.iter_all() {
-                let to_arg = if from_arg.is_some() {
-                    client_condition_args.and_then(|args| args.get(to_id))
-                } else {
-                    None
-                };
-                let send = if let Some(to_arg) = to_arg {
-                    (self.condition.lock().unwrap())(from_arg.unwrap().clone(), to_arg.clone())
-                } else {
-                    true
-                };
-                for (sender_id, sender) in senders {
-                    // Avoid sending the message back to the sender
-                    if &from_id == to_id && *sender_id == from_sender_id {
-                        continue;
-                    }
-                    if send {
-                        if let Err(e) = sender.send(message.clone()) {
-                            panic!(
-                                "Failed to send message from {:?} to ({:?}, {}): {:?}",
-                                from_id,
-                                to_id,
-                                *sender_id,
-                                e.to_string()
-                            );
-                        } else {
-                            #[cfg(feature = "debug_mode")]
-                            debug!("Message from {:?} to {:?} sent", from_id, to_id);
-                        }
-                    } else {
-                        #[cfg(feature = "debug_mode")]
-                        debug!(
-                            "Message from {:?} to {:?} not sent due to condition",
-                            from_id, to_id
-                        );
-                    }
-                }
-            }
         }
     }
 

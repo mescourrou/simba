@@ -107,3 +107,9 @@ where
             .finish()
     }
 }
+
+impl<MessageType: Clone + Default> Drop for Client<MessageType> {
+    fn drop(&mut self) {
+        let _ = self.sender.send((MessageType::default(), -1.));
+    }
+}

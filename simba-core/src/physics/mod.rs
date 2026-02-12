@@ -154,14 +154,9 @@ impl UIComponent for PhysicsRecord {
 }
 
 use crate::{
-    errors::SimbaResult,
-    networking::service::HasService,
-    node::node_factory::FromConfigArguments,
-    physics::robot_models::Command,
-    recordable::Recordable,
-    simulator::SimulatorConfig,
-    state_estimators::State,
-    utils::SharedRwLock,
+    errors::SimbaResult, networking::service::HasService, node::node_factory::FromConfigArguments,
+    physics::robot_models::Command, recordable::Recordable, simulator::SimulatorConfig,
+    state_estimators::State, utils::SharedRwLock,
 };
 #[cfg(feature = "gui")]
 use crate::{

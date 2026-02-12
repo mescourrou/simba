@@ -83,7 +83,7 @@
     },
     "version": {
       "type": "string",
-      "default": "1.4.5"
+      "default": "1.5.0"
     }
   },
   "additionalProperties": false,
@@ -1073,7 +1073,6 @@
           "default": {
             "faults": [],
             "filters": [],
-            "lie_integration": true,
             "period": 0.10000000149011612,
             "type": "SpeedSensor"
           }
@@ -2015,52 +2014,6 @@
               "items": {
                 "$ref": "#/$defs/SensorFilterConfig"
               }
-            },
-            "lie_integration": {
-              "type": "boolean",
-              "default": true
-            },
-            "period": {
-              "description": "Observation period of the sensor.",
-              "type": [
-                "number",
-                "null"
-              ],
-              "format": "float",
-              "default": 0.10000000149011612
-            },
-            "type": {
-              "type": "string",
-              "const": "OdometrySensor"
-            }
-          },
-          "additionalProperties": false,
-          "deprecated": true,
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "description": "Configuration of the [`SpeedSensor`].",
-          "type": "object",
-          "properties": {
-            "faults": {
-              "type": "array",
-              "default": [],
-              "items": {
-                "$ref": "#/$defs/FaultModelConfig"
-              }
-            },
-            "filters": {
-              "type": "array",
-              "default": [],
-              "items": {
-                "$ref": "#/$defs/SensorFilterConfig"
-              }
-            },
-            "lie_integration": {
-              "type": "boolean",
-              "default": true
             },
             "period": {
               "description": "Observation period of the sensor.",

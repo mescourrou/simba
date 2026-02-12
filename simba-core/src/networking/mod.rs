@@ -97,7 +97,7 @@ pub mod channels {
             pub const INFO: &str = "/info";
             pub const DEBUG: &str = "/debug";
         }
-        pub const NODE: &str = concat!(super::INTERNAL, "/node");
+        pub const NODE: &str = concat!(super::INTERNAL, "/nodes");
         pub const COMMAND: &str = concat!(super::INTERNAL, "/command");
     }
 }
