@@ -1007,12 +1007,7 @@ impl Simulator {
         Ok(())
     }
 
-    #[deprecated(note = "Will be removed in future release. Use load_results_full instead")]
-    pub fn load_results(&mut self) -> SimbaResult<f32> {
-        self.load_results_full(None)
-    }
-
-    pub fn load_results_full(&mut self, filename: Option<String>) -> SimbaResult<f32> {
+    pub fn load_results(&mut self, filename: Option<String>) -> SimbaResult<f32> {
         if self.config.results.is_none() {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ConfigError,
@@ -1041,6 +1036,11 @@ impl Simulator {
             .unwrap()
             .update_time(*max_time);
         Ok(*max_time)
+    }
+
+    #[deprecated(note = "Will be removed in future release. Use load_results instead")]
+    pub fn load_results_full(&mut self, filename: Option<String>) -> SimbaResult<f32> {
+        self.load_results(filename)
     }
 
     pub fn deserialize_results_from_file(filename: &Path) -> SimbaResult<Results> {
@@ -1138,7 +1138,11 @@ impl Simulator {
                 debug!("End of time step sync");
             }
 
-            node_sync_params.end_time_step_sync.lock().unwrap().clone_from(&true);
+            node_sync_params
+                .end_time_step_sync
+                .lock()
+                .unwrap()
+                .clone_from(&true);
             node.sync_with_others(&node_sync_params.time_cv, nb_nodes_unlocked, next_time);
             // node_sync_params.time_cv.condvar.notify_all();
             // while !*node_sync_params.end_time_step_sync.lock().unwrap() {
@@ -1205,7 +1209,8 @@ impl Simulator {
             }
 
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                debug!("Simulator spin continue... (waiting_nodes: {}, nb_nodes: {}, finishing_nodes: {}, end_procedure_waiting: {})",
+                debug!(
+                    "Simulator spin continue... (waiting_nodes: {}, nb_nodes: {}, finishing_nodes: {}, end_procedure_waiting: {})",
                     *lk,
                     *running_parameters.nb_nodes.read().unwrap(),
                     *running_parameters.finishing_cv.0.lock().unwrap(),
@@ -1247,17 +1252,19 @@ impl Simulator {
                     if waiting_nodes >= *running_parameters.nb_nodes.read().unwrap() {
                         running_parameters.barrier.add_one();
                         time_end_procedure = true;
-                        debug!("All nodes waiting for end of time step procedure, starting procedure...");
+                        debug!(
+                            "All nodes waiting for end of time step procedure, starting procedure..."
+                        );
                         waiting_nodes = 0;
                     }
                     *lock = false;
                 };
             }
-            
 
             if time_end_procedure {
                 if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("Time step end procedure... (nb_nodes: {}, finishing_nodes: {})",
+                    debug!(
+                        "Time step end procedure... (nb_nodes: {}, finishing_nodes: {})",
                         *running_parameters.nb_nodes.read().unwrap(),
                         *running_parameters.finishing_cv.0.lock().unwrap()
                     );
@@ -1289,7 +1296,8 @@ impl Simulator {
                 >= *running_parameters.nb_nodes.read().unwrap()
             {
                 if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("All nodes finishing... (nb_nodes: {}, finishing_nodes: {})",
+                    debug!(
+                        "All nodes finishing... (nb_nodes: {}, finishing_nodes: {})",
                         *running_parameters.nb_nodes.read().unwrap(),
                         *running_parameters.finishing_cv.0.lock().unwrap()
                     );
@@ -1297,7 +1305,8 @@ impl Simulator {
                 return Ok(());
             }
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                debug!("End of simulator spin loop... (nb_nodes: {}, finishing_nodes: {})", 
+                debug!(
+                    "End of simulator spin loop... (nb_nodes: {}, finishing_nodes: {})",
                     *running_parameters.nb_nodes.read().unwrap(),
                     *running_parameters.finishing_cv.0.lock().unwrap()
                 );

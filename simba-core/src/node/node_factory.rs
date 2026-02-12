@@ -700,13 +700,33 @@ impl NodeFactory {
                 .join_str(networking::channels::internal::log::DEBUG),
         );
         if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-            debug!("Broker channels:\n- {}", broker_lock.channel_list().iter().map(|c| c.to_string()).collect::<Vec<String>>().join("\n- "));
+            debug!(
+                "Broker channels:\n- {}",
+                broker_lock
+                    .channel_list()
+                    .iter()
+                    .map(|c| c.to_string())
+                    .collect::<Vec<String>>()
+                    .join("\n- ")
+            );
         }
         std::mem::drop(broker_lock);
-        let mut client = SimbaBrokerMultiClient::new(broker.clone(), node_name.clone(), 0., PathKey::from_str("/"));
-        broker.write().unwrap().subscribe_to_list(&[
-            PathKey::from_str(networking::channels::internal::COMMAND).join_str(node_name.as_str())
-        ], 0., &mut client).unwrap();
+        let mut client = SimbaBrokerMultiClient::new(
+            broker.clone(),
+            node_name.clone(),
+            0.,
+            PathKey::from_str("/"),
+        );
+        broker
+            .write()
+            .unwrap()
+            .subscribe_to_list(
+                &[PathKey::from_str(networking::channels::internal::COMMAND)
+                    .join_str(node_name.as_str())],
+                0.,
+                &mut client,
+            )
+            .unwrap();
         Ok(client)
     }
 

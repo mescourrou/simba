@@ -575,7 +575,10 @@ impl Node {
             .unwrap()
             .handle_requests(time);
         while let Some((path, message)) = self.node_message_client.try_receive(time) {
-            if path == PathKey::from_str(networking::channels::internal::COMMAND).join_str(self.name().as_str()) {
+            if path
+                == PathKey::from_str(networking::channels::internal::COMMAND)
+                    .join_str(self.name().as_str())
+            {
                 for flag in message.message_flags {
                     match flag {
                         MessageFlag::Kill => {
@@ -584,7 +587,6 @@ impl Node {
                         _ => {}
                     }
                 }
-                
             }
         }
     }

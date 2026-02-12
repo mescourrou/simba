@@ -240,7 +240,17 @@ impl Network {
         });
         if is_enabled(crate::logger::InternalLog::NetworkMessages) {
             debug!("Subscribe to '{:?}'", keys);
-            debug!("Channels: {}", self.broker.read().unwrap().channel_list().iter().map(|k| k.to_string()).collect::<Vec<_>>().join(", "));
+            debug!(
+                "Channels: {}",
+                self.broker
+                    .read()
+                    .unwrap()
+                    .channel_list()
+                    .iter()
+                    .map(|k| k.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
         }
         self.broker
             .write()
@@ -271,7 +281,12 @@ impl Network {
         self.broker
             .write()
             .unwrap()
-            .subscribe_to_list(keys, 0., &mut multi_client as &mut dyn simba_com::pub_sub::MultiClientTrait<PathKey, Envelope, String>)
+            .subscribe_to_list(
+                keys,
+                0.,
+                &mut multi_client
+                    as &mut dyn simba_com::pub_sub::MultiClientTrait<PathKey, Envelope, String>,
+            )
             .unwrap();
         multi_client
     }
@@ -307,20 +322,18 @@ impl Network {
                 .prepend_str(&self.from)
                 .prepend_str(channels::internal::NODE)
         };
-        if let Some(tmp_client) = self.broker.write().unwrap().subscribe_to(
-            &key,
-            self.from.clone(),
-            self.reception_delay,
-        ) {
+        if let Some(tmp_client) =
+            self.broker
+                .write()
+                .unwrap()
+                .subscribe_to(&key, self.from.clone(), self.reception_delay)
+        {
             if is_enabled(crate::logger::InternalLog::NetworkMessages) {
                 debug!("Sending message to '{}': {:?}", key, message);
             }
             tmp_client.send(message, time);
         } else {
-            warn!(
-                "Trying to send a message to '{}' that is not created",
-                key
-            );
+            warn!("Trying to send a message to '{}' that is not created", key);
         }
     }
 

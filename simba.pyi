@@ -115,13 +115,6 @@ class SpeedObservation:
         self.angular_velocity: float
         self.applied_faults: str """ Applied faults in JSON format """
 
-#@deprecated("OdometryObservation is deprecated, use SpeedObservation instead", category=DeprecationWarning)
-class OdometryObservation:
-    def __init__(self):
-        self.linear_velocity: float
-        self.angular_velocity: float
-        self.applied_faults: str """ Applied faults in JSON format """
-
 class DisplacementObservation:
     def __init__(self):
         self.translation: Vec2
@@ -143,7 +136,6 @@ class OrientedRobotObservation:
 
 class SensorObservation(Enum):
     OrientedLandmark: OrientedLandmarkObservation
-    Odometry: OdometryObservation # @deprecated
     Speed: SpeedObservation
     GNSS: GNSSObservation
     OrientedRobot: OrientedRobotObservation
@@ -152,10 +144,6 @@ class SensorObservation(Enum):
         self.kind: str
 
     def as_oriented_landmark(self) -> OrientedLandmarkObservation | None:
-        raise NotImplementedError()
-    
-    #@deprecated("as_odometry is deprecated, use as_speed instead", category=DeprecationWarning)
-    def as_odometry(self) -> OdometryObservation | None:
         raise NotImplementedError()
     
     def as_speed(self) -> SpeedObservation | None:

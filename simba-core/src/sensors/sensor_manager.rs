@@ -339,18 +339,6 @@ impl SensorManager {
                             initial_time,
                         )) as Box<dyn Sensor>
                     }
-                    #[allow(deprecated)]
-                    SensorConfig::OdometrySensor(c) => {
-                        warn!("OdometrySensor is deprecated and renamed to SpeedSensor");
-                        Box::new(SpeedSensor::from_config(
-                            c,
-                            plugin_api,
-                            global_config,
-                            node_name,
-                            va_factory,
-                            initial_time,
-                        )) as Box<dyn Sensor>
-                    }
                     SensorConfig::SpeedSensor(c) => Box::new(SpeedSensor::from_config(
                         c,
                         plugin_api,
@@ -407,7 +395,10 @@ impl SensorManager {
                 .unwrap()
                 .subscribe_to(&[sensor_manager_key], None),
         );
-        debug!("Sensor Manager subscribed to channel {:?}", manager.message_client.as_ref().unwrap().subscribed_keys());
+        debug!(
+            "Sensor Manager subscribed to channel {:?}",
+            manager.message_client.as_ref().unwrap().subscribed_keys()
+        );
         manager.next_time = None;
         for sensor in &manager.sensors {
             manager.next_time = Some(
@@ -430,7 +421,10 @@ impl SensorManager {
 
     pub fn handle_messages(&mut self, time: f32) {
         while let Some((path, envelope)) = self.message_client.as_ref().unwrap().try_receive(time) {
-            debug!("Sensor Manager received message on path {:?} at time {}: {:?}", path, envelope.timestamp, envelope.message);
+            debug!(
+                "Sensor Manager received message on path {:?} at time {}: {:?}",
+                path, envelope.timestamp, envelope.message
+            );
             if path
                 == self
                     .channel_root

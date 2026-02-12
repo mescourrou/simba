@@ -35,8 +35,7 @@ impl Robot {
                         c, sim_config,
                     ))
                 }
-                #[allow(deprecated)]
-                SensorConfig::SpeedSensor(_) | SensorConfig::OdometrySensor(_) => {}
+                SensorConfig::SpeedSensor(_) => {}
                 SensorConfig::DisplacementSensor(_) => {}
                 SensorConfig::OrientedLandmarkSensor(c) => {
                     landmark_obs = Some(OrientedLandmarkObservation::init(c, sim_config))

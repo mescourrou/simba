@@ -425,7 +425,7 @@ impl PathKey {
             absolute: path.starts_with('/'),
         }
     }
-    
+
     fn str_split(path: &str) -> Vec<String> {
         path.split('/')
             .filter_map(|s| {
@@ -560,7 +560,10 @@ where
         if let Some(parent) = key.parent() {
             self.add_metachannel(parent, None);
         }
-        self.broker.add_subchannel(key.to_string(), &key.parent().map(|p| p.to_string()).unwrap_or_default());
+        self.broker.add_subchannel(
+            key.to_string(),
+            &key.parent().map(|p| p.to_string()).unwrap_or_default(),
+        );
     }
 
     fn add_metachannel(&mut self, key: PathKey, parent_key: Option<&PathKey>) {
@@ -689,14 +692,15 @@ where
             .filter(|id| self.broker.key_tree.get_node_degree(id).unwrap() == 0)
         {
             let key = PathKey::from_str(
-                    &self
-                        .broker
-                        .key_tree
-                        .get_node_by_id(&node_id)
-                        .unwrap()
-                        .get_value()
-                        .unwrap()
-                        .unwrap());
+                &self
+                    .broker
+                    .key_tree
+                    .get_node_by_id(&node_id)
+                    .unwrap()
+                    .get_value()
+                    .unwrap()
+                    .unwrap(),
+            );
             keys.push(key);
         }
         for key in keys {
@@ -705,7 +709,10 @@ where
             {
                 multi_client.add_client(&key, client);
             } else {
-                return Err(format!("During meta subscription, failed to subscribe to key: {}", key.to_string()));
+                return Err(format!(
+                    "During meta subscription, failed to subscribe to key: {}",
+                    key.to_string()
+                ));
             }
         }
         Ok(())
@@ -727,8 +734,11 @@ where
         if let Some(parent) = key.parent() {
             self.add_metachannel(parent, None);
         }
-        self.broker
-            .add_subchannel_conditionnal(key.to_string(), &key.parent().map(|p| p.to_string()).unwrap_or_default(), condition);
+        self.broker.add_subchannel_conditionnal(
+            key.to_string(),
+            &key.parent().map(|p| p.to_string()).unwrap_or_default(),
+            condition,
+        );
     }
 
     fn add_subchannel_conditionnal<F>(&mut self, key: PathKey, parent_key: &PathKey, condition: F)

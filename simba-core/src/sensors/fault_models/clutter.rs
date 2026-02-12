@@ -280,8 +280,7 @@ impl FaultModel for ClutterFault {
                     o.applied_faults
                         .push(FaultModelConfig::Clutter(self.config.clone()));
                 }
-                #[allow(deprecated)]
-                SensorObservation::Speed(o) | SensorObservation::Odometry(o) => {
+                SensorObservation::Speed(o) => {
                     if !self.variable_order.is_empty() {
                         for (i, variable) in self.variable_order.iter().enumerate() {
                             match variable.as_str() {
@@ -300,7 +299,7 @@ impl FaultModel for ClutterFault {
                     } else {
                         assert!(
                             random_sample.len() >= 2,
-                            "The distribution of an Clutter fault for Odometry observation need to be of dimension 2."
+                            "The distribution of an Clutter fault for Speed observation need to be of dimension 2."
                         );
                         o.angular_velocity = random_sample[0];
                         o.linear_velocity = random_sample[1];

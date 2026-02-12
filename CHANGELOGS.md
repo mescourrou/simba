@@ -1,5 +1,15 @@
 # Changelogs
 
+## v1.5.0
+- [breaking] New publisher-subscriber communication system allowing deeper user intervention and observation
+- Publish scenario events on /simba/scenario
+- [breaking] Possibility to load AsyncSimulator with SimulatorConfig instance instead of path
+
+Removed deprecated features:
+- Odometry sensor, replaced by SpeedSensor
+- Cumulative lie action in physics
+- Prepare function name change load_results_full -> load_results with filename argument
+
 ## v1.4.5
 Features:
 - Optional time analysis (on by default)

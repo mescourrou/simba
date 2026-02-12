@@ -155,8 +155,7 @@ impl SensorFilter for IdFilter {
             SensorObservation::GNSS(_) => {
                 unimplemented!("IdFilter cannot filter GNSSObservation");
             }
-            #[allow(deprecated)]
-            SensorObservation::Speed(_) | SensorObservation::Odometry(_) => {
+            SensorObservation::Speed(_) => {
                 unimplemented!("IdFilter cannot filter SpeedObservation");
             }
             SensorObservation::Displacement(_) => {

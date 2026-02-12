@@ -7,14 +7,27 @@ use log::debug;
 use log::warn;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use simba_com::{pub_sub::{BrokerTrait, Client, PathKey}, time_ordered_data::TimeOrderedData};
+use simba_com::{
+    pub_sub::{BrokerTrait, Client, PathKey},
+    time_ordered_data::TimeOrderedData,
+};
 
 use crate::{
-    config::NumberConfig, constants::TIME_ROUND, errors::SimbaResult, logger::{InternalLog, is_enabled}, networking::{self, network::Envelope}, node::{self, NodeState}, scenario::config::{
-        AreaEventTriggerConfig, EventConfig, EventRecord, EventTriggerConfig, EventTypeConfig, ProximityEventTriggerConfig, ScenarioConfig, SpawnEventConfig, TimeEventTriggerConfig
-    }, simulator::{
+    config::NumberConfig,
+    constants::TIME_ROUND,
+    errors::SimbaResult,
+    logger::{InternalLog, is_enabled},
+    networking::{self, network::Envelope},
+    node::{self, NodeState},
+    scenario::config::{
+        AreaEventTriggerConfig, EventConfig, EventRecord, EventTriggerConfig, EventTypeConfig,
+        ProximityEventTriggerConfig, ScenarioConfig, SpawnEventConfig, TimeEventTriggerConfig,
+    },
+    simulator::{
         RunningParameters, SimbaBroker, SimbaBrokerMultiClient, Simulator, SimulatorConfig,
-    }, state_estimators::State, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory}
+    },
+    state_estimators::State,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 use crate::networking::{network::MessageFlag, network_manager::MessageSendMethod};
@@ -77,14 +90,19 @@ impl Scenario {
                 time_events.insert(*t, (occurence, Event::from_config(event)), false);
             }
         }
-        let channel_key = PathKey::from_str(networking::channels::INTERNAL).join_str(Self::CHANNEL_NAME);
+        let channel_key =
+            PathKey::from_str(networking::channels::INTERNAL).join_str(Self::CHANNEL_NAME);
         broker.write().unwrap().add_channel(channel_key.clone());
         Self {
             time_events,
             other_events: Mutex::new(other_events.iter().map(Event::from_config).collect()),
             last_executed_time: 0.,
             broker: broker.clone(),
-            client: broker.write().unwrap().subscribe_to(&channel_key, "scenario".to_string(), 0.).unwrap(),
+            client: broker
+                .write()
+                .unwrap()
+                .subscribe_to(&channel_key, "scenario".to_string(), 0.)
+                .unwrap(),
         }
     }
 
@@ -252,18 +270,21 @@ impl Scenario {
                         event: EventTypeConfig::Spawn(SpawnEventConfig {
                             model_name,
                             node_name,
-                        })
+                        }),
                     });
                 }
             }
         }
         if let Some(event_executed) = event_executed {
-            self.client.send(Envelope { 
-                from: "scenario".to_string(),
-                message: serde_json::to_value(event_executed).unwrap(),
-                timestamp: time,
-                ..Default::default()
-            }, time);
+            self.client.send(
+                Envelope {
+                    from: "scenario".to_string(),
+                    message: serde_json::to_value(event_executed).unwrap(),
+                    timestamp: time,
+                    ..Default::default()
+                },
+                time,
+            );
         }
         Ok(())
     }

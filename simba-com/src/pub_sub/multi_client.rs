@@ -25,7 +25,9 @@ where
     fn subscribed_keys(&self) -> Vec<KeyType>;
     fn node_id(&self) -> &NodeIdType;
 
-    fn transform_key(&self, key: &KeyType) -> KeyType { key.clone() }
+    fn transform_key(&self, key: &KeyType) -> KeyType {
+        key.clone()
+    }
 }
 
 #[derive(Debug)]
@@ -98,7 +100,10 @@ where
 
     fn send(&self, key: &KeyType, message: MessageType, time: f32) {
         if let Some(client) = self.clients.get(key) {
-            debug!("Sending message on key {:?} at time {}: {:?}", key, time, message);
+            debug!(
+                "Sending message on key {:?} at time {}: {:?}",
+                key, time, message
+            );
             client.send(message.clone(), time);
         } else {
             if let Some(tmp_client) =
@@ -107,7 +112,10 @@ where
                     .unwrap()
                     .subscribe_to(key, self.node_id.clone(), 0.0)
             {
-                debug!("Sending message on key {:?} at time {} with tmp client: {:?}", key, time, message);
+                debug!(
+                    "Sending message on key {:?} at time {} with tmp client: {:?}",
+                    key, time, message
+                );
                 tmp_client.send(message.clone(), time);
             } else {
                 warn!("Trying to send a message to '{}' that is not created", key);

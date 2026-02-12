@@ -69,8 +69,8 @@ impl<
 
     pub fn new_conditionnal(
         condition: impl Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static + Clone,
-        time_round: f32
-        ) -> Self {
+        time_round: f32,
+    ) -> Self {
         Self {
             senders: Arc::new(Mutex::new(MultiMap::new())),
             receivers: Arc::new(Mutex::new(MultiMap::new())),
@@ -89,7 +89,10 @@ impl<
             .lock()
             .unwrap()
             .insert(node_id.clone(), (id, from_client_rx));
-        self.senders.lock().unwrap().insert(node_id.clone(), (id, to_client_tx));
+        self.senders
+            .lock()
+            .unwrap()
+            .insert(node_id.clone(), (id, to_client_tx));
         Client::new(
             from_client_tx,
             to_client_rx,
@@ -132,7 +135,10 @@ impl<
             let mut clients = receivers
                 .remove(&key)
                 .expect("Client to remove does not exist in receivers");
-            let client_index = clients.iter().position(|(id, _)| *id == sender_id).expect("Client to remove does not exist in receivers");
+            let client_index = clients
+                .iter()
+                .position(|(id, _)| *id == sender_id)
+                .expect("Client to remove does not exist in receivers");
             clients.remove(client_index);
             receivers.insert_many(key.clone(), clients);
 
@@ -140,7 +146,10 @@ impl<
             let mut clients = senders
                 .remove(&key)
                 .expect("Client to remove does not exist in senders");
-            let client_index = clients.iter().position(|(id, _)| *id == sender_id).expect("Client to remove does not exist in senders");
+            let client_index = clients
+                .iter()
+                .position(|(id, _)| *id == sender_id)
+                .expect("Client to remove does not exist in senders");
             clients.remove(client_index);
             senders.insert_many(key.clone(), clients);
         }
@@ -167,12 +176,21 @@ impl<
                     }
                     if send {
                         if let Err(e) = sender.send(message.clone()) {
-                            panic!("Failed to send message from {:?} to ({:?}, {}): {:?}", from_id, to_id, *sender_id, e.to_string());
+                            panic!(
+                                "Failed to send message from {:?} to ({:?}, {}): {:?}",
+                                from_id,
+                                to_id,
+                                *sender_id,
+                                e.to_string()
+                            );
                         } else {
                             debug!("Message from {:?} to {:?} sent", from_id, to_id);
                         }
                     } else {
-                        debug!("Message from {:?} to {:?} not sent due to condition", from_id, to_id);
+                        debug!(
+                            "Message from {:?} to {:?} not sent due to condition",
+                            from_id, to_id
+                        );
                     }
                 }
             }

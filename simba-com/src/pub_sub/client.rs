@@ -93,7 +93,6 @@ impl<MessageType: Clone + Default> Client<MessageType> {
     }
 }
 
-
 impl<MessageType> Debug for Client<MessageType>
 where
     MessageType: Clone + Default,

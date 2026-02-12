@@ -148,7 +148,6 @@ impl Default for SpawnEventConfig {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventRecord {
     pub trigger: EventTriggerConfig,
