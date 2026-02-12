@@ -25,10 +25,10 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
-use crate::networking::message_handler::MessageHandler;
-use crate::networking::network::Envelope;
+use crate::networking::network::Network;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
+use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
 use crate::{
@@ -90,6 +90,7 @@ impl ExternalEstimator {
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
@@ -104,7 +105,13 @@ impl ExternalEstimator {
                         "Plugin API not set!".to_string(),
                     )
                 })?
-                .get_state_estimator(&config.config, global_config, va_factory, initial_time),
+                .get_state_estimator(
+                    &config.config,
+                    global_config,
+                    va_factory,
+                    network,
+                    initial_time,
+                ),
         })
     }
 }
@@ -145,11 +152,5 @@ impl StateEstimator for ExternalEstimator {
 impl Recordable<StateEstimatorRecord> for ExternalEstimator {
     fn record(&self) -> StateEstimatorRecord {
         self.state_estimator.record()
-    }
-}
-
-impl MessageHandler for ExternalEstimator {
-    fn get_letter_box(&self) -> Option<std::sync::mpsc::Sender<Envelope>> {
-        self.state_estimator.get_letter_box()
     }
 }

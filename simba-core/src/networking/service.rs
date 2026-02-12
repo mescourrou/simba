@@ -19,13 +19,15 @@ use std::{
 };
 
 use log::debug;
+use simba_com::time_ordered_data::TimeOrderedData;
 
 use crate::{
+    constants::TIME_ROUND,
     errors::{SimbaError, SimbaErrorTypes},
     logger::is_enabled,
     networking::service_manager::ServiceError,
     simulator::TimeCv,
-    utils::{SharedMutex, SharedRwLock, time_ordered_data::TimeOrderedData},
+    utils::{SharedMutex, SharedRwLock},
 };
 
 use super::network::MessageFlag;
@@ -185,7 +187,7 @@ impl<
             request_channel_give: Arc::new(Mutex::new(tx)),
             request_channel: Arc::new(Mutex::new(rx)),
             clients: BTreeMap::new(),
-            request_buffer: Arc::new(RwLock::new(TimeOrderedData::new())),
+            request_buffer: Arc::new(RwLock::new(TimeOrderedData::new(TIME_ROUND))),
             time_cv,
             target,
             living: Arc::new(RwLock::new(true)),

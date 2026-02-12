@@ -21,7 +21,6 @@ pub mod fault_models;
 extern crate confy;
 use std::sync::{Arc, RwLock};
 
-use nalgebra::Matrix3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -155,14 +154,9 @@ impl UIComponent for PhysicsRecord {
 }
 
 use crate::{
-    errors::SimbaResult,
-    networking::service::HasService,
-    physics::robot_models::Command,
-    plugin_api::PluginAPI,
-    recordable::Recordable,
-    simulator::SimulatorConfig,
-    state_estimators::State,
-    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
+    errors::SimbaResult, networking::service::HasService, node::node_factory::FromConfigArguments,
+    physics::robot_models::Command, recordable::Recordable, simulator::SimulatorConfig,
+    state_estimators::State, utils::SharedRwLock,
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -203,8 +197,8 @@ pub trait Physics:
     /// Get the current real state, the groundtruth.
     fn state(&self, time: f32) -> State;
 
-    #[deprecated(note = "This method is no longer used and will be removed in future versions.")]
-    fn cummulative_lie_action(&self) -> Option<Matrix3<f32>> {
+    /// Optional: return the time of the next time step. Needed if using messages
+    fn next_time_step(&self) -> Option<f32> {
         None
     }
 }
@@ -219,28 +213,30 @@ pub trait Physics:
 /// - `time_cv`: Simulator time condition variable, used by services.
 pub fn make_physics_from_config(
     config: &PhysicsConfig,
-    plugin_api: &Option<Arc<dyn PluginAPI>>,
-    global_config: &SimulatorConfig,
-    robot_name: &String,
-    va_factory: &Arc<DeterministRandomVariableFactory>,
-    initial_time: f32,
+    from_config_args: &FromConfigArguments,
 ) -> SimbaResult<SharedRwLock<Box<dyn Physics>>> {
     Ok(Arc::new(RwLock::new(match &config {
         PhysicsConfig::Internal(c) => Box::new(internal_physics::InternalPhysics::from_config(
             c,
-            robot_name,
-            va_factory,
-            initial_time,
+            from_config_args.node_name,
+            from_config_args.va_factory,
+            from_config_args.initial_time,
         )) as Box<dyn Physics>,
         PhysicsConfig::External(c) => Box::new(external_physics::ExternalPhysics::from_config(
             c,
-            plugin_api,
-            global_config,
-            va_factory,
-            initial_time,
+            from_config_args.plugin_api,
+            from_config_args.global_config,
+            from_config_args.va_factory,
+            from_config_args.network,
+            from_config_args.initial_time,
         )?),
         PhysicsConfig::Python(c) => Box::new(
-            python_physics::PythonPhysics::from_config(c, global_config, initial_time).unwrap(),
+            python_physics::PythonPhysics::from_config(
+                c,
+                from_config_args.global_config,
+                from_config_args.initial_time,
+            )
+            .unwrap(),
         ),
     })))
 }

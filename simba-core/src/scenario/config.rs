@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 use crate::config::NumberConfig;
@@ -145,4 +146,10 @@ impl Default for SpawnEventConfig {
             node_name: "my_new_robot".to_string(),
         }
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventRecord {
+    pub trigger: EventTriggerConfig,
+    pub event: EventTypeConfig,
 }

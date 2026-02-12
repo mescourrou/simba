@@ -10,7 +10,7 @@ pub mod pybinds;
 
 use crate::{
     errors::SimbaResult,
-    networking::message_handler::MessageHandler,
+    networking::network::Network,
     physics::{PhysicsConfig, robot_models::Command},
     recordable::Recordable,
     utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
@@ -176,11 +176,7 @@ use crate::node::Node;
 /// Controller strategy, which compute the [`Command`] to be sent to the
 /// [`Physics`](crate::physics::physics::Physics) module, from the given `error`.
 pub trait Controller:
-    std::fmt::Debug
-    + std::marker::Send
-    + std::marker::Sync
-    + Recordable<ControllerRecord>
-    + MessageHandler
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<ControllerRecord>
 {
     /// Compute the command from the given error.
     ///
@@ -194,6 +190,11 @@ pub trait Controller:
     fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command;
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
+
+    /// Optional: return the time of the next time step. Needed if using messages
+    fn next_time_step(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// Helper function to make the right [`Controller`] from the given configuration.
@@ -209,6 +210,7 @@ pub fn make_controller_from_config(
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
     physics_config: &PhysicsConfig,
+    network: &SharedRwLock<Network>,
     initial_time: f32,
 ) -> SimbaResult<SharedRwLock<Box<dyn Controller>>> {
     Ok(Arc::new(RwLock::new(match config {
@@ -221,6 +223,7 @@ pub fn make_controller_from_config(
                 plugin_api,
                 global_config,
                 va_factory,
+                network,
                 initial_time,
             )?) as Box<dyn Controller>
         }

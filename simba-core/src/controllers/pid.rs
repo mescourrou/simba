@@ -9,10 +9,6 @@ The [`PID`] controller uses three derivative of the error:
 Each component has a gain, which can be set in [`PIDConfig`].
 */
 
-use std::sync::mpsc::Sender;
-
-use crate::networking::message_handler::MessageHandler;
-use crate::networking::network::Envelope;
 use crate::physics::PhysicsConfig;
 use crate::physics::internal_physics::InternalPhysicConfig;
 use crate::physics::robot_models::holonomic::HolonomicCommand;
@@ -618,11 +614,5 @@ impl Controller for PID {
 impl Recordable<ControllerRecord> for PID {
     fn record(&self) -> ControllerRecord {
         ControllerRecord::PID(self.current_record.clone())
-    }
-}
-
-impl MessageHandler for PID {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        None
     }
 }

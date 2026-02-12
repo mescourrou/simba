@@ -255,7 +255,7 @@ impl Default for GNSSSensor {
 use crate::node::Node;
 
 impl Sensor for GNSSSensor {
-    fn init(&mut self, _robot: &mut Node) {}
+    fn init(&mut self, _robot: &mut Node, _initial_time: f32) {}
 
     fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();

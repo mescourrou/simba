@@ -1,11 +1,9 @@
 use std::sync::{Arc, Mutex, RwLock, mpsc};
 
-use crate::utils::{SharedMutex, SharedRwLock};
-
 #[derive(Debug, Clone)]
 pub struct RemoteFunctionCall<ParamType, ReturnType> {
     sender: mpsc::Sender<ParamType>,
-    receiver: SharedMutex<mpsc::Receiver<ReturnType>>,
+    receiver: Arc<Mutex<mpsc::Receiver<ReturnType>>>,
 }
 
 impl<ParamType, ReturnType> RemoteFunctionCall<ParamType, ReturnType> {
@@ -33,10 +31,10 @@ impl<ParamType, ReturnType> RemoteFunctionCall<ParamType, ReturnType> {
 
 #[derive(Debug, Clone)]
 pub struct RemoteFunctionCallHost<ParamType, ReturnType> {
-    receiver: SharedMutex<mpsc::Receiver<ParamType>>,
+    receiver: Arc<Mutex<mpsc::Receiver<ParamType>>>,
     stop_sender: mpsc::Sender<ParamType>,
     sender: mpsc::Sender<ReturnType>,
-    stopping: SharedRwLock<bool>,
+    stopping: Arc<RwLock<bool>>,
 }
 
 impl<ParamType, ReturnType> RemoteFunctionCallHost<ParamType, ReturnType> {

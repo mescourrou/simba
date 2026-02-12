@@ -188,12 +188,10 @@ List of parameters:
 							`class_name`: String
 							Insert User-specific struct
 					`xray`: Boolean
-				- `type`: OdometrySensor => OdometrySensorConfig
 				- `type`: SpeedSensor => [SpeedSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/speed_sensor/struct.SpeedSensorConfig.html)
 					`period`: Float, Optional
 					`faults`: [FaultModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/fault_models/fault_model/enum.FaultModelConfig.html), See above, List
 					`filters`: [SensorFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/mod/enum.SensorFilterConfig.html), See above, List
-					`lie_integration`: Boolean
 				- `type`: DisplacementSensor => [DisplacementSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/displacement_sensor/struct.DisplacementSensorConfig.html)
 					`period`: Float, Optional
 					`faults`: [FaultModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/fault_models/fault_model/enum.FaultModelConfig.html), See above, List

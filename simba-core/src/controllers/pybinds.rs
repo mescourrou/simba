@@ -1,28 +1,18 @@
-use std::{
-    str::FromStr,
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver, Sender},
-    },
-};
+use std::{str::FromStr, sync::Arc};
 
 use log::debug;
 use pyo3::{prelude::*, types::PyDict};
 use serde_json::Value;
+use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
     controllers::external_controller::ExternalControllerRecord,
     logger::is_enabled,
-    networking::{message_handler::MessageHandler, network::Envelope},
     node::Node,
     physics::robot_models::Command,
     pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
     recordable::Recordable,
-    utils::{
-        SharedMutex,
-        python::{call_py_method, call_py_method_void},
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
-    },
+    utils::python::{call_py_method, call_py_method_void},
 };
 
 use super::{Controller, ControllerError, ControllerRecord};
@@ -32,20 +22,18 @@ pub struct PythonControllerAsyncClient {
     pub make_command: RemoteFunctionCall<(NodeWrapper, ControllerError, f32), Command>,
     pub record: RemoteFunctionCall<(), ControllerRecord>,
     pub pre_loop_hook: RemoteFunctionCall<(NodeWrapper, f32), ()>,
-    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
-    letter_box_sender: Sender<Envelope>,
 }
 
 impl Controller for PythonControllerAsyncClient {
     fn make_command(&mut self, node: &mut Node, error: &ControllerError, time: f32) -> Command {
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         self.make_command
             .call((node_py, error.clone(), time))
             .unwrap()
     }
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         self.pre_loop_hook.call((node_py, time)).unwrap()
     }
 }
@@ -53,12 +41,6 @@ impl Controller for PythonControllerAsyncClient {
 impl Recordable<ControllerRecord> for PythonControllerAsyncClient {
     fn record(&self) -> ControllerRecord {
         self.record.call(()).unwrap()
-    }
-}
-
-impl MessageHandler for PythonControllerAsyncClient {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_sender.clone())
     }
 }
 
@@ -79,8 +61,6 @@ impl PythonController {
             });
         }
 
-        let (letter_box_sender, letter_box_receiver) = mpsc::channel();
-
         let (make_command_client, make_command_host) = rfc::make_pair();
         let (record_client, record_host) = rfc::make_pair();
         let (pre_loop_hook_client, pre_loop_hook_host) = rfc::make_pair();
@@ -91,8 +71,6 @@ impl PythonController {
                 make_command: make_command_client,
                 record: record_client,
                 pre_loop_hook: pre_loop_hook_client,
-                letter_box_receiver: Arc::new(Mutex::new(letter_box_receiver)),
-                letter_box_sender,
             },
             make_command: Arc::new(make_command_host),
             record: Arc::new(record_host),

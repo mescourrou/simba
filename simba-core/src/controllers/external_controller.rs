@@ -14,22 +14,23 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use std::sync::Arc;
-use std::sync::mpsc::Sender;
 
 use log::debug;
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
 
+use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
-use crate::networking::message_handler::MessageHandler;
-use crate::networking::network::Envelope;
+use crate::networking::network::Network;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
+use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
+use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -88,6 +89,7 @@ impl ExternalController {
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
@@ -102,7 +104,13 @@ impl ExternalController {
                         "Plugin API not set!".to_string(),
                     )
                 })?
-                .get_controller(&config.config, global_config, va_factory, initial_time),
+                .get_controller(
+                    &config.config,
+                    global_config,
+                    va_factory,
+                    network,
+                    initial_time,
+                ),
         })
     }
 }
@@ -121,16 +129,16 @@ impl Controller for ExternalController {
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
         self.controller.pre_loop_hook(node, time);
     }
+
+    fn next_time_step(&self) -> Option<f32> {
+        self.controller
+            .next_time_step()
+            .map(|t| round_precision(t, TIME_ROUND).unwrap())
+    }
 }
 
 impl Recordable<ControllerRecord> for ExternalController {
     fn record(&self) -> ControllerRecord {
         self.controller.record()
-    }
-}
-
-impl MessageHandler for ExternalController {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        self.controller.get_letter_box()
     }
 }

@@ -14,7 +14,10 @@ use crate::{
         go_to::GoToMessage,
         pybinds::{NavigatorWrapper, PythonNavigator},
     },
-    networking::{MessageTypes, network::MessageFlag},
+    networking::{
+        MessageTypes,
+        network::{MessageFlag, Network},
+    },
     physics::{
         Physics,
         pybinds::{PhysicsWrapper, PythonPhysics},
@@ -22,7 +25,7 @@ use crate::{
     plugin_api::PluginAPI,
     pywrappers::{
         CommandWrapper, ControllerErrorWrapper, DisplacementObservationWrapper,
-        GNSSObservationWrapper, NodeWrapper, ObservationWrapper,
+        GNSSObservationWrapper, MultiClientWrapper, NodeWrapper, ObservationWrapper,
         OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper,
         Pose, SensorObservationWrapper, SimulatorWrapper, SpeedObservationWrapper, StateWrapper,
         UnicycleCommandWrapper, Vec2, Vec3, WorldStateWrapper, run_gui,
@@ -34,7 +37,8 @@ use crate::{
         pybinds::{PythonStateEstimator, StateEstimatorWrapper},
     },
     utils::{
-        determinist_random_variable::DeterministRandomVariableFactory, python::call_py_method,
+        SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory,
+        python::call_py_method,
     },
 };
 
@@ -53,8 +57,6 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SensorObservationWrapper>()?;
     m.add_class::<GNSSObservationWrapper>()?;
     m.add_class::<SpeedObservationWrapper>()?;
-    #[allow(deprecated)]
-    m.add_class::<crate::pywrappers::OdometryObservationWrapper>()?;
     m.add_class::<DisplacementObservationWrapper>()?;
     m.add_class::<OrientedLandmarkObservationWrapper>()?;
     m.add_class::<OrientedRobotObservationWrapper>()?;
@@ -63,6 +65,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<UnicycleCommandWrapper>()?;
     m.add_class::<NavigatorWrapper>()?;
     m.add_class::<NodeWrapper>()?;
+    m.add_class::<MultiClientWrapper>()?;
     m.add_class::<MessageFlag>()?;
     m.add_class::<MessageTypes>()?;
     m.add_class::<GoToMessage>()?;
@@ -113,6 +116,7 @@ impl PluginAPI for PythonAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         if is_enabled(crate::logger::InternalLog::API) {
@@ -148,6 +152,7 @@ impl PluginAPI for PythonAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Controller> {
         if is_enabled(crate::logger::InternalLog::API) {
@@ -183,6 +188,7 @@ impl PluginAPI for PythonAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Navigator> {
         if is_enabled(crate::logger::InternalLog::API) {
@@ -211,6 +217,7 @@ impl PluginAPI for PythonAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Physics> {
         if is_enabled(crate::logger::InternalLog::API) {

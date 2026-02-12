@@ -30,9 +30,6 @@ use simba_macros::config_derives;
 
 extern crate nalgebra as na;
 
-#[deprecated(note = "OdometrySensorConfig is renamed to SpeedSensorConfig")]
-pub type OdometrySensorConfig = SpeedSensorConfig;
-
 /// Configuration of the [`SpeedSensor`].
 #[config_derives]
 pub struct SpeedSensorConfig {
@@ -42,7 +39,6 @@ pub struct SpeedSensorConfig {
     pub faults: Vec<FaultModelConfig>,
     #[check]
     pub filters: Vec<SensorFilterConfig>,
-    pub lie_integration: bool,
 }
 
 impl Default for SpeedSensorConfig {
@@ -51,7 +47,6 @@ impl Default for SpeedSensorConfig {
             period: Some(0.1),
             faults: Vec::new(),
             filters: Vec::new(),
-            lie_integration: true,
         }
     }
 }
@@ -83,11 +78,6 @@ impl UIComponent for SpeedSensorConfig {
                     } else if ui.button("+").clicked() {
                         self.period = Self::default().period;
                     }
-                });
-
-                ui.horizontal(|ui| {
-                    ui.label("Lie integration:");
-                    ui.checkbox(&mut self.lie_integration, "");
                 });
 
                 SensorFilterConfig::show_filters_mut(
@@ -131,9 +121,6 @@ impl UIComponent for SpeedSensorConfig {
     }
 }
 
-#[deprecated(note = "OdometrySensorRecord is renamed to SpeedSensorRecord")]
-pub type OdometrySensorRecord = SpeedSensorRecord;
-
 /// Record of the [`SpeedSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SpeedSensorRecord {
@@ -159,9 +146,6 @@ impl UIComponent for SpeedSensorRecord {
     }
 }
 
-#[deprecated(note = "OdometryObservation is renamed to SpeedObservation")]
-pub type OdometryObservation = SpeedObservation;
-
 /// Observation of the speed.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct SpeedObservation {
@@ -181,9 +165,6 @@ impl Recordable<SpeedObservationRecord> for SpeedObservation {
     }
 }
 
-#[deprecated(note = "OdometryObservationRecord is renamed to SpeedObservationRecord")]
-pub type OdometryObservationRecord = SpeedObservationRecord;
-
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct SpeedObservationRecord {
     pub linear_velocity: f32,
@@ -202,9 +183,6 @@ impl UIComponent for SpeedObservationRecord {
     }
 }
 
-#[deprecated(note = "OdometrySensor is renamed to SpeedSensor")]
-pub type OdometrySensor = SpeedSensor;
-
 /// Sensor which observes the robot's speed
 #[derive(Debug)]
 pub struct SpeedSensor {
@@ -216,9 +194,6 @@ pub struct SpeedSensor {
     last_time: f32,
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
     filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
-    #[deprecated(note = "lie_integration is deprecated; Speed sensor always use lie integration.")]
-    #[allow(dead_code)]
-    lie_integration: bool,
 }
 
 impl SpeedSensor {
@@ -267,17 +242,12 @@ impl SpeedSensor {
         }
         drop(unlock_filters);
 
-        if config.lie_integration {
-            log::warn!("SpeedSensorConfig.lie_integration is deprecated and will be removed soon.");
-        }
         Self {
             last_state: State::new(),
             period: config.period,
             last_time: initial_time,
             faults: fault_models,
             filters,
-            #[allow(deprecated)]
-            lie_integration: config.lie_integration,
         }
     }
 }
@@ -291,13 +261,13 @@ impl Default for SpeedSensor {
 use crate::node::Node;
 
 impl Sensor for SpeedSensor {
-    fn init(&mut self, robot: &mut Node) {
+    fn init(&mut self, robot: &mut Node, initial_time: f32) {
         self.last_state = robot
             .physics()
             .expect("Node with Speed sensor should have Physics")
             .read()
             .unwrap()
-            .state(0.)
+            .state(initial_time)
             .clone();
     }
 

@@ -1,27 +1,20 @@
-use std::{
-    str::FromStr,
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver, Sender},
-    },
-};
+use std::{str::FromStr, sync::Arc};
 
 use log::debug;
 use pyo3::{prelude::*, types::PyDict};
 
+use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
+
 use crate::{
     constants::TIME_ROUND,
     logger::is_enabled,
-    networking::{message_handler::MessageHandler, network::Envelope},
     node::Node,
     pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
     recordable::Recordable,
     sensors::Observation,
     utils::{
-        SharedMutex,
         maths::round_precision,
         python::{call_py_method, call_py_method_void},
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     },
 };
 
@@ -38,8 +31,6 @@ pub struct PythonStateEstimatorAsyncClient {
     pub next_time_step: RemoteFunctionCall<(), f32>,
     pub record: RemoteFunctionCall<(), StateEstimatorRecord>,
     pub pre_loop_hook: RemoteFunctionCall<PythonStateEstimatorPreLoopHookRequest, ()>,
-    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
-    letter_box_sender: Sender<Envelope>,
 }
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
@@ -47,7 +38,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start prediction step from async client");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         self.prediction_step
             .call(PythonStateEstimatorPredictionStepRequest {
                 node: node_py,
@@ -60,7 +51,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start correction step from async client");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         self.correction_step
             .call(PythonStateEstimatorCorrectionStepRequest {
                 node: node_py,
@@ -88,7 +79,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start pre loop hook from async client");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         self.pre_loop_hook
             .call(PythonStateEstimatorPreLoopHookRequest {
                 node: node_py,
@@ -101,12 +92,6 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
 impl Recordable<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
     fn record(&self) -> StateEstimatorRecord {
         self.record.call(()).unwrap()
-    }
-}
-
-impl MessageHandler for PythonStateEstimatorAsyncClient {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_sender.clone())
     }
 }
 
@@ -158,7 +143,6 @@ impl PythonStateEstimator {
         let (next_time_step_client, next_time_step_host) = rfc::make_pair();
         let (record_client, record_host) = rfc::make_pair();
         let (pre_loop_hook_client, pre_loop_hook_host) = rfc::make_pair();
-        let (letter_box_tx, letter_box_rx) = mpsc::channel();
 
         PythonStateEstimator {
             model: py_model,
@@ -169,8 +153,6 @@ impl PythonStateEstimator {
                 next_time_step: next_time_step_client,
                 record: record_client,
                 pre_loop_hook: pre_loop_hook_client,
-                letter_box_receiver: Arc::new(Mutex::new(letter_box_rx)),
-                letter_box_sender: letter_box_tx,
             },
             prediction_step: Arc::new(prediction_step_host),
             correction_step: Arc::new(correction_step_host),

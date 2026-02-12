@@ -237,14 +237,21 @@ impl SimbaApp {
         if let Some(config) = default_config_path {
             n.config_path = config.to_str().unwrap().to_string();
             n.p.config = None;
-            n.p.api
-                .lock()
-                .unwrap()
-                .load_config
-                .async_call(AsyncApiLoadConfigRequest {
-                    config_path: n.config_path.clone(),
-                    force_send_results: true,
-                });
+            match SimulatorConfig::load_from_path(Path::new(&n.config_path)) {
+                Ok(cfg) => {
+                    n.p.api
+                        .lock()
+                        .unwrap()
+                        .load_config
+                        .async_call(AsyncApiLoadConfigRequest {
+                            config: cfg,
+                            force_send_results: true,
+                        });
+                }
+                Err(e) => {
+                    log::error!("Error loading config: {}", e.detailed_error());
+                }
+            }
         }
         if load_results {
             n.p.api.lock().unwrap().load_results.async_call(None);
@@ -267,15 +274,22 @@ impl SimbaApp {
         if let Some(config) = default_config_path {
             self.config_path = config.to_str().unwrap().to_string();
             self.p.config = None;
-            self.p
-                .api
-                .lock()
-                .unwrap()
-                .load_config
-                .async_call(AsyncApiLoadConfigRequest {
-                    config_path: self.config_path.clone(),
-                    force_send_results: true,
-                });
+            match SimulatorConfig::load_from_path(Path::new(&self.config_path)) {
+                Ok(cfg) => {
+                    self.p
+                        .api
+                        .lock()
+                        .unwrap()
+                        .load_config
+                        .async_call(AsyncApiLoadConfigRequest {
+                            config: cfg,
+                            force_send_results: true,
+                        });
+                }
+                Err(e) => {
+                    log::error!("Error loading config: {}", e.detailed_error());
+                }
+            }
         }
         if load_results {
             self.p.api.lock().unwrap().load_results.async_call(None);
@@ -438,15 +452,24 @@ impl eframe::App for SimbaApp {
                 if ui.button("Load").clicked() {
                     log::info!("Load configuration");
                     self.p.config = None;
-                    self.p
-                        .api
-                        .lock().unwrap()
-                        .load_config
-                        .async_call(AsyncApiLoadConfigRequest {
-                            config_path: self.config_path.clone(),
-                            force_send_results: true,
-                        });
-                    self.p.current_max_time = 0.;
+                    match SimulatorConfig::load_from_path(Path::new(&self.config_path)) {
+                        Ok(cfg) => {
+                            self.p
+                                .api
+                                .lock()
+                                .unwrap()
+                                .load_config
+                                .async_call(AsyncApiLoadConfigRequest {
+                                    config: cfg,
+                                    force_send_results: true,
+                                });
+                            self.p.current_max_time = 0.;
+                        }
+                        Err(e) => {
+                            let now = time::Instant::now();
+                            self.p.error_buffer.push((now, e));
+                        }
+                    }
                 }
                 if self.p.config.is_none() {
                     let api = self.p.api.clone();

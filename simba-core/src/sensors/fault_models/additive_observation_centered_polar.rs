@@ -300,8 +300,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                             self.config.clone(),
                         ));
                 }
-                #[allow(deprecated)]
-                SensorObservation::Speed(_) | SensorObservation::Odometry(_) => {
+                SensorObservation::Speed(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
                 SensorObservation::Displacement(_) => {

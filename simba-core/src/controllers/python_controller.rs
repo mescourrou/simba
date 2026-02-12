@@ -3,8 +3,6 @@ Module providing the interface to use external Python [`Controller`].
 */
 
 use std::str::FromStr;
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
 
 use log::debug;
 use pyo3::prelude::*;
@@ -14,11 +12,8 @@ use serde_json::Value;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 
-use crate::networking::message_handler::MessageHandler;
-use crate::networking::network::Envelope;
 use crate::physics::robot_models::Command;
 use crate::pywrappers::NodeWrapper;
-use crate::utils::SharedMutex;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
 use crate::{
@@ -70,8 +65,6 @@ use crate::node::Node;
 pub struct PythonController {
     /// External controller.
     controller: Py<PyAny>,
-    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
-    letter_box_sender: Sender<Envelope>,
 }
 
 impl PythonController {
@@ -102,11 +95,8 @@ impl PythonController {
 
         let controller_instance =
             load_class_from_python_script(config, global_config, initial_time, "Controller")?;
-        let (tx, rx) = mpsc::channel();
         Ok(Self {
             controller: controller_instance,
-            letter_box_receiver: Arc::new(Mutex::new(rx)),
-            letter_box_sender: tx,
         })
     }
 }
@@ -122,7 +112,7 @@ impl Controller for PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of make_command");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         let result = call_py_method!(
             self.controller,
             "make_command",
@@ -138,7 +128,7 @@ impl Controller for PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         call_py_method_void!(self.controller, "pre_loop_hook", node_py, time);
     }
 }
@@ -157,11 +147,5 @@ impl Recordable<ControllerRecord> for PythonController {
         // record.clone()
         // StateEstimatorRecord::External(PythonController::record(&self))
         ControllerRecord::Python(record)
-    }
-}
-
-impl MessageHandler for PythonController {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_sender.clone())
     }
 }

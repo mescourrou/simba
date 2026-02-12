@@ -1,23 +1,23 @@
 use std::{
     os::unix::thread::JoinHandleExt,
-    path::Path,
     sync::{Arc, Mutex, RwLock, mpsc},
     thread::{self, JoinHandle, sleep},
     time::Duration,
 };
 
+use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
+
 use crate::{
     controllers::Controller,
     errors::SimbaResult,
     navigators::Navigator,
+    networking::network::Network,
     physics::Physics,
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::StateEstimator,
     utils::{
-        SharedMutex,
-        determinist_random_variable::DeterministRandomVariableFactory,
-        rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
+        SharedMutex, SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory,
     },
 };
 
@@ -143,10 +143,12 @@ impl AsyncApiRunner {
                 while !*stopping.read().unwrap() {
                     load_config.recv_closure_mut(|request| {
                         let mut simulator = simulator_arc.lock().unwrap();
-                        println!("Loading config: {}", request.config_path);
-                        let path = Path::new(&request.config_path);
-                        simulator.load_config_path_full(
-                            path,
+                        println!(
+                            "Loading config: {}",
+                            request.config.base_path.to_str().unwrap()
+                        );
+                        simulator.load_config_full(
+                            &request.config,
                             plugin_api_threaded.clone(),
                             request.force_send_results,
                         )?;
@@ -163,7 +165,7 @@ impl AsyncApiRunner {
                 while !*stopping.read().unwrap() {
                     load_results.recv_closure(|result_path| {
                         let mut simulator = simulator_arc.lock().unwrap();
-                        simulator.load_results_full(result_path)
+                        simulator.load_results(result_path)
                     });
                 }
             });
@@ -288,6 +290,7 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         self.get_state_estimator
@@ -295,6 +298,7 @@ impl PluginAPI for PluginAsyncAPI {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                network: network.clone(),
                 initial_time,
             })
             .unwrap()
@@ -305,6 +309,7 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Controller> {
         self.get_controller
@@ -312,6 +317,7 @@ impl PluginAPI for PluginAsyncAPI {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                network: network.clone(),
                 initial_time,
             })
             .unwrap()
@@ -322,6 +328,7 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Navigator> {
         self.get_navigator
@@ -329,6 +336,7 @@ impl PluginAPI for PluginAsyncAPI {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                network: network.clone(),
                 initial_time,
             })
             .unwrap()
@@ -339,6 +347,7 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Physics> {
         self.get_physics
@@ -346,6 +355,7 @@ impl PluginAPI for PluginAsyncAPI {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                network: network.clone(),
                 initial_time,
             })
             .unwrap()
@@ -368,6 +378,7 @@ pub struct PluginAsyncAPIGetStateEstimatorRequest {
     pub config: serde_json::Value,
     pub global_config: SimulatorConfig,
     pub va_factory: Arc<DeterministRandomVariableFactory>,
+    pub network: SharedRwLock<Network>,
     pub initial_time: f32,
 }
 
@@ -377,7 +388,7 @@ pub type PluginAsyncAPIGetPhysicsRequest = PluginAsyncAPIGetStateEstimatorReques
 
 #[derive(Clone, Debug, Default)]
 pub struct AsyncApiLoadConfigRequest {
-    pub config_path: String,
+    pub config: SimulatorConfig,
     pub force_send_results: bool,
 }
 

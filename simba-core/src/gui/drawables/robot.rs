@@ -1,12 +1,13 @@
 use egui::{Color32, Rect, Response, Shape, Stroke, Vec2};
 use nalgebra::Vector3;
+use simba_com::time_ordered_data::TimeOrderedData;
 
 use crate::{
+    constants::TIME_ROUND,
     gui::{UIComponent, app::PainterInfo, drawables},
     node::node_factory::{RobotConfig, RobotRecord},
     sensors::{SensorConfig, SensorObservationRecord},
     simulator::SimulatorConfig,
-    utils::time_ordered_data::TimeOrderedData,
 };
 
 use super::observations::{OrientedLandmarkObservation, OrientedRobotObservation};
@@ -34,8 +35,7 @@ impl Robot {
                         c, sim_config,
                     ))
                 }
-                #[allow(deprecated)]
-                SensorConfig::SpeedSensor(_) | SensorConfig::OdometrySensor(_) => {}
+                SensorConfig::SpeedSensor(_) => {}
                 SensorConfig::DisplacementSensor(_) => {}
                 SensorConfig::OrientedLandmarkSensor(c) => {
                     landmark_obs = Some(OrientedLandmarkObservation::init(c, sim_config))
@@ -49,7 +49,7 @@ impl Robot {
 
         Self {
             color: Color32::BLUE,
-            records: TimeOrderedData::new(),
+            records: TimeOrderedData::new(TIME_ROUND),
             arrow_len: 0.2,
             landmark_obs,
             robot_obs,

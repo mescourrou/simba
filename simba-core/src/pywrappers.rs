@@ -1,12 +1,9 @@
 #![allow(clippy::useless_conversion)]
-#![allow(deprecated)]
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, mpsc::Receiver},
-};
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::{exceptions::PyTypeError, prelude::*};
+use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::EnumToString;
 
 #[cfg(feature = "gui")]
@@ -30,16 +27,13 @@ use crate::{
     plugin_api::PluginAPI,
     pybinds::PythonAPI,
     sensors::{
-        Observation, SensorObservation,
-        displacement_sensor::DisplacementObservation,
-        gnss_sensor::GNSSObservation,
-        oriented_landmark_sensor::OrientedLandmarkObservation,
-        robot_sensor::OrientedRobotObservation,
-        speed_sensor::{OdometryObservation, SpeedObservation},
+        Observation, SensorObservation, displacement_sensor::DisplacementObservation,
+        gnss_sensor::GNSSObservation, oriented_landmark_sensor::OrientedLandmarkObservation,
+        robot_sensor::OrientedRobotObservation, speed_sensor::SpeedObservation,
     },
-    simulator::{AsyncSimulator, Simulator},
+    simulator::{AsyncSimulator, SimbaBrokerMultiClient, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
-    utils::{SharedMutex, occupancy_grid::OccupancyGrid},
+    utils::occupancy_grid::OccupancyGrid,
 };
 
 #[derive(Clone, Debug)]
@@ -432,56 +426,6 @@ impl Default for SpeedObservationWrapper {
 }
 
 #[derive(Clone, Debug)]
-#[pyclass(get_all, set_all)]
-#[pyo3(name = "OdometryObservation")]
-#[deprecated(note = "OdometryObservation is deprecated, use SpeedObservation instead")]
-pub struct OdometryObservationWrapper {
-    pub linear_velocity: f32,
-    pub lateral_velocity: f32,
-    pub angular_velocity: f32,
-    /// Applied faults in JSON format
-    pub applied_faults: String,
-}
-
-#[pymethods]
-impl OdometryObservationWrapper {
-    #[new]
-    pub fn new() -> Self {
-        Self {
-            linear_velocity: 0.,
-            lateral_velocity: 0.,
-            angular_velocity: 0.,
-            applied_faults: "[]".to_string(),
-        }
-    }
-}
-
-impl OdometryObservationWrapper {
-    pub fn from_rust(s: &OdometryObservation) -> Self {
-        Self {
-            linear_velocity: s.linear_velocity,
-            lateral_velocity: s.lateral_velocity,
-            angular_velocity: s.angular_velocity,
-            applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
-        }
-    }
-    pub fn to_rust(&self) -> OdometryObservation {
-        OdometryObservation {
-            linear_velocity: self.linear_velocity,
-            lateral_velocity: self.lateral_velocity,
-            angular_velocity: self.angular_velocity,
-            applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
-        }
-    }
-}
-
-impl Default for OdometryObservationWrapper {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-#[derive(Clone, Debug)]
 #[pyclass(get_all)]
 #[pyo3(name = "GNSSObservation")]
 pub struct GNSSObservationWrapper {
@@ -650,8 +594,6 @@ impl Default for OrientedRobotObservationWrapper {
 #[pyo3(name = "SensorObservation")]
 pub enum SensorObservationWrapper {
     OrientedLandmark(OrientedLandmarkObservationWrapper),
-    #[deprecated(note = "OdometryObservation is deprecated, use SpeedObservation instead")]
-    Odometry(OdometryObservationWrapper),
     Speed(SpeedObservationWrapper),
     GNSS(GNSSObservationWrapper),
     OrientedRobot(OrientedRobotObservationWrapper),
@@ -670,18 +612,6 @@ impl SensorObservationWrapper {
         } else {
             Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
                 "Impossible to convert this observation to an OrientedLandmarkObservation",
-            ))
-        }
-    }
-
-    #[deprecated(note = "as_odometry is deprecated, use as_speed instead")]
-    #[allow(deprecated)]
-    pub fn as_odometry(&self) -> PyResult<OdometryObservationWrapper> {
-        if let Self::Odometry(o) = self {
-            Ok(o.clone())
-        } else {
-            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                "Impossible to convert this observation to an OdometryObservation",
             ))
         }
     }
@@ -728,10 +658,6 @@ impl SensorObservationWrapper {
             SensorObservation::GNSS(o) => {
                 SensorObservationWrapper::GNSS(GNSSObservationWrapper::from_rust(o))
             }
-            #[allow(deprecated)]
-            SensorObservation::Odometry(o) => {
-                SensorObservationWrapper::Odometry(OdometryObservationWrapper::from_rust(o))
-            }
             SensorObservation::Speed(o) => {
                 SensorObservationWrapper::Speed(SpeedObservationWrapper::from_rust(o))
             }
@@ -749,8 +675,6 @@ impl SensorObservationWrapper {
     pub fn to_rust(&self) -> SensorObservation {
         match self {
             SensorObservationWrapper::GNSS(o) => SensorObservation::GNSS(o.to_rust()),
-            #[allow(deprecated)]
-            SensorObservationWrapper::Odometry(o) => SensorObservation::Odometry(o.to_rust()),
             SensorObservationWrapper::Speed(o) => SensorObservation::Speed(o.to_rust()),
             SensorObservationWrapper::OrientedLandmark(o) => {
                 SensorObservation::OrientedLandmark(o.to_rust())
@@ -996,7 +920,6 @@ pub struct EnvelopeWrapper {
 #[pyo3(name = "Node")]
 pub struct NodeWrapper {
     node: Arc<Node>,
-    messages_receiver: SharedMutex<Receiver<Envelope>>,
 }
 
 #[pymethods]
@@ -1021,43 +944,138 @@ impl NodeWrapper {
                 MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
             }
             .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
-            if let Err(e) = network.write().unwrap().send_to(to, msg, time, flags) {
-                log::error!("{}", e.detailed_error());
-            }
+            let key = PathKey::from_str(to.as_str()).unwrap();
+            let msg = Envelope {
+                from: self.node.name(),
+                message: msg,
+                timestamp: time,
+                message_flags: flags,
+            };
+            network.write().unwrap().send_to(key, msg, time);
             Ok(())
         } else {
             Err(PyErr::new::<PyTypeError, _>("No network on this node"))
         }
     }
 
-    pub fn get_messages(&self) -> Vec<EnvelopeWrapper> {
-        let mut messages = Vec::new();
-
-        while let Ok(envelope) = self.messages_receiver.lock().unwrap().try_recv() {
-            let msg = match serde_json::from_value(envelope.message.clone()) {
-                Err(_) => MessageTypes::String(serde_json::to_string(&envelope.message).unwrap()),
-                Ok(m) => m,
-            };
-            messages.push(EnvelopeWrapper {
-                msg_from: envelope.from,
-                message: msg,
-                timestamp: envelope.timestamp,
-            });
+    pub fn subscribe(&self, topics: Vec<String>) -> PyResult<MultiClientWrapper> {
+        if let Some(network) = &self.node.network() {
+            let keys = topics
+                .iter()
+                .map(|t| PathKey::from_str(t.as_str()).unwrap())
+                .collect::<Vec<PathKey>>();
+            let client = network.write().unwrap().subscribe_to(&keys, None);
+            Ok(MultiClientWrapper::from_rust(client))
+        } else {
+            Err(PyErr::new::<PyTypeError, _>("No network on this node"))
         }
-        messages
+    }
+
+    pub fn make_channel(&self, channel_name: String) -> PyResult<()> {
+        if let Some(network) = &self.node.network() {
+            let key = PathKey::from_str(channel_name.as_str()).unwrap();
+            network.write().unwrap().make_channel(key);
+            Ok(())
+        } else {
+            Err(PyErr::new::<PyTypeError, _>("No network on this node"))
+        }
     }
 }
 
 impl NodeWrapper {
-    pub fn from_rust(n: &Node, messages_receiver: SharedMutex<Receiver<Envelope>>) -> Self {
+    pub fn from_rust(n: &Node) -> Self {
         Self {
             // I did not find another solution.
             // Relatively safe as Nodes lives very long, almost all the time
             // For API usage
             #[allow(clippy::borrow_deref_ref)]
             node: unsafe { Arc::from_raw(&*n) },
-            messages_receiver,
         }
+    }
+}
+
+#[derive(Debug)]
+#[pyclass]
+#[pyo3(name = "Client")]
+pub struct MultiClientWrapper {
+    client: SimbaBrokerMultiClient,
+}
+
+#[pymethods]
+impl MultiClientWrapper {
+    pub fn subscribe(&mut self, key: String) {
+        let key = PathKey::from_str(key.as_str()).unwrap();
+        self.client.subscribe(&key);
+    }
+
+    pub fn subscribe_instantaneous(&mut self, key: String) {
+        let key = PathKey::from_str(key.as_str()).unwrap();
+        self.client.subscribe_instantaneous(&key);
+    }
+
+    pub fn send(
+        &self,
+        to: String,
+        message: MessageTypes,
+        time: f32,
+        flags: Vec<MessageFlag>,
+    ) -> PyResult<()> {
+        let msg = match message {
+            MessageTypes::String(s) => serde_json::to_value(s),
+            MessageTypes::GoTo(m) => serde_json::to_value(m),
+            MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
+        }
+        .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
+        let key = PathKey::from_str(to.as_str()).unwrap();
+        let msg = Envelope {
+            from: self.client.node_id().to_string(),
+            message: msg,
+            timestamp: time,
+            message_flags: flags,
+        };
+        self.client.send(&key, msg, time);
+        Ok(())
+    }
+
+    pub fn try_receive(&self, time: f32) -> Option<(String, EnvelopeWrapper)> {
+        if let Some((path, envelope)) = self.client.try_receive(time) {
+            let msg = match serde_json::from_value(envelope.message.clone()) {
+                Err(_) => MessageTypes::String(serde_json::to_string(&envelope.message).unwrap()),
+                Ok(m) => m,
+            };
+            Some((
+                path.to_string(),
+                EnvelopeWrapper {
+                    msg_from: envelope.from,
+                    message: msg,
+                    timestamp: envelope.timestamp,
+                },
+            ))
+        } else {
+            None
+        }
+    }
+
+    pub fn next_message_time(&self) -> Option<f32> {
+        self.client.next_message_time()
+    }
+
+    pub fn subscribed_keys(&self) -> Vec<String> {
+        self.client
+            .subscribed_keys()
+            .iter()
+            .map(|k| k.to_string())
+            .collect()
+    }
+
+    pub fn node_id(&self) -> String {
+        self.client.node_id().to_string()
+    }
+}
+
+impl MultiClientWrapper {
+    pub fn from_rust(client: SimbaBrokerMultiClient) -> Self {
+        Self { client }
     }
 }
 
@@ -1181,12 +1199,13 @@ impl SimulatorWrapper {
 
         let python_api = plugin_api.map(|api| Arc::new(PythonAPI::new(api)) as Arc<dyn PluginAPI>);
 
-        let simulator = AsyncSimulator::from_config(config_path, &python_api).map_err(|e| {
-            PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
-                "Failed to create simulator from config: {}",
-                e.detailed_error()
-            ))
-        })?;
+        let simulator =
+            AsyncSimulator::from_config_path(&config_path, &python_api).map_err(|e| {
+                PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(format!(
+                    "Failed to create simulator from config: {}",
+                    e.detailed_error()
+                ))
+            })?;
         Ok(SimulatorWrapper {
             simulator,
             python_api,
@@ -1230,6 +1249,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });
@@ -1238,6 +1258,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });
@@ -1246,6 +1267,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });
@@ -1254,6 +1276,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });

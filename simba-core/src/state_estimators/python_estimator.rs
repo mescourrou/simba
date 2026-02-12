@@ -2,9 +2,6 @@
 Module providing the interface to use external Python [`StateEstimator`].
 */
 
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
-
 use log::debug;
 use pyo3::prelude::*;
 use pyo3::{Python, pyclass, pymethods};
@@ -15,12 +12,9 @@ use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
-use crate::networking::message_handler::MessageHandler;
-use crate::networking::network::Envelope;
 use crate::pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::utils::SharedMutex;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::maths::round_precision;
 use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
@@ -67,8 +61,6 @@ use crate::node::Node;
 pub struct PythonEstimator {
     /// External state estimator.
     state_estimator: Py<PyAny>,
-    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
-    letter_box_sender: Sender<Envelope>,
 }
 
 impl PythonEstimator {
@@ -100,11 +92,8 @@ impl PythonEstimator {
 
         let state_estimator_instance =
             load_class_from_python_script(config, global_config, initial_time, "State Estimator")?;
-        let (tx, rx) = mpsc::channel();
         Ok(Self {
             state_estimator: state_estimator_instance,
-            letter_box_receiver: Arc::new(Mutex::new(rx)),
-            letter_box_sender: tx,
         })
     }
 }
@@ -120,7 +109,7 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         call_py_method_void!(self.state_estimator, "prediction_step", node_py, time);
     }
 
@@ -132,7 +121,7 @@ impl StateEstimator for PythonEstimator {
         for obs in observations {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         call_py_method_void!(
             self.state_estimator,
             "correction_step",
@@ -163,7 +152,7 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         call_py_method_void!(self.state_estimator, "pre_loop_hook", node_py, time);
     }
 }
@@ -193,11 +182,5 @@ impl Recordable<StateEstimatorRecord> for PythonEstimator {
             ),
         };
         StateEstimatorRecord::Python(record)
-    }
-}
-
-impl MessageHandler for PythonEstimator {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_sender.clone())
     }
 }

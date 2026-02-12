@@ -1,0 +1,16 @@
+[package]
+name = "simba-com"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[features]
+default = []
+debug_mode = []
+
+[dependencies]
+itertools = "0.14.0"
+log = "0.4.29"
+multimap = "0.10.1"
+rand = "0.10.0"
+tree-ds = { version = "0.2.0", features = ["auto_id", "async"] }

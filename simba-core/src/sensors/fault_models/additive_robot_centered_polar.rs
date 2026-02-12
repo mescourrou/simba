@@ -231,8 +231,7 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                 SensorObservation::GNSS(_) => {
                     panic!("Not implemented yet (need to find a logical way to do it.");
                 }
-                #[allow(deprecated)]
-                SensorObservation::Speed(_) | SensorObservation::Odometry(_) => {
+                SensorObservation::Speed(_) => {
                     panic!("Not implemented (appropriated for this sensor?)");
                 }
                 SensorObservation::Displacement(o) => {

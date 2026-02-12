@@ -11,7 +11,6 @@ use crate::{
         Navigator, NavigatorRecord,
         trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
     },
-    networking::{message_handler::MessageHandler, network::Envelope},
     simulator::SimulatorConfig,
     utils::geometry::{mod2pi, smallest_theta_diff},
 };
@@ -23,7 +22,7 @@ use na::Vector3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
-use std::{path::Path, sync::mpsc::Sender};
+use std::path::Path;
 
 /// Configuration of the [`TrajectoryFollower`] strategy.
 #[config_derives]
@@ -355,12 +354,6 @@ impl Recordable<NavigatorRecord> for TrajectoryFollower {
             trajectory: self.trajectory.record(),
             projected_point: self.projected_point,
         })
-    }
-}
-
-impl MessageHandler for TrajectoryFollower {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        None
     }
 }
 

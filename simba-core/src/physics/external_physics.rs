@@ -19,16 +19,20 @@ use log::debug;
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
 
+use crate::constants::TIME_ROUND;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
+use crate::networking::network::Network;
 use crate::networking::service::HasService;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
+use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
+use crate::utils::maths::round_precision;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -86,6 +90,7 @@ impl ExternalPhysics {
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
@@ -100,7 +105,13 @@ impl ExternalPhysics {
                         "Plugin API not set!".to_string(),
                     )
                 })?
-                .get_physics(&config.config, global_config, va_factory, initial_time),
+                .get_physics(
+                    &config.config,
+                    global_config,
+                    va_factory,
+                    network,
+                    initial_time,
+                ),
         })
     }
 }
@@ -122,6 +133,12 @@ impl Physics for ExternalPhysics {
 
     fn update_state(&mut self, time: f32) {
         self.physics.update_state(time);
+    }
+
+    fn next_time_step(&self) -> Option<f32> {
+        self.physics
+            .next_time_step()
+            .map(|t| round_precision(t, TIME_ROUND).unwrap())
     }
 }
 

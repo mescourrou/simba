@@ -278,13 +278,13 @@ impl Default for DisplacementSensor {
 use crate::node::Node;
 
 impl Sensor for DisplacementSensor {
-    fn init(&mut self, robot: &mut Node) {
+    fn init(&mut self, robot: &mut Node, initial_time: f32) {
         self.last_state = robot
             .physics()
             .expect("Node with Speed sensor should have Physics")
             .read()
             .unwrap()
-            .state(0.)
+            .state(initial_time)
             .clone();
     }
 

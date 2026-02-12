@@ -112,6 +112,9 @@ Use these as templates for your own simulations!
 ### Creating fault models
 👉 See "Fault Injection Testing" in [Tips & Tricks](config_tips.md#pattern-2-fault-injection-testing)
 
+### Sending messages between nodes
+👉 See [Network System](network.md)
+
 ---
 
 ## Schema Validation
