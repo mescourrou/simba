@@ -12,11 +12,14 @@ use crate::{
     controllers::Controller,
     errors::SimbaResult,
     navigators::Navigator,
+    networking::network::Network,
     physics::Physics,
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
     state_estimators::StateEstimator,
-    utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory},
+    utils::{
+        SharedMutex, SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory,
+    },
 };
 
 // Run by client
@@ -288,6 +291,7 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         self.get_state_estimator
@@ -295,6 +299,7 @@ impl PluginAPI for PluginAsyncAPI {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                network: network.clone(),
                 initial_time,
             })
             .unwrap()
@@ -305,6 +310,7 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Controller> {
         self.get_controller
@@ -312,6 +318,7 @@ impl PluginAPI for PluginAsyncAPI {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                network: network.clone(),
                 initial_time,
             })
             .unwrap()
@@ -322,6 +329,7 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Navigator> {
         self.get_navigator
@@ -329,6 +337,7 @@ impl PluginAPI for PluginAsyncAPI {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                network: network.clone(),
                 initial_time,
             })
             .unwrap()
@@ -339,6 +348,7 @@ impl PluginAPI for PluginAsyncAPI {
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Physics> {
         self.get_physics
@@ -346,6 +356,7 @@ impl PluginAPI for PluginAsyncAPI {
                 config: config.clone(),
                 global_config: global_config.clone(),
                 va_factory: va_factory.clone(),
+                network: network.clone(),
                 initial_time,
             })
             .unwrap()
@@ -368,6 +379,7 @@ pub struct PluginAsyncAPIGetStateEstimatorRequest {
     pub config: serde_json::Value,
     pub global_config: SimulatorConfig,
     pub va_factory: Arc<DeterministRandomVariableFactory>,
+    pub network: SharedRwLock<Network>,
     pub initial_time: f32,
 }
 

@@ -46,6 +46,7 @@ use pyo3::{ffi::c_str, prelude::*};
 use serde_derive::{Deserialize, Serialize};
 
 use simba_com::{
+    pub_sub::{ConditionType, MultiClient, PathBroker, PathKey, PathMultiClient},
     rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
     time_ordered_data::TimeOrderedData,
 };
@@ -56,7 +57,11 @@ use crate::{
     constants::TIME_ROUND,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::{LoggerConfig, init_log, is_enabled},
-    networking::{network_manager::NetworkManager, service_manager::ServiceManager},
+    networking::{
+        network::Envelope,
+        network_manager::{self, NetworkManager},
+        service_manager::ServiceManager,
+    },
     node::{
         Node, NodeMetaData, NodeState,
         node_factory::{
@@ -74,9 +79,10 @@ use crate::{
         python::CONVERT_TO_DICT,
     },
 };
-use core::f32;
+use core::{f32, time};
 use std::{
     cmp::Ordering,
+    collections::HashMap,
     fs::OpenOptions,
     io::SeekFrom,
     path::{Path, PathBuf},
@@ -173,7 +179,7 @@ pub(crate) struct RunningParameters {
     finishing_cv: Arc<(Mutex<usize>, Condvar)>,
     barrier: Arc<Barrier>,
     handles: Vec<JoinHandle<SimbaResult<Option<Node>>>>,
-    end_time_step_sync_hosts: Vec<RemoteFunctionCallHost<(), ()>>,
+    end_time_step_syncs: Vec<Arc<Mutex<bool>>>,
     running_nodes_names: Vec<String>,
 }
 
@@ -182,8 +188,11 @@ struct NodeSyncParams {
     time_cv: Arc<TimeCv>,
     common_time: SharedRwLock<f32>,
     barrier: Arc<Barrier>,
-    end_time_step_sync: RemoteFunctionCall<(), ()>,
+    end_time_step_sync: Arc<Mutex<bool>>,
 }
+
+pub(crate) type SimbaBroker = PathBroker<Envelope, String, Option<[f32; 2]>>;
+pub(crate) type SimbaBrokerMultiClient = PathMultiClient<Envelope, String>;
 
 /// This is the central structure which manages the run of the scenario.
 ///
@@ -257,10 +266,12 @@ impl Simulator {
         let rng = rand::random();
         let time_cv = Arc::new(TimeCv::new());
         let va_factory = Arc::new(DeterministRandomVariableFactory::new(rng));
+        let network_manager = NetworkManager::new(time_cv.clone());
+        let broker = network_manager.broker().clone();
         Simulator {
             nodes: Vec::new(),
             config: SimulatorConfig::default(),
-            network_manager: NetworkManager::new(time_cv.clone()),
+            network_manager,
             determinist_va_factory: va_factory.clone(),
             time_cv,
             async_api: None,
@@ -277,6 +288,7 @@ impl Simulator {
                 &ScenarioConfig::default(),
                 &SimulatorConfig::default(),
                 &va_factory,
+                &broker,
             ))),
             plugin_api: None,
             service_managers: BTreeMap::new(),
@@ -371,7 +383,7 @@ impl Simulator {
             info!("Finishing initialization of {}", node.name());
             self.node_apis.insert(
                 node.name(),
-                node.post_creation_init(&self.service_managers, self.meta_data_list.clone()),
+                node.post_creation_init(&self.service_managers, self.meta_data_list.clone(), 0.),
             );
         }
 
@@ -379,6 +391,7 @@ impl Simulator {
             &config.scenario,
             &config,
             &self.determinist_va_factory,
+            &self.network_manager.broker(),
         )));
         Ok(())
     }
@@ -569,6 +582,7 @@ impl Simulator {
                 time_cv: self.time_cv.clone(),
                 force_send_results,
                 new_name: None,
+                broker: &self.network_manager.broker(),
                 initial_time,
             },
         )?;
@@ -578,7 +592,6 @@ impl Simulator {
         if new_node.state() != NodeState::Running {
             return Ok(());
         }
-        self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
         Ok(())
     }
@@ -601,6 +614,7 @@ impl Simulator {
                 force_send_results,
                 new_name: None,
                 initial_time,
+                broker: &self.network_manager.broker(),
             },
         )?;
         let meta_data = new_node.meta_data();
@@ -609,7 +623,6 @@ impl Simulator {
         if new_node.state() != NodeState::Running {
             return Ok(());
         }
-        self.network_manager.register_node_network(&mut new_node);
         self.nodes.push(new_node);
         Ok(())
     }
@@ -641,7 +654,7 @@ impl Simulator {
             finishing_cv: Arc::new((Mutex::new(0usize), Condvar::new())),
             barrier: Arc::new(Barrier::new(1)),
             handles: vec![],
-            end_time_step_sync_hosts: Vec::new(),
+            end_time_step_syncs: Vec::new(),
             running_nodes_names: Vec::new(),
         };
 
@@ -685,7 +698,6 @@ impl Simulator {
         self.process_records(None)
     }
 
-    #[cfg(not(feature = "force_hard_determinism"))]
     pub(crate) fn spawn_node_from_name(
         &mut self,
         node_name: &str,
@@ -704,15 +716,15 @@ impl Simulator {
                 force_send_results: self.force_send_results,
                 new_name: Some(new_node_name),
                 initial_time: time,
+                broker: &self.network_manager.broker(),
             },
         )?;
         node.set_state(NodeState::Running);
-        self.network_manager.register_node_network(&mut node);
         self.service_managers
             .insert(node.name(), node.service_manager());
         self.node_apis.insert(
             node.name(),
-            node.post_creation_init(&self.service_managers, self.meta_data_list.clone()),
+            node.post_creation_init(&self.service_managers, self.meta_data_list.clone(), time),
         );
         self.spawn_node(node, running_parameters)
     }
@@ -734,6 +746,9 @@ impl Simulator {
                 ),
             ));
         }
+        if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+            debug!("Spawning node {}", node.name());
+        }
 
         let max_time = running_parameters.max_time;
         let time_cv = self.time_cv.clone();
@@ -744,10 +759,10 @@ impl Simulator {
         barrier_clone.add_one();
         let nb_nodes = running_parameters.nb_nodes.clone();
         *nb_nodes.write().unwrap() += 1;
-        let (end_time_step_sync_tx, end_time_step_sync_rx) = rfc::make_pair();
+        let end_time_step_sync = Arc::new(Mutex::new(false));
         running_parameters
-            .end_time_step_sync_hosts
-            .push(end_time_step_sync_rx);
+            .end_time_step_syncs
+            .push(end_time_step_sync.clone());
         running_parameters.running_nodes_names.push(node.name());
         let handle = thread::spawn(move || -> SimbaResult<Option<Node>> {
             let ret = Self::run_one_node(
@@ -759,19 +774,28 @@ impl Simulator {
                     time_cv: time_cv.clone(),
                     common_time: common_time_clone,
                     barrier: barrier_clone,
-                    end_time_step_sync: end_time_step_sync_tx,
+                    end_time_step_sync,
                 },
             );
+            let _lk = time_cv.waiting.lock().unwrap();
             match &ret {
                 Err(_) => *time_cv.force_finish.lock().unwrap() = true,
-                Ok(Some(_)) => {
+                Ok(Some(node)) => {
                     // Increase finishing nodes only if the node is still existing
                     // as in case of zombie, the total number of node has been decreased.
                     *finishing_cv_clone.0.lock().unwrap() += 1;
-                    finishing_cv_clone.1.notify_all();
+                    if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                        debug!(
+                            "Node {} finished: {} nodes finished",
+                            node.name(),
+                            *finishing_cv_clone.0.lock().unwrap(),
+                        );
+                    }
+                    // finishing_cv_clone.1.notify_all();
                 }
                 _ => {}
             };
+            time_cv.condvar.notify_all();
 
             ret
         });
@@ -1099,7 +1123,9 @@ impl Simulator {
 
             let nb_nodes_unlocked = *node_sync_params.nb_nodes.read().unwrap();
             node.run_next_time_step(next_time, &node_sync_params.time_cv, nb_nodes_unlocked)?;
-            node.sync_with_others(&node_sync_params.time_cv, nb_nodes_unlocked, next_time);
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("End of time step wait");
+            }
             if node.send_records()
                 && let Some(async_api_server) = &async_api_server
             {
@@ -1108,7 +1134,20 @@ impl Simulator {
                     node: node.record(),
                 });
             }
-            node_sync_params.end_time_step_sync.call(());
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("End of time step sync");
+            }
+
+            node_sync_params.end_time_step_sync.lock().unwrap().clone_from(&true);
+            node.sync_with_others(&node_sync_params.time_cv, nb_nodes_unlocked, next_time);
+            // node_sync_params.time_cv.condvar.notify_all();
+            // while !*node_sync_params.end_time_step_sync.lock().unwrap() {
+            //     lk = node_sync_params.time_cv.condvar.wait(lk).unwrap();
+            // }
+            // std::mem::drop(lk);
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Wait at final barrier");
+            }
             node_sync_params.barrier.wait();
             if node.process_messages() > 0 {
                 node.handle_messages(next_time);
@@ -1133,44 +1172,96 @@ impl Simulator {
 
     fn simulator_spin(&mut self, running_parameters: &mut RunningParameters) -> SimbaResult<()> {
         // self.nodes is empty
-        let mut node_states: BTreeMap<String, TimeOrderedData<(State, NodeState)>> =
-            BTreeMap::new();
-        for (k, _) in self.node_apis.iter() {
-            node_states.insert(
-                k.clone(),
-                TimeOrderedData::<(State, NodeState)>::new(TIME_ROUND),
-            );
-        }
-        let mut waiting_nodes = 0;
+        // let mut node_states: BTreeMap<String, TimeOrderedData<(State, NodeState)>> =
+        //     BTreeMap::new();
+        // for (k, _) in self.node_apis.iter() {
+        //     node_states.insert(
+        //         k.clone(),
+        //         TimeOrderedData::<(State, NodeState)>::new(TIME_ROUND),
+        //     );
+        // }
+        let time_cv = self.time_cv.clone();
         loop {
-            for (node_name, node_api) in self.node_apis.iter() {
-                if let Some(state_update) = &node_api.state_update
-                    && let Ok((time, state)) = state_update.try_recv()
-                {
-                    if !node_states.contains_key(node_name) {
-                        node_states.insert(
-                            node_name.clone(),
-                            TimeOrderedData::<(State, NodeState)>::new(TIME_ROUND),
-                        );
-                    }
-                    if let Some(node_state) = node_states.get_mut(node_name) {
-                        node_state.insert(time, state, true);
-                    }
+            let mut lk = time_cv.waiting.lock().unwrap();
+            let mut waiting_nodes = 0;
+            while *lk < *running_parameters.nb_nodes.read().unwrap()
+                && *running_parameters.finishing_cv.0.lock().unwrap()
+                    < *running_parameters.nb_nodes.read().unwrap()
+                && *time_cv.force_finish.lock().unwrap() == false
+            {
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!(
+                        "Simulator spin waiting... (waiting_nodes: {}, nb_nodes: {}, finishing_nodes: {}, end_procedure_waiting: {})",
+                        *lk,
+                        *running_parameters.nb_nodes.read().unwrap(),
+                        *running_parameters.finishing_cv.0.lock().unwrap(),
+                        waiting_nodes,
+                    );
                 }
+                lk = time_cv.condvar.wait(lk).unwrap();
             }
+            if *time_cv.force_finish.lock().unwrap() {
+                return Ok(());
+            }
+
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("Simulator spin continue... (waiting_nodes: {}, nb_nodes: {}, finishing_nodes: {}, end_procedure_waiting: {})",
+                    *lk,
+                    *running_parameters.nb_nodes.read().unwrap(),
+                    *running_parameters.finishing_cv.0.lock().unwrap(),
+                    waiting_nodes
+                );
+            }
+            let node_states =
+                HashMap::from_iter(self.meta_data_list.read().unwrap().iter().filter_map(
+                    |(node_name, meta_data)| {
+                        let meta_data = meta_data.read().unwrap();
+                        if meta_data.state == NodeState::Running {
+                            Some((node_name.clone(), meta_data.position))
+                        } else {
+                            None
+                        }
+                    },
+                ));
+
+            // for (node_name, node_api) in self.node_apis.iter() {
+            //     if let Some(state_update) = &node_api.state_update
+            //         && let Ok((time, state)) = state_update.try_recv()
+            //     {
+            //         if !node_states.contains_key(node_name) {
+            //             node_states.insert(
+            //                 node_name.clone(),
+            //                 TimeOrderedData::<(State, NodeState)>::new(TIME_ROUND),
+            //             );
+            //         }
+            //         if let Some(node_state) = node_states.get_mut(node_name) {
+            //             node_state.insert(time, state, true);
+            //         }
+            //     }
+            // }
             let mut time_end_procedure = false;
-            for end_time_step_sync in running_parameters.end_time_step_sync_hosts.iter() {
-                end_time_step_sync.try_recv_closure_mut(|()| {
+            for end_time_step_sync in running_parameters.end_time_step_syncs.iter() {
+                let mut lock = end_time_step_sync.lock().unwrap();
+                if *lock {
                     waiting_nodes += 1;
                     if waiting_nodes >= *running_parameters.nb_nodes.read().unwrap() {
                         running_parameters.barrier.add_one();
                         time_end_procedure = true;
+                        debug!("All nodes waiting for end of time step procedure, starting procedure...");
                         waiting_nodes = 0;
                     }
-                });
+                    *lock = false;
+                };
             }
+            
 
             if time_end_procedure {
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("Time step end procedure... (nb_nodes: {}, finishing_nodes: {})",
+                        *running_parameters.nb_nodes.read().unwrap(),
+                        *running_parameters.finishing_cv.0.lock().unwrap()
+                    );
+                }
                 let current_time = *TIME.read().unwrap();
                 if let Err(e) = self.process_records(Some(current_time)) {
                     log::error!(
@@ -1186,44 +1277,36 @@ impl Simulator {
                     .unwrap()
                     .execute_scenario(current_time, self, &node_states, running_parameters)
                     .unwrap();
-                if let Err(e) = self.network_manager.process_messages(&node_states) {
-                    if let SimbaErrorTypes::NetworkError(_) = e.error_type() {
-                        // Network errors are expected during the simulation, as nodes can go
-                        // offline at any time.
-                        warn!(
-                            "Network error in processing network messages at time {}: {}",
-                            current_time,
-                            e.detailed_error()
-                        );
-                    } else {
-                        log::error!(
-                            "Error in processing network messages at time {}: {}",
-                            current_time,
-                            e.detailed_error()
-                        );
-                        return Err(e);
-                    }
+                self.network_manager.process_messages(&node_states).unwrap();
+                for end_time_step_sync in running_parameters.end_time_step_syncs.iter() {
+                    end_time_step_sync.lock().unwrap().clone_from(&false);
                 }
                 running_parameters.barrier.remove_one();
-            }
-
-            if let Err(e) = self.network_manager.process_messages(&node_states) {
-                if let SimbaErrorTypes::NetworkError(_) = e.error_type() {
-                    // Network errors are expected during the simulation, as nodes can go
-                    // offline at any time.
-                    warn!(
-                        "Network error in processing network messages: {}",
-                        e.detailed_error()
-                    );
-                } else {
-                    return Err(e);
-                }
+            } else {
+                self.network_manager.process_messages(&node_states).unwrap();
             }
             if *running_parameters.finishing_cv.0.lock().unwrap()
                 >= *running_parameters.nb_nodes.read().unwrap()
             {
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("All nodes finishing... (nb_nodes: {}, finishing_nodes: {})",
+                        *running_parameters.nb_nodes.read().unwrap(),
+                        *running_parameters.finishing_cv.0.lock().unwrap()
+                    );
+                }
                 return Ok(());
             }
+            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                debug!("End of simulator spin loop... (nb_nodes: {}, finishing_nodes: {})", 
+                    *running_parameters.nb_nodes.read().unwrap(),
+                    *running_parameters.finishing_cv.0.lock().unwrap()
+                );
+            }
+            // Finishing time step procedure
+            *lk = 0;
+            let mut waiting_parity = time_cv.intermediate_parity.lock().unwrap();
+            *waiting_parity = 1 - *waiting_parity;
+            time_cv.condvar.notify_all();
         }
     }
 
@@ -1340,7 +1423,6 @@ def show():
         Arc::new(self.async_api_server.as_mut().unwrap().new_client())
     }
 
-    #[cfg(not(feature = "force_hard_determinism"))]
     pub(crate) fn get_network_manager_mut(&mut self) -> &mut NetworkManager {
         &mut self.network_manager
     }

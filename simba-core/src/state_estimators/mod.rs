@@ -440,16 +440,13 @@ use crate::gui::{
     UIComponent,
     utils::{string_combobox, text_singleline_with_apply},
 };
-use crate::simulator::SimulatorConfig;
+use crate::utils::determinist_random_variable::RandomVariableTypeConfig;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
 use crate::utils::occupancy_grid::OccupancyGrid;
 use crate::{errors::SimbaResult, node::Node};
-use crate::{
-    networking::message_handler::MessageHandler,
-    utils::determinist_random_variable::RandomVariableTypeConfig,
-};
+use crate::{networking::network::Network, simulator::SimulatorConfig};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -595,6 +592,7 @@ pub fn make_state_estimator_from_config(
     plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    network: &SharedRwLock<Network>,
     initial_time: f32,
 ) -> SimbaResult<Box<dyn StateEstimator>> {
     Ok(match config {
@@ -607,6 +605,7 @@ pub fn make_state_estimator_from_config(
                 plugin_api,
                 global_config,
                 va_factory,
+                network,
                 initial_time,
             )?) as Box<dyn StateEstimator>
         }
@@ -619,11 +618,7 @@ pub fn make_state_estimator_from_config(
 use crate::sensors::Observation;
 
 pub trait StateEstimator:
-    std::fmt::Debug
-    + std::marker::Send
-    + std::marker::Sync
-    + Recordable<StateEstimatorRecord>
-    + MessageHandler
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<StateEstimatorRecord>
 {
     /// Prediction step of the state estimator.
     ///

@@ -13,6 +13,7 @@ class StateEstimator(simba.StateEstimator):
         self.filter_name = "anonyme"
         if "filter_name" in config:
             self.filter_name = config["filter_name"]
+        self.client = None
 
         self._state = 0
 
@@ -37,11 +38,11 @@ class StateEstimator(simba.StateEstimator):
         self.last_time = time
         if node.name() == "robot1":
             if abs(time - 30) < 0.001:
-                node.send_message("robot2", simba.MessageTypes.String("Bye Bye"), time, [simba.MessageFlag.Kill])
+                node.send_message("/simba/node/robot2/test", simba.MessageTypes.String("Bye Bye"), time, [simba.MessageFlag.Kill])
             elif time < 30:
-                node.send_message("robot2", simba.MessageTypes.from_goto(simba.GoToMessage((0, 0))), time)
+                node.send_message("/simba/node/robot2/test", simba.MessageTypes.from_goto(simba.GoToMessage((0, 0))), time)
         else:
-            node.send_message("robot1", simba.MessageTypes.String("Hello from robot2"), time)
+            node.send_message("/simba/node/robot1/test", simba.MessageTypes.String("Hello from robot2"), time)
         print(f"{node.name()}: Prediction {self._state}")
 
     def correction_step(self, node: simba.Node, observations: List[simba.Observation], t: float):
@@ -56,15 +57,20 @@ class StateEstimator(simba.StateEstimator):
         return next_time
     
     def pre_loop_hook(self, node: simba.Node, time: float):
+        if self.client is None:
+            node.make_channel("test")
+            self.client = node.subscribe(["test"])
         messages = []
-        for m in node.get_messages():
-            match m.message:
+        msg = self.client.try_receive(time)
+        while msg is not None:
+            match msg[1].message:
                 case simba.MessageTypes.String(s):
                     v = f"String({s})"
                 case simba.MessageTypes.GoTo(g):
                     v = f"GoTo({g})"
 
-            messages.append((m.msg_from, v, m.timestamp))
+            messages.append((msg[0], msg[1].msg_from, v, msg[1].timestamp))
+            msg = self.client.try_receive(time)
         print(f"Received messages: {messages}")
 
 

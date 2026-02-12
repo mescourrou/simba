@@ -31,7 +31,6 @@ use simba_macros::EnumToString;
 
 use crate::{navigators::go_to::GoToMessage, sensors::sensor_manager::SensorTriggerMessage};
 
-pub mod message_handler;
 pub mod network;
 pub mod network_manager;
 pub mod service;
@@ -86,6 +85,23 @@ impl MessageTypes {
     }
 }
 
+pub mod channels {
+    pub const INTERNAL: &'static str = "/simba";
+    pub mod internal {
+        use constcat::concat;
+        pub const LOG: &'static str = concat!(super::INTERNAL, "/log");
+        pub mod log {
+            // Log levels for internal logs, LOG/<node_name>/{error,warn,info,debug}
+            pub const ERROR: &'static str = "/error";
+            pub const WARNING: &'static str = "/warn";
+            pub const INFO: &'static str = "/info";
+            pub const DEBUG: &'static str = "/debug";
+        }
+        pub const NODE: &'static str = concat!(super::INTERNAL, "/node");
+        pub const COMMAND: &'static str = concat!(super::INTERNAL, "/command");
+    }
+}
+
 // Network message exchange test
 #[cfg(test)]
 mod tests {
@@ -97,14 +113,12 @@ mod tests {
     use log::debug;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
+    use simba_com::pub_sub::{MultiClient, MultiClientTrait, PathKey};
 
     use crate::{
         constants::TIME_ROUND,
         logger::LogLevel,
-        networking::{
-            message_handler::MessageHandler,
-            network::{Envelope, NetworkConfig},
-        },
+        networking::network::{Envelope, Network, NetworkConfig},
         node::{Node, node_factory::RobotConfig},
         plugin_api::PluginAPI,
         recordable::Recordable,
@@ -113,15 +127,15 @@ mod tests {
             robot_sensor::RobotSensorConfig,
             sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
         },
-        simulator::{Simulator, SimulatorConfig},
+        simulator::{SimbaBrokerMultiClient, Simulator, SimulatorConfig},
         state_estimators::{
             BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
             WorldState,
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
         },
         utils::{
-            SharedMutex, determinist_random_variable::DeterministRandomVariableFactory,
-            maths::round_precision,
+            SharedMutex, SharedRwLock,
+            determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
         },
     };
 
@@ -134,10 +148,9 @@ mod tests {
     struct StateEstimatorTest {
         pub last_time: f32,
         pub message: String,
-        pub letter_box: Option<SharedMutex<Receiver<Envelope>>>,
-        pub letter_box_sender: Option<Sender<Envelope>>,
         pub last_message: SharedMutex<Option<String>>,
         pub last_from: SharedMutex<Option<String>>,
+        pub message_client: SimbaBrokerMultiClient,
     }
 
     impl StateEstimator for StateEstimatorTest {
@@ -153,27 +166,21 @@ mod tests {
             debug!("Doing pre_loop_hook");
             if node.name() == "node1" {
                 println!("{} Sending message...", node.name());
-                node.network()
-                    .as_ref()
-                    .unwrap()
-                    .write()
-                    .unwrap()
-                    .send_to(
-                        "node2".to_string(),
-                        serde_json::to_value(self.message.clone()).unwrap(),
-                        time,
-                        Vec::new(),
-                    )
-                    .unwrap();
+                let message = Envelope {
+                    message: serde_json::to_value(self.message.clone()).unwrap(),
+                    from: node.name().to_string(),
+                    timestamp: time,
+                    ..Default::default()
+                };
+                self.message_client
+                    .send(&PathKey::from_str("/test"), message, time);
             }
         }
 
         fn prediction_step(&mut self, node: &mut crate::node::Node, time: f32) {
             self.last_time = time;
             if node.name() == "node2" {
-                while let Ok(envelope) =
-                    self.letter_box.as_ref().unwrap().lock().unwrap().try_recv()
-                {
+                while let Some((path, envelope)) = self.message_client.try_receive(time) {
                     let message = serde_json::from_value(envelope.message.clone()).unwrap();
                     println!("Receiving message: {} from {}", &message, envelope.from);
                     *self.last_message.lock().unwrap() = Some(message);
@@ -201,12 +208,6 @@ mod tests {
         }
     }
 
-    impl MessageHandler for StateEstimatorTest {
-        fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-            self.letter_box_sender.clone()
-        }
-    }
-
     struct PluginAPITest {
         pub message: String,
         pub last_message: SharedMutex<Option<String>>,
@@ -219,21 +220,22 @@ mod tests {
             config: &serde_json::Value,
             _global_config: &SimulatorConfig,
             _va_factory: &Arc<DeterministRandomVariableFactory>,
+            network: &SharedRwLock<Network>,
             initial_time: f32,
         ) -> Box<dyn StateEstimator> {
-            let (tx, rx) = if config.as_bool().unwrap() {
-                let (tx, rx) = mpsc::channel();
-                (Some(tx), Some(Arc::new(Mutex::new(rx))))
-            } else {
-                (None, None)
-            };
+            network
+                .write()
+                .unwrap()
+                .make_channel(PathKey::from_str("/test"));
             Box::new(StateEstimatorTest {
                 last_time: initial_time,
                 message: self.message.clone(),
                 last_from: self.last_from.clone(),
                 last_message: self.last_message.clone(),
-                letter_box: rx,
-                letter_box_sender: tx,
+                message_client: network
+                    .write()
+                    .unwrap()
+                    .subscribe_to(&[PathKey::from_str("/test")], None),
             }) as Box<dyn StateEstimator>
         }
 

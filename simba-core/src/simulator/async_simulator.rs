@@ -67,6 +67,7 @@ impl AsyncSimulator {
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });
@@ -75,6 +76,7 @@ impl AsyncSimulator {
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });
@@ -83,6 +85,7 @@ impl AsyncSimulator {
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });
@@ -91,6 +94,7 @@ impl AsyncSimulator {
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });

@@ -24,7 +24,7 @@ use crate::controllers::ControllerError;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::string_combobox};
-use crate::networking::message_handler::MessageHandler;
+use crate::networking::network::{self, Network};
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
@@ -178,16 +178,17 @@ use crate::utils::enum_tools::ToVec;
 
 /// Trait managing the path planning, and providing the error to the planned path.
 pub trait Navigator:
-    std::fmt::Debug
-    + std::marker::Send
-    + std::marker::Sync
-    + Recordable<NavigatorRecord>
-    + MessageHandler
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<NavigatorRecord>
 {
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
     fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError;
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
+
+    /// Optional: return the time of the next time step. Needed if using messages
+    fn next_time_step(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// Helper function to create a navigator from the given configuration.
@@ -202,6 +203,7 @@ pub fn make_navigator_from_config(
     plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    network: &SharedRwLock<Network>,
     initial_time: f32,
 ) -> SimbaResult<SharedRwLock<Box<dyn Navigator>>> {
     Ok(Arc::new(RwLock::new(match config {
@@ -214,6 +216,7 @@ pub fn make_navigator_from_config(
                 plugin_api,
                 global_config,
                 va_factory,
+                network,
                 initial_time,
             )?) as Box<dyn Navigator>
         }
@@ -221,7 +224,7 @@ pub fn make_navigator_from_config(
             python_navigator::PythonNavigator::from_config(c, global_config, initial_time).unwrap(),
         ) as Box<dyn Navigator>,
         NavigatorConfig::GoTo(c) => {
-            Box::new(go_to::GoTo::from_config(c, initial_time)) as Box<dyn Navigator>
+            Box::new(go_to::GoTo::from_config(c, network, initial_time)) as Box<dyn Navigator>
         }
     })))
 }

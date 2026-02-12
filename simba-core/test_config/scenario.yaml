@@ -3,11 +3,9 @@ version: 1.4.5
 log:
   included_nodes: []
   excluded_nodes: []
-  log_level:
-    type: Off #Internal
-    # value: 
-    #   - type: Scenario
-    #   - type: NetworkMessages
+  log_level: {type: Off}
+    # type: Internal
+    # value: [type: All]
 results: {} #default results
 max_time: 100.0
 time_analysis:

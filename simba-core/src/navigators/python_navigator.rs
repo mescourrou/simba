@@ -13,7 +13,6 @@ use serde_json::Value;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::pywrappers::NodeWrapper;
 use crate::utils::SharedMutex;
@@ -121,7 +120,7 @@ impl Navigator for PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of compute_error");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         let result = call_py_method!(
             self.navigator,
             "compute_error",
@@ -136,7 +135,7 @@ impl Navigator for PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         call_py_method_void!(self.navigator, "pre_loop_hook", node_py, time);
     }
 }
@@ -155,11 +154,5 @@ impl Recordable<NavigatorRecord> for PythonNavigator {
         // record.clone()
         // StateEstimatorRecord::External(PythonNavigator::record(&self))
         NavigatorRecord::Python(record)
-    }
-}
-
-impl MessageHandler for PythonNavigator {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_sender.clone())
     }
 }

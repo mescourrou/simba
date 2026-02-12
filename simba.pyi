@@ -212,8 +212,8 @@ class GoToMessage:
         self.target_point: Tuple[float, float]|None
 
 class SensorTriggerMessage:
-    def __init__(self, sensor_name: str):
-        self.sensor_name: str
+    def __init__(self):
+        pass
         
 class MessageFlag(Enum):
     # God mode, messages are instaneous.
@@ -221,7 +221,7 @@ class MessageFlag(Enum):
     # Ask to unsubscribe
     Unsubscribe = 2
     # Ask to kill the receiving node
-    Kill = 2
+    Kill = 3
 
 class MessageTypes(Enum):
     String: str
@@ -254,9 +254,42 @@ class Node:
         raise NotImplementedError()
     
     def send_message(self, to: str, message: MessageTypes, time: float, flags: List[MessageFlag]=[]):
+        """Send a message to the given channel
+
+        Args:
+            to (str): Channel to send the message to. If relative (does not contain '/'), the root is /simba/node/{node_name}/
+            message (MessageTypes): Message to send.
+            time (float): Timestamp to send
+            flags (List[MessageFlag], optional): Flags for the message (eg. Kill). Defaults to [].
+        """
         raise NotImplementedError()
     
-    def get_messages(self) -> List[Envelope]:
+    def subscribe(self, topics: List[str]) -> Client:
+        raise NotImplementedError()
+    
+    def make_channel(self, topic: str) -> None:
+        raise NotImplementedError()
+    
+class Client:
+    def subscribe(self, key: str) -> None:
+        raise NotImplementedError()
+
+    def subscribe_instantaneous(self, key: str) -> None:
+        raise NotImplementedError()
+
+    def send(self, to: str, message: MessageTypes, time: float, flags: List[MessageFlag] = []) -> None:
+        raise NotImplementedError()
+
+    def try_receive(self, time: float) -> Tuple[str, Envelope] | None:
+        raise NotImplementedError()
+
+    def next_message_time(self) -> float | None:
+        raise NotImplementedError()
+
+    def subscribed_keys(self) -> List[str]:
+        raise NotImplementedError()
+
+    def node_id(self) -> str:
         raise NotImplementedError()
 
 class StateEstimator:
@@ -291,6 +324,9 @@ class Controller:
     def pre_loop_hook(self, node: Node, time: float):
         raise NotImplementedError()
     
+    def next_time_step(self) -> float|None
+        pass
+    
 class Navigator:
     def record(self) -> str:
         raise NotImplementedError()
@@ -300,6 +336,9 @@ class Navigator:
     
     def pre_loop_hook(self, node: Node, time: float):
         raise NotImplementedError()
+
+    def next_time_step(self) -> float|None
+        pass
         
 class Physics:
     def record(self) -> str:
@@ -313,6 +352,9 @@ class Physics:
         
     def state(self, time) -> State: 
         raise NotImplementedError()
+    
+    def next_time_step(self) -> float|None:
+        pass
 
 class PluginAPI:
     def get_state_estimator(self, config: Dict, global_config: Dict, initial_time: float) -> StateEstimator:

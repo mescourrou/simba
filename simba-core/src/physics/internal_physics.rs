@@ -226,7 +226,7 @@ impl Physics for InternalPhysics {
 
     /// Return the current state. Do not compute the state again.
     fn state(&self, time: f32) -> State {
-        assert!(time == self.last_time_update);
+        assert!(time == self.last_time_update, "State should be requested at the same time as the last update: {} != {}", time, self.last_time_update);
         self.state.clone()
     }
 }

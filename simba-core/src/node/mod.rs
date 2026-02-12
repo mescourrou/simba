@@ -6,6 +6,7 @@ pub mod node_factory;
 
 use node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord};
 use serde::{Deserialize, Serialize};
+use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::EnumToString;
 
 use core::f32;
@@ -15,7 +16,9 @@ use std::sync::Arc;
 use log::{debug, info};
 
 use crate::errors::{SimbaError, SimbaErrorTypes};
-use crate::networking::message_handler::MessageHandler;
+use crate::networking;
+use crate::networking::network::MessageFlag;
+use crate::simulator::SimbaBrokerMultiClient;
 use crate::state_estimators::State;
 use crate::time_analysis::TimeAnalysisNode;
 use crate::utils::read_only_lock::RoLock;
@@ -52,6 +55,7 @@ pub struct NodeMetaData {
     pub model_name: String,
     pub labels: Vec<String>,
     pub state: NodeState,
+    pub position: Option<[f32; 2]>,
 }
 
 // Node itself
@@ -106,6 +110,7 @@ pub struct Node {
 
     pub(self) node_meta_data: SharedRwLock<NodeMetaData>,
     pub(self) meta_data_list: Option<SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>>,
+    pub(self) node_message_client: SimbaBrokerMultiClient,
 }
 
 impl Node {
@@ -116,6 +121,7 @@ impl Node {
         &mut self,
         service_manager_list: &BTreeMap<String, SharedRwLock<ServiceManager>>,
         meta_data_list: SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>,
+        initial_time: f32,
     ) -> NodeClient {
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Node post-creation initialization")
@@ -126,7 +132,7 @@ impl Node {
             .unwrap()
             .make_links(service_manager_list, self);
         if let Some(sensor_manager) = self.sensor_manager() {
-            sensor_manager.write().unwrap().init(self);
+            sensor_manager.write().unwrap().init(self, initial_time);
         }
 
         self.other_node_names = service_manager_list
@@ -140,43 +146,43 @@ impl Node {
             })
             .collect();
 
-        if let Some(network) = &self.network {
-            if let Some(sensor_manager) = &self.sensor_manager {
-                network
-                    .write()
-                    .unwrap()
-                    .subscribe(sensor_manager.read().unwrap().get_letter_box());
-            }
-            if let Some(state_estimator) = &self.state_estimator {
-                network
-                    .write()
-                    .unwrap()
-                    .subscribe(state_estimator.read().unwrap().get_letter_box());
-            }
-            if let Some(state_estimator_bench) = &self.state_estimator_bench {
-                for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                    network.write().unwrap().subscribe(
-                        state_estimator
-                            .state_estimator
-                            .read()
-                            .unwrap()
-                            .get_letter_box(),
-                    );
-                }
-            }
-            if let Some(navigator) = &self.navigator {
-                network
-                    .write()
-                    .unwrap()
-                    .subscribe(navigator.read().unwrap().get_letter_box());
-            }
-            if let Some(controller) = &self.controller {
-                network
-                    .write()
-                    .unwrap()
-                    .subscribe(controller.read().unwrap().get_letter_box());
-            }
-        }
+        // if let Some(network) = &self.network {
+        //     if let Some(sensor_manager) = &self.sensor_manager {
+        //         network
+        //             .write()
+        //             .unwrap()
+        //             .subscribe(sensor_manager.read().unwrap().get_letter_box());
+        //     }
+        //     if let Some(state_estimator) = &self.state_estimator {
+        //         network
+        //             .write()
+        //             .unwrap()
+        //             .subscribe(state_estimator.read().unwrap().get_letter_box());
+        //     }
+        //     if let Some(state_estimator_bench) = &self.state_estimator_bench {
+        //         for state_estimator in state_estimator_bench.read().unwrap().iter() {
+        //             network.write().unwrap().subscribe(
+        //                 state_estimator
+        //                     .state_estimator
+        //                     .read()
+        //                     .unwrap()
+        //                     .get_letter_box(),
+        //             );
+        //         }
+        //     }
+        //     if let Some(navigator) = &self.navigator {
+        //         network
+        //             .write()
+        //             .unwrap()
+        //             .subscribe(navigator.read().unwrap().get_letter_box());
+        //     }
+        //     if let Some(controller) = &self.controller {
+        //         network
+        //             .write()
+        //             .unwrap()
+        //             .subscribe(controller.read().unwrap().get_letter_box());
+        //     }
+        // }
         let (node_server, node_client) =
             internal_api::make_node_api(&self.node_meta_data.read().unwrap().node_type);
         self.node_server = Some(node_server);
@@ -213,9 +219,6 @@ impl Node {
     /// Process all the messages: one-way (network) and two-way (services).
     pub fn process_messages(&self) -> usize {
         let mut nb_msg = 0;
-        if let Some(network) = self.network() {
-            nb_msg += network.write().unwrap().process_messages().unwrap();
-        }
         nb_msg += self
             .service_manager
             .as_ref()
@@ -223,6 +226,7 @@ impl Node {
             .read()
             .unwrap()
             .process_requests();
+        nb_msg += self.node_message_client.next_message_time().is_some() as usize;
         nb_msg
     }
 
@@ -260,23 +264,27 @@ impl Node {
         // Update the true state
         if let Some(physics) = &self.physics {
             physics.write().unwrap().update_state(time);
-            self.node_server
-                .as_ref()
-                .unwrap()
-                .state_update
-                .as_ref()
-                .unwrap()
-                .send((
-                    time,
-                    (
-                        physics.read().unwrap().state(time).clone(),
-                        self.node_meta_data.read().unwrap().state.clone(),
-                    ),
-                ))
-                .unwrap();
+            // self.node_server
+            //     .as_ref()
+            //     .unwrap()
+            //     .state_update
+            //     .as_ref()
+            //     .unwrap()
+            //     .send((
+            //         time,
+            //         (
+            //             physics.read().unwrap().state(time).clone(),
+            //             self.node_meta_data.read().unwrap().state.clone(),
+            //         ),
+            //     ))
+            //     .unwrap();
+
+            let pose = physics.read().unwrap().state(time).pose;
+            self.node_meta_data.write().unwrap().position = Some([pose[0], pose[1]]);
         }
 
-        self.handle_messages(time);
+        self.sync_with_others(time_cv, nb_nodes, time);
+
         // Pre loop calls to manage messages
         if let Some(state_estimator) = self.state_estimator() {
             state_estimator.write().unwrap().pre_loop_hook(self, time);
@@ -503,20 +511,19 @@ impl Node {
         let waiting_parity = *time_cv.intermediate_parity.lock().unwrap();
         *lk += 1;
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-            debug!("Increase intermediate waiting nodes nodes: {}", *lk);
+            debug!("Increase intermediate waiting nodes: {}", *lk);
         }
-        let circulating_messages = time_cv.circulating_messages.lock().unwrap();
-        if *lk == nb_nodes && *circulating_messages == 0 {
-            *lk = 0;
-            let mut waiting_parity = time_cv.intermediate_parity.lock().unwrap();
-            *waiting_parity = 1 - *waiting_parity;
-            time_cv.condvar.notify_all();
-            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                debug!("[intermediate wait] I am the last, end wait");
-            }
-            return;
-        }
-        std::mem::drop(circulating_messages);
+        // let circulating_messages = time_cv.circulating_messages.lock().unwrap();
+        // if *lk == 0 && *circulating_messages == 0 {
+        //     let mut waiting_parity = time_cv.intermediate_parity.lock().unwrap();
+        //     *waiting_parity = 1 - *waiting_parity;
+        //     time_cv.condvar.notify_all();
+        //     if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+        //         debug!("[intermediate wait] I am the last, end wait");
+        //     }
+        //     return;
+        // }
+        // std::mem::drop(circulating_messages);
         loop {
             while self.process_messages() > 0 {
                 *lk -= 1;
@@ -526,24 +533,25 @@ impl Node {
                 self.handle_messages(time);
                 *lk += 1;
             }
-            let circulating_messages = time_cv.circulating_messages.lock().unwrap();
-            if *lk == nb_nodes && *circulating_messages == 0 {
-                *lk = 0;
-                let mut waiting_parity = time_cv.intermediate_parity.lock().unwrap();
-                *waiting_parity = 1 - *waiting_parity;
-                time_cv.condvar.notify_all();
-                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                    debug!("[intermediate wait] I am the last, end wait");
-                }
-                return;
-            }
-            if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
-                debug!(
-                    "[intermediate wait] Wait for others (waiting = {}/{nb_nodes}, circulating messages = {})",
-                    *lk, *circulating_messages
-                );
-            }
-            std::mem::drop(circulating_messages);
+            // let circulating_messages = time_cv.circulating_messages.lock().unwrap();
+            // // if *lk == nb_nodes && *circulating_messages == 0 {
+            // //     // *lk = 0;
+            // //     let mut waiting_parity = time_cv.intermediate_parity.lock().unwrap();
+            // //     *waiting_parity = 1 - *waiting_parity;
+            // //     time_cv.condvar.notify_all();
+            // //     if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+            // //         debug!("[intermediate wait] I am the last, end wait");
+            // //     }
+            // //     return;
+            // // }
+            // if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+            //     debug!(
+            //         "[intermediate wait] Wait for others (waiting = {}/{nb_nodes}, circulating messages = {})",
+            //         *lk, *circulating_messages
+            //     );
+            // }
+            // std::mem::drop(circulating_messages);
+            time_cv.condvar.notify_all();
             if self.process_messages() == 0 {
                 lk = time_cv.condvar.wait(lk).unwrap();
             }
@@ -560,16 +568,25 @@ impl Node {
     }
 
     pub fn handle_messages(&mut self, time: f32) {
-        // Treat messages synchronously
-        if let Some(network) = self.network() {
-            network.write().unwrap().handle_message_at_time(self, time);
-        }
         self.service_manager
             .as_ref()
             .unwrap()
             .write()
             .unwrap()
             .handle_requests(time);
+        while let Some((path, message)) = self.node_message_client.try_receive(time) {
+            if path == PathKey::from_str(networking::channels::internal::COMMAND).join_str(self.name().as_str()) {
+                for flag in message.message_flags {
+                    match flag {
+                        MessageFlag::Kill => {
+                            self.pre_kill();
+                        }
+                        _ => {}
+                    }
+                }
+                
+            }
+        }
     }
 
     /// Computes the next time step, using state estimator, sensors and received messages.
@@ -582,6 +599,36 @@ impl Node {
             }
             if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
                 debug!("Next time after state estimator: {next_time_step}");
+            }
+        }
+        if let Some(navigator) = &self.navigator
+            && let Some(next_time) = navigator.read().unwrap().next_time_step()
+        {
+            if next_time > min_time_excluded {
+                next_time_step = next_time_step.min(next_time);
+            }
+            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                debug!("Next time after navigator: {next_time_step}");
+            }
+        }
+        if let Some(controller) = &self.controller
+            && let Some(next_time) = controller.read().unwrap().next_time_step()
+        {
+            if next_time > min_time_excluded {
+                next_time_step = next_time_step.min(next_time);
+            }
+            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                debug!("Next time after controller: {next_time_step}");
+            }
+        }
+        if let Some(physics) = &self.physics
+            && let Some(next_time) = physics.read().unwrap().next_time_step()
+        {
+            if next_time > min_time_excluded {
+                next_time_step = next_time_step.min(next_time);
+            }
+            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+                debug!("Next time after physics: {next_time_step}");
             }
         }
 
@@ -598,27 +645,27 @@ impl Node {
                 debug!("Next time after sensor manager: {next_time_step}");
             }
         }
-        if let Some(network) = &self.network {
-            let message_next_time = network.read().unwrap().next_message_time();
-            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-                debug!(
-                    "In node: message_next_time: {}",
-                    message_next_time.unwrap_or(-1.)
-                );
-            }
-            if let Some(msg_next_time) = message_next_time
-                && next_time_step > msg_next_time
-                && msg_next_time > min_time_excluded
-            {
-                next_time_step = msg_next_time;
-                if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-                    debug!("Time step changed with message: {}", next_time_step);
-                }
-            }
-            if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-                debug!("Next time after network: {next_time_step}");
-            }
-        }
+        // if let Some(network) = &self.network {
+        //     let message_next_time = network.read().unwrap().next_message_time();
+        //     if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+        //         debug!(
+        //             "In node: message_next_time: {}",
+        //             message_next_time.unwrap_or(-1.)
+        //         );
+        //     }
+        //     if let Some(msg_next_time) = message_next_time
+        //         && next_time_step > msg_next_time
+        //         && msg_next_time > min_time_excluded
+        //     {
+        //         next_time_step = msg_next_time;
+        //         if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+        //             debug!("Time step changed with message: {}", next_time_step);
+        //         }
+        //     }
+        //     if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
+        //         debug!("Next time after network: {next_time_step}");
+        //     }
+        // }
         if let Some(state_estimator_bench) = &self.state_estimator_bench {
             for state_estimator in state_estimator_bench.read().unwrap().iter() {
                 let next_time = state_estimator
@@ -666,7 +713,6 @@ impl Node {
         self.node_meta_data.read().unwrap().state.clone()
     }
 
-    #[cfg(not(feature = "force_hard_determinism"))]
     pub(crate) fn set_state(&mut self, state: NodeState) {
         self.node_meta_data.write().unwrap().state = state;
     }
@@ -760,9 +806,6 @@ impl Node {
 
     pub fn kill(&mut self, time: f32) {
         self.node_meta_data.write().unwrap().state = NodeState::Zombie;
-        if let Some(network) = &self.network {
-            network.write().unwrap().unsubscribe_node().unwrap();
-        }
         if let Some(service_manager) = &self.service_manager {
             service_manager.write().unwrap().unsubscribe_node();
         }

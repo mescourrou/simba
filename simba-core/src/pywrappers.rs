@@ -7,6 +7,7 @@ use std::{
 
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::{exceptions::PyTypeError, prelude::*};
+use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::EnumToString;
 
 #[cfg(feature = "gui")]
@@ -37,7 +38,7 @@ use crate::{
         robot_sensor::OrientedRobotObservation,
         speed_sensor::{OdometryObservation, SpeedObservation},
     },
-    simulator::{AsyncSimulator, Simulator},
+    simulator::{AsyncSimulator, SimbaBrokerMultiClient, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
     utils::{SharedMutex, occupancy_grid::OccupancyGrid},
 };
@@ -996,7 +997,6 @@ pub struct EnvelopeWrapper {
 #[pyo3(name = "Node")]
 pub struct NodeWrapper {
     node: Arc<Node>,
-    messages_receiver: SharedMutex<Receiver<Envelope>>,
 }
 
 #[pymethods]
@@ -1021,43 +1021,138 @@ impl NodeWrapper {
                 MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
             }
             .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
-            if let Err(e) = network.write().unwrap().send_to(to, msg, time, flags) {
-                log::error!("{}", e.detailed_error());
-            }
+            let key = PathKey::from_str(to.as_str());
+            let msg = Envelope {
+                from: self.node.name(),
+                message: msg,
+                timestamp: time,
+                message_flags: flags,
+            };
+            network.write().unwrap().send_to(key, msg, time);
             Ok(())
         } else {
             Err(PyErr::new::<PyTypeError, _>("No network on this node"))
         }
     }
 
-    pub fn get_messages(&self) -> Vec<EnvelopeWrapper> {
-        let mut messages = Vec::new();
-
-        while let Ok(envelope) = self.messages_receiver.lock().unwrap().try_recv() {
-            let msg = match serde_json::from_value(envelope.message.clone()) {
-                Err(_) => MessageTypes::String(serde_json::to_string(&envelope.message).unwrap()),
-                Ok(m) => m,
-            };
-            messages.push(EnvelopeWrapper {
-                msg_from: envelope.from,
-                message: msg,
-                timestamp: envelope.timestamp,
-            });
+    pub fn subscribe(&self, topics: Vec<String>) -> PyResult<MultiClientWrapper> {
+        if let Some(network) = &self.node.network() {
+            let keys = topics
+                .iter()
+                .map(|t| PathKey::from_str(t.as_str()))
+                .collect::<Vec<PathKey>>();
+            let client = network.write().unwrap().subscribe_to(&keys, None);
+            Ok(MultiClientWrapper::from_rust(client))
+        } else {
+            Err(PyErr::new::<PyTypeError, _>("No network on this node"))
         }
-        messages
+    }
+
+    pub fn make_channel(&self, channel_name: String) -> PyResult<()> {
+        if let Some(network) = &self.node.network() {
+            let key = PathKey::from_str(channel_name.as_str());
+            network.write().unwrap().make_channel(key);
+            Ok(())
+        } else {
+            Err(PyErr::new::<PyTypeError, _>("No network on this node"))
+        }
     }
 }
 
 impl NodeWrapper {
-    pub fn from_rust(n: &Node, messages_receiver: SharedMutex<Receiver<Envelope>>) -> Self {
+    pub fn from_rust(n: &Node) -> Self {
         Self {
             // I did not find another solution.
             // Relatively safe as Nodes lives very long, almost all the time
             // For API usage
             #[allow(clippy::borrow_deref_ref)]
             node: unsafe { Arc::from_raw(&*n) },
-            messages_receiver,
         }
+    }
+}
+
+#[derive(Debug)]
+#[pyclass]
+#[pyo3(name = "Client")]
+pub struct MultiClientWrapper {
+    client: SimbaBrokerMultiClient,
+}
+
+#[pymethods]
+impl MultiClientWrapper {
+    pub fn subscribe(&mut self, key: String) {
+        let key = PathKey::from_str(key.as_str());
+        self.client.subscribe(&key);
+    }
+
+    pub fn subscribe_instantaneous(&mut self, key: String) {
+        let key = PathKey::from_str(key.as_str());
+        self.client.subscribe_instantaneous(&key);
+    }
+
+    pub fn send(
+        &self,
+        to: String,
+        message: MessageTypes,
+        time: f32,
+        flags: Vec<MessageFlag>,
+    ) -> PyResult<()> {
+        let msg = match message {
+            MessageTypes::String(s) => serde_json::to_value(s),
+            MessageTypes::GoTo(m) => serde_json::to_value(m),
+            MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
+        }
+        .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
+        let key = PathKey::from_str(to.as_str());
+        let msg = Envelope {
+            from: self.client.node_id().to_string(),
+            message: msg,
+            timestamp: time,
+            message_flags: flags,
+        };
+        self.client.send(&key, msg, time);
+        Ok(())
+    }
+
+    pub fn try_receive(&self, time: f32) -> Option<(String, EnvelopeWrapper)> {
+        if let Some((path, envelope)) = self.client.try_receive(time) {
+            let msg = match serde_json::from_value(envelope.message.clone()) {
+                Err(_) => MessageTypes::String(serde_json::to_string(&envelope.message).unwrap()),
+                Ok(m) => m,
+            };
+            Some((
+                path.to_string(),
+                EnvelopeWrapper {
+                    msg_from: envelope.from,
+                    message: msg,
+                    timestamp: envelope.timestamp,
+                },
+            ))
+        } else {
+            None
+        }
+    }
+
+    pub fn next_message_time(&self) -> Option<f32> {
+        self.client.next_message_time()
+    }
+
+    pub fn subscribed_keys(&self) -> Vec<String> {
+        self.client
+            .subscribed_keys()
+            .iter()
+            .map(|k| k.to_string())
+            .collect()
+    }
+
+    pub fn node_id(&self) -> String {
+        self.client.node_id().to_string()
+    }
+}
+
+impl MultiClientWrapper {
+    pub fn from_rust(client: SimbaBrokerMultiClient) -> Self {
+        Self { client }
     }
 }
 
@@ -1231,6 +1326,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });
@@ -1239,6 +1335,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });
@@ -1247,6 +1344,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });
@@ -1255,6 +1353,7 @@ pub fn run_gui(
                         &request.config,
                         &request.global_config,
                         &request.va_factory,
+                        &request.network,
                         0.,
                     )
                 });

@@ -8,6 +8,7 @@ use core::f32;
 use log::{debug, warn};
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
+use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::config_derives;
 use std::collections::BTreeMap;
 use std::sync::mpsc::{self, Receiver, Sender};
@@ -21,11 +22,12 @@ use crate::gui::{
     utils::{string_checkbox, text_singleline_with_apply},
 };
 use crate::logger::{InternalLog, is_enabled};
-use crate::networking::message_handler::MessageHandler;
-use crate::networking::network::Envelope;
+use crate::networking;
+use crate::networking::network::{self, Envelope, Network};
 use crate::node::Node;
 use crate::sensors::displacement_sensor::DisplacementSensor;
 use crate::sensors::external_sensor::ExternalSensor;
+use crate::simulator::SimbaBrokerMultiClient;
 use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::{SharedMutex, SharedRwLock};
@@ -250,15 +252,13 @@ struct ManagedSensor {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all, set_all)]
-pub struct SensorTriggerMessage {
-    pub sensor_name: String,
-}
+pub struct SensorTriggerMessage {}
 
 #[pymethods]
 impl SensorTriggerMessage {
     #[new]
-    pub fn new(sensor_name: String) -> Self {
-        Self { sensor_name }
+    pub fn new() -> Self {
+        Self {}
     }
 }
 
@@ -270,22 +270,24 @@ pub struct SensorManager {
     last_observations: Vec<ObservationRecord>,
     local_observations: Vec<Observation>,
     distant_observations: Vec<Observation>,
-    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
-    letter_box_sender: Sender<Envelope>,
+    message_client: Option<SimbaBrokerMultiClient>,
+    channel_root: Option<PathKey>,
 }
 
 impl SensorManager {
+    pub const CHANNEL_NAME: &'static str = "sensors";
+    pub const OBSERVATION_CHANNEL: &'static str = "observations";
+
     /// Makes a new [`SensorManager`] without any [`Sensor`].
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel();
         Self {
             sensors: Vec::new(),
             next_time: None,
             last_observations: Vec::new(),
             local_observations: Vec::new(),
             distant_observations: Vec::new(),
-            letter_box_receiver: Arc::new(Mutex::new(rx)),
-            letter_box_sender: tx,
+            message_client: None,
+            channel_root: None,
         }
     }
 
@@ -301,11 +303,28 @@ impl SensorManager {
         global_config: &SimulatorConfig,
         node_name: &String,
         va_factory: &DeterministRandomVariableFactory,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
         initial_state: &State,
     ) -> SimbaResult<Self> {
         let mut manager = Self::new();
+        let sensor_manager_key = PathKey::from_str(networking::channels::internal::NODE)
+            .join_str(node_name.as_str())
+            .join_str(Self::CHANNEL_NAME);
+        manager.channel_root = Some(sensor_manager_key.clone());
+        network.write().unwrap().make_channel(
+            sensor_manager_key
+                .clone()
+                .join_str(Self::OBSERVATION_CHANNEL),
+        );
         for sensor_config in &config.sensors {
+            if sensor_config.triggered {
+                network
+                    .write()
+                    .unwrap()
+                    .make_channel(sensor_manager_key.clone().join_str(&sensor_config.name));
+            }
+
             manager.sensors.push(ManagedSensor {
                 name: sensor_config.name.clone(),
                 send_to: sensor_config.send_to.clone(),
@@ -372,6 +391,7 @@ impl SensorManager {
                         plugin_api,
                         global_config,
                         va_factory,
+                        network,
                         initial_time,
                     )?) as Box<dyn Sensor>,
                 })),
@@ -379,6 +399,15 @@ impl SensorManager {
                 last_triggered: None,
             });
         }
+
+        // Subscribe to all channels of the sensor manager, to receive both observations and trigger messages:
+        manager.message_client = Some(
+            network
+                .write()
+                .unwrap()
+                .subscribe_to(&[sensor_manager_key], None),
+        );
+        debug!("Sensor Manager subscribed to channel {:?}", manager.message_client.as_ref().unwrap().subscribed_keys());
         manager.next_time = None;
         for sensor in &manager.sensors {
             manager.next_time = Some(
@@ -393,17 +422,24 @@ impl SensorManager {
 
     /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    pub fn init(&mut self, node: &mut Node) {
+    pub fn init(&mut self, node: &mut Node, initial_time: f32) {
         for sensor in &mut self.sensors {
-            sensor.sensor.write().unwrap().init(node);
+            sensor.sensor.write().unwrap().init(node, initial_time);
         }
     }
 
     pub fn handle_messages(&mut self, time: f32) {
-        while let Ok(envelope) = self.letter_box_receiver.lock().unwrap().try_recv() {
-            if let Ok(obs_list) =
-                serde_json::from_value::<Vec<Observation>>(envelope.message.clone())
+        while let Some((path, envelope)) = self.message_client.as_ref().unwrap().try_receive(time) {
+            debug!("Sensor Manager received message on path {:?} at time {}: {:?}", path, envelope.timestamp, envelope.message);
+            if path
+                == self
+                    .channel_root
+                    .as_ref()
+                    .unwrap()
+                    .join_str(Self::OBSERVATION_CHANNEL)
             {
+                let obs_list =
+                    serde_json::from_value::<Vec<Observation>>(envelope.message.clone()).unwrap();
                 self.last_observations
                     .extend(obs_list.iter().map(|o| o.record()));
                 self.distant_observations.extend(obs_list);
@@ -419,17 +455,23 @@ impl SensorManager {
                         envelope.from, envelope.timestamp
                     );
                 }
-            } else if let Ok(trigger_msg) =
-                serde_json::from_value::<SensorTriggerMessage>(envelope.message.clone())
+            } else if serde_json::from_value::<SensorTriggerMessage>(envelope.message.clone())
+                .is_ok()
             {
+                let sensor_name = path.to_vec().last().unwrap().clone();
                 for sensor in &mut self.sensors {
-                    if sensor.name == trigger_msg.sensor_name {
+                    if sensor.name == sensor_name {
                         sensor.last_triggered = Some(time);
                         if is_enabled(crate::logger::InternalLog::SensorManager) {
                             debug!("Sensor {} triggered at time {}", sensor.name, time);
                         }
                     }
                 }
+            } else {
+                warn!(
+                    "[Sensor Manager] Received message on unknown type or path {:?}: {:?}",
+                    path, envelope.message
+                );
             }
         }
     }
@@ -511,6 +553,7 @@ impl SensorManager {
             );
         }
         if !obs_to_send.is_empty() {
+            let key_base = PathKey::from_str(networking::channels::internal::NODE);
             for (to, observations) in obs_to_send {
                 if !observations.is_empty() {
                     let obs_serialized = serde_json::to_value(observations).unwrap();
@@ -520,8 +563,16 @@ impl SensorManager {
                         )
                         .write()
                         .unwrap()
-                        .send_to(to.clone(), obs_serialized, time, Vec::new())
-                        .unwrap();
+                        .send_to(
+                            key_base.join_str(&to).join_str(Self::OBSERVATION_CHANNEL),
+                            Envelope {
+                                from: node.name(),
+                                message: obs_serialized,
+                                timestamp: time,
+                                message_flags: Vec::new(),
+                            },
+                            time,
+                        );
                 }
             }
         }
@@ -558,11 +609,5 @@ impl Recordable<SensorManagerRecord> for SensorManager {
             });
         }
         record
-    }
-}
-
-impl MessageHandler for SensorManager {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_sender.clone())
     }
 }

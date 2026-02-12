@@ -14,7 +14,7 @@ use std::vec::Vec;
 ///
 /// ## Example
 /// ```
-/// use simba::utils::time_ordered_data::TimeOrderedData;
+/// use simba_com::time_ordered_data::TimeOrderedData;
 ///
 /// let mut tod = TimeOrderedData::<String>::new(0.001);
 /// tod.insert(2.1, String::from("Hello1"), true);

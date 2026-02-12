@@ -16,7 +16,7 @@ use crate::{
     controllers::ControllerError,
     logger::is_enabled,
     navigators::external_navigator::ExternalNavigatorRecord,
-    networking::{message_handler::MessageHandler, network::Envelope},
+    networking::network::Envelope,
     node::Node,
     pywrappers::{ControllerErrorWrapper, NodeWrapper, WorldStateWrapper},
     recordable::Recordable,
@@ -40,12 +40,12 @@ pub struct PythonNavigatorAsyncClient {
 
 impl Navigator for PythonNavigatorAsyncClient {
     fn compute_error(&mut self, node: &mut Node, world_state: WorldState) -> ControllerError {
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         self.compute_error.call((node_py, world_state)).unwrap()
     }
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         self.pre_loop_hook.call((node_py, time)).unwrap()
     }
 }
@@ -53,12 +53,6 @@ impl Navigator for PythonNavigatorAsyncClient {
 impl Recordable<NavigatorRecord> for PythonNavigatorAsyncClient {
     fn record(&self) -> NavigatorRecord {
         self.record.call(()).unwrap()
-    }
-}
-
-impl MessageHandler for PythonNavigatorAsyncClient {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_sender.clone())
     }
 }
 

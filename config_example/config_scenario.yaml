@@ -5,6 +5,7 @@ log:
   excluded_nodes: []
   log_level:
     type: Info
+    # value: [type: All]
 results: {}
 max_time: 20.0
 time_analysis:
@@ -190,7 +191,7 @@ scenario:
       type: Spawn
       value:
         model_name: drone1
-        node_name: drone$0
+        node_name: drone_$0
   - trigger: 
       type: Area
       value:

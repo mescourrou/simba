@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use log::debug;
 use serde::{Deserialize, Serialize};
+use simba_com::pub_sub::{BrokerTrait, MultiClientTrait, PathKey};
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
@@ -13,6 +14,7 @@ use crate::{
     logger::is_enabled,
     navigators::{self, NavigatorConfig, NavigatorRecord, go_to},
     networking::{
+        self,
         network::{Network, NetworkConfig},
         service_manager::ServiceManager,
     },
@@ -20,13 +22,13 @@ use crate::{
     physics::{self, PhysicsConfig, PhysicsRecord, internal_physics},
     plugin_api::PluginAPI,
     sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
-    simulator::{SimulatorConfig, TimeCv},
+    simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig, TimeCv},
     state_estimators::{
         self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord, State,
         StateEstimatorConfig, StateEstimatorRecord, perfect_estimator,
     },
     time_analysis::TimeAnalysisFactory,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -657,20 +659,76 @@ pub struct MakeNodeParams<'a> {
     pub time_cv: Arc<TimeCv>,
     pub force_send_results: bool,
     pub new_name: Option<&'a str>,
+    pub broker: &'a SharedRwLock<SimbaBroker>,
     pub initial_time: f32,
 }
 
 pub struct NodeFactory {}
 
 impl NodeFactory {
+    fn make_global_channels(
+        node_name: &String,
+        broker: &SharedRwLock<SimbaBroker>,
+    ) -> SimbaResult<SimbaBrokerMultiClient> {
+        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+            debug!("Setup global channels for node '{}'", node_name);
+        }
+        let mut broker_lock = broker.write().unwrap();
+        broker_lock.add_channel(
+            PathKey::from_str(networking::channels::internal::COMMAND).join_str(node_name.as_str()),
+        );
+        let log_key =
+            PathKey::from_str(networking::channels::internal::LOG).join_str(node_name.as_str());
+        broker_lock.add_channel(
+            log_key
+                .clone()
+                .join_str(networking::channels::internal::log::ERROR),
+        );
+        broker_lock.add_channel(
+            log_key
+                .clone()
+                .join_str(networking::channels::internal::log::WARNING),
+        );
+        broker_lock.add_channel(
+            log_key
+                .clone()
+                .join_str(networking::channels::internal::log::INFO),
+        );
+        broker_lock.add_channel(
+            log_key
+                .clone()
+                .join_str(networking::channels::internal::log::DEBUG),
+        );
+        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
+            debug!("Broker channels:\n- {}", broker_lock.channel_list().iter().map(|c| c.to_string()).collect::<Vec<String>>().join("\n- "));
+        }
+        std::mem::drop(broker_lock);
+        let mut client = SimbaBrokerMultiClient::new(broker.clone(), node_name.clone(), 0., PathKey::from_str("/"));
+        broker.write().unwrap().subscribe_to_list(&[
+            PathKey::from_str(networking::channels::internal::COMMAND).join_str(node_name.as_str())
+        ], 0., &mut client).unwrap();
+        Ok(client)
+    }
+
     pub fn make_robot(config: &RobotConfig, params: &mut MakeNodeParams) -> SimbaResult<Node> {
         let node_type = NodeType::Robot;
+        // Make global channels
+        let client = Self::make_global_channels(&config.name, params.broker)?;
+        let network = Arc::new(RwLock::new(Network::from_config(
+            config.name.clone(),
+            &config.network,
+            params.global_config,
+            params.va_factory,
+            params.broker,
+            params.initial_time,
+        )));
         let physics = physics::make_physics_from_config(
             &config.physics,
             params.plugin_api,
             params.global_config,
             &config.name,
             params.va_factory,
+            &network,
             params.initial_time,
         )?;
         let initial_state = physics.read().unwrap().state(params.initial_time).clone();
@@ -685,12 +743,17 @@ impl NodeFactory {
                 } else {
                     NodeState::Created
                 },
+                position: {
+                    let pose = physics.read().unwrap().state(params.initial_time).pose;
+                    Some([pose.x, pose.y])
+                },
             })),
             navigator: Some(navigators::make_navigator_from_config(
                 &config.navigator,
                 params.plugin_api,
                 params.global_config,
                 params.va_factory,
+                &network,
                 params.initial_time,
             )?),
             controller: Some(controllers::make_controller_from_config(
@@ -699,6 +762,7 @@ impl NodeFactory {
                 params.global_config,
                 params.va_factory,
                 &config.physics,
+                &network,
                 params.initial_time,
             )?),
             physics: Some(physics),
@@ -708,6 +772,7 @@ impl NodeFactory {
                     params.plugin_api,
                     params.global_config,
                     params.va_factory,
+                    &network,
                     params.initial_time,
                 )?,
             ))),
@@ -717,17 +782,11 @@ impl NodeFactory {
                 params.global_config,
                 &config.name,
                 params.va_factory,
+                &network,
                 params.initial_time,
                 &initial_state,
             )?))),
-            network: Some(Arc::new(RwLock::new(Network::from_config(
-                config.name.clone(),
-                &config.network,
-                params.global_config,
-                params.va_factory,
-                params.time_cv.clone(),
-                params.initial_time,
-            )))),
+            network: Some(network.clone()),
             state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimator_bench.len(),
             )))),
@@ -741,6 +800,7 @@ impl NodeFactory {
                 .map(|taf| taf.new_node(config.name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
+            node_message_client: client,
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -757,6 +817,7 @@ impl NodeFactory {
                             params.plugin_api,
                             params.global_config,
                             params.va_factory,
+                            &network,
                             params.initial_time,
                         )?,
                     )),
@@ -781,6 +842,15 @@ impl NodeFactory {
         params: &mut MakeNodeParams,
     ) -> SimbaResult<Node> {
         let node_type = NodeType::ComputationUnit;
+        let client = Self::make_global_channels(&config.name, params.broker)?;
+        let network = Arc::new(RwLock::new(Network::from_config(
+            config.name.clone(),
+            &config.network,
+            params.global_config,
+            params.va_factory,
+            params.broker,
+            params.initial_time,
+        )));
         let mut node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
                 name: params.new_name.unwrap_or(&config.name).to_string(),
@@ -788,6 +858,7 @@ impl NodeFactory {
                 model_name: config.name.clone(),
                 labels: config.labels.clone(),
                 state: NodeState::Running,
+                position: None,
             })),
             navigator: None,
             controller: None,
@@ -799,17 +870,11 @@ impl NodeFactory {
                 params.global_config,
                 &config.name,
                 params.va_factory,
+                &network,
                 params.initial_time,
                 &State::default(),
             )?))),
-            network: Some(Arc::new(RwLock::new(Network::from_config(
-                config.name.clone(),
-                &config.network,
-                params.global_config,
-                params.va_factory,
-                params.time_cv.clone(),
-                params.initial_time,
-            )))),
+            network: Some(network.clone()),
             state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimators.len(),
             )))),
@@ -822,6 +887,7 @@ impl NodeFactory {
                 .map(|taf| taf.new_node(config.name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
+            node_message_client: client,
         };
 
         for state_estimator_config in &config.state_estimators {
@@ -838,6 +904,7 @@ impl NodeFactory {
                             params.plugin_api,
                             params.global_config,
                             params.va_factory,
+                            &network,
                             params.initial_time,
                         )?,
                     )),

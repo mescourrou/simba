@@ -9,6 +9,7 @@ use crate::{
     navigators::{
         NavigatorConfig, go_to::GoToConfig, trajectory_follower::TrajectoryFollowerConfig,
     },
+    networking::network::Network,
     node::node_factory::{NodeRecord, RobotConfig},
     plugin_api::PluginAPI,
     sensors::{
@@ -21,7 +22,7 @@ use crate::{
         BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig,
         external_estimator::ExternalEstimatorConfig, perfect_estimator::PerfectEstimatorConfig,
     },
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 struct PluginAPITest<SE: StateEstimator + 'static> {
@@ -34,6 +35,7 @@ impl<SE: StateEstimator> PluginAPI for PluginAPITest<SE> {
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         _initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         // let se = std::mem::replace(&mut *self.se.lock().unwrap(), None)
@@ -52,13 +54,11 @@ mod kill_node {
     use std::sync::mpsc::Sender;
 
     use serde_json::Value;
+    use simba_com::pub_sub::PathKey;
 
     use crate::{
         constants::TIME_ROUND,
-        networking::{
-            message_handler::MessageHandler,
-            network::{Envelope, MessageFlag},
-        },
+        networking::network::{Envelope, MessageFlag},
         node::Node,
         recordable::Recordable,
         sensors::Observation,
@@ -86,18 +86,16 @@ mod kill_node {
 
         fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
             if time >= self.kill_time {
-                node.network()
-                    .as_ref()
-                    .unwrap()
-                    .write()
-                    .unwrap()
-                    .send_to(
-                        "node2".to_string(),
-                        Value::Null,
-                        time,
-                        vec![MessageFlag::Kill],
-                    )
-                    .unwrap();
+                node.network().as_ref().unwrap().write().unwrap().send_to(
+                    PathKey::from_str("/simba/command/node2"),
+                    Envelope {
+                        from: node.name(),
+                        message: serde_json::Value::Null,
+                        timestamp: time,
+                        message_flags: vec![MessageFlag::Kill],
+                    },
+                    time,
+                );
                 self.kill_time = f32::INFINITY;
             }
         }
@@ -119,12 +117,6 @@ mod kill_node {
             StateEstimatorRecord::External(ExternalEstimatorRecord {
                 record: serde_json::Value::default(),
             })
-        }
-    }
-
-    impl MessageHandler for StateEstimatorTest {
-        fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-            None
         }
     }
 }
@@ -198,9 +190,11 @@ fn kill_node() {
 }
 
 mod trigger_sensor {
+    use simba_com::pub_sub::PathKey;
+
     use crate::{
         constants::TIME_ROUND,
-        networking::{message_handler::MessageHandler, network::Envelope},
+        networking::network::{Envelope, Network},
         node::Node,
         plugin_api::PluginAPI,
         recordable::Recordable,
@@ -211,8 +205,8 @@ mod trigger_sensor {
             external_estimator::ExternalEstimatorRecord,
         },
         utils::{
-            SharedMutex, determinist_random_variable::DeterministRandomVariableFactory,
-            maths::round_precision,
+            SharedMutex, SharedRwLock,
+            determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
         },
     };
     use std::{
@@ -253,21 +247,16 @@ mod trigger_sensor {
                         .unwrap_or(f32::INFINITY)
             {
                 log::info!("Triggering sensor at time {}", time);
-                node.network()
-                    .as_ref()
-                    .unwrap()
-                    .write()
-                    .unwrap()
-                    .send_to(
-                        "robot1".to_string(),
-                        serde_json::to_value(SensorTriggerMessage {
-                            sensor_name: "RobotSensor".to_string(),
-                        })
-                        .unwrap(),
-                        time,
-                        Vec::new(),
-                    )
-                    .unwrap();
+                node.network().as_ref().unwrap().write().unwrap().send_to(
+                    PathKey::from_str("/simba/node/robot1/sensors/RobotSensor"),
+                    Envelope {
+                        from: node.name(),
+                        message: serde_json::to_value(SensorTriggerMessage {}).unwrap(),
+                        timestamp: time,
+                        ..Default::default()
+                    },
+                    time,
+                );
                 self.trigger_times.lock().unwrap().pop_front();
             }
         }
@@ -292,12 +281,6 @@ mod trigger_sensor {
         }
     }
 
-    impl MessageHandler for StateEstimatorTest {
-        fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-            None
-        }
-    }
-
     pub struct PluginAPITest {
         pub trigger_times: SharedMutex<VecDeque<f32>>,
         pub triggered_times: SharedMutex<VecDeque<f32>>,
@@ -309,6 +292,7 @@ mod trigger_sensor {
             config: &serde_json::Value,
             _global_config: &SimulatorConfig,
             _va_factory: &Arc<DeterministRandomVariableFactory>,
+            _network: &SharedRwLock<Network>,
             initial_time: f32,
         ) -> Box<dyn StateEstimator> {
             if config.as_bool().unwrap() {
@@ -337,7 +321,7 @@ fn trigger_sensor() {
     // config.log.included_nodes = vec!["robot1".to_string()];
     // config.log.excluded_nodes = vec!["simulator".to_string()];
     // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::SensorManager, InternalLog::SensorManagerDetailed]);
-    config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
+    // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
     config.max_time = 25.;
     config.results = None;
     config.robots.push(RobotConfig {

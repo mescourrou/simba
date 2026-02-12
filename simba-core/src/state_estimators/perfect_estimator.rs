@@ -10,9 +10,7 @@ use super::{State, WorldState, WorldStateRecord};
 use crate::{
     constants::TIME_ROUND,
     errors::SimbaErrorTypes,
-    networking::{
-        message_handler::MessageHandler, network::Envelope, service_manager::ServiceError,
-    },
+    networking::{network::Envelope, service_manager::ServiceError},
 };
 
 #[cfg(feature = "gui")]
@@ -299,11 +297,5 @@ impl Recordable<StateEstimatorRecord> for PerfectEstimator {
             world_state: self.world_state.record(),
             last_time_prediction: self.last_time_prediction,
         })
-    }
-}
-
-impl MessageHandler for PerfectEstimator {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        None
     }
 }

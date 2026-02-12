@@ -1,4 +1,3 @@
-use nalgebra::Vector2;
 #[allow(unused_variables)]
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
@@ -6,8 +5,7 @@ use simba::controllers::external_controller::ExternalControllerRecord;
 use simba::controllers::{Controller, ControllerError, ControllerRecord};
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::{Navigator, NavigatorRecord};
-use simba::networking::message_handler::MessageHandler;
-use simba::networking::network::Envelope;
+use simba::networking::network::{Envelope, Network};
 use simba::networking::service::HasService;
 use simba::node::Node;
 use simba::physics::external_physics::ExternalPhysicsRecord;
@@ -16,9 +14,7 @@ use simba::physics::robot_models::Command;
 use simba::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 use simba::plugin_api::PluginAPI;
 use simba::recordable::Recordable;
-use simba::sensors::external_sensor::{
-    ExternalObservation, ExternalObservationRecord, ExternalSensorRecord,
-};
+use simba::sensors::external_sensor::{ExternalObservation, ExternalSensorRecord};
 use simba::sensors::{Observation, Sensor, SensorObservation, SensorRecord};
 use simba::simulator::{Simulator, SimulatorConfig};
 use simba::state_estimators::external_estimator::ExternalEstimatorRecord;
@@ -26,7 +22,7 @@ use simba::state_estimators::{
     State, StateEstimator, StateEstimatorRecord, StateRecord, WorldState,
 };
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use simba::utils::SharedMutex;
+use simba::utils::{SharedMutex, SharedRwLock};
 use std::path::Path;
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -85,12 +81,6 @@ impl Recordable<ControllerRecord> for MyWonderfulController {
     }
 }
 
-impl MessageHandler for MyWonderfulController {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_tx.clone())
-    }
-}
-
 ///////////////////////////////////
 /// NAVIGATOR TEMPLATE
 ///////////////////////////////////
@@ -102,18 +92,11 @@ struct MyWonderfulNavigatorRecord {}
 struct MyWonderfulNavigatorConfig {}
 
 #[derive(Debug)]
-struct MyWonderfulNavigator {
-    letter_box_rx: SharedMutex<Receiver<Envelope>>,
-    letter_box_tx: Sender<Envelope>,
-}
+struct MyWonderfulNavigator {}
 
 impl MyWonderfulNavigator {
     pub fn from_config(_config: MyWonderfulNavigatorConfig, _initial_time: f32) -> Self {
-        let (tx, rx) = mpsc::channel();
-        Self {
-            letter_box_rx: Arc::new(Mutex::new(rx)),
-            letter_box_tx: tx,
-        }
+        Self {}
     }
 }
 
@@ -131,11 +114,7 @@ impl Navigator for MyWonderfulNavigator {
         }
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
-        while let Ok(_envelope) = self.letter_box_rx.lock().unwrap().try_recv() {
-            // i.e. Do something with received messages
-        }
-    }
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {}
 }
 
 impl Recordable<NavigatorRecord> for MyWonderfulNavigator {
@@ -143,12 +122,6 @@ impl Recordable<NavigatorRecord> for MyWonderfulNavigator {
         NavigatorRecord::External(ExternalNavigatorRecord {
             record: serde_json::to_value(MyWonderfulNavigatorRecord {}).unwrap(),
         })
-    }
-}
-
-impl MessageHandler for MyWonderfulNavigator {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_tx.clone())
     }
 }
 
@@ -226,17 +199,12 @@ struct MyWonderfulStateEstimatorConfig {}
 #[derive(Debug)]
 struct MyWonderfulStateEstimator {
     last_prediction: f32,
-    letter_box_rx: SharedMutex<Receiver<Envelope>>,
-    letter_box_tx: Sender<Envelope>,
 }
 
 impl MyWonderfulStateEstimator {
     pub fn from_config(_config: MyWonderfulStateEstimatorConfig, initial_time: f32) -> Self {
-        let (tx, rx) = mpsc::channel();
         Self {
             last_prediction: initial_time,
-            letter_box_rx: Arc::new(Mutex::new(rx)),
-            letter_box_tx: tx,
         }
     }
 }
@@ -262,11 +230,7 @@ impl StateEstimator for MyWonderfulStateEstimator {
         WorldState::new()
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
-        while let Ok(_envelope) = self.letter_box_rx.lock().unwrap().try_recv() {
-            // i.e. Do something with received messages
-        }
-    }
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {}
 }
 
 impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
@@ -277,12 +241,6 @@ impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
             })
             .unwrap(),
         })
-    }
-}
-
-impl MessageHandler for MyWonderfulStateEstimator {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_tx.clone())
     }
 }
 
@@ -318,7 +276,7 @@ impl MyWonderfulSensor {
 }
 
 impl Sensor for MyWonderfulSensor {
-    fn init(&mut self, node: &mut Node) {
+    fn init(&mut self, node: &mut Node, _initial_time: f32) {
         println!("Initializing MyWonderfulSensor for node {}", node.name());
     }
 
@@ -352,6 +310,7 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Controller> {
         Box::new(MyWonderfulController::from_config(
@@ -365,6 +324,7 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Navigator> {
         Box::new(MyWonderfulNavigator::from_config(
@@ -378,6 +338,7 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Physics> {
         Box::new(MyWonderfulPhysics::from_config(
@@ -391,6 +352,7 @@ impl PluginAPI for MyWonderfulPlugin {
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         Box::new(MyWonderfulStateEstimator::from_config(
@@ -407,6 +369,7 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Sensor> {
         Box::new(MyWonderfulSensor::from_config(

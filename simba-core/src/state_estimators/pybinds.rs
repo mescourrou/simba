@@ -14,7 +14,7 @@ use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 use crate::{
     constants::TIME_ROUND,
     logger::is_enabled,
-    networking::{message_handler::MessageHandler, network::Envelope},
+    networking::network::Envelope,
     node::Node,
     pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
     recordable::Recordable,
@@ -48,7 +48,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start prediction step from async client");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         self.prediction_step
             .call(PythonStateEstimatorPredictionStepRequest {
                 node: node_py,
@@ -61,7 +61,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start correction step from async client");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         self.correction_step
             .call(PythonStateEstimatorCorrectionStepRequest {
                 node: node_py,
@@ -89,7 +89,7 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start pre loop hook from async client");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         self.pre_loop_hook
             .call(PythonStateEstimatorPreLoopHookRequest {
                 node: node_py,
@@ -102,12 +102,6 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
 impl Recordable<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
     fn record(&self) -> StateEstimatorRecord {
         self.record.call(()).unwrap()
-    }
-}
-
-impl MessageHandler for PythonStateEstimatorAsyncClient {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_sender.clone())
     }
 }
 

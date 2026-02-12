@@ -11,7 +11,7 @@ use crate::{
         Navigator, NavigatorRecord,
         trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
     },
-    networking::{message_handler::MessageHandler, network::Envelope},
+    networking::network::Envelope,
     simulator::SimulatorConfig,
     utils::geometry::{mod2pi, smallest_theta_diff},
 };
@@ -355,12 +355,6 @@ impl Recordable<NavigatorRecord> for TrajectoryFollower {
             trajectory: self.trajectory.record(),
             projected_point: self.projected_point,
         })
-    }
-}
-
-impl MessageHandler for TrajectoryFollower {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        None
     }
 }
 

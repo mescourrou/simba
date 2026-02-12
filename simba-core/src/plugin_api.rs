@@ -44,9 +44,14 @@ fn main() {
 use std::sync::Arc;
 
 use crate::{
-    controllers::Controller, navigators::Navigator, physics::Physics, sensors::Sensor,
-    simulator::SimulatorConfig, state_estimators::StateEstimator,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    controllers::Controller,
+    navigators::Navigator,
+    networking::network::Network,
+    physics::Physics,
+    sensors::Sensor,
+    simulator::SimulatorConfig,
+    state_estimators::StateEstimator,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 /// Trait to link the simulator to the external implementation.
@@ -68,6 +73,7 @@ pub trait PluginAPI: Send + Sync {
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         _initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         panic!("The given PluginAPI does not provide a state estimator");
@@ -90,6 +96,7 @@ pub trait PluginAPI: Send + Sync {
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         _initial_time: f32,
     ) -> Box<dyn Controller> {
         panic!("The given PluginAPI does not provide a controller");
@@ -112,6 +119,7 @@ pub trait PluginAPI: Send + Sync {
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         _initial_time: f32,
     ) -> Box<dyn Navigator> {
         panic!("The given PluginAPI does not provide a navigator");
@@ -134,6 +142,7 @@ pub trait PluginAPI: Send + Sync {
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
         _va_factory: &Arc<DeterministRandomVariableFactory>,
+        _network: &SharedRwLock<Network>,
         _initial_time: f32,
     ) -> Box<dyn Physics> {
         panic!("The given PluginAPI does not provide physics");
@@ -145,6 +154,7 @@ pub trait PluginAPI: Send + Sync {
         &self,
         _config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _network: &SharedRwLock<Network>,
         _initial_time: f32,
     ) -> Box<dyn Sensor> {
         panic!("The given PluginAPI does not provide a sensor");

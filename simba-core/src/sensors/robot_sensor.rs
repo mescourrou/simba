@@ -450,7 +450,7 @@ impl Default for RobotSensor {
 use crate::node::Node;
 
 impl Sensor for RobotSensor {
-    fn init(&mut self, _node: &mut Node) {}
+    fn init(&mut self, _node: &mut Node, _initial_time: f32) {}
 
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();

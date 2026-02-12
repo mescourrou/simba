@@ -1,30 +1,30 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashMap},
     sync::{Arc, Mutex},
 };
 
 use log::debug;
-#[cfg(not(feature = "force_hard_determinism"))]
 use log::warn;
 use regex::Regex;
-use simba_com::time_ordered_data::TimeOrderedData;
+use simba_com::{pub_sub::BrokerTrait, time_ordered_data::TimeOrderedData};
 
 use crate::{
     config::NumberConfig,
     constants::TIME_ROUND,
     errors::SimbaResult,
     logger::{InternalLog, is_enabled},
-    node::NodeState,
+    node::{self, NodeState},
     scenario::config::{
         AreaEventTriggerConfig, EventConfig, EventTriggerConfig, EventTypeConfig,
         ProximityEventTriggerConfig, ScenarioConfig,
     },
-    simulator::{RunningParameters, Simulator, SimulatorConfig},
+    simulator::{
+        RunningParameters, SimbaBroker, SimbaBrokerMultiClient, Simulator, SimulatorConfig,
+    },
     state_estimators::State,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
-#[cfg(not(feature = "force_hard_determinism"))]
 use crate::networking::{network::MessageFlag, network_manager::MessageSendMethod};
 
 pub mod config;
@@ -33,14 +33,15 @@ pub struct Scenario {
     time_events: TimeOrderedData<(usize, Event)>,
     other_events: Mutex<Vec<Event>>,
     last_executed_time: f32,
+    broker: SharedRwLock<SimbaBroker>,
 }
 
-#[cfg_attr(feature = "force_hard_determinism", allow(dead_code))]
 impl Scenario {
     pub fn from_config(
         config: &ScenarioConfig,
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
+        broker: &SharedRwLock<SimbaBroker>,
     ) -> Self {
         let (time_events_vec, other_events): (Vec<EventConfig>, Vec<EventConfig>) = config
             .events
@@ -81,16 +82,11 @@ impl Scenario {
                 time_events.insert(*t, (occurence, Event::from_config(event)), false);
             }
         }
-        #[cfg(not(feature = "force_hard_determinism"))]
-        for event in &other_events {
-            if let EventTypeConfig::Kill(_) = event.event_type {
-                warn!("Kill events are not deterministic-stable yet.");
-            }
-        }
         Self {
             time_events,
             other_events: Mutex::new(other_events.iter().map(Event::from_config).collect()),
             last_executed_time: 0.,
+            broker: broker.clone(),
         }
     }
 
@@ -98,7 +94,7 @@ impl Scenario {
         &mut self,
         time: f32,
         simulator: &mut Simulator,
-        state_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
+        node_states: &HashMap<String, Option<[f32; 2]>>,
         running_parameters: &mut RunningParameters,
     ) -> SimbaResult<()> {
         if is_enabled(InternalLog::Scenario) {
@@ -110,7 +106,7 @@ impl Scenario {
             .iter_from_time(self.last_executed_time)
             .take_while(|(t, _)| *t <= time)
         {
-            Self::execute_event(
+            self.execute_event(
                 &event.1,
                 simulator,
                 time,
@@ -129,10 +125,10 @@ impl Scenario {
                         proximity_config,
                         simulator,
                         time,
-                        state_history,
+                        node_states,
                     );
                     for nodes in triggering_nodes {
-                        Self::execute_event(
+                        self.execute_event(
                             event,
                             simulator,
                             time,
@@ -148,10 +144,10 @@ impl Scenario {
                         area_config,
                         simulator,
                         time,
-                        state_history,
+                        node_states,
                     );
                     for nodes in triggering_nodes {
-                        Self::execute_event(
+                        self.execute_event(
                             event,
                             simulator,
                             time,
@@ -177,8 +173,8 @@ impl Scenario {
         result_string
     }
 
-    #[cfg_attr(feature = "force_hard_determinism", allow(unused_variables))]
     fn execute_event(
+        &self,
         event: &Event,
         simulator: &mut Simulator,
         time: f32,
@@ -187,37 +183,44 @@ impl Scenario {
         running_parameters: &mut RunningParameters,
     ) -> SimbaResult<()> {
         match &event.event_type {
-            #[cfg(not(feature = "force_hard_determinism"))]
             EventTypeConfig::Kill(name) => {
-                warn!(
-                    "Kill events are not deterministic-stable yet. Use `force_hard_determinism` feature to guarantee time and logical determinism."
-                );
+                use simba_com::pub_sub::PathKey;
+
+                use crate::networking;
+
                 let name = Self::replace_variables(name, trigger_variables);
                 log::info!(
                     "Executing Kill event for node `{}` triggered by {}",
                     name,
                     trigger_type
                 );
-                if let Err(e) = simulator.get_network_manager_mut().send_message(
-                    serde_json::Value::Null,
-                    MessageSendMethod::Recipient(name.clone()),
-                    time,
-                    vec![MessageFlag::Kill],
-                ) {
+                let command_key = PathKey::from_str(networking::channels::internal::COMMAND)
+                    .join_str(name.as_str());
+                if !self.broker.write().unwrap().channel_exists(&command_key) {
                     warn!(
-                        "Ignoring error while sending Kill message to node `{}`: {}",
-                        name,
-                        e.detailed_error()
+                        "Ignoring error while sending Kill message to node `{}`: this node seems to not exist",
+                        name
+                    );
+                } else {
+                    use crate::networking::network::Envelope;
+
+                    let tmp_client =
+                        self.broker
+                            .write()
+                            .unwrap()
+                            .subscribe_to(&command_key, name, 0.);
+                    tmp_client.unwrap().send(
+                        Envelope {
+                            from: "".to_string(),
+                            message: serde_json::Value::Null,
+                            message_flags: vec![MessageFlag::Kill],
+                            timestamp: time,
+                        },
+                        time,
                     );
                 }
             }
-            #[cfg(feature = "force_hard_determinism")]
-            EventTypeConfig::Kill(_) => {}
-            #[cfg(not(feature = "force_hard_determinism"))]
             EventTypeConfig::Spawn(spawn_config) => {
-                warn!(
-                    "Spawn events are not deterministic-stable yet. Use `force_hard_determinism` feature to guarantee time and logical determinism."
-                );
                 let model_name =
                     Self::replace_variables(&spawn_config.model_name, trigger_variables);
                 let node_name = Self::replace_variables(&spawn_config.node_name, trigger_variables);
@@ -241,8 +244,6 @@ impl Scenario {
                     );
                 }
             }
-            #[cfg(feature = "force_hard_determinism")]
-            EventTypeConfig::Spawn(_) => {}
         }
         Ok(())
     }
@@ -257,11 +258,11 @@ impl Scenario {
         area_config: &AreaEventTriggerConfig,
         _simulator: &mut Simulator,
         time: f32,
-        state_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
+        node_states: &HashMap<String, Option<[f32; 2]>>,
     ) -> Vec<Vec<String>> {
         let mut triggering_nodes = Vec::new();
 
-        for (node_name, state_history) in state_history {
+        for (node_name, state) in node_states.iter() {
             if !triggering_nodes_filter.is_empty()
                 && !triggering_nodes_filter
                     .iter()
@@ -269,39 +270,26 @@ impl Scenario {
             {
                 continue;
             }
-            let hstate = state_history
-                .iter_from_time(self.last_executed_time)
-                .take_while(|(t, _)| *t <= time)
-                .last();
-            if hstate.is_none() {
+            if state.is_none() {
                 continue;
             }
-            let state = &hstate.unwrap().1;
-            if state.1 != NodeState::Running {
-                // Zombie, not created or killed node
-                continue;
-            }
-            let state = &state.0;
+            let state = state.unwrap();
             match area_config {
                 AreaEventTriggerConfig::Rect(rect_config) => {
-                    let inside = state.pose[0] >= rect_config.bottom_left.0
-                        && state.pose[0] <= rect_config.top_right.0
-                        && state.pose[1] >= rect_config.bottom_left.1
-                        && state.pose[1] <= rect_config.top_right.1;
+                    let inside = state[0] >= rect_config.bottom_left.0
+                        && state[0] <= rect_config.top_right.0
+                        && state[1] >= rect_config.bottom_left.1
+                        && state[1] <= rect_config.top_right.1;
                     if inside == rect_config.inside {
                         if is_enabled(InternalLog::Scenario) {
-                            debug!(
-                                "Node `{}` triggered an Area event at time {}",
-                                node_name,
-                                hstate.unwrap().0
-                            );
+                            debug!("Node `{}` triggered an Area event", node_name);
                         }
                         triggering_nodes.push(vec![node_name.clone()]);
                     }
                 }
                 AreaEventTriggerConfig::Circle(circle_config) => {
-                    let distance_squared = (state.pose[0] - circle_config.center.0).powi(2)
-                        + (state.pose[1] - circle_config.center.1).powi(2);
+                    let distance_squared = (state[0] - circle_config.center.0).powi(2)
+                        + (state[1] - circle_config.center.1).powi(2);
                     let inside = distance_squared <= circle_config.radius.powi(2);
                     if inside == circle_config.inside {
                         triggering_nodes.push(vec![node_name.clone()]);
@@ -318,49 +306,33 @@ impl Scenario {
         proximity_config: &ProximityEventTriggerConfig,
         _simulator: &mut Simulator,
         time: f32,
-        state_history: &BTreeMap<String, TimeOrderedData<(State, NodeState)>>,
+        node_states: &HashMap<String, Option<[f32; 2]>>,
     ) -> Vec<Vec<String>> {
-        let node_positions = state_history
-            .iter()
-            .filter_map(|(node_name, history)| {
-                if !triggering_nodes_filter.is_empty()
-                    && !triggering_nodes_filter
-                        .iter()
-                        .any(|re| re.is_match(node_name))
-                {
-                    return None;
-                }
-                let hstate = history
-                    .iter_from_time(self.last_executed_time)
-                    .take_while(|(t, _)| *t <= time)
-                    .last();
-                hstate?;
-                let state = &hstate.unwrap().1;
-                if state.1 != NodeState::Running {
-                    // Zombie, not created or killed node
-                    return None;
-                }
-                let state = &state.0;
-                Some((node_name.clone(), state.pose[0], state.pose[1]))
-            })
-            .collect::<Vec<_>>();
-
         let mut triggering_nodes = BTreeSet::new();
 
         let distance_threshold_squared = proximity_config.distance.powi(2);
-        for (node1_name, node1_x, node1_y) in &node_positions {
-            for (node2_name, node2_x, node2_y) in &node_positions {
+        for (node1_name, node1_pos) in node_states {
+            let node1_pos = match node1_pos {
+                Some(pos) => pos,
+                None => continue,
+            };
+            for (node2_name, node2_pos) in node_states {
                 if node1_name >= node2_name {
                     continue;
                 }
+                let node2_pos = match node2_pos {
+                    Some(pos) => pos,
+                    None => continue,
+                };
                 if let Some(target_name) = &proximity_config.protected_target
                     && target_name != node2_name
                     && target_name != node1_name
                 {
                     continue;
                 }
+
                 let distance_squared =
-                    (*node1_x - *node2_x).powi(2) + (*node1_y - *node2_y).powi(2);
+                    (node1_pos[0] - node2_pos[0]).powi(2) + (node1_pos[1] - node2_pos[1]).powi(2);
                 let inside = distance_squared <= distance_threshold_squared;
                 if inside == proximity_config.inside {
                     if is_enabled(InternalLog::Scenario) {

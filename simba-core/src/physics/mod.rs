@@ -156,7 +156,7 @@ impl UIComponent for PhysicsRecord {
 
 use crate::{
     errors::SimbaResult,
-    networking::service::HasService,
+    networking::{network::Network, service::HasService},
     physics::robot_models::Command,
     plugin_api::PluginAPI,
     recordable::Recordable,
@@ -207,6 +207,11 @@ pub trait Physics:
     fn cummulative_lie_action(&self) -> Option<Matrix3<f32>> {
         None
     }
+
+    /// Optional: return the time of the next time step. Needed if using messages
+    fn next_time_step(&self) -> Option<f32> {
+        None
+    }
 }
 
 /// Helper function to create a physics from the given configuration.
@@ -223,6 +228,7 @@ pub fn make_physics_from_config(
     global_config: &SimulatorConfig,
     robot_name: &String,
     va_factory: &Arc<DeterministRandomVariableFactory>,
+    network: &SharedRwLock<Network>,
     initial_time: f32,
 ) -> SimbaResult<SharedRwLock<Box<dyn Physics>>> {
     Ok(Arc::new(RwLock::new(match &config {
@@ -237,6 +243,7 @@ pub fn make_physics_from_config(
             plugin_api,
             global_config,
             va_factory,
+            network,
             initial_time,
         )?),
         PhysicsConfig::Python(c) => Box::new(

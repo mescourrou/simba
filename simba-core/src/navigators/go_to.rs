@@ -13,8 +13,9 @@ use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
     navigators::{Navigator, NavigatorRecord},
-    networking::{message_handler::MessageHandler, network::Envelope},
-    utils::{SharedMutex, geometry::smallest_theta_diff},
+    networking::network::{Envelope, Network},
+    simulator::SimbaBrokerMultiClient,
+    utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff},
 };
 
 extern crate nalgebra as na;
@@ -23,6 +24,7 @@ use libm::atan2;
 use nalgebra::SVector;
 use pyo3::{pyclass, pymethods};
 use serde_derive::{Deserialize, Serialize};
+use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::config_derives;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -206,24 +208,11 @@ pub struct GoTo {
     /// Coefficient of the target velocity, multiplied by the remaining distance
     stop_ramp_coefficient: f32,
 
-    letter_box: SharedMutex<Receiver<Envelope>>,
-    letter_box_sender: Sender<Envelope>,
+    message_client: SharedMutex<SimbaBrokerMultiClient>,
 }
 
 impl GoTo {
-    /// Makes a new default [`GoTo`].
-    pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel();
-        Self {
-            target_speed: 0.5,
-            stop_distance: 0.2,
-            stop_ramp_coefficient: 0.5,
-            error: ControllerError::default(),
-            current_point: None,
-            letter_box: Arc::new(Mutex::new(rx)),
-            letter_box_sender: tx,
-        }
-    }
+    pub const CHANNEL_NAME: &'static str = "navigator/goto";
 
     /// Makes a [`GoTo`] from the given config.
     ///
@@ -231,23 +220,22 @@ impl GoTo {
     /// * `config` - GoTo configuration
     /// * `plugin_api` - Not used there.
     /// * `global_config` - Global configuration of the simulator.
-    pub fn from_config(config: &GoToConfig, _initial_time: f32) -> Self {
-        let (tx, rx) = mpsc::channel();
+    pub fn from_config(
+        config: &GoToConfig,
+        network: &SharedRwLock<Network>,
+        _initial_time: f32,
+    ) -> Self {
+        let network = network.write().unwrap();
+        let key = network.make_channel(PathKey::from_str(Self::CHANNEL_NAME));
+        let message_client = network.subscribe_to(&[key], None);
         Self {
             target_speed: config.target_speed,
             error: ControllerError::default(),
             current_point: config.target_point,
             stop_distance: config.stop_distance,
             stop_ramp_coefficient: config.stop_ramp_coefficient,
-            letter_box: Arc::new(Mutex::new(rx)),
-            letter_box_sender: tx,
+            message_client: Arc::new(Mutex::new(message_client)),
         }
-    }
-}
-
-impl Default for GoTo {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -305,13 +293,17 @@ impl Navigator for GoTo {
         self.error.clone()
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {
-        while let Ok(envelope) = self.letter_box.lock().unwrap().try_recv() {
+    fn pre_loop_hook(&mut self, _node: &mut Node, time: f32) {
+        while let Some((_, envelope)) = self.message_client.lock().unwrap().try_receive(time) {
             if let Ok(msg) = serde_json::from_value::<GoToMessage>(envelope.message) {
                 self.current_point = msg.target_point;
                 log::info!("Update target point to {:?}", self.current_point);
             }
         }
+    }
+
+    fn next_time_step(&self) -> Option<f32> {
+        self.message_client.lock().unwrap().next_message_time()
     }
 }
 
@@ -323,12 +315,6 @@ impl Recordable<NavigatorRecord> for GoTo {
             error: self.error.clone(),
             current_point: self.current_point,
         })
-    }
-}
-
-impl MessageHandler for GoTo {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_sender.clone())
     }
 }
 

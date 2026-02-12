@@ -15,7 +15,6 @@ use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
-use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::recordable::Recordable;
@@ -120,7 +119,7 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         call_py_method_void!(self.state_estimator, "prediction_step", node_py, time);
     }
 
@@ -132,7 +131,7 @@ impl StateEstimator for PythonEstimator {
         for obs in observations {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         call_py_method_void!(
             self.state_estimator,
             "correction_step",
@@ -163,7 +162,7 @@ impl StateEstimator for PythonEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of pre_loop_hook");
         }
-        let node_py = NodeWrapper::from_rust(node, self.letter_box_receiver.clone());
+        let node_py = NodeWrapper::from_rust(node);
         call_py_method_void!(self.state_estimator, "pre_loop_hook", node_py, time);
     }
 }
@@ -193,11 +192,5 @@ impl Recordable<StateEstimatorRecord> for PythonEstimator {
             ),
         };
         StateEstimatorRecord::Python(record)
-    }
-}
-
-impl MessageHandler for PythonEstimator {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_sender.clone())
     }
 }

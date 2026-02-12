@@ -11,7 +11,6 @@ Each component has a gain, which can be set in [`PIDConfig`].
 
 use std::sync::mpsc::Sender;
 
-use crate::networking::message_handler::MessageHandler;
 use crate::networking::network::Envelope;
 use crate::physics::PhysicsConfig;
 use crate::physics::internal_physics::InternalPhysicConfig;
@@ -618,11 +617,5 @@ impl Controller for PID {
 impl Recordable<ControllerRecord> for PID {
     fn record(&self) -> ControllerRecord {
         ControllerRecord::PID(self.current_record.clone())
-    }
-}
-
-impl MessageHandler for PID {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        None
     }
 }

@@ -408,7 +408,7 @@ pub trait Sensor:
 {
     /// Initialize the [`Sensor`]. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    fn init(&mut self, node: &mut Node);
+    fn init(&mut self, node: &mut Node, initial_time: f32);
 
     /// Get the observations available at the given `time`.
     ///

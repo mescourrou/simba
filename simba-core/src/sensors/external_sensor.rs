@@ -25,8 +25,10 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
+use crate::networking::network::Network;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
+use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
 use crate::{
@@ -117,6 +119,7 @@ impl ExternalSensor {
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         _va_factory: &DeterministRandomVariableFactory,
+        network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> SimbaResult<Self> {
         if is_enabled(crate::logger::InternalLog::API) {
@@ -131,7 +134,7 @@ impl ExternalSensor {
                         "Plugin API not set!".to_string(),
                     )
                 })?
-                .get_sensor(&config.config, global_config, initial_time),
+                .get_sensor(&config.config, global_config, network, initial_time),
         })
     }
 }
@@ -143,8 +146,8 @@ impl std::fmt::Debug for ExternalSensor {
 }
 
 impl Sensor for ExternalSensor {
-    fn init(&mut self, node: &mut Node) {
-        self.sensor.init(node);
+    fn init(&mut self, node: &mut Node, initial_time: f32) {
+        self.sensor.init(node, initial_time);
     }
 
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
