@@ -6,23 +6,15 @@ use std::{
 use log::debug;
 use log::warn;
 use regex::Regex;
-use simba_com::{pub_sub::BrokerTrait, time_ordered_data::TimeOrderedData};
+use serde::{Deserialize, Serialize};
+use simba_com::{pub_sub::{BrokerTrait, Client, PathKey}, time_ordered_data::TimeOrderedData};
 
 use crate::{
-    config::NumberConfig,
-    constants::TIME_ROUND,
-    errors::SimbaResult,
-    logger::{InternalLog, is_enabled},
-    node::{self, NodeState},
-    scenario::config::{
-        AreaEventTriggerConfig, EventConfig, EventTriggerConfig, EventTypeConfig,
-        ProximityEventTriggerConfig, ScenarioConfig,
-    },
-    simulator::{
+    config::NumberConfig, constants::TIME_ROUND, errors::SimbaResult, logger::{InternalLog, is_enabled}, networking::{self, network::Envelope}, node::{self, NodeState}, scenario::config::{
+        AreaEventTriggerConfig, EventConfig, EventRecord, EventTriggerConfig, EventTypeConfig, ProximityEventTriggerConfig, ScenarioConfig, SpawnEventConfig, TimeEventTriggerConfig
+    }, simulator::{
         RunningParameters, SimbaBroker, SimbaBrokerMultiClient, Simulator, SimulatorConfig,
-    },
-    state_estimators::State,
-    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
+    }, state_estimators::State, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory}
 };
 
 use crate::networking::{network::MessageFlag, network_manager::MessageSendMethod};
@@ -34,9 +26,12 @@ pub struct Scenario {
     other_events: Mutex<Vec<Event>>,
     last_executed_time: f32,
     broker: SharedRwLock<SimbaBroker>,
+    client: Client<Envelope>,
 }
 
 impl Scenario {
+    const CHANNEL_NAME: &'static str = "scenario";
+
     pub fn from_config(
         config: &ScenarioConfig,
         global_config: &SimulatorConfig,
@@ -82,11 +77,14 @@ impl Scenario {
                 time_events.insert(*t, (occurence, Event::from_config(event)), false);
             }
         }
+        let channel_key = PathKey::from_str(networking::channels::INTERNAL).join_str(Self::CHANNEL_NAME);
+        broker.write().unwrap().add_channel(channel_key.clone());
         Self {
             time_events,
             other_events: Mutex::new(other_events.iter().map(Event::from_config).collect()),
             last_executed_time: 0.,
             broker: broker.clone(),
+            client: broker.write().unwrap().subscribe_to(&channel_key, "scenario".to_string(), 0.).unwrap(),
         }
     }
 
@@ -111,7 +109,10 @@ impl Scenario {
                 simulator,
                 time,
                 &[event.0.to_string()],
-                "Time",
+                &EventTriggerConfig::Time(TimeEventTriggerConfig {
+                    time: NumberConfig::Num(time),
+                    occurences: NumberConfig::Num(event.0 as f32),
+                }),
                 running_parameters,
             )?;
         }
@@ -133,7 +134,7 @@ impl Scenario {
                             simulator,
                             time,
                             &nodes,
-                            "Proximity",
+                            &EventTriggerConfig::Proximity(proximity_config.clone()),
                             running_parameters,
                         )?;
                     }
@@ -152,7 +153,7 @@ impl Scenario {
                             simulator,
                             time,
                             &nodes,
-                            "Area",
+                            &EventTriggerConfig::Area(area_config.clone()),
                             running_parameters,
                         )?;
                     }
@@ -179,9 +180,10 @@ impl Scenario {
         simulator: &mut Simulator,
         time: f32,
         trigger_variables: &[String],
-        trigger_type: &str,
+        trigger: &EventTriggerConfig,
         running_parameters: &mut RunningParameters,
     ) -> SimbaResult<()> {
+        let mut event_executed = None;
         match &event.event_type {
             EventTypeConfig::Kill(name) => {
                 use simba_com::pub_sub::PathKey;
@@ -192,7 +194,7 @@ impl Scenario {
                 log::info!(
                     "Executing Kill event for node `{}` triggered by {}",
                     name,
-                    trigger_type
+                    trigger.to_string(),
                 );
                 let command_key = PathKey::from_str(networking::channels::internal::COMMAND)
                     .join_str(name.as_str());
@@ -202,13 +204,11 @@ impl Scenario {
                         name
                     );
                 } else {
-                    use crate::networking::network::Envelope;
-
                     let tmp_client =
                         self.broker
                             .write()
                             .unwrap()
-                            .subscribe_to(&command_key, name, 0.);
+                            .subscribe_to(&command_key, name.clone(), 0.);
                     tmp_client.unwrap().send(
                         Envelope {
                             from: "".to_string(),
@@ -218,6 +218,10 @@ impl Scenario {
                         },
                         time,
                     );
+                    event_executed = Some(EventRecord {
+                        trigger: trigger.clone(),
+                        event: EventTypeConfig::Kill(name),
+                    });
                 }
             }
             EventTypeConfig::Spawn(spawn_config) => {
@@ -228,7 +232,7 @@ impl Scenario {
                     "Executing Spawn event for node `{}` of model `{}` triggered by {}",
                     node_name,
                     model_name,
-                    trigger_type
+                    trigger.to_string()
                 );
 
                 if let Err(e) = simulator.spawn_node_from_name(
@@ -242,8 +246,24 @@ impl Scenario {
                         node_name,
                         e.detailed_error()
                     );
+                } else {
+                    event_executed = Some(EventRecord {
+                        trigger: trigger.clone(),
+                        event: EventTypeConfig::Spawn(SpawnEventConfig {
+                            model_name,
+                            node_name,
+                        })
+                    });
                 }
             }
+        }
+        if let Some(event_executed) = event_executed {
+            self.client.send(Envelope { 
+                from: "scenario".to_string(),
+                message: serde_json::to_value(event_executed).unwrap(),
+                timestamp: time,
+                ..Default::default()
+            }, time);
         }
         Ok(())
     }
@@ -312,12 +332,26 @@ impl Scenario {
 
         let distance_threshold_squared = proximity_config.distance.powi(2);
         for (node1_name, node1_pos) in node_states {
+            if !triggering_nodes_filter.is_empty()
+                && !triggering_nodes_filter
+                    .iter()
+                    .any(|re| re.is_match(node1_name))
+            {
+                continue;
+            }
             let node1_pos = match node1_pos {
                 Some(pos) => pos,
                 None => continue,
             };
             for (node2_name, node2_pos) in node_states {
                 if node1_name >= node2_name {
+                    continue;
+                }
+                if !triggering_nodes_filter.is_empty()
+                    && !triggering_nodes_filter
+                        .iter()
+                        .any(|re| re.is_match(node2_name))
+                {
                     continue;
                 }
                 let node2_pos = match node2_pos {
