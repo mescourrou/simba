@@ -6,28 +6,22 @@ the configuration struct [`NetworkConfig`].
 extern crate confy;
 use core::f32;
 use std::fmt;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::str::FromStr;
 
 use log::{debug, warn};
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
-use simba_com::pub_sub::{BrokerTrait, BrokerTraitExtended, MultiClient, PathKey};
-use simba_com::time_ordered_data::TimeOrderedData;
+use simba_com::pub_sub::{BrokerTrait, BrokerTraitExtended, PathKey};
 use simba_macros::config_derives;
 
-use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::logger::is_enabled;
 use crate::networking::channels;
-use crate::node::Node;
-use crate::simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig, TimeCv};
+use crate::simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig};
+use crate::utils::SharedRwLock;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::utils::{SharedMutex, SharedRwLock};
 #[cfg(feature = "gui")]
 use crate::{constants::TIME_ROUND, gui::UIComponent};
-
-use super::network_manager::{MessageSendMethod, NetworkMessage};
 
 /// Configuration for the [`Network`].
 #[config_derives]
@@ -235,7 +229,9 @@ impl Network {
                 self.broker.clone(),
                 self.from.clone(),
                 self.reception_delay,
-                PathKey::from_str(channels::internal::NODE).join_str(&self.from),
+                PathKey::from_str(channels::internal::NODE)
+                    .unwrap()
+                    .join_str(&self.from),
             )
         });
         if is_enabled(crate::logger::InternalLog::NetworkMessages) {
@@ -271,7 +267,9 @@ impl Network {
                 self.broker.clone(),
                 self.from.clone(),
                 self.reception_delay,
-                PathKey::from_str(channels::internal::NODE).join_str(&self.from),
+                PathKey::from_str(channels::internal::NODE)
+                    .unwrap()
+                    .join_str(&self.from),
             )
         });
         // but subscribe to the channel with 0 reception delay.

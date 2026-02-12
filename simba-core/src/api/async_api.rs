@@ -1,6 +1,5 @@
 use std::{
     os::unix::thread::JoinHandleExt,
-    path::Path,
     sync::{Arc, Mutex, RwLock, mpsc},
     thread::{self, JoinHandle, sleep},
     time::Duration,
@@ -166,7 +165,7 @@ impl AsyncApiRunner {
                 while !*stopping.read().unwrap() {
                     load_results.recv_closure(|result_path| {
                         let mut simulator = simulator_arc.lock().unwrap();
-                        simulator.load_results_full(result_path)
+                        simulator.load_results(result_path)
                     });
                 }
             });

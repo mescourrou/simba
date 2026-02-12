@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use log::{debug, warn};
+use log::warn;
 
 use crate::pub_sub::{BrokerTrait, Client, PathKey};
 
@@ -75,7 +75,7 @@ where
     }
 
     fn subscribe(&mut self, key: &KeyType) {
-        if self.clients.get(key).is_none() {
+        if !self.clients.contains_key(key) {
             let client = self
                 .broker
                 .write()
@@ -87,7 +87,7 @@ where
     }
 
     fn subscribe_instantaneous(&mut self, key: &KeyType) {
-        if self.clients.get(key).is_none() {
+        if !self.clients.contains_key(key) {
             let client = self
                 .broker
                 .write()
@@ -100,26 +100,26 @@ where
 
     fn send(&self, key: &KeyType, message: MessageType, time: f32) {
         if let Some(client) = self.clients.get(key) {
+            #[cfg(feature = "debug_mode")]
             debug!(
                 "Sending message on key {:?} at time {}: {:?}",
                 key, time, message
             );
             client.send(message.clone(), time);
+        } else if let Some(tmp_client) =
+            self.broker
+                .write()
+                .unwrap()
+                .subscribe_to(key, self.node_id.clone(), 0.0)
+        {
+            #[cfg(feature = "debug_mode")]
+            debug!(
+                "Sending message on key {:?} at time {} with tmp client: {:?}",
+                key, time, message
+            );
+            tmp_client.send(message.clone(), time);
         } else {
-            if let Some(tmp_client) =
-                self.broker
-                    .write()
-                    .unwrap()
-                    .subscribe_to(key, self.node_id.clone(), 0.0)
-            {
-                debug!(
-                    "Sending message on key {:?} at time {} with tmp client: {:?}",
-                    key, time, message
-                );
-                tmp_client.send(message.clone(), time);
-            } else {
-                warn!("Trying to send a message to '{}' that is not created", key);
-            }
+            warn!("Trying to send a message to '{}' that is not created", key);
         }
     }
 

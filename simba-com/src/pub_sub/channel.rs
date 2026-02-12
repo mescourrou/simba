@@ -8,11 +8,9 @@ use std::{
     },
 };
 
-use log::debug;
 use multimap::MultiMap;
-use rand::random;
 
-use crate::pub_sub::client::Client;
+use crate::pub_sub::{SharedMutex, client::Client};
 
 pub trait ChannelProcessing<NodeIdType, ConditionArgType>: Send + Sync + Debug {
     fn process_messages(
@@ -22,6 +20,9 @@ pub trait ChannelProcessing<NodeIdType, ConditionArgType>: Send + Sync + Debug {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
+type SenderType<MessageType> = Sender<(MessageType, f32)>;
+type ReceiverType<MessageType> = Receiver<(MessageType, f32)>;
+
 ///
 /// Lock order: receivers then senders
 #[derive(Clone)]
@@ -30,9 +31,9 @@ pub struct Channel<
     NodeIdType: Hash + Eq + Clone + Send + Sync + 'static,
     ConditionArgType: Clone + Send + 'static + Default = u8,
 > {
-    senders: Arc<Mutex<MultiMap<NodeIdType, (usize, Sender<(MessageType, f32)>)>>>,
-    receivers: Arc<Mutex<MultiMap<NodeIdType, (usize, Receiver<(MessageType, f32)>)>>>,
-    condition: Arc<Mutex<dyn Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static>>,
+    senders: SharedMutex<MultiMap<NodeIdType, (usize, SenderType<MessageType>)>>,
+    receivers: SharedMutex<MultiMap<NodeIdType, (usize, ReceiverType<MessageType>)>>,
+    condition: SharedMutex<dyn Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static>,
     time_round: f32,
     client_count: usize,
 }
@@ -118,19 +119,17 @@ impl<
         let mut receivers = self.receivers.lock().unwrap();
         let mut senders = self.senders.lock().unwrap();
         let mut messages_to_send = Vec::new();
-        for (from_id, receivers) in receivers.iter_all() {
-            for (i, receiver) in receivers.iter().enumerate() {
-                while let Ok(message) = receiver.1.try_recv() {
-                    if message.1 < 0. {
-                        dead_clients.push((i, from_id.clone(), receiver.0));
-                        break;
-                    }
-                    messages_to_send.push((from_id.clone(), receiver.0, message));
+        for (from_id, receiver) in receivers.iter() {
+            while let Ok(message) = receiver.1.try_recv() {
+                if message.1 < 0. {
+                    dead_clients.push((from_id.clone(), receiver.0));
+                    break;
                 }
+                messages_to_send.push((from_id.clone(), receiver.0, message));
             }
         }
         // Remove the dead clients
-        for (i, key, sender_id) in dead_clients.into_iter().rev() {
+        for (key, sender_id) in dead_clients.into_iter().rev() {
             // Remove receivers
             let mut clients = receivers
                 .remove(&key)
@@ -161,11 +160,8 @@ impl<
                 } else {
                     None
                 };
-                let send = if to_arg.is_some() {
-                    (self.condition.lock().unwrap())(
-                        from_arg.unwrap().clone(),
-                        to_arg.unwrap().clone(),
-                    )
+                let send = if let Some(to_arg) = to_arg {
+                    (self.condition.lock().unwrap())(from_arg.unwrap().clone(), to_arg.clone())
                 } else {
                     true
                 };
@@ -184,9 +180,11 @@ impl<
                                 e.to_string()
                             );
                         } else {
+                            #[cfg(feature = "debug_mode")]
                             debug!("Message from {:?} to {:?} sent", from_id, to_id);
                         }
                     } else {
+                        #[cfg(feature = "debug_mode")]
                         debug!(
                             "Message from {:?} to {:?} not sent due to condition",
                             from_id, to_id

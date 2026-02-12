@@ -11,6 +11,7 @@ use simba_macros::EnumToString;
 
 use core::f32;
 use std::collections::BTreeMap;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use log::{debug, info};
@@ -206,14 +207,9 @@ impl Node {
     ///
     /// ## Return
     /// Next time step.
-    pub fn run_next_time_step(
-        &mut self,
-        time: f32,
-        time_cv: &TimeCv,
-        nb_nodes: usize,
-    ) -> SimbaResult<()> {
+    pub fn run_next_time_step(&mut self, time: f32, time_cv: &TimeCv) -> SimbaResult<()> {
         self.process_messages();
-        self.run_time_step(time, time_cv, nb_nodes)
+        self.run_time_step(time, time_cv)
     }
 
     /// Process all the messages: one-way (network) and two-way (services).
@@ -247,12 +243,7 @@ impl Node {
     /// 5. The network messages are handled
     ///
     /// Then, the node state is saved.
-    pub fn run_time_step(
-        &mut self,
-        time: f32,
-        time_cv: &TimeCv,
-        nb_nodes: usize,
-    ) -> SimbaResult<()> {
+    pub fn run_time_step(&mut self, time: f32, time_cv: &TimeCv) -> SimbaResult<()> {
         if self.node_meta_data.read().unwrap().state != NodeState::Running {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
@@ -264,26 +255,11 @@ impl Node {
         // Update the true state
         if let Some(physics) = &self.physics {
             physics.write().unwrap().update_state(time);
-            // self.node_server
-            //     .as_ref()
-            //     .unwrap()
-            //     .state_update
-            //     .as_ref()
-            //     .unwrap()
-            //     .send((
-            //         time,
-            //         (
-            //             physics.read().unwrap().state(time).clone(),
-            //             self.node_meta_data.read().unwrap().state.clone(),
-            //         ),
-            //     ))
-            //     .unwrap();
-
             let pose = physics.read().unwrap().state(time).pose;
             self.node_meta_data.write().unwrap().position = Some([pose[0], pose[1]]);
         }
 
-        self.sync_with_others(time_cv, nb_nodes, time);
+        self.sync_with_others(time_cv, time);
 
         // Pre loop calls to manage messages
         if let Some(state_estimator) = self.state_estimator() {
@@ -311,7 +287,7 @@ impl Node {
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Pre prediction step wait");
         }
-        self.sync_with_others(time_cv, nb_nodes, time);
+        self.sync_with_others(time_cv, time);
 
         let mut do_control_loop = false;
 
@@ -371,7 +347,7 @@ impl Node {
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Post prediction step wait");
         }
-        self.sync_with_others(time_cv, nb_nodes, time);
+        self.sync_with_others(time_cv, time);
 
         if let Some(sensor_manager) = &self.sensor_manager() {
             sensor_manager.write().unwrap().handle_messages(time);
@@ -384,7 +360,7 @@ impl Node {
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Post observation wait");
         }
-        self.sync_with_others(time_cv, nb_nodes, time);
+        self.sync_with_others(time_cv, time);
 
         if let Some(sensor_manager) = &self.sensor_manager() {
             sensor_manager.write().unwrap().handle_messages(time);
@@ -441,7 +417,7 @@ impl Node {
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Post correction step wait");
         }
-        self.sync_with_others(time_cv, nb_nodes, time);
+        self.sync_with_others(time_cv, time);
 
         if do_control_loop {
             let state_estimator = &self.state_estimator().unwrap();
@@ -501,12 +477,12 @@ impl Node {
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Pre-save wait");
         }
-        self.sync_with_others(time_cv, nb_nodes, time);
+        self.sync_with_others(time_cv, time);
 
         Ok(())
     }
 
-    pub fn sync_with_others(&mut self, time_cv: &TimeCv, nb_nodes: usize, time: f32) {
+    pub fn sync_with_others(&mut self, time_cv: &TimeCv, time: f32) {
         let mut lk = time_cv.waiting.lock().unwrap();
         let waiting_parity = *time_cv.intermediate_parity.lock().unwrap();
         *lk += 1;
@@ -577,14 +553,12 @@ impl Node {
         while let Some((path, message)) = self.node_message_client.try_receive(time) {
             if path
                 == PathKey::from_str(networking::channels::internal::COMMAND)
+                    .unwrap()
                     .join_str(self.name().as_str())
             {
                 for flag in message.message_flags {
-                    match flag {
-                        MessageFlag::Kill => {
-                            self.pre_kill();
-                        }
-                        _ => {}
+                    if flag == MessageFlag::Kill {
+                        self.pre_kill();
                     }
                 }
             }

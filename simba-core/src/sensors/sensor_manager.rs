@@ -11,8 +11,8 @@ use serde_derive::{Deserialize, Serialize};
 use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::config_derives;
 use std::collections::BTreeMap;
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex, RwLock};
+use std::str::FromStr;
+use std::sync::{Arc, RwLock};
 
 use crate::constants::TIME_ROUND;
 use crate::errors::SimbaResult;
@@ -23,14 +23,14 @@ use crate::gui::{
 };
 use crate::logger::{InternalLog, is_enabled};
 use crate::networking;
-use crate::networking::network::{self, Envelope, Network};
+use crate::networking::network::Envelope;
 use crate::node::Node;
+use crate::node::node_factory::FromConfigArguments;
 use crate::sensors::displacement_sensor::DisplacementSensor;
 use crate::sensors::external_sensor::ExternalSensor;
 use crate::simulator::SimbaBrokerMultiClient;
 use crate::state_estimators::State;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::utils::{SharedMutex, SharedRwLock};
+use crate::utils::SharedRwLock;
 use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
 use super::gnss_sensor::GNSSSensor;
@@ -38,7 +38,6 @@ use super::oriented_landmark_sensor::OrientedLandmarkSensor;
 use super::robot_sensor::RobotSensor;
 use super::speed_sensor::{SpeedSensor, SpeedSensorConfig};
 use super::{Observation, ObservationRecord, Sensor, SensorConfig, SensorRecord};
-use crate::plugin_api::PluginAPI;
 
 #[config_derives]
 pub struct ManagedSensorConfig {
@@ -250,7 +249,7 @@ struct ManagedSensor {
     sensor: SharedRwLock<Box<dyn Sensor>>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[pyclass(get_all, set_all)]
 pub struct SensorTriggerMessage {}
 
@@ -299,27 +298,24 @@ impl SensorManager {
     /// * `meta_config` - Simulator meta config.
     pub fn from_config(
         config: &SensorManagerConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        node_name: &String,
-        va_factory: &DeterministRandomVariableFactory,
-        network: &SharedRwLock<Network>,
-        initial_time: f32,
+        from_config_args: &FromConfigArguments,
         initial_state: &State,
     ) -> SimbaResult<Self> {
         let mut manager = Self::new();
         let sensor_manager_key = PathKey::from_str(networking::channels::internal::NODE)
-            .join_str(node_name.as_str())
+            .unwrap()
+            .join_str(from_config_args.node_name.as_str())
             .join_str(Self::CHANNEL_NAME);
         manager.channel_root = Some(sensor_manager_key.clone());
-        network.write().unwrap().make_channel(
+        from_config_args.network.write().unwrap().make_channel(
             sensor_manager_key
                 .clone()
                 .join_str(Self::OBSERVATION_CHANNEL),
         );
         for sensor_config in &config.sensors {
             if sensor_config.triggered {
-                network
+                from_config_args
+                    .network
                     .write()
                     .unwrap()
                     .make_channel(sensor_manager_key.clone().join_str(&sensor_config.name));
@@ -332,55 +328,55 @@ impl SensorManager {
                     SensorConfig::OrientedLandmarkSensor(c) => {
                         Box::new(OrientedLandmarkSensor::from_config(
                             c,
-                            plugin_api,
-                            global_config,
-                            node_name,
-                            va_factory,
-                            initial_time,
+                            from_config_args.plugin_api,
+                            from_config_args.global_config,
+                            from_config_args.node_name,
+                            from_config_args.va_factory,
+                            from_config_args.initial_time,
                         )) as Box<dyn Sensor>
                     }
                     SensorConfig::SpeedSensor(c) => Box::new(SpeedSensor::from_config(
                         c,
-                        plugin_api,
-                        global_config,
-                        node_name,
-                        va_factory,
-                        initial_time,
+                        from_config_args.plugin_api,
+                        from_config_args.global_config,
+                        from_config_args.node_name,
+                        from_config_args.va_factory,
+                        from_config_args.initial_time,
                     )) as Box<dyn Sensor>,
                     SensorConfig::DisplacementSensor(c) => {
                         Box::new(DisplacementSensor::from_config(
                             c,
-                            plugin_api,
-                            global_config,
-                            node_name,
-                            va_factory,
-                            initial_time,
+                            from_config_args.plugin_api,
+                            from_config_args.global_config,
+                            from_config_args.node_name,
+                            from_config_args.va_factory,
+                            from_config_args.initial_time,
                             initial_state,
                         )) as Box<dyn Sensor>
                     }
                     SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
                         c,
-                        plugin_api,
-                        global_config,
-                        node_name,
-                        va_factory,
-                        initial_time,
+                        from_config_args.plugin_api,
+                        from_config_args.global_config,
+                        from_config_args.node_name,
+                        from_config_args.va_factory,
+                        from_config_args.initial_time,
                     )) as Box<dyn Sensor>,
                     SensorConfig::RobotSensor(c) => Box::new(RobotSensor::from_config(
                         c,
-                        plugin_api,
-                        global_config,
-                        node_name,
-                        va_factory,
-                        initial_time,
+                        from_config_args.plugin_api,
+                        from_config_args.global_config,
+                        from_config_args.node_name,
+                        from_config_args.va_factory,
+                        from_config_args.initial_time,
                     )) as Box<dyn Sensor>,
                     SensorConfig::External(c) => Box::new(ExternalSensor::from_config(
                         c,
-                        plugin_api,
-                        global_config,
-                        va_factory,
-                        network,
-                        initial_time,
+                        from_config_args.plugin_api,
+                        from_config_args.global_config,
+                        from_config_args.va_factory,
+                        from_config_args.network,
+                        from_config_args.initial_time,
                     )?) as Box<dyn Sensor>,
                 })),
                 triggered: sensor_config.triggered,
@@ -390,7 +386,8 @@ impl SensorManager {
 
         // Subscribe to all channels of the sensor manager, to receive both observations and trigger messages:
         manager.message_client = Some(
-            network
+            from_config_args
+                .network
                 .write()
                 .unwrap()
                 .subscribe_to(&[sensor_manager_key], None),
@@ -547,7 +544,7 @@ impl SensorManager {
             );
         }
         if !obs_to_send.is_empty() {
-            let key_base = PathKey::from_str(networking::channels::internal::NODE);
+            let key_base = PathKey::from_str(networking::channels::internal::NODE).unwrap();
             for (to, observations) in obs_to_send {
                 if !observations.is_empty() {
                     let obs_serialized = serde_json::to_value(observations).unwrap();
@@ -558,7 +555,7 @@ impl SensorManager {
                         .write()
                         .unwrap()
                         .send_to(
-                            key_base.join_str(&to).join_str(Self::OBSERVATION_CHANNEL),
+                            key_base.join_str(to).join_str(Self::OBSERVATION_CHANNEL),
                             Envelope {
                                 from: node.name(),
                                 message: obs_serialized,

@@ -86,34 +86,34 @@ impl MessageTypes {
 }
 
 pub mod channels {
-    pub const INTERNAL: &'static str = "/simba";
+    pub const INTERNAL: &str = "/simba";
     pub mod internal {
         use constcat::concat;
-        pub const LOG: &'static str = concat!(super::INTERNAL, "/log");
+        pub const LOG: &str = concat!(super::INTERNAL, "/log");
         pub mod log {
             // Log levels for internal logs, LOG/<node_name>/{error,warn,info,debug}
-            pub const ERROR: &'static str = "/error";
-            pub const WARNING: &'static str = "/warn";
-            pub const INFO: &'static str = "/info";
-            pub const DEBUG: &'static str = "/debug";
+            pub const ERROR: &str = "/error";
+            pub const WARNING: &str = "/warn";
+            pub const INFO: &str = "/info";
+            pub const DEBUG: &str = "/debug";
         }
-        pub const NODE: &'static str = concat!(super::INTERNAL, "/node");
-        pub const COMMAND: &'static str = concat!(super::INTERNAL, "/command");
+        pub const NODE: &str = concat!(super::INTERNAL, "/node");
+        pub const COMMAND: &str = concat!(super::INTERNAL, "/command");
     }
 }
 
 // Network message exchange test
 #[cfg(test)]
 mod tests {
-    use std::sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver, Sender},
+    use std::{
+        str::FromStr,
+        sync::{Arc, Mutex},
     };
 
     use log::debug;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
-    use simba_com::pub_sub::{MultiClient, MultiClientTrait, PathKey};
+    use simba_com::pub_sub::{MultiClientTrait, PathKey};
 
     use crate::{
         constants::TIME_ROUND,
@@ -173,14 +173,14 @@ mod tests {
                     ..Default::default()
                 };
                 self.message_client
-                    .send(&PathKey::from_str("/test"), message, time);
+                    .send(&PathKey::from_str("/test").unwrap(), message, time);
             }
         }
 
         fn prediction_step(&mut self, node: &mut crate::node::Node, time: f32) {
             self.last_time = time;
             if node.name() == "node2" {
-                while let Some((path, envelope)) = self.message_client.try_receive(time) {
+                while let Some((_path, envelope)) = self.message_client.try_receive(time) {
                     let message = serde_json::from_value(envelope.message.clone()).unwrap();
                     println!("Receiving message: {} from {}", &message, envelope.from);
                     *self.last_message.lock().unwrap() = Some(message);
@@ -217,7 +217,7 @@ mod tests {
     impl PluginAPI for PluginAPITest {
         fn get_state_estimator(
             &self,
-            config: &serde_json::Value,
+            _config: &serde_json::Value,
             _global_config: &SimulatorConfig,
             _va_factory: &Arc<DeterministRandomVariableFactory>,
             network: &SharedRwLock<Network>,
@@ -226,7 +226,7 @@ mod tests {
             network
                 .write()
                 .unwrap()
-                .make_channel(PathKey::from_str("/test"));
+                .make_channel(PathKey::from_str("/test").unwrap());
             Box::new(StateEstimatorTest {
                 last_time: initial_time,
                 message: self.message.clone(),
@@ -235,7 +235,7 @@ mod tests {
                 message_client: network
                     .write()
                     .unwrap()
-                    .subscribe_to(&[PathKey::from_str("/test")], None),
+                    .subscribe_to(&[PathKey::from_str("/test").unwrap()], None),
             }) as Box<dyn StateEstimator>
         }
 

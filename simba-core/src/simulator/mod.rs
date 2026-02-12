@@ -45,11 +45,7 @@ use config_checker::ConfigCheckable;
 use pyo3::{ffi::c_str, prelude::*};
 use serde_derive::{Deserialize, Serialize};
 
-use simba_com::{
-    pub_sub::{ConditionType, MultiClient, PathBroker, PathKey, PathMultiClient},
-    rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost},
-    time_ordered_data::TimeOrderedData,
-};
+use simba_com::pub_sub::{PathBroker, PathMultiClient};
 
 use crate::{
     VERSION,
@@ -58,9 +54,7 @@ use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::{LoggerConfig, init_log, is_enabled},
     networking::{
-        network::Envelope,
-        network_manager::{self, NetworkManager},
-        service_manager::ServiceManager,
+        network::Envelope, network_manager::NetworkManager, service_manager::ServiceManager,
     },
     node::{
         Node, NodeMetaData, NodeState,
@@ -71,7 +65,6 @@ use crate::{
     plugin_api::PluginAPI,
     recordable::Recordable,
     scenario::{Scenario, config::ScenarioConfig},
-    state_estimators::State,
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
     utils::{
         SharedMutex, SharedRoLock, SharedRwLock, barrier::Barrier,
@@ -79,7 +72,7 @@ use crate::{
         python::CONVERT_TO_DICT,
     },
 };
-use core::{f32, time};
+use core::f32;
 use std::{
     cmp::Ordering,
     collections::HashMap,
@@ -266,7 +259,7 @@ impl Simulator {
         let rng = rand::random();
         let time_cv = Arc::new(TimeCv::new());
         let va_factory = Arc::new(DeterministRandomVariableFactory::new(rng));
-        let network_manager = NetworkManager::new(time_cv.clone());
+        let network_manager = NetworkManager::new();
         let broker = network_manager.broker().clone();
         Simulator {
             nodes: Vec::new(),
@@ -338,7 +331,7 @@ impl Simulator {
         self.meta_data_list.write().unwrap().clear();
         self.nodes = Vec::new();
         self.time_cv = Arc::new(TimeCv::new());
-        self.network_manager = NetworkManager::new(self.time_cv.clone());
+        self.network_manager = NetworkManager::new();
         let config = self.config.clone();
         self.common_time = Arc::new(RwLock::new(f32::INFINITY));
 
@@ -572,7 +565,7 @@ impl Simulator {
         force_send_results: bool,
         initial_time: f32,
     ) -> SimbaResult<()> {
-        let mut new_node = NodeFactory::make_robot(
+        let new_node = NodeFactory::make_robot(
             robot_config,
             &mut MakeNodeParams {
                 plugin_api: &self.plugin_api,
@@ -603,7 +596,7 @@ impl Simulator {
         force_send_results: bool,
         initial_time: f32,
     ) -> SimbaResult<()> {
-        let mut new_node = NodeFactory::make_computation_unit(
+        let new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
             &mut MakeNodeParams {
                 plugin_api: &self.plugin_api,
@@ -1121,8 +1114,7 @@ impl Simulator {
                 break;
             }
 
-            let nb_nodes_unlocked = *node_sync_params.nb_nodes.read().unwrap();
-            node.run_next_time_step(next_time, &node_sync_params.time_cv, nb_nodes_unlocked)?;
+            node.run_next_time_step(next_time, &node_sync_params.time_cv)?;
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("End of time step wait");
             }
@@ -1143,7 +1135,7 @@ impl Simulator {
                 .lock()
                 .unwrap()
                 .clone_from(&true);
-            node.sync_with_others(&node_sync_params.time_cv, nb_nodes_unlocked, next_time);
+            node.sync_with_others(&node_sync_params.time_cv, next_time);
             // node_sync_params.time_cv.condvar.notify_all();
             // while !*node_sync_params.end_time_step_sync.lock().unwrap() {
             //     lk = node_sync_params.time_cv.condvar.wait(lk).unwrap();
@@ -1191,7 +1183,7 @@ impl Simulator {
             while *lk < *running_parameters.nb_nodes.read().unwrap()
                 && *running_parameters.finishing_cv.0.lock().unwrap()
                     < *running_parameters.nb_nodes.read().unwrap()
-                && *time_cv.force_finish.lock().unwrap() == false
+                && !*time_cv.force_finish.lock().unwrap()
             {
                 if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                     debug!(
@@ -1430,10 +1422,6 @@ def show():
             self.async_api_server = Some(SimulatorAsyncApiServer::new(0.));
         }
         Arc::new(self.async_api_server.as_mut().unwrap().new_client())
-    }
-
-    pub(crate) fn get_network_manager_mut(&mut self) -> &mut NetworkManager {
-        &mut self.network_manager
     }
 }
 

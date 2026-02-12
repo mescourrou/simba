@@ -15,7 +15,7 @@ default-members = [
     "simba-core",
     "simba-macros",
     "simba-tools"
-    ]  # Skip root for tests
+    ]
 
 resolver = "2"
 

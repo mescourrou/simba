@@ -11,7 +11,6 @@ use crate::{
         Navigator, NavigatorRecord,
         trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
     },
-    networking::network::Envelope,
     simulator::SimulatorConfig,
     utils::geometry::{mod2pi, smallest_theta_diff},
 };
@@ -23,7 +22,7 @@ use na::Vector3;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
-use std::{path::Path, sync::mpsc::Sender};
+use std::path::Path;
 
 /// Configuration of the [`TrajectoryFollower`] strategy.
 #[config_derives]

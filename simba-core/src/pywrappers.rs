@@ -1,8 +1,5 @@
 #![allow(clippy::useless_conversion)]
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, mpsc::Receiver},
-};
+use std::{collections::BTreeMap, str::FromStr, sync::Arc};
 
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::{exceptions::PyTypeError, prelude::*};
@@ -36,7 +33,7 @@ use crate::{
     },
     simulator::{AsyncSimulator, SimbaBrokerMultiClient, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
-    utils::{SharedMutex, occupancy_grid::OccupancyGrid},
+    utils::occupancy_grid::OccupancyGrid,
 };
 
 #[derive(Clone, Debug)]
@@ -947,7 +944,7 @@ impl NodeWrapper {
                 MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
             }
             .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
-            let key = PathKey::from_str(to.as_str());
+            let key = PathKey::from_str(to.as_str()).unwrap();
             let msg = Envelope {
                 from: self.node.name(),
                 message: msg,
@@ -965,7 +962,7 @@ impl NodeWrapper {
         if let Some(network) = &self.node.network() {
             let keys = topics
                 .iter()
-                .map(|t| PathKey::from_str(t.as_str()))
+                .map(|t| PathKey::from_str(t.as_str()).unwrap())
                 .collect::<Vec<PathKey>>();
             let client = network.write().unwrap().subscribe_to(&keys, None);
             Ok(MultiClientWrapper::from_rust(client))
@@ -976,7 +973,7 @@ impl NodeWrapper {
 
     pub fn make_channel(&self, channel_name: String) -> PyResult<()> {
         if let Some(network) = &self.node.network() {
-            let key = PathKey::from_str(channel_name.as_str());
+            let key = PathKey::from_str(channel_name.as_str()).unwrap();
             network.write().unwrap().make_channel(key);
             Ok(())
         } else {
@@ -1007,12 +1004,12 @@ pub struct MultiClientWrapper {
 #[pymethods]
 impl MultiClientWrapper {
     pub fn subscribe(&mut self, key: String) {
-        let key = PathKey::from_str(key.as_str());
+        let key = PathKey::from_str(key.as_str()).unwrap();
         self.client.subscribe(&key);
     }
 
     pub fn subscribe_instantaneous(&mut self, key: String) {
-        let key = PathKey::from_str(key.as_str());
+        let key = PathKey::from_str(key.as_str()).unwrap();
         self.client.subscribe_instantaneous(&key);
     }
 
@@ -1029,7 +1026,7 @@ impl MultiClientWrapper {
             MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
         }
         .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
-        let key = PathKey::from_str(to.as_str());
+        let key = PathKey::from_str(to.as_str()).unwrap();
         let msg = Envelope {
             from: self.client.node_id().to_string(),
             message: msg,

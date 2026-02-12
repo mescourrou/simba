@@ -16,11 +16,14 @@ pub use multi_client::MultiClientTrait;
 pub use multi_client::PathMultiClient;
 
 pub type ConditionType<ConditionArgType> = fn(ConditionArgType, ConditionArgType) -> bool;
+type SharedMutex<T> = std::sync::Arc<std::sync::Mutex<T>>;
+// type SharedRwLock<T> = std::sync::Arc<std::sync::RwLock<T>>;
 
 #[cfg(test)]
 mod tests {
     use std::{
         collections::HashMap,
+        str::FromStr,
         sync::{Arc, Barrier, Mutex},
         thread,
     };
@@ -393,13 +396,13 @@ mod tests {
 
         let meta_channel_name = PathKey::new(vec!["hello".to_string()], true);
         let channel_name1 = PathKey::new(
-            vec!["hello", "world1"]
+            ["hello", "world1"]
                 .iter()
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>(),
             true,
         );
-        let channel_name2 = PathKey::from_str("/hello/world2");
+        let channel_name2 = PathKey::from_str("/hello/world2").unwrap();
 
         broker.lock().unwrap().add_channel(channel_name1.clone());
         assert!(broker.lock().unwrap().get_channel(&channel_name1).is_some());

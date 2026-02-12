@@ -1,12 +1,12 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
+    collections::{BTreeSet, HashMap},
+    str::FromStr,
     sync::{Arc, Mutex},
 };
 
 use log::debug;
 use log::warn;
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use simba_com::{
     pub_sub::{BrokerTrait, Client, PathKey},
     time_ordered_data::TimeOrderedData,
@@ -18,19 +18,15 @@ use crate::{
     errors::SimbaResult,
     logger::{InternalLog, is_enabled},
     networking::{self, network::Envelope},
-    node::{self, NodeState},
     scenario::config::{
         AreaEventTriggerConfig, EventConfig, EventRecord, EventTriggerConfig, EventTypeConfig,
         ProximityEventTriggerConfig, ScenarioConfig, SpawnEventConfig, TimeEventTriggerConfig,
     },
-    simulator::{
-        RunningParameters, SimbaBroker, SimbaBrokerMultiClient, Simulator, SimulatorConfig,
-    },
-    state_estimators::State,
+    simulator::{RunningParameters, SimbaBroker, Simulator, SimulatorConfig},
     utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
-use crate::networking::{network::MessageFlag, network_manager::MessageSendMethod};
+use crate::networking::network::MessageFlag;
 
 pub mod config;
 
@@ -90,8 +86,9 @@ impl Scenario {
                 time_events.insert(*t, (occurence, Event::from_config(event)), false);
             }
         }
-        let channel_key =
-            PathKey::from_str(networking::channels::INTERNAL).join_str(Self::CHANNEL_NAME);
+        let channel_key = PathKey::from_str(networking::channels::INTERNAL)
+            .unwrap()
+            .join_str(Self::CHANNEL_NAME);
         broker.write().unwrap().add_channel(channel_key.clone());
         Self {
             time_events,
@@ -162,7 +159,6 @@ impl Scenario {
                         &event.triggering_nodes,
                         area_config,
                         simulator,
-                        time,
                         node_states,
                     );
                     for nodes in triggering_nodes {
@@ -212,9 +208,10 @@ impl Scenario {
                 log::info!(
                     "Executing Kill event for node `{}` triggered by {}",
                     name,
-                    trigger.to_string(),
+                    trigger,
                 );
                 let command_key = PathKey::from_str(networking::channels::internal::COMMAND)
+                    .unwrap()
                     .join_str(name.as_str());
                 if !self.broker.write().unwrap().channel_exists(&command_key) {
                     warn!(
@@ -250,7 +247,7 @@ impl Scenario {
                     "Executing Spawn event for node `{}` of model `{}` triggered by {}",
                     node_name,
                     model_name,
-                    trigger.to_string()
+                    trigger
                 );
 
                 if let Err(e) = simulator.spawn_node_from_name(
@@ -298,7 +295,6 @@ impl Scenario {
         triggering_nodes_filter: &[Regex],
         area_config: &AreaEventTriggerConfig,
         _simulator: &mut Simulator,
-        time: f32,
         node_states: &HashMap<String, Option<[f32; 2]>>,
     ) -> Vec<Vec<String>> {
         let mut triggering_nodes = Vec::new();

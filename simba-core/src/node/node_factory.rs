@@ -1,8 +1,11 @@
-use std::sync::{Arc, RwLock};
+use std::{
+    str::FromStr,
+    sync::{Arc, RwLock},
+};
 
 use log::debug;
 use serde::{Deserialize, Serialize};
-use simba_com::pub_sub::{BrokerTrait, MultiClientTrait, PathKey};
+use simba_com::pub_sub::{BrokerTrait, PathKey};
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
@@ -675,10 +678,13 @@ impl NodeFactory {
         }
         let mut broker_lock = broker.write().unwrap();
         broker_lock.add_channel(
-            PathKey::from_str(networking::channels::internal::COMMAND).join_str(node_name.as_str()),
+            PathKey::from_str(networking::channels::internal::COMMAND)
+                .unwrap()
+                .join_str(node_name.as_str()),
         );
-        let log_key =
-            PathKey::from_str(networking::channels::internal::LOG).join_str(node_name.as_str());
+        let log_key = PathKey::from_str(networking::channels::internal::LOG)
+            .unwrap()
+            .join_str(node_name.as_str());
         broker_lock.add_channel(
             log_key
                 .clone()
@@ -715,13 +721,14 @@ impl NodeFactory {
             broker.clone(),
             node_name.clone(),
             0.,
-            PathKey::from_str("/"),
+            PathKey::from_str("/").unwrap(),
         );
         broker
             .write()
             .unwrap()
             .subscribe_to_list(
                 &[PathKey::from_str(networking::channels::internal::COMMAND)
+                    .unwrap()
                     .join_str(node_name.as_str())],
                 0.,
                 &mut client,
@@ -742,15 +749,15 @@ impl NodeFactory {
             params.broker,
             params.initial_time,
         )));
-        let physics = physics::make_physics_from_config(
-            &config.physics,
-            params.plugin_api,
-            params.global_config,
-            &config.name,
-            params.va_factory,
-            &network,
-            params.initial_time,
-        )?;
+        let from_config_args = FromConfigArguments {
+            global_config: params.global_config,
+            initial_time: params.initial_time,
+            network: &network,
+            node_name: &config.name,
+            plugin_api: params.plugin_api,
+            va_factory: params.va_factory,
+        };
+        let physics = physics::make_physics_from_config(&config.physics, &from_config_args)?;
         let initial_state = physics.read().unwrap().state(params.initial_time).clone();
         let mut node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
@@ -798,12 +805,7 @@ impl NodeFactory {
             ))),
             sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
                 &config.sensor_manager,
-                params.plugin_api,
-                params.global_config,
-                &config.name,
-                params.va_factory,
-                &network,
-                params.initial_time,
+                &from_config_args,
                 &initial_state,
             )?))),
             network: Some(network.clone()),
@@ -871,6 +873,14 @@ impl NodeFactory {
             params.broker,
             params.initial_time,
         )));
+        let from_config_args = FromConfigArguments {
+            global_config: params.global_config,
+            initial_time: params.initial_time,
+            network: &network,
+            node_name: &config.name,
+            plugin_api: params.plugin_api,
+            va_factory: params.va_factory,
+        };
         let mut node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
                 name: params.new_name.unwrap_or(&config.name).to_string(),
@@ -886,12 +896,7 @@ impl NodeFactory {
             state_estimator: None,
             sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
                 &SensorManagerConfig::default(),
-                params.plugin_api,
-                params.global_config,
-                &config.name,
-                params.va_factory,
-                &network,
-                params.initial_time,
+                &from_config_args,
                 &State::default(),
             )?))),
             network: Some(network.clone()),
@@ -962,6 +967,15 @@ impl NodeFactory {
             format!("Node `{}` unknown in configuration: cannot create", name),
         ))
     }
+}
+
+pub struct FromConfigArguments<'a> {
+    pub plugin_api: &'a Option<Arc<dyn PluginAPI>>,
+    pub global_config: &'a SimulatorConfig,
+    pub node_name: &'a String,
+    pub va_factory: &'a Arc<DeterministRandomVariableFactory>,
+    pub network: &'a SharedRwLock<Network>,
+    pub initial_time: f32,
 }
 
 #[cfg(test)]

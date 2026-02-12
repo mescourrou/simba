@@ -24,7 +24,7 @@ use crate::controllers::ControllerError;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::string_combobox};
-use crate::networking::network::{self, Network};
+use crate::networking::network::Network;
 use crate::plugin_api::PluginAPI;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;

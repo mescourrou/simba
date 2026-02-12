@@ -16,7 +16,7 @@ use crate::{
     },
     networking::{
         MessageTypes,
-        network::{self, MessageFlag, Network},
+        network::{MessageFlag, Network},
     },
     physics::{
         Physics,

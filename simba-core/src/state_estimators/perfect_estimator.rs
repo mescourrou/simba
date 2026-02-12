@@ -4,13 +4,11 @@ the groundtruth to provide the estimation. It can be used when the state used
 by the controller should be perfect.
 */
 
-use std::{path::Path, sync::mpsc::Sender};
+use std::path::Path;
 
 use super::{State, WorldState, WorldStateRecord};
 use crate::{
-    constants::TIME_ROUND,
-    errors::SimbaErrorTypes,
-    networking::{network::Envelope, service_manager::ServiceError},
+    constants::TIME_ROUND, errors::SimbaErrorTypes, networking::service_manager::ServiceError,
 };
 
 #[cfg(feature = "gui")]

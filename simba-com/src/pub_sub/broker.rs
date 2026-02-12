@@ -1,14 +1,14 @@
+pub use std::str::FromStr;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     fmt::{Debug, Display},
 };
 
 use itertools::Itertools;
-use log::debug;
 use tree_ds::prelude::{AutomatedId, Node, TraversalStrategy, Tree};
 
 use crate::pub_sub::{
-    Client, MultiClient, MultiClientTrait,
+    Client, MultiClientTrait,
     channel::{Channel, ChannelProcessing},
 };
 
@@ -154,7 +154,7 @@ where
             .key_tree
             .add_node(
                 Node::new_with_auto_id(Some(key.clone())),
-                Some(&self.key_to_node_id.get(&KeyType::default()).unwrap()),
+                Some(self.key_to_node_id.get(&KeyType::default()).unwrap()),
             )
             .unwrap();
         self.key_to_node_id.insert(key, new_id);
@@ -341,7 +341,7 @@ where
             .key_tree
             .add_node(
                 Node::new_with_auto_id(Some(key.clone())),
-                Some(&self.key_to_node_id.get(&KeyType::default()).unwrap()),
+                Some(self.key_to_node_id.get(&KeyType::default()).unwrap()),
             )
             .unwrap();
         self.key_to_node_id.insert(key, new_id);
@@ -419,13 +419,6 @@ impl PathKey {
         Self { path, absolute }
     }
 
-    pub fn from_str(path: &str) -> Self {
-        Self {
-            path: Self::str_split(path),
-            absolute: path.starts_with('/'),
-        }
-    }
-
     fn str_split(path: &str) -> Vec<String> {
         path.split('/')
             .filter_map(|s| {
@@ -436,14 +429,6 @@ impl PathKey {
                 }
             })
             .collect()
-    }
-
-    pub fn to_string(&self) -> String {
-        if self.absolute {
-            format!("/{}", self.path.join("/"))
-        } else {
-            self.path.join("/")
-        }
     }
 
     pub fn parent(&self) -> Option<Self> {
@@ -467,6 +452,10 @@ impl PathKey {
 
     pub fn len(&self) -> usize {
         self.path.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.path.is_empty()
     }
 
     pub fn join(&self, other: &PathKey) -> Self {
@@ -508,7 +497,22 @@ impl PathKey {
 
 impl Display for PathKey {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
+        let str = if self.absolute {
+            format!("/{}", self.path.join("/"))
+        } else {
+            self.path.join("/")
+        };
+        write!(f, "{}", str)
+    }
+}
+
+impl FromStr for PathKey {
+    type Err = std::convert::Infallible;
+    fn from_str(path: &str) -> Result<Self, Self::Err> {
+        Ok(Self {
+            path: Self::str_split(path),
+            absolute: path.starts_with('/'),
+        })
     }
 }
 
@@ -598,7 +602,7 @@ where
         self.broker
             .channel_list()
             .iter()
-            .map(|s| PathKey::from_str(s))
+            .map(|s| PathKey::from_str(s).unwrap())
             .collect()
     }
 
@@ -613,7 +617,7 @@ where
             .iter()
             .map(|id| {
                 let node = self.broker.key_tree.get_node_by_id(id).unwrap();
-                let key = PathKey::from_str(&node.get_value().unwrap().unwrap());
+                let key = PathKey::from_str(&node.get_value().unwrap().unwrap()).unwrap();
                 let parent_key = if let Ok(Some(parent_id)) = node.get_parent_id() {
                     PathKey::from_str(
                         &self
@@ -625,6 +629,7 @@ where
                             .unwrap()
                             .unwrap(),
                     )
+                    .unwrap()
                 } else {
                     PathKey::default()
                 };
@@ -663,7 +668,7 @@ where
             } else if self.meta_exists(&key) {
                 self.subscribe_to_meta(&key, reception_delay, multi_client)?;
             } else {
-                return Err(format!("Failed to subscribe to key: {}", key.to_string()));
+                return Err(format!("Failed to subscribe to key: {}", key));
             }
         }
         Ok(())
@@ -695,12 +700,13 @@ where
                 &self
                     .broker
                     .key_tree
-                    .get_node_by_id(&node_id)
+                    .get_node_by_id(node_id)
                     .unwrap()
                     .get_value()
                     .unwrap()
                     .unwrap(),
-            );
+            )
+            .unwrap();
             keys.push(key);
         }
         for key in keys {
@@ -711,7 +717,7 @@ where
             } else {
                 return Err(format!(
                     "During meta subscription, failed to subscribe to key: {}",
-                    key.to_string()
+                    key
                 ));
             }
         }
@@ -779,19 +785,21 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::str::FromStr;
+
     use crate::pub_sub::PathKey;
 
     #[test]
     fn path_key_from_str() {
-        let key = PathKey::from_str("hello/world/test");
+        let key = PathKey::from_str("hello/world/test").unwrap();
         assert_eq!(key.to_string(), "hello/world/test");
         assert_eq!(key.parent().unwrap().to_string(), "hello/world");
         assert_eq!(key.parent().unwrap().parent().unwrap().to_string(), "hello");
         assert_eq!(key.parent().unwrap().parent().unwrap().parent(), None);
-        assert_eq!(key.absolute(), false);
+        assert!(!key.absolute());
 
-        let key = PathKey::from_str("/hello/world/test");
-        assert_eq!(key.absolute(), true);
+        let key = PathKey::from_str("/hello/world/test").unwrap();
+        assert!(key.absolute());
         assert_eq!(
             key.to_vec(),
             vec!["hello".to_string(), "world".to_string(), "test".to_string()]

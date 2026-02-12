@@ -53,11 +53,11 @@ impl<MessageType: Clone + Default> Client<MessageType> {
         let mut message_buffer = self.message_buffer.lock().unwrap();
         let min_time_buffer = message_buffer.min_time().map(|(t, _)| t);
         // Check first if there is a message in the buffer that can be received before trying to receive new messages, to avoid receiving messages that should be received later
-        if let Some(min_time) = min_time_buffer {
-            if min_time - time <= self.time_round {
-                let message = message_buffer.remove(min_time).unwrap().1;
-                return Some(message);
-            }
+        if let Some(min_time) = min_time_buffer
+            && min_time - time <= self.time_round
+        {
+            let message = message_buffer.remove(min_time).unwrap().1;
+            return Some(message);
         }
         None
     }
@@ -66,11 +66,11 @@ impl<MessageType: Clone + Default> Client<MessageType> {
         let mut message_buffer = self.message_buffer.lock().unwrap();
         let min_time_buffer = message_buffer.min_time().map(|(t, _)| t);
         // Check first if there is a message in the buffer that can be received before trying to receive new messages, to avoid receiving messages that should be received later
-        if let Some(min_time) = min_time_buffer {
-            if min_time - time <= self.time_round {
-                let message = message_buffer.remove(min_time).unwrap().1;
-                return message;
-            }
+        if let Some(min_time) = min_time_buffer
+            && min_time - time <= self.time_round
+        {
+            let message = message_buffer.remove(min_time).unwrap().1;
+            return message;
         }
         loop {
             if let Ok((message, msg_time)) = self.receiver.lock().unwrap().recv() {

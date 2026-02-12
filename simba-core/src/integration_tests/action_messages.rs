@@ -51,9 +51,8 @@ impl<SE: StateEstimator> PluginAPI for PluginAPITest<SE> {
 }
 
 mod kill_node {
-    use std::sync::mpsc::Sender;
+    use std::str::FromStr;
 
-    use serde_json::Value;
     use simba_com::pub_sub::PathKey;
 
     use crate::{
@@ -87,7 +86,7 @@ mod kill_node {
         fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
             if time >= self.kill_time {
                 node.network().as_ref().unwrap().write().unwrap().send_to(
-                    PathKey::from_str("/simba/command/node2"),
+                    PathKey::from_str("/simba/command/node2").unwrap(),
                     Envelope {
                         from: node.name(),
                         message: serde_json::Value::Null,
@@ -209,10 +208,7 @@ mod trigger_sensor {
             determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
         },
     };
-    use std::{
-        collections::VecDeque,
-        sync::{Arc, mpsc::Sender},
-    };
+    use std::{collections::VecDeque, str::FromStr, sync::Arc};
 
     #[derive(Debug, Clone)]
     pub struct StateEstimatorTest {
@@ -248,7 +244,7 @@ mod trigger_sensor {
             {
                 log::info!("Triggering sensor at time {}", time);
                 node.network().as_ref().unwrap().write().unwrap().send_to(
-                    PathKey::from_str("/simba/node/robot1/sensors/RobotSensor"),
+                    PathKey::from_str("/simba/node/robot1/sensors/RobotSensor").unwrap(),
                     Envelope {
                         from: node.name(),
                         message: serde_json::to_value(SensorTriggerMessage {}).unwrap(),

@@ -13,12 +13,10 @@ type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
 and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
-use std::sync::Arc;
-use std::sync::mpsc::Sender;
-
 use log::debug;
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
+use std::sync::Arc;
 
 use crate::constants::TIME_ROUND;
 use crate::controllers::ControllerError;
@@ -26,13 +24,13 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
-use crate::networking::network::{Envelope, Network};
+use crate::networking::network::Network;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
+use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
-use crate::utils::{SharedMutex, SharedRwLock};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };

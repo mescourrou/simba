@@ -3,8 +3,6 @@ Module providing the interface to use external Python [`Navigator`].
 */
 
 use std::str::FromStr;
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
 
 use log::debug;
 use pyo3::prelude::*;
@@ -13,9 +11,7 @@ use serde_json::Value;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::networking::network::Envelope;
 use crate::pywrappers::NodeWrapper;
-use crate::utils::SharedMutex;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
 use crate::{
@@ -68,8 +64,6 @@ use crate::node::Node;
 pub struct PythonNavigator {
     /// External navigator.
     navigator: Py<PyAny>,
-    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
-    letter_box_sender: Sender<Envelope>,
 }
 
 impl PythonNavigator {
@@ -100,11 +94,8 @@ impl PythonNavigator {
 
         let navigator_instance =
             load_class_from_python_script(config, global_config, initial_time, "Navigator")?;
-        let (tx, rx) = mpsc::channel();
         Ok(Self {
             navigator: navigator_instance,
-            letter_box_receiver: Arc::new(Mutex::new(rx)),
-            letter_box_sender: tx,
         })
     }
 }

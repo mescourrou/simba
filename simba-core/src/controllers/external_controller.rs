@@ -14,7 +14,6 @@ and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use std::sync::Arc;
-use std::sync::mpsc::Sender;
 
 use log::debug;
 use pyo3::{pyclass, pymethods};
@@ -25,7 +24,7 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
-use crate::networking::network::{Envelope, Network};
+use crate::networking::network::Network;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;

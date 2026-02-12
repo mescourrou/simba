@@ -1,10 +1,4 @@
-use std::{
-    str::FromStr,
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver, Sender},
-    },
-};
+use std::{str::FromStr, sync::Arc};
 
 use log::debug;
 use pyo3::{prelude::*, types::PyDict};
@@ -16,15 +10,11 @@ use crate::{
     controllers::ControllerError,
     logger::is_enabled,
     navigators::external_navigator::ExternalNavigatorRecord,
-    networking::network::Envelope,
     node::Node,
     pywrappers::{ControllerErrorWrapper, NodeWrapper, WorldStateWrapper},
     recordable::Recordable,
     state_estimators::WorldState,
-    utils::{
-        SharedMutex,
-        python::{call_py_method, call_py_method_void},
-    },
+    utils::python::{call_py_method, call_py_method_void},
 };
 
 use super::{Navigator, NavigatorRecord};
@@ -34,8 +24,6 @@ pub struct PythonNavigatorAsyncClient {
     pub compute_error: RemoteFunctionCall<(NodeWrapper, WorldState), ControllerError>,
     pub record: RemoteFunctionCall<(), NavigatorRecord>,
     pub pre_loop_hook: RemoteFunctionCall<(NodeWrapper, f32), ()>,
-    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
-    letter_box_sender: Sender<Envelope>,
 }
 
 impl Navigator for PythonNavigatorAsyncClient {
@@ -72,8 +60,6 @@ impl PythonNavigator {
                 debug!("Model got: {}", py_model.bind(py).dir().unwrap());
             });
         }
-        let (letter_box_sender, letter_box_receiver) = mpsc::channel();
-
         let (compute_error_client, compute_error_host) = rfc::make_pair();
         let (record_client, record_host) = rfc::make_pair();
         let (pre_loop_hook_client, pre_loop_hook_host) = rfc::make_pair();
@@ -84,8 +70,6 @@ impl PythonNavigator {
                 compute_error: compute_error_client,
                 record: record_client,
                 pre_loop_hook: pre_loop_hook_client,
-                letter_box_receiver: Arc::new(Mutex::new(letter_box_receiver)),
-                letter_box_sender,
             },
             compute_error: Arc::new(compute_error_host),
             record: Arc::new(record_host),

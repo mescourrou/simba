@@ -3,9 +3,9 @@ Implementation of a [`Navigator`] strategy, which follows a polyline shaped
 trajectory.
 */
 
-use std::sync::{
-    Arc, Mutex,
-    mpsc::{self, Receiver, Sender},
+use std::{
+    str::FromStr,
+    sync::{Arc, Mutex},
 };
 
 #[cfg(feature = "gui")]
@@ -13,7 +13,7 @@ use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
     navigators::{Navigator, NavigatorRecord},
-    networking::network::{Envelope, Network},
+    networking::network::Network,
     simulator::SimbaBrokerMultiClient,
     utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff},
 };
@@ -226,7 +226,7 @@ impl GoTo {
         _initial_time: f32,
     ) -> Self {
         let network = network.write().unwrap();
-        let key = network.make_channel(PathKey::from_str(Self::CHANNEL_NAME));
+        let key = network.make_channel(PathKey::from_str(Self::CHANNEL_NAME).unwrap());
         let message_client = network.subscribe_to(&[key], None);
         Self {
             target_speed: config.target_speed,

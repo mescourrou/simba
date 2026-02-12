@@ -1,10 +1,4 @@
-use std::{
-    str::FromStr,
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver, Sender},
-    },
-};
+use std::{str::FromStr, sync::Arc};
 
 use log::debug;
 use pyo3::{prelude::*, types::PyDict};
@@ -14,15 +8,11 @@ use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 use crate::{
     controllers::external_controller::ExternalControllerRecord,
     logger::is_enabled,
-    networking::network::Envelope,
     node::Node,
     physics::robot_models::Command,
     pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
     recordable::Recordable,
-    utils::{
-        SharedMutex,
-        python::{call_py_method, call_py_method_void},
-    },
+    utils::python::{call_py_method, call_py_method_void},
 };
 
 use super::{Controller, ControllerError, ControllerRecord};

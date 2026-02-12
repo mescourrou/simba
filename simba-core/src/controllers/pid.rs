@@ -9,9 +9,6 @@ The [`PID`] controller uses three derivative of the error:
 Each component has a gain, which can be set in [`PIDConfig`].
 */
 
-use std::sync::mpsc::Sender;
-
-use crate::networking::network::Envelope;
 use crate::physics::PhysicsConfig;
 use crate::physics::internal_physics::InternalPhysicConfig;
 use crate::physics::robot_models::holonomic::HolonomicCommand;

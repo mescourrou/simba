@@ -1,10 +1,4 @@
-use std::{
-    str::FromStr,
-    sync::{
-        Arc, Mutex,
-        mpsc::{self, Receiver, Sender},
-    },
-};
+use std::{str::FromStr, sync::Arc};
 
 use log::debug;
 use pyo3::{prelude::*, types::PyDict};
@@ -14,13 +8,11 @@ use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 use crate::{
     constants::TIME_ROUND,
     logger::is_enabled,
-    networking::network::Envelope,
     node::Node,
     pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
     recordable::Recordable,
     sensors::Observation,
     utils::{
-        SharedMutex,
         maths::round_precision,
         python::{call_py_method, call_py_method_void},
     },
@@ -39,8 +31,6 @@ pub struct PythonStateEstimatorAsyncClient {
     pub next_time_step: RemoteFunctionCall<(), f32>,
     pub record: RemoteFunctionCall<(), StateEstimatorRecord>,
     pub pre_loop_hook: RemoteFunctionCall<PythonStateEstimatorPreLoopHookRequest, ()>,
-    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
-    letter_box_sender: Sender<Envelope>,
 }
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
@@ -153,7 +143,6 @@ impl PythonStateEstimator {
         let (next_time_step_client, next_time_step_host) = rfc::make_pair();
         let (record_client, record_host) = rfc::make_pair();
         let (pre_loop_hook_client, pre_loop_hook_host) = rfc::make_pair();
-        let (letter_box_tx, letter_box_rx) = mpsc::channel();
 
         PythonStateEstimator {
             model: py_model,
@@ -164,8 +153,6 @@ impl PythonStateEstimator {
                 next_time_step: next_time_step_client,
                 record: record_client,
                 pre_loop_hook: pre_loop_hook_client,
-                letter_box_receiver: Arc::new(Mutex::new(letter_box_rx)),
-                letter_box_sender: letter_box_tx,
             },
             prediction_step: Arc::new(prediction_step_host),
             correction_step: Arc::new(correction_step_host),

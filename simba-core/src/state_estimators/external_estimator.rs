@@ -25,7 +25,7 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
-use crate::networking::network::{Envelope, Network};
+use crate::networking::network::Network;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::utils::SharedRwLock;

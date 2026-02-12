@@ -2,9 +2,6 @@
 Module providing the interface to use external Python [`StateEstimator`].
 */
 
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
-
 use log::debug;
 use pyo3::prelude::*;
 use pyo3::{Python, pyclass, pymethods};
@@ -15,11 +12,9 @@ use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
-use crate::networking::network::Envelope;
 use crate::pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::utils::SharedMutex;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::maths::round_precision;
 use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
@@ -66,8 +61,6 @@ use crate::node::Node;
 pub struct PythonEstimator {
     /// External state estimator.
     state_estimator: Py<PyAny>,
-    letter_box_receiver: SharedMutex<Receiver<Envelope>>,
-    letter_box_sender: Sender<Envelope>,
 }
 
 impl PythonEstimator {
@@ -99,11 +92,8 @@ impl PythonEstimator {
 
         let state_estimator_instance =
             load_class_from_python_script(config, global_config, initial_time, "State Estimator")?;
-        let (tx, rx) = mpsc::channel();
         Ok(Self {
             state_estimator: state_estimator_instance,
-            letter_box_receiver: Arc::new(Mutex::new(rx)),
-            letter_box_sender: tx,
         })
     }
 }
