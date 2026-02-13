@@ -1423,6 +1423,10 @@ def show():
         }
         Arc::new(self.async_api_server.as_mut().unwrap().new_client())
     }
+
+    pub fn get_broker(&self) -> SharedRwLock<SimbaBroker> {
+        self.network_manager.broker()
+    }
 }
 
 impl Default for Simulator {
