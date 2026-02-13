@@ -184,8 +184,8 @@ struct NodeSyncParams {
     end_time_step_sync: Arc<Mutex<bool>>,
 }
 
-pub(crate) type SimbaBroker = PathBroker<Envelope, String, Option<[f32; 2]>>;
-pub(crate) type SimbaBrokerMultiClient = PathMultiClient<Envelope, String>;
+pub type SimbaBroker = PathBroker<Envelope, String, Option<[f32; 2]>>;
+pub type SimbaBrokerMultiClient = PathMultiClient<Envelope, String>;
 
 /// This is the central structure which manages the run of the scenario.
 ///
