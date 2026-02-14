@@ -823,6 +823,7 @@ impl NodeFactory {
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
             node_message_client: client,
+            current_command: None,
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -913,6 +914,7 @@ impl NodeFactory {
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
             node_message_client: client,
+            current_command: None,
         };
 
         for state_estimator_config in &config.state_estimators {

@@ -6,16 +6,10 @@ use pyo3::{prelude::*, types::PyDict};
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    constants::TIME_ROUND,
-    logger::is_enabled,
-    node::Node,
-    pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
-    recordable::Recordable,
-    sensors::Observation,
-    utils::{
+    constants::TIME_ROUND, logger::is_enabled, node::Node, physics::robot_models::Command, pywrappers::{CommandWrapper, NodeWrapper, ObservationWrapper, WorldStateWrapper}, recordable::Recordable, sensors::Observation, utils::{
         maths::round_precision,
         python::{call_py_method, call_py_method_void},
-    },
+    }
 };
 
 use super::{
@@ -34,14 +28,16 @@ pub struct PythonStateEstimatorAsyncClient {
 }
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
-    fn prediction_step(&mut self, node: &mut Node, time: f32) {
+    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start prediction step from async client");
         }
         let node_py = NodeWrapper::from_rust(node);
+        let command = command.map(|c| CommandWrapper::from_rust(&c));
         self.prediction_step
             .call(PythonStateEstimatorPredictionStepRequest {
                 node: node_py,
+                command,
                 time,
             })
             .unwrap()
@@ -112,6 +108,7 @@ pub struct PythonStateEstimator {
 #[derive(Debug, Clone)]
 pub struct PythonStateEstimatorPredictionStepRequest {
     pub node: NodeWrapper,
+    pub command: Option<CommandWrapper>,
     pub time: f32,
 }
 
@@ -172,7 +169,7 @@ impl PythonStateEstimator {
     pub fn check_requests(&mut self) {
         self.prediction_step
             .clone()
-            .try_recv_closure_mut(|request| self.prediction_step(request.node, request.time));
+            .try_recv_closure_mut(|request| self.prediction_step(request.node, request.command, request.time));
         self.correction_step
             .clone()
             .try_recv_closure_mut(|request| {
@@ -190,11 +187,11 @@ impl PythonStateEstimator {
             .try_recv_closure_mut(|request| self.pre_loop_hook(request.node, request.time));
     }
 
-    fn prediction_step(&mut self, node: NodeWrapper, time: f32) {
+    fn prediction_step(&mut self, node: NodeWrapper, command: Option<CommandWrapper>, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
-        call_py_method_void!(self.model, "prediction_step", node, time);
+        call_py_method_void!(self.model, "prediction_step", node, command, time);
     }
 
     fn correction_step(&mut self, node: NodeWrapper, observations: &Vec<Observation>, time: f32) {

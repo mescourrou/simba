@@ -31,18 +31,11 @@ struct MyWonderfulControllerRecord {}
 struct MyWonderfulControllerConfig {}
 
 #[derive(Debug)]
-struct MyWonderfulController {
-    letter_box_rx: SharedMutex<Receiver<Envelope>>,
-    letter_box_tx: Sender<Envelope>,
-}
+struct MyWonderfulController {}
 
 impl MyWonderfulController {
     pub fn from_config(_config: MyWonderfulControllerConfig, _initial_time: f32) -> Self {
-        let (tx, rx) = mpsc::channel();
-        Self {
-            letter_box_rx: Arc::new(Mutex::new(rx)),
-            letter_box_tx: tx,
-        }
+        Self {}
     }
 }
 
@@ -59,11 +52,7 @@ impl Controller for MyWonderfulController {
         })
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
-        while let Ok(_envelope) = self.letter_box_rx.lock().unwrap().try_recv() {
-            // i.e. Do something with received messages
-        }
-    }
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {}
 }
 
 impl Recordable<ControllerRecord> for MyWonderfulController {
@@ -74,9 +63,4 @@ impl Recordable<ControllerRecord> for MyWonderfulController {
     }
 }
 
-impl MessageHandler for MyWonderfulController {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_tx.clone())
-    }
-}
 ```

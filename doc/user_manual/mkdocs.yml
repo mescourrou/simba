@@ -30,3 +30,4 @@ nav:
     - Physics Plugin: plugin/physics.md
     - State Estimator Plugin: plugin/state_estimator.md
     - Sensor Plugin: plugin/sensor.md
+    - Network communication: plugin/network.md

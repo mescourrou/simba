@@ -437,7 +437,7 @@ use crate::gui::{
     UIComponent,
     utils::{string_combobox, text_singleline_with_apply},
 };
-use crate::utils::determinist_random_variable::RandomVariableTypeConfig;
+use crate::{physics::robot_models::Command, utils::determinist_random_variable::RandomVariableTypeConfig};
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
@@ -624,8 +624,10 @@ pub trait StateEstimator:
     /// ## Arguments
     /// * `node` -- mutable reference on the current [`Node`] to be able to interact with
     ///   other modules.
+    /// * `command` -- Command sent to the physics. Can be None at the first step or with
+    /// non-physical nodes (Computation Units).
     /// * `time` -- Time to reach.
-    fn prediction_step(&mut self, node: &mut Node, time: f32);
+    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32);
 
     /// Correction step of the state estimator.
     ///

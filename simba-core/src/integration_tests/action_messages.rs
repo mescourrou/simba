@@ -56,16 +56,10 @@ mod kill_node {
     use simba_com::pub_sub::PathKey;
 
     use crate::{
-        constants::TIME_ROUND,
-        networking::network::{Envelope, MessageFlag},
-        node::Node,
-        recordable::Recordable,
-        sensors::Observation,
-        state_estimators::{
+        constants::TIME_ROUND, networking::network::{Envelope, MessageFlag}, node::Node, physics::robot_models::Command, recordable::Recordable, sensors::Observation, state_estimators::{
             StateEstimator, StateEstimatorRecord, WorldState,
             external_estimator::ExternalEstimatorRecord,
-        },
-        utils::maths::round_precision,
+        }, utils::maths::round_precision
     };
 
     #[derive(Debug, Clone)]
@@ -99,7 +93,7 @@ mod kill_node {
             }
         }
 
-        fn prediction_step(&mut self, _node: &mut crate::node::Node, time: f32) {
+        fn prediction_step(&mut self, _node: &mut crate::node::Node, _command: Option<Command>, time: f32) {
             self.last_time = time;
         }
 
@@ -192,21 +186,13 @@ mod trigger_sensor {
     use simba_com::pub_sub::PathKey;
 
     use crate::{
-        constants::TIME_ROUND,
-        networking::network::{Envelope, Network},
-        node::Node,
-        plugin_api::PluginAPI,
-        recordable::Recordable,
-        sensors::{Observation, sensor_manager::SensorTriggerMessage},
-        simulator::SimulatorConfig,
-        state_estimators::{
+        constants::TIME_ROUND, networking::network::{Envelope, Network}, node::Node, physics::robot_models::Command, plugin_api::PluginAPI, recordable::Recordable, sensors::{Observation, sensor_manager::SensorTriggerMessage}, simulator::SimulatorConfig, state_estimators::{
             StateEstimator, StateEstimatorRecord, WorldState,
             external_estimator::ExternalEstimatorRecord,
-        },
-        utils::{
+        }, utils::{
             SharedMutex, SharedRwLock,
             determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
-        },
+        }
     };
     use std::{collections::VecDeque, str::FromStr, sync::Arc};
 
@@ -257,7 +243,7 @@ mod trigger_sensor {
             }
         }
 
-        fn prediction_step(&mut self, _node: &mut crate::node::Node, time: f32) {
+        fn prediction_step(&mut self, _node: &mut crate::node::Node, _command: Option<Command>, time: f32) {
             self.last_time = time;
         }
 

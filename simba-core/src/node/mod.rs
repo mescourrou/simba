@@ -19,6 +19,7 @@ use log::{debug, info};
 use crate::errors::{SimbaError, SimbaErrorTypes};
 use crate::networking;
 use crate::networking::network::MessageFlag;
+use crate::physics::robot_models::Command;
 use crate::simulator::SimbaBrokerMultiClient;
 use crate::state_estimators::State;
 use crate::time_analysis::TimeAnalysisNode;
@@ -112,6 +113,8 @@ pub struct Node {
     pub(self) node_meta_data: SharedRwLock<NodeMetaData>,
     pub(self) meta_data_list: Option<SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>>,
     pub(self) node_message_client: SimbaBrokerMultiClient,
+
+    pub(self) current_command: Option<Command>,
 }
 
 impl Node {
@@ -302,7 +305,7 @@ impl Node {
                     "control_loop_state_estimator_prediction_step".to_string(),
                 )
             });
-            state_estimator.write().unwrap().prediction_step(self, time);
+            state_estimator.write().unwrap().prediction_step(self, self.current_command.clone(), time);
             if let Some(time_analysis) = &self.time_analysis {
                 time_analysis
                     .lock()
@@ -331,7 +334,7 @@ impl Node {
                         .state_estimator
                         .write()
                         .unwrap()
-                        .prediction_step(self, time);
+                        .prediction_step(self, self.current_command.clone(), time);
                     if let Some(time_analysis) = &self.time_analysis {
                         time_analysis
                             .lock()
@@ -493,6 +496,7 @@ impl Node {
                 .write()
                 .unwrap()
                 .apply_command(&command, time);
+            self.current_command = Some(command);
         }
 
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {

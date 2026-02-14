@@ -8,7 +8,7 @@ use std::path::Path;
 
 use super::{State, WorldState, WorldStateRecord};
 use crate::{
-    constants::TIME_ROUND, errors::SimbaErrorTypes, networking::service_manager::ServiceError,
+    constants::TIME_ROUND, errors::SimbaErrorTypes, networking::service_manager::ServiceError, physics::robot_models::Command,
 };
 
 #[cfg(feature = "gui")]
@@ -224,7 +224,7 @@ use super::{StateEstimator, StateEstimatorRecord};
 use crate::node::Node;
 
 impl StateEstimator for PerfectEstimator {
-    fn prediction_step(&mut self, node: &mut Node, time: f32) {
+    fn prediction_step(&mut self, node: &mut Node, _command: Option<Command>, time: f32) {
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             error!("Error trying to update estimate too soon !");
             return;
