@@ -419,7 +419,10 @@ impl Node {
         }
         self.sync_with_others(time_cv, time);
 
-        if do_control_loop {
+        if do_control_loop
+            || (self.navigator().is_some() && time >= self.navigator().as_ref().unwrap().read().unwrap().next_time_step().unwrap_or(f32::INFINITY))
+            || (self.controller().is_some() && time >= self.controller().as_ref().unwrap().read().unwrap().next_time_step().unwrap_or(f32::INFINITY))
+        {
             let state_estimator = &self.state_estimator().unwrap();
             let world_state = state_estimator.read().unwrap().world_state();
 
