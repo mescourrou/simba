@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../config.schema.json
 log:
-  log_level: {type: Off}
+  log_level: {type: Debug}
     # type: Internal
     # value: [type: All]
 time_analysis:

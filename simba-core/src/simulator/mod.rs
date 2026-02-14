@@ -1244,9 +1244,6 @@ impl Simulator {
                     if waiting_nodes >= *running_parameters.nb_nodes.read().unwrap() {
                         running_parameters.barrier.add_one();
                         time_end_procedure = true;
-                        debug!(
-                            "All nodes waiting for end of time step procedure, starting procedure..."
-                        );
                         waiting_nodes = 0;
                     }
                     *lock = false;

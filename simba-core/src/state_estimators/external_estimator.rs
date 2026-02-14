@@ -125,7 +125,7 @@ impl std::fmt::Debug for ExternalEstimator {
 impl StateEstimator for ExternalEstimator {
     fn prediction_step(&mut self, node: &mut Node, time: f32) {
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
-            println!("Error trying to update estimate too soon !");
+            panic!("Error trying to update estimate too soon !");
             return;
         }
         self.state_estimator.prediction_step(node, time);

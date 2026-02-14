@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../config.schema.json
 log:
   log_level: #!Internal ["All"]
-    type: Info
+    type: Debug
 results:
   result_path: "../result.json"
   show_figures: true # Disabled for automatic testing
