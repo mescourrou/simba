@@ -122,9 +122,11 @@ impl PainterInfo {
 struct PrivateParams {
     server: SharedMutex<AsyncApiRunner>,
     api: SharedMutex<AsyncApi>,
+    plugin_api: Option<Arc<dyn PluginAPI>>,
     config: Option<SimulatorConfig>,
     current_draw_time: f32,
     robots: BTreeMap<String, drawables::robot::Robot>,
+    drawables: Vec<Box<dyn drawables::Drawable>>,
     playing: Option<(f32, std::time::Instant)>,
     simulation_run: bool,
     configurator: Option<Configurator>,
@@ -144,9 +146,11 @@ impl Default for PrivateParams {
         Self {
             server,
             api,
+            plugin_api: None,
             config: None,
             current_draw_time: 0.,
             robots: BTreeMap::new(),
+            drawables: Vec::new(),
             playing: None,
             simulation_run: false,
             configurator: None,
@@ -225,11 +229,12 @@ impl SimbaApp {
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
-        server.lock().unwrap().run(plugin_api);
+        server.lock().unwrap().run(plugin_api.clone());
         let mut n = Self {
             p: PrivateParams {
                 server,
                 api,
+                plugin_api,
                 ..Default::default()
             },
             ..Default::default()
@@ -268,9 +273,10 @@ impl SimbaApp {
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
-        server.lock().unwrap().run(plugin_api);
+        server.lock().unwrap().run(plugin_api.clone());
         self.p.server = server;
         self.p.api = api;
+        self.p.plugin_api = plugin_api;
         if let Some(config) = default_config_path {
             self.config_path = config.to_str().unwrap().to_string();
             self.p.config = None;
@@ -313,12 +319,24 @@ impl SimbaApp {
                 drawables::robot::Robot::init(robot, config),
             );
         }
+        if let Some(drawable) = self.p.plugin_api.as_ref().unwrap().get_drawable(config) {
+            self.p.drawables.push(drawable);
+        }
     }
 
     fn draw(&mut self, ui: &mut egui::Ui, viewport: Rect) -> Result<Vec<Shape>, Vec2> {
         let mut shapes = Vec::new();
         for robot in self.p.robots.values() {
             shapes.extend(robot.draw(
+                ui,
+                &viewport,
+                &self.p.painter_info,
+                self.drawing_scale,
+                self.p.current_draw_time,
+            )?);
+        }
+        for drawable in &self.p.drawables {
+            shapes.extend(drawable.draw(
                 ui,
                 &viewport,
                 &self.p.painter_info,
@@ -346,15 +364,26 @@ impl SimbaApp {
                 self.p.current_draw_time,
             );
         }
+
+        for drawable in self.p.drawables.iter_mut() {
+            drawable.react(
+                ui,
+                ctx,
+                response,
+                &self.p.painter_info,
+                self.drawing_scale,
+                self.p.current_draw_time,
+            );
+        }
     }
 
     fn add_result(&mut self, time: f32, node: NodeRecord) {
         let time = round_precision(time, TIME_ROUND).unwrap();
-        match node {
+        match &node {
             NodeRecord::ComputationUnit(_) => {}
             NodeRecord::Robot(n) => {
                 if let Some(r) = self.p.robots.get_mut(&n.name) {
-                    r.add_record(time, *n);
+                    r.add_record(time, *n.clone());
                 } else if let Some(config) = &self.p.config
                     && let Some(new_config) =
                         config.robots.iter().find(|rc| rc.name == n.model_name)
@@ -367,6 +396,9 @@ impl SimbaApp {
                     log::error!("Received record for unknown robot {}", n.name);
                 }
             }
+        }
+        for drawable in self.p.drawables.iter_mut() {
+            drawable.add_record(time, node.clone());
         }
         if time > self.p.current_max_time {
             self.p.current_max_time = time;

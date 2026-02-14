@@ -26,18 +26,11 @@ struct MyWonderfulNavigatorRecord {}
 struct MyWonderfulNavigatorConfig {}
 
 #[derive(Debug)]
-struct MyWonderfulNavigator {
-    letter_box_rx: SharedMutex<Receiver<Envelope>>,
-    letter_box_tx: Sender<Envelope>,
-}
+struct MyWonderfulNavigator {}
 
 impl MyWonderfulNavigator {
     pub fn from_config(_config: MyWonderfulNavigatorConfig, _initial_time: f32) -> Self {
-        let (tx, rx) = mpsc::channel();
-        Self {
-            letter_box_rx: Arc::new(Mutex::new(rx)),
-            letter_box_tx: tx,
-        }
+        Self {}
     }
 }
 
