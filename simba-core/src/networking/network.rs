@@ -307,8 +307,6 @@ impl Network {
                 debug!("Sending message to '{}': {:?}", key, message);
             }
             tmp_client.send(message, time);
-        } else {
-            warn!("Trying to send a message to '{}' that is not created", key);
         }
     }
 
@@ -330,8 +328,6 @@ impl Network {
                 debug!("Sending message to '{}': {:?}", key, message);
             }
             tmp_client.send(message, time);
-        } else {
-            warn!("Trying to send a message to '{}' that is not created", key);
         }
     }
 

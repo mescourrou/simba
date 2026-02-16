@@ -5,6 +5,7 @@ use std::{
 };
 
 use itertools::Itertools;
+use log::warn;
 use tree_ds::prelude::{AutomatedId, Node, TraversalStrategy, Tree};
 
 use crate::pub_sub::{
@@ -150,6 +151,8 @@ where
                 self.time_round,
             )),
         );
+        #[cfg(feature = "debug_mode")]
+        log::debug!("Adding channel for key: {}", key);
         let new_id = self
             .key_tree
             .add_node(
@@ -214,8 +217,16 @@ where
         node_id: NodeIdType,
         reception_delay: f32,
     ) -> Option<Client<MessageType>> {
-        self.get_channel(key)
-            .map(|mut channel| channel.client(node_id, reception_delay))
+        match self.get_channel(key)
+            .map(|mut channel| channel.client(node_id, reception_delay)) {
+            Some(client) => Some(client),
+            None => {
+                warn!("Trying to subscribe to channel '{}' that does not exist", key);
+                #[cfg(feature = "debug_mode")]
+                log::debug!("Available channels:\n{}", self.channels.keys().map(|k| format!("- {}", k)).join("\n"));
+                None
+            }
+        }
     }
 
     fn subscribe_to_meta(
@@ -391,6 +402,8 @@ where
         &self,
         client_condition_args: Option<&HashMap<NodeIdType, ConditionArgType>>,
     ) {
+        #[cfg(feature = "debug_mode")]
+        log::debug!("Processing messages for broker with {} channels", self.channels.len());
         for channel in self.channels.values() {
             channel.process_messages(client_condition_args);
         }

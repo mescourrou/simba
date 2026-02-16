@@ -419,8 +419,8 @@ impl SensorManager {
     pub fn handle_messages(&mut self, time: f32) {
         while let Some((path, envelope)) = self.message_client.as_ref().unwrap().try_receive(time) {
             debug!(
-                "Sensor Manager received message on path {:?} at time {}: {:?}",
-                path, envelope.timestamp, envelope.message
+                "Sensor Manager received message on path {:?} at time {}",
+                path, envelope.timestamp
             );
             if path
                 == self
@@ -555,7 +555,7 @@ impl SensorManager {
                         .write()
                         .unwrap()
                         .send_to(
-                            key_base.join_str(to).join_str(Self::OBSERVATION_CHANNEL),
+                            key_base.join_str(to).join_str(Self::CHANNEL_NAME).join_str(Self::OBSERVATION_CHANNEL),
                             Envelope {
                                 from: node.name(),
                                 message: obs_serialized,

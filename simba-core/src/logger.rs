@@ -73,6 +73,7 @@ impl From<LogLevel> for String {
 pub enum InternalLog {
     All,
     NetworkMessages,
+    NetworkMessagesDetailed,
     ServiceHandling,
     SetupSteps,
     SetupStepsDetailed,
