@@ -328,10 +328,10 @@ impl Simulator {
 
     pub fn reset(&mut self, plugin_api: Option<Arc<dyn PluginAPI>>) -> SimbaResult<()> {
         info!("Reset node");
+        self.network_manager.reset();
         self.meta_data_list.write().unwrap().clear();
         self.nodes = Vec::new();
         self.time_cv = Arc::new(TimeCv::new());
-        self.network_manager = NetworkManager::new();
         let config = self.config.clone();
         self.common_time = Arc::new(RwLock::new(f32::INFINITY));
 

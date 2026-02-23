@@ -5,7 +5,7 @@ Provide the Manager of the nodes [`Network`](crate::networking::network::Network
 
 use log::debug;
 use serde_json::Value;
-use simba_com::pub_sub::{BrokerTraitProcessing, PathBroker};
+use simba_com::pub_sub::{BrokerTrait, BrokerTraitProcessing, PathBroker};
 
 use crate::constants::TIME_ROUND;
 use crate::errors::SimbaResult;
@@ -47,6 +47,10 @@ impl NetworkManager {
         Self {
             broker: Arc::new(RwLock::new(PathBroker::new(TIME_ROUND))),
         }
+    }
+
+    pub fn reset(&mut self) {
+        self.broker.write().unwrap().clear_channels();
     }
 
     pub fn process_messages(

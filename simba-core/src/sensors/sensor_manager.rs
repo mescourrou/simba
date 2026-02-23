@@ -392,10 +392,12 @@ impl SensorManager {
                 .unwrap()
                 .subscribe_to(&[sensor_manager_key], None),
         );
-        debug!(
-            "Sensor Manager subscribed to channel {:?}",
-            manager.message_client.as_ref().unwrap().subscribed_keys()
-        );
+        if is_enabled(crate::logger::InternalLog::SensorManager) {
+            debug!(
+                "Sensor Manager subscribed to channel {:?}",
+                manager.message_client.as_ref().unwrap().subscribed_keys()
+            );
+        }
         manager.next_time = None;
         for sensor in &manager.sensors {
             manager.next_time = Some(

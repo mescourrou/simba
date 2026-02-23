@@ -14,7 +14,7 @@ use crate::{
     api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
     constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
     errors::{SimbaError, SimbaErrorTypes},
-    gui::{UIComponent, drawables::popup::Popup, panels::virtual_nodes::VirtualNodesPanel},
+    gui::{UIComponent, drawables::popup::Popup, panels::{broker::BrokerPanel, virtual_nodes::VirtualNodesPanel}},
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorConfig},
@@ -136,6 +136,7 @@ struct PrivateParams {
     popups: Vec<Popup>,
     record_buffer: SharedMutex<Vec<Record>>,
     virtual_nodes_panel: VirtualNodesPanel,
+    broker_panel: Option<BrokerPanel>,
     current_max_time: f32,
     drawable_instants: BTreeSet<OrderedF32>,
 }
@@ -161,6 +162,7 @@ impl Default for PrivateParams {
             popups: Vec::new(),
             record_buffer: Arc::new(Mutex::new(Vec::new())),
             virtual_nodes_panel: VirtualNodesPanel::new(),
+            broker_panel: None,
             current_max_time: 0.,
             drawable_instants: BTreeSet::new(),
         }
@@ -171,6 +173,7 @@ impl Default for PrivateParams {
 struct EnabledViews {
     configuration: bool,
     virtual_nodes: bool,
+    broker: bool,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -273,6 +276,7 @@ impl SimbaApp {
             n.p.api.lock().unwrap().load_results.async_call(None);
             n.p.simulation_run = true;
         }
+        n.p.broker_panel = Some(BrokerPanel::new(n.p.server.lock().unwrap().get_simulator().lock().unwrap().get_broker()));
         n
     }
 
@@ -312,6 +316,7 @@ impl SimbaApp {
             self.p.api.lock().unwrap().load_results.async_call(None);
             self.p.simulation_run = true;
         }
+        self.p.broker_panel = Some(BrokerPanel::new(self.p.server.lock().unwrap().get_simulator().lock().unwrap().get_broker()));
         self
     }
 
@@ -477,6 +482,7 @@ impl eframe::App for SimbaApp {
                     ui.menu_button("View", |ui| {
                         ui.checkbox(&mut self.enabled_views.configuration, "Configuration");
                         ui.checkbox(&mut self.enabled_views.virtual_nodes, "Virtual Nodes");
+                        ui.checkbox(&mut self.enabled_views.broker, "Communication Broker");
                     });
                     ui.add_space(16.0);
                     ui.menu_button("Help", |ui| {
@@ -703,19 +709,32 @@ impl eframe::App for SimbaApp {
         });
 
         egui::SidePanel::right("right-panel").show(ctx, |ui| {
-            if self.enabled_views.configuration {
-                egui::CollapsingHeader::new("Configuration").show(ui, |ui| {
-                    egui::ScrollArea::both().show(ui, |ui| {
-                        if let Some(cfg) = &self.p.config {
-                            let unique_id = String::new();
-                            cfg.show(ui, ctx, &unique_id);
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    if self.enabled_views.configuration {
+                        egui::CollapsingHeader::new("Configuration").show(ui, |ui| {
+                            egui::ScrollArea::both().show(ui, |ui| {
+                                if let Some(cfg) = &self.p.config {
+                                    let unique_id = String::new();
+                                    cfg.show(ui, ctx, &unique_id);
+                                }
+                            });
+                        });
+                    }
+                    if self.enabled_views.virtual_nodes {
+                        self.p.virtual_nodes_panel.draw(ui, ctx, "virtual_nodes_panel", self.p.current_draw_time);
+                    }
+                    if self.enabled_views.broker {
+                        if let Some(panel) = &mut self.p.broker_panel {
+                            panel.draw(ui, ctx, "broker_panel", self.p.current_draw_time);
+                        } else {
+                            ui.label("Broker information not available.");
                         }
-                    });
+                    }
                 });
-            }
-            if self.enabled_views.virtual_nodes {
-                self.p.virtual_nodes_panel.draw(ui, ctx, "virtual_nodes_panel", self.p.current_draw_time);
-            }
+                // Allow resizing the side panel by dragging
+                ui.take_available_width();
+            });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {

@@ -41,6 +41,8 @@ where
 
     fn remove_channel(&mut self, key: &KeyType);
 
+    fn clear_channels(&mut self);
+
     fn channel_exists(&self, key: &KeyType) -> bool;
 
     fn meta_exists(&self, key: &KeyType) -> bool;
@@ -167,6 +169,8 @@ where
         if self.key_to_node_id.contains_key(&key) {
             return;
         }
+        #[cfg(feature = "debug_mode")]
+        log::debug!("Adding meta channel for key: {}, parent: {:?}", key, parent_key);
         let parent_node_id = match parent_key {
             Some(parent_key) => self
                 .key_to_node_id
@@ -221,7 +225,11 @@ where
             .map(|mut channel| channel.client(node_id, reception_delay)) {
             Some(client) => Some(client),
             None => {
-                warn!("Trying to subscribe to channel '{}' that does not exist", key);
+                if self.meta_exists(key) {
+                    warn!("Trying to subscribe to channel '{}' which is a meta channel. Use `subscribe_to_meta` instead.", key);    
+                } else {
+                    warn!("Trying to subscribe to channel '{}' that does not exist", key);
+                }
                 #[cfg(feature = "debug_mode")]
                 log::debug!("Available channels:\n{}", self.channels.keys().map(|k| format!("- {}", k)).join("\n"));
                 None
@@ -261,6 +269,14 @@ where
 
     fn remove_channel(&mut self, key: &KeyType) {
         self.channels.remove(key);
+    }
+
+    fn clear_channels(&mut self) {
+        self.channels.clear();
+        self.key_to_node_id.clear();
+        self.key_tree = Tree::new(None);
+        let root = self.key_tree.add_node(Node::new_with_auto_id(Some(KeyType::default())), None);
+        self.key_to_node_id.insert(KeyType::default(), root.unwrap());
     }
 
     fn channel_exists(&self, key: &KeyType) -> bool {
@@ -421,10 +437,19 @@ where
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PathKey {
     path: Vec<String>,
     absolute: bool,
+}
+
+impl Default for PathKey {
+    fn default() -> Self {
+        Self {
+            absolute: true,
+            path: Vec::new(),
+        }
+    }
 }
 
 impl PathKey {
@@ -591,23 +616,28 @@ where
                 panic!("The new key should be a descendant of the parent key");
             }
         }
+        
         self.broker.add_metachannel(
             key.to_string(),
             key.parent().map(|k| k.to_string()).as_ref(),
+            // parent_key.map(|k| k.to_string()).as_ref(),
         );
     }
 
     fn add_subchannel(&mut self, key: PathKey, parent_key: &PathKey) {
+        assert!(parent_key.absolute(), "Only absolute keys can be used as parent keys");
         self.add_metachannel(parent_key.clone(), None);
         self.broker
             .add_subchannel(key.to_string(), &parent_key.to_string());
     }
 
     fn channel_exists(&self, key: &PathKey) -> bool {
+        assert!(key.absolute(), "Only absolute keys can be used to check channel existence");
         self.broker.channel_exists(&key.to_string())
     }
 
     fn meta_exists(&self, key: &PathKey) -> bool {
+        assert!(key.absolute(), "Only absolute keys can be used to check meta channel existence");
         self.broker.meta_exists(&key.to_string())
     }
 
@@ -628,11 +658,14 @@ where
             )
             .unwrap()
             .iter()
-            .map(|id| {
+            .filter_map(|id| {
                 let node = self.broker.key_tree.get_node_by_id(id).unwrap();
                 let key = PathKey::from_str(&node.get_value().unwrap().unwrap()).unwrap();
+                if key.len() == 0 {
+                    return None;
+                }
                 let parent_key = if let Ok(Some(parent_id)) = node.get_parent_id() {
-                    PathKey::from_str(
+                    let pkey = PathKey::from_str(
                         &self
                             .broker
                             .key_tree
@@ -642,18 +675,29 @@ where
                             .unwrap()
                             .unwrap(),
                     )
-                    .unwrap()
+                    .unwrap();
+                    if pkey.len() > 0 {
+                        pkey
+                    } else {
+                        // Force root key to be absolute
+                        PathKey::default()
+                    }
                 } else {
                     PathKey::default()
                 };
-                (key, parent_key)
+                Some((key, parent_key))
             })
             .unique()
             .collect()
     }
 
     fn remove_channel(&mut self, key: &PathKey) {
+        assert!(key.absolute(), "Only absolute keys can be used to remove a channel");
         self.broker.remove_channel(&key.to_string());
+    }
+
+    fn clear_channels(&mut self) {
+        self.broker.clear_channels();
     }
 
     fn subscribe_to(
@@ -674,7 +718,7 @@ where
     ) -> Result<(), String> {
         for key in keys {
             let key = multi_client.transform_key(key);
-            if let Some(client) =
+            if self.channel_exists(&key) && let Some(client) =
                 self.subscribe_to(&key, multi_client.node_id().clone(), reception_delay)
             {
                 multi_client.add_client(&key, client);
@@ -818,6 +862,10 @@ mod tests {
             vec!["hello".to_string(), "world".to_string(), "test".to_string()]
         );
         assert_eq!(key.to_string(), "/hello/world/test");
+
+        let key = PathKey::default();
+        assert!(key.absolute());
+        assert_eq!(key.to_string(), "/");
     }
 
     #[test]
