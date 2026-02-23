@@ -7,13 +7,14 @@ use std::{
 
 use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
+use simba_com::time_ordered_data::TimeOrderedData;
 
 use crate::{
     AUTHORS, VERSION,
     api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
     constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
     errors::{SimbaError, SimbaErrorTypes},
-    gui::{UIComponent, drawables::popup::Popup},
+    gui::{UIComponent, drawables::popup::Popup, panels::virtual_nodes::VirtualNodesPanel},
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorConfig},
@@ -134,6 +135,7 @@ struct PrivateParams {
     painter_info: PainterInfo,
     popups: Vec<Popup>,
     record_buffer: SharedMutex<Vec<Record>>,
+    virtual_nodes_panel: VirtualNodesPanel,
     current_max_time: f32,
     drawable_instants: BTreeSet<OrderedF32>,
 }
@@ -158,10 +160,17 @@ impl Default for PrivateParams {
             painter_info: PainterInfo::default(),
             popups: Vec::new(),
             record_buffer: Arc::new(Mutex::new(Vec::new())),
+            virtual_nodes_panel: VirtualNodesPanel::new(),
             current_max_time: 0.,
             drawable_instants: BTreeSet::new(),
         }
     }
+}
+
+#[derive(Deserialize, Serialize, Default)]
+struct EnabledViews {
+    configuration: bool,
+    virtual_nodes: bool,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -176,6 +185,7 @@ pub struct SimbaApp {
     p: PrivateParams,
     drawing_scale: f32,
     follow_sim_time: bool,
+    enabled_views: EnabledViews,
 }
 
 impl Default for SimbaApp {
@@ -194,6 +204,7 @@ impl Default for SimbaApp {
             },
             drawing_scale: 100.,
             follow_sim_time: true,
+            enabled_views: EnabledViews::default(),
         }
     }
 }
@@ -319,7 +330,7 @@ impl SimbaApp {
                 drawables::robot::Robot::init(robot, config),
             );
         }
-        if let Some(drawable) = self.p.plugin_api.as_ref().unwrap().get_drawable(config) {
+        if let Some(plugin_api) = &self.p.plugin_api && let Some(drawable) = plugin_api.get_drawable(config) {
             self.p.drawables.push(drawable);
         }
     }
@@ -380,7 +391,9 @@ impl SimbaApp {
     fn add_result(&mut self, time: f32, node: NodeRecord) {
         let time = round_precision(time, TIME_ROUND).unwrap();
         match &node {
-            NodeRecord::ComputationUnit(_) => {}
+            NodeRecord::ComputationUnit(rec) => {
+                self.p.virtual_nodes_panel.add_record(rec.name.clone(), time, node.clone());
+            }
             NodeRecord::Robot(n) => {
                 if let Some(r) = self.p.robots.get_mut(&n.name) {
                     r.add_record(time, *n.clone());
@@ -459,6 +472,11 @@ impl eframe::App for SimbaApp {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                             self.quit();
                         }
+                    });
+                    ui.add_space(16.0);
+                    ui.menu_button("View", |ui| {
+                        ui.checkbox(&mut self.enabled_views.configuration, "Configuration");
+                        ui.checkbox(&mut self.enabled_views.virtual_nodes, "Virtual Nodes");
                     });
                     ui.add_space(16.0);
                     ui.menu_button("Help", |ui| {
@@ -685,14 +703,19 @@ impl eframe::App for SimbaApp {
         });
 
         egui::SidePanel::right("right-panel").show(ctx, |ui| {
-            egui::CollapsingHeader::new("Configuration").show(ui, |ui| {
-                egui::ScrollArea::both().show(ui, |ui| {
-                    if let Some(cfg) = &self.p.config {
-                        let unique_id = String::new();
-                        cfg.show(ui, ctx, &unique_id);
-                    }
+            if self.enabled_views.configuration {
+                egui::CollapsingHeader::new("Configuration").show(ui, |ui| {
+                    egui::ScrollArea::both().show(ui, |ui| {
+                        if let Some(cfg) = &self.p.config {
+                            let unique_id = String::new();
+                            cfg.show(ui, ctx, &unique_id);
+                        }
+                    });
                 });
-            });
+            }
+            if self.enabled_views.virtual_nodes {
+                self.p.virtual_nodes_panel.draw(ui, ctx, "virtual_nodes_panel", self.p.current_draw_time);
+            }
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {

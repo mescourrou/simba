@@ -108,6 +108,16 @@ pub enum NodeRecord {
     ComputationUnit(ComputationUnitRecord),
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for NodeRecord {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        match &self {
+            Self::Robot(robot_record) => robot_record.show(ui, ctx, unique_id),
+            Self::ComputationUnit(cu_record) => cu_record.show(ui, ctx, unique_id),
+        }
+    }
+}
+
 impl NodeRecord {
     pub fn as_node_type(&self) -> NodeType {
         match &self {

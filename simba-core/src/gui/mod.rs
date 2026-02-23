@@ -7,6 +7,7 @@ mod configurator;
 mod drawables;
 pub use drawables::Drawable;
 pub mod utils;
+mod panels;
 
 use crate::{
     plugin_api::PluginAPI,
