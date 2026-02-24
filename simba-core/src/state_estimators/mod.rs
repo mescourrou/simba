@@ -617,6 +617,10 @@ use crate::sensors::Observation;
 pub trait StateEstimator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<StateEstimatorRecord>
 {
+    fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
+        Ok(())
+    }
+
     /// Prediction step of the state estimator.
     ///
     /// The prediction step should be able to compute the state of the node at the given time.

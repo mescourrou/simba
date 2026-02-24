@@ -12,10 +12,7 @@ use std::{
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
-    navigators::{Navigator, NavigatorRecord},
-    networking::network::Network,
-    simulator::SimbaBrokerMultiClient,
-    utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff},
+    errors::SimbaResult, navigators::{Navigator, NavigatorRecord}, networking::network::Network, simulator::SimbaBrokerMultiClient, utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff}
 };
 
 extern crate nalgebra as na;
@@ -244,6 +241,10 @@ use crate::node::Node;
 use crate::state_estimators::WorldState;
 
 impl Navigator for GoTo {
+    fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
+        Ok(())
+    }
+
     /// Compute the error between the given `state` and the target point.
     ///
     fn compute_error(&mut self, _robot: &mut Node, world_state: WorldState) -> ControllerError {

@@ -450,8 +450,16 @@ impl Default for RobotSensor {
 use crate::node::Node;
 
 impl Sensor for RobotSensor {
-    fn init(&mut self, _node: &mut Node, _initial_time: f32) {}
-
+    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> crate::errors::SimbaResult<()> {
+        for filter in self.filters.lock().unwrap().iter_mut() {
+            filter.post_init(node, initial_time)?;
+        }
+        for fault_model in self.faults.lock().unwrap().iter_mut() {
+            fault_model.post_init(node, initial_time)?;
+        }
+        Ok(())
+    }
+    
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
         if (time - self.last_time).abs() < TIME_ROUND {

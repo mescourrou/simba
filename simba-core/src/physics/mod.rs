@@ -154,7 +154,7 @@ impl UIComponent for PhysicsRecord {
 }
 
 use crate::{
-    errors::SimbaResult, networking::service::HasService, node::node_factory::FromConfigArguments,
+    errors::SimbaResult, networking::service::HasService, node::{Node, node_factory::FromConfigArguments},
     physics::robot_models::Command, recordable::Recordable, simulator::SimulatorConfig,
     state_estimators::State, utils::SharedRwLock,
 };
@@ -183,6 +183,10 @@ pub trait Physics:
     + Recordable<PhysicsRecord>
     + HasService<GetRealStateReq, GetRealStateResp>
 {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        Ok(())
+    }
+
     /// Apply the given `command` to the internal state from the last update time
     /// to the given `time`
     ///

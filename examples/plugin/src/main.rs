@@ -3,6 +3,7 @@ use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use simba::controllers::external_controller::ExternalControllerRecord;
 use simba::controllers::{Controller, ControllerError, ControllerRecord};
+use simba::errors::SimbaResult;
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::{Navigator, NavigatorRecord};
 use simba::networking::network::{Envelope, Network};
@@ -276,8 +277,9 @@ impl MyWonderfulSensor {
 }
 
 impl Sensor for MyWonderfulSensor {
-    fn init(&mut self, node: &mut Node, _initial_time: f32) {
+    fn post_init(&mut self, node: &mut Node, _initial_time: f32) -> SimbaResult<()> {
         println!("Initializing MyWonderfulSensor for node {}", node.name());
+        Ok(())
     }
 
     fn get_observations(&mut self, _node: &mut Node, time: f32) -> Vec<SensorObservation> {

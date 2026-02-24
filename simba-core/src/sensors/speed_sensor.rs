@@ -11,6 +11,7 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
@@ -261,16 +262,23 @@ impl Default for SpeedSensor {
 use crate::node::Node;
 
 impl Sensor for SpeedSensor {
-    fn init(&mut self, robot: &mut Node, initial_time: f32) {
-        self.last_state = robot
+    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
+        self.last_state = node
             .physics()
             .expect("Node with Speed sensor should have Physics")
             .read()
             .unwrap()
             .state(initial_time)
             .clone();
+        for filter in self.filters.lock().unwrap().iter_mut() {
+            filter.post_init(node, initial_time)?;
+        }
+        for fault_model in self.faults.lock().unwrap().iter_mut() {
+            fault_model.post_init(node, initial_time)?;
+        }
+        Ok(())
     }
-
+    
     fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
         if (time - self.last_time).abs() < TIME_ROUND {

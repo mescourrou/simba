@@ -6,25 +6,26 @@ use serde_json::Value;
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    controllers::external_controller::ExternalControllerRecord,
-    logger::is_enabled,
-    node::Node,
-    physics::robot_models::Command,
-    pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
-    recordable::Recordable,
-    utils::python::{call_py_method, call_py_method_void},
+    controllers::external_controller::ExternalControllerRecord, errors::SimbaResult, logger::is_enabled, node::Node, physics::robot_models::Command, pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper}, recordable::Recordable, utils::python::{call_py_method, call_py_method_void}
 };
 
 use super::{Controller, ControllerError, ControllerRecord};
 
 #[derive(Debug, Clone)]
 pub struct PythonControllerAsyncClient {
-    pub make_command: RemoteFunctionCall<(NodeWrapper, ControllerError, f32), Command>,
-    pub record: RemoteFunctionCall<(), ControllerRecord>,
-    pub pre_loop_hook: RemoteFunctionCall<(NodeWrapper, f32), ()>,
+    post_init: RemoteFunctionCall<NodeWrapper, SimbaResult<()>>,
+    make_command: RemoteFunctionCall<(NodeWrapper, ControllerError, f32), Command>,
+    record: RemoteFunctionCall<(), ControllerRecord>,
+    pre_loop_hook: RemoteFunctionCall<(NodeWrapper, f32), ()>,
+    next_time_step: RemoteFunctionCall<(), Option<f32>>,
 }
 
 impl Controller for PythonControllerAsyncClient {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        let node_py = NodeWrapper::from_rust(node);
+        self.post_init.call(node_py).unwrap()
+    }
+
     fn make_command(&mut self, node: &mut Node, error: &ControllerError, time: f32) -> Command {
         let node_py = NodeWrapper::from_rust(node);
         self.make_command
@@ -35,6 +36,10 @@ impl Controller for PythonControllerAsyncClient {
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
         let node_py = NodeWrapper::from_rust(node);
         self.pre_loop_hook.call((node_py, time)).unwrap()
+    }
+
+    fn next_time_step(&self) -> Option<f32> {
+        self.next_time_step.call(()).unwrap()
     }
 }
 
@@ -48,9 +53,11 @@ impl Recordable<ControllerRecord> for PythonControllerAsyncClient {
 pub struct PythonController {
     model: Py<PyAny>,
     client: PythonControllerAsyncClient,
+    post_init: Arc<RemoteFunctionCallHost<NodeWrapper, SimbaResult<()>>>,
     make_command: Arc<RemoteFunctionCallHost<(NodeWrapper, ControllerError, f32), Command>>,
     record: Arc<RemoteFunctionCallHost<(), ControllerRecord>>,
     pre_loop_hook: Arc<RemoteFunctionCallHost<(NodeWrapper, f32), ()>>,
+    next_time_step: Arc<RemoteFunctionCallHost<(), Option<f32>>>,
 }
 
 impl PythonController {
@@ -61,19 +68,25 @@ impl PythonController {
             });
         }
 
+        let (post_init_client, post_init_host) = rfc::make_pair();
         let (make_command_client, make_command_host) = rfc::make_pair();
         let (record_client, record_host) = rfc::make_pair();
         let (pre_loop_hook_client, pre_loop_hook_host) = rfc::make_pair();
+        let (next_time_step_client, next_time_step_host) = rfc::make_pair();
 
         PythonController {
             model: py_model,
             client: PythonControllerAsyncClient {
+                post_init: post_init_client,
                 make_command: make_command_client,
                 record: record_client,
                 pre_loop_hook: pre_loop_hook_client,
+                next_time_step: next_time_step_client,
             },
+            post_init: Arc::new(post_init_host),
             make_command: Arc::new(make_command_host),
             record: Arc::new(record_host),
+            next_time_step: Arc::new(next_time_step_host),
             pre_loop_hook: Arc::new(pre_loop_hook_host),
         }
     }
@@ -85,6 +98,9 @@ impl PythonController {
     }
 
     pub fn check_requests(&mut self) {
+        self.post_init
+            .clone()
+            .try_recv_closure_mut(|node| self.post_init(node));
         self.make_command
             .clone()
             .try_recv_closure_mut(|(node, error, time)| self.make_command(node, &error, time));
@@ -92,6 +108,17 @@ impl PythonController {
         self.pre_loop_hook
             .clone()
             .try_recv_closure_mut(|(node, time)| self.pre_loop_hook(node, time));
+        self.next_time_step
+            .clone()
+            .try_recv_closure(|()| self.next_time_step());
+    }
+
+    fn post_init(&mut self, node: NodeWrapper) -> SimbaResult<()> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of post_init");
+        }
+        call_py_method_void!(self.model, "post_init", (node,));
+        Ok(())
     }
 
     fn make_command(&mut self, node: NodeWrapper, error: &ControllerError, time: f32) -> Command {
@@ -131,6 +158,13 @@ impl PythonController {
         }
         call_py_method_void!(self.model, "pre_loop_hook", node, time);
     }
+
+    fn next_time_step(&self) -> Option<f32> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of next_time_step");
+        }
+        call_py_method!(self.model, "next_time_step", Option<f32>,)
+    }
 }
 
 #[pyclass(subclass)]
@@ -143,6 +177,8 @@ impl ControllerWrapper {
     pub fn new(_config: Py<PyAny>, _initial_time: f32) -> ControllerWrapper {
         Self {}
     }
+
+    fn post_init(&mut self, _node: NodeWrapper) {}
 
     fn make_command(
         &mut self,
@@ -159,5 +195,9 @@ impl ControllerWrapper {
 
     fn pre_loop_hook(&mut self, _node: NodeWrapper, _time: f32) {
         unimplemented!()
+    }
+
+    fn next_time_step(&self) -> Option<f32> {
+        None
     }
 }

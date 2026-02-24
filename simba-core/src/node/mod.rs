@@ -10,7 +10,7 @@ use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::EnumToString;
 
 use core::f32;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use std::sync::Arc;
 
@@ -20,6 +20,7 @@ use crate::errors::{SimbaError, SimbaErrorTypes};
 use crate::networking;
 use crate::networking::network::MessageFlag;
 use crate::physics::robot_models::Command;
+use crate::sensors::sensor_manager;
 use crate::simulator::SimbaBrokerMultiClient;
 use crate::state_estimators::State;
 use crate::time_analysis::TimeAnalysisNode;
@@ -111,7 +112,7 @@ pub struct Node {
     pub(self) send_records: bool,
 
     pub(self) node_meta_data: SharedRwLock<NodeMetaData>,
-    pub(self) meta_data_list: Option<SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>>,
+    pub(self) meta_data_list: Option<SharedRoLock<HashMap<String, SharedRoLock<NodeMetaData>>>>,
     pub(self) node_message_client: SimbaBrokerMultiClient,
 
     pub(self) current_command: Option<Command>,
@@ -124,7 +125,7 @@ impl Node {
     pub fn post_creation_init(
         &mut self,
         service_manager_list: &BTreeMap<String, SharedRwLock<ServiceManager>>,
-        meta_data_list: SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>,
+        meta_data_list: SharedRoLock<HashMap<String, SharedRoLock<NodeMetaData>>>,
         initial_time: f32,
     ) -> NodeClient {
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
@@ -135,9 +136,6 @@ impl Node {
             .write()
             .unwrap()
             .make_links(service_manager_list, self);
-        if let Some(sensor_manager) = self.sensor_manager() {
-            sensor_manager.write().unwrap().init(self, initial_time);
-        }
 
         self.other_node_names = service_manager_list
             .iter()
@@ -150,43 +148,33 @@ impl Node {
             })
             .collect();
 
-        // if let Some(network) = &self.network {
-        //     if let Some(sensor_manager) = &self.sensor_manager {
-        //         network
-        //             .write()
-        //             .unwrap()
-        //             .subscribe(sensor_manager.read().unwrap().get_letter_box());
-        //     }
-        //     if let Some(state_estimator) = &self.state_estimator {
-        //         network
-        //             .write()
-        //             .unwrap()
-        //             .subscribe(state_estimator.read().unwrap().get_letter_box());
-        //     }
-        //     if let Some(state_estimator_bench) = &self.state_estimator_bench {
-        //         for state_estimator in state_estimator_bench.read().unwrap().iter() {
-        //             network.write().unwrap().subscribe(
-        //                 state_estimator
-        //                     .state_estimator
-        //                     .read()
-        //                     .unwrap()
-        //                     .get_letter_box(),
-        //             );
-        //         }
-        //     }
-        //     if let Some(navigator) = &self.navigator {
-        //         network
-        //             .write()
-        //             .unwrap()
-        //             .subscribe(navigator.read().unwrap().get_letter_box());
-        //     }
-        //     if let Some(controller) = &self.controller {
-        //         network
-        //             .write()
-        //             .unwrap()
-        //             .subscribe(controller.read().unwrap().get_letter_box());
-        //     }
-        // }
+        if let Some(physics) = self.physics() {
+            physics.write().unwrap().post_init(self).unwrap();
+        }
+        if let Some(state_estimator) = self.state_estimator() {
+            state_estimator.write().unwrap().post_init(self).unwrap();
+        }
+        if let Some(state_estimator_bench) = self.state_estimator_bench.clone() {
+            for state_estimator in state_estimator_bench.read().unwrap().iter() {
+                state_estimator
+                    .state_estimator
+                    .write()
+                    .unwrap()
+                    .post_init(self)
+                    .unwrap();
+            }
+        }
+        if let Some(sensor_manager) = self.sensor_manager() {
+            sensor_manager.write().unwrap().post_init(self, initial_time).unwrap();
+        }
+        if let Some(navigator) = self.navigator() {
+            navigator.write().unwrap().post_init(self).unwrap();
+        }
+        if let Some(controller) = self.controller() {
+            controller.write().unwrap().post_init(self).unwrap();
+        }
+        
+
         let (node_server, node_client) =
             internal_api::make_node_api(&self.node_meta_data.read().unwrap().node_type);
         self.node_server = Some(node_server);
@@ -797,8 +785,8 @@ impl Node {
 
     pub fn meta_data_list(
         &self,
-    ) -> Option<SharedRoLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>> {
-        self.meta_data_list.as_ref().cloned()
+    ) -> Option<SharedRoLock<HashMap<String, SharedRoLock<NodeMetaData>>>> {
+        self.meta_data_list.clone() as Option<Arc<dyn RoLock<HashMap<String, SharedRoLock<NodeMetaData>>>>>
     }
 
     pub fn pre_kill(&mut self) {

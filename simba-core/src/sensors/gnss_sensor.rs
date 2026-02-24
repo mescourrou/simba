@@ -255,7 +255,15 @@ impl Default for GNSSSensor {
 use crate::node::Node;
 
 impl Sensor for GNSSSensor {
-    fn init(&mut self, _robot: &mut Node, _initial_time: f32) {}
+    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> crate::errors::SimbaResult<()> {
+        for filter in self.filters.lock().unwrap().iter_mut() {
+            filter.post_init(node, initial_time)?;
+        }
+        for fault_model in self.faults.lock().unwrap().iter_mut() {
+            fault_model.post_init(node, initial_time)?;
+        }
+        Ok(())
+    }
 
     fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();

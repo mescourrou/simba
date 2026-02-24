@@ -7,14 +7,12 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use crate::{
-    physics::{
+    errors::SimbaResult, physics::{
         fault_models::additive_robot_centered::{
             AdditiveRobotCenteredPhysicsFault, AdditiveRobotCenteredPhysicsFaultConfig,
         },
         robot_models::RobotModelConfig,
-    },
-    state_estimators::State,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    }, state_estimators::State, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 
 #[config_derives]
@@ -164,5 +162,8 @@ pub fn make_physics_fault_model_from_config(
 }
 
 pub trait PhysicsFaultModel: Debug + Sync + Send {
+    fn post_init(&mut self, _node: &mut crate::node::Node) -> SimbaResult<()> {
+        Ok(())
+    }
     fn add_faults(&self, time: f32, state: &mut State);
 }

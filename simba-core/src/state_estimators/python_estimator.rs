@@ -106,6 +106,15 @@ impl std::fmt::Debug for PythonEstimator {
 }
 
 impl StateEstimator for PythonEstimator {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of post_init");
+        }
+        let node_py = NodeWrapper::from_rust(node);
+        call_py_method_void!(self.state_estimator, "post_init", (node_py,));
+        Ok(())
+    }
+
     fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");

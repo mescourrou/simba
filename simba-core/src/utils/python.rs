@@ -213,7 +213,7 @@ macro_rules! call_py_method {
         ) {
             Err(e) => {
                 e.display(py);
-                panic!("Error while calling '{}' method of PythonController.", $method_name);
+                panic!("Error while calling '{}' method of {:?}.", $method_name, stringify!($instance));
             }
             Ok(r) => r
                 .extract()
@@ -237,7 +237,7 @@ macro_rules! call_py_method_void {
             None,
         ) {
             res.display(py);
-            panic!("Error while calling '{}' method of PythonController.", $method_name);
+            panic!("Error while calling '{}' method of {:?}.", $method_name, stringify!($instance));
         }
     })
     }

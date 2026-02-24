@@ -7,12 +7,10 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::{
-    sensors::{
+    errors::SimbaResult, sensors::{
         SensorObservation,
         fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig},
-    },
-    simulator::SimulatorConfig,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    }, simulator::SimulatorConfig, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 
 use super::{
@@ -273,6 +271,10 @@ pub fn make_fault_model_from_config(
 }
 
 pub trait FaultModel: Debug + Sync + Send {
+    fn post_init(&mut self, _node: &mut crate::node::Node, _initial_time: f32) -> SimbaResult<()> {
+        Ok(())
+    }
+
     fn add_faults(
         &mut self,
         time: f32,

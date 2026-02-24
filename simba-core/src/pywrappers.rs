@@ -1,5 +1,5 @@
 #![allow(clippy::useless_conversion)]
-use std::{collections::BTreeMap, str::FromStr, sync::Arc};
+use std::{collections::BTreeMap, str::FromStr, sync::{Arc, RwLock, Weak}};
 
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::{exceptions::PyTypeError, prelude::*};
@@ -17,7 +17,7 @@ use crate::{
     navigators::pybinds::NavigatorWrapper,
     networking::{
         MessageTypes,
-        network::{Envelope, MessageFlag},
+        network::{Envelope, MessageFlag, Network},
     },
     node::Node,
     physics::{
@@ -33,7 +33,7 @@ use crate::{
     },
     simulator::{AsyncSimulator, SimbaBrokerMultiClient, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
-    utils::occupancy_grid::OccupancyGrid,
+    utils::{SharedRwLock, occupancy_grid::OccupancyGrid},
 };
 
 #[derive(Clone, Debug)]
@@ -919,13 +919,14 @@ pub struct EnvelopeWrapper {
 #[pyclass]
 #[pyo3(name = "Node")]
 pub struct NodeWrapper {
-    node: Arc<Node>,
+    name: String,
+    network: Option<Weak<RwLock<Network>>>,
 }
 
 #[pymethods]
 impl NodeWrapper {
     pub fn name(&self) -> String {
-        self.node.name()
+        self.name.clone()
     }
 
     #[pyo3(signature = (to, message, time, flags=Vec::new()))]
@@ -937,7 +938,7 @@ impl NodeWrapper {
         time: f32,
         flags: Vec<MessageFlag>,
     ) -> PyResult<()> {
-        if let Some(network) = &self.node.network() {
+        if let Some(network) = self.network.as_ref().and_then(|n| n.upgrade()) {
             let msg = match message {
                 MessageTypes::String(s) => serde_json::to_value(s),
                 MessageTypes::GoTo(m) => serde_json::to_value(m),
@@ -946,7 +947,7 @@ impl NodeWrapper {
             .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
             let key = PathKey::from_str(to.as_str()).unwrap();
             let msg = Envelope {
-                from: self.node.name(),
+                from: self.name.clone(),
                 message: msg,
                 timestamp: time,
                 message_flags: flags,
@@ -959,7 +960,7 @@ impl NodeWrapper {
     }
 
     pub fn subscribe(&self, topics: Vec<String>) -> PyResult<MultiClientWrapper> {
-        if let Some(network) = &self.node.network() {
+        if let Some(network) = &self.network.as_ref().and_then(|n| n.upgrade()) {
             let keys = topics
                 .iter()
                 .map(|t| PathKey::from_str(t.as_str()).unwrap())
@@ -972,7 +973,7 @@ impl NodeWrapper {
     }
 
     pub fn make_channel(&self, channel_name: String) -> PyResult<()> {
-        if let Some(network) = &self.node.network() {
+        if let Some(network) = &self.network.as_ref().and_then(|n| n.upgrade()) {
             let key = PathKey::from_str(channel_name.as_str()).unwrap();
             network.write().unwrap().make_channel(key);
             Ok(())
@@ -985,11 +986,8 @@ impl NodeWrapper {
 impl NodeWrapper {
     pub fn from_rust(n: &Node) -> Self {
         Self {
-            // I did not find another solution.
-            // Relatively safe as Nodes lives very long, almost all the time
-            // For API usage
-            #[allow(clippy::borrow_deref_ref)]
-            node: unsafe { Arc::from_raw(&*n) },
+            name: n.name(),
+            network: n.network().as_ref().map(|net| Arc::downgrade(net)),
         }
     }
 }

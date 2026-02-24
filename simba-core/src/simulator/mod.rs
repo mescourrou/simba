@@ -79,7 +79,7 @@ use std::{
     fs::OpenOptions,
     io::SeekFrom,
     path::{Path, PathBuf},
-    thread::JoinHandle,
+    thread::JoinHandle, time::Duration,
 };
 use std::{collections::BTreeMap, ffi::CString};
 
@@ -250,7 +250,7 @@ pub struct Simulator {
     scenario: SharedMutex<Scenario>,
     plugin_api: Option<Arc<dyn PluginAPI>>,
     service_managers: BTreeMap<String, SharedRwLock<ServiceManager>>,
-    meta_data_list: SharedRwLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>,
+    meta_data_list: SharedRwLock<HashMap<String, SharedRoLock<NodeMetaData>>>,
 }
 
 impl Simulator {
@@ -285,7 +285,7 @@ impl Simulator {
             ))),
             plugin_api: None,
             service_managers: BTreeMap::new(),
-            meta_data_list: Arc::new(RwLock::new(BTreeMap::new())),
+            meta_data_list: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -712,13 +712,18 @@ impl Simulator {
                 broker: &self.network_manager.broker(),
             },
         )?;
+        let meta_data = node.meta_data();
+        let name = meta_data.read().unwrap().name.clone();
+        self.meta_data_list.write().unwrap().insert(name.clone(), meta_data);
+        
         node.set_state(NodeState::Running);
         self.service_managers
-            .insert(node.name(), node.service_manager());
+            .insert(name.clone(), node.service_manager());
         self.node_apis.insert(
-            node.name(),
+            name.clone(),
             node.post_creation_init(&self.service_managers, self.meta_data_list.clone(), time),
         );
+        
         self.spawn_node(node, running_parameters)
     }
 
@@ -1199,6 +1204,7 @@ impl Simulator {
             if *time_cv.force_finish.lock().unwrap() {
                 return Ok(());
             }
+            
 
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!(

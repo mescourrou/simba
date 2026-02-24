@@ -122,6 +122,10 @@ impl std::fmt::Debug for ExternalController {
 }
 
 impl Controller for ExternalController {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        self.controller.post_init(node)
+    }
+
     fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command {
         self.controller.make_command(robot, error, time)
     }

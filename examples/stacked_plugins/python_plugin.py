@@ -16,6 +16,9 @@ class StateEstimator(simba.StateEstimator):
 
         self._state = 0
 
+    def post_init(self, node: simba.Node) -> None:
+        pass
+
     def state(self) -> simba.WorldState:
         world_state = simba.WorldState()
         world_state.ego = simba.State()
@@ -33,7 +36,7 @@ class StateEstimator(simba.StateEstimator):
             "period": self.period,
             "state": self._state})
 
-    def prediction_step(self, node: simba.Node, time: float):
+    def prediction_step(self, node: simba.Node, command: simba.Command, time: float):
         print(f"Doing prediction step in {self.filter_name}")
         self._state += 1
         self.last_time = time

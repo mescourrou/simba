@@ -17,8 +17,8 @@ use crate::{
     gui::{UIComponent, drawables::popup::Popup, panels::{broker::BrokerPanel, virtual_nodes::VirtualNodesPanel}},
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
-    simulator::{Record, Simulator, SimulatorConfig},
-    utils::{SharedMutex, maths::round_precision, numbers::OrderedF32},
+    simulator::{Record, SimbaBroker, Simulator, SimulatorConfig},
+    utils::{SharedMutex, SharedRoLock, maths::round_precision, numbers::OrderedF32},
 };
 
 use super::{
@@ -276,7 +276,7 @@ impl SimbaApp {
             n.p.api.lock().unwrap().load_results.async_call(None);
             n.p.simulation_run = true;
         }
-        n.p.broker_panel = Some(BrokerPanel::new(n.p.server.lock().unwrap().get_simulator().lock().unwrap().get_broker()));
+        n.p.broker_panel = Some(BrokerPanel::new(n.p.server.lock().unwrap().get_simulator().lock().unwrap().get_broker() as SharedRoLock<SimbaBroker>));
         n
     }
 
@@ -316,7 +316,7 @@ impl SimbaApp {
             self.p.api.lock().unwrap().load_results.async_call(None);
             self.p.simulation_run = true;
         }
-        self.p.broker_panel = Some(BrokerPanel::new(self.p.server.lock().unwrap().get_simulator().lock().unwrap().get_broker()));
+        self.p.broker_panel = Some(BrokerPanel::new(self.p.server.lock().unwrap().get_simulator().lock().unwrap().get_broker() as SharedRoLock<SimbaBroker>));
         self
     }
 

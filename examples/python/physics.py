@@ -17,6 +17,9 @@ class Physics(simba.Physics):
         if "initial_state" in config:
             self.curr_state = np.array(config["initial_state"])
 
+    def post_init(self, node: simba.Node) -> None:
+        pass
+
     def record(self) -> str:
         print("This is record from python!")
         return json.dumps({
@@ -63,6 +66,8 @@ class Physics(simba.Physics):
         state.velocity.x = self.curr_state[3]
         return state
 
+    def next_time_step(self):
+        return None
 
 class SimulatorAPI(simba.PluginAPI):
     def get_physics(self, config: dict, global_config: dict, initial_time: float):

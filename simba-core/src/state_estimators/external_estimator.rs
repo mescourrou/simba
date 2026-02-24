@@ -124,6 +124,10 @@ impl std::fmt::Debug for ExternalEstimator {
 }
 
 impl StateEstimator for ExternalEstimator {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        self.state_estimator.post_init(node)
+    }
+
     fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32) {
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
             log::error!("Error trying to update estimate too soon !");

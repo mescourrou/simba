@@ -15,6 +15,9 @@ class Navigator(simba.Navigator):
             self.velocity = config["velocity"]
         else:
             self.velocity = 10
+    
+    def post_init(self, node: simba.Node) -> None:
+        pass
 
     def record(self) -> str:
         print("This is record from python!")
@@ -39,6 +42,8 @@ class Navigator(simba.Navigator):
     def pre_loop_hook(self, node: simba.Node, time: float):
         pass
     
+    def next_time_step(self):
+        return None
 
 class SimulatorAPI(simba.PluginAPI):
     def get_navigator(self, config: dict, global_config: dict, initial_time: float):

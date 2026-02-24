@@ -1,14 +1,10 @@
 use pyo3::prelude::*;
 
 use crate::{
-    errors::SimbaResult,
-    pywrappers::SensorObservationWrapper,
-    sensors::{SensorObservation, fault_models::fault_model::FaultModel},
-    simulator::SimulatorConfig,
-    utils::{
+    errors::SimbaResult, node::Node, pywrappers::{NodeWrapper, SensorObservationWrapper}, sensors::{SensorObservation, fault_models::fault_model::FaultModel}, simulator::SimulatorConfig, utils::{
         macros::python_class_config,
-        python::{call_py_method, load_class_from_python_script},
-    },
+        python::{call_py_method, call_py_method_void, load_class_from_python_script},
+    }
 };
 
 python_class_config!(
@@ -35,6 +31,17 @@ impl PythonFaultModel {
 }
 
 impl FaultModel for PythonFaultModel {
+    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
+        let py_node = NodeWrapper::from_rust(node);
+        call_py_method_void!(
+            self.instance,
+            "post_init",
+            py_node,
+            initial_time
+        );
+        Ok(())
+    }
+
     fn add_faults(
         &mut self,
         time: f32,

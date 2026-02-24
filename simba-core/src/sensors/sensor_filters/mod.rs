@@ -3,16 +3,14 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, utils::enum_tools::ToVec};
 use crate::{
-    sensors::{
+    errors::SimbaResult, sensors::{
         SensorObservation,
         sensor_filters::{
             id_filter::{IdFilter, IdFilterConfig},
             python_filter::{PythonFilter, PythonFilterConfig},
             range_filter::{RangeFilter, RangeFilterConfig},
         },
-    },
-    simulator::SimulatorConfig,
-    state_estimators::State,
+    }, simulator::SimulatorConfig, state_estimators::State
 };
 
 pub mod id_filter;
@@ -28,6 +26,9 @@ pub enum SensorFilterConfig {
 }
 
 pub trait SensorFilter: Send + Sync + std::fmt::Debug {
+    fn post_init(&mut self, _node: &mut crate::node::Node, _initial_time: f32) -> SimbaResult<()> {
+        Ok(())
+    }
     fn filter(
         &self,
         time: f32,

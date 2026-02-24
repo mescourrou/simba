@@ -12,6 +12,7 @@ use serde_json::Value;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::physics::robot_models::Command;
+use crate::pywrappers::NodeWrapper;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
 use crate::{
@@ -106,6 +107,14 @@ impl std::fmt::Debug for PythonPhysics {
 }
 
 impl Physics for PythonPhysics {
+    fn post_init(&mut self, node: &mut crate::node::Node) -> SimbaResult<()> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of post_init");
+        }
+        call_py_method_void!(self.physics, "post_init", (NodeWrapper::from_rust(node),));
+        Ok(())
+    }
+
     fn apply_command(&mut self, command: &Command, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of apply_command");
@@ -132,6 +141,13 @@ impl Physics for PythonPhysics {
         }
         let state = call_py_method!(self.physics, "state", StateWrapper, (time,));
         state.to_rust()
+    }
+
+    fn next_time_step(&self) -> Option<f32> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of next_time_step");
+        }
+        call_py_method!(self.physics, "next_time_step", Option<f32>,)
     }
 }
 

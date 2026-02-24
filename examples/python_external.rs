@@ -12,7 +12,7 @@ fn main() {
     .unwrap();
 
     // Show the simulator loaded configuration
-    simulator.show();
+    // simulator.show();
 
     // Run the simulator for the time given in the configuration
     // It also save the results to json
