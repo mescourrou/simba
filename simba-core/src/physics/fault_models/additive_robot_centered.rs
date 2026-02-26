@@ -104,7 +104,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
 
 #[derive(Debug)]
 pub struct AdditiveRobotCenteredPhysicsFault {
-    distributions: SharedMutex<Vec<Box<dyn DeterministRandomVariable>>>,
+    distributions: SharedMutex<Vec<DeterministRandomVariable>>,
     variable_order: Vec<String>,
     proportionnal_to_velocity: Option<f32>,
     last_time_draw: Mutex<f32>,
@@ -123,7 +123,7 @@ impl AdditiveRobotCenteredPhysicsFault {
                 .distributions
                 .iter()
                 .map(|conf| va_factory.make_variable(conf.clone()))
-                .collect::<Vec<Box<dyn DeterministRandomVariable>>>(),
+                .collect::<Vec<DeterministRandomVariable>>(),
         ));
         if !config.variable_order.is_empty() {
             assert!(

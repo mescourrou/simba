@@ -14,7 +14,11 @@ use crate::{
     api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
     constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
     errors::{SimbaError, SimbaErrorTypes},
-    gui::{UIComponent, drawables::popup::Popup, panels::{broker::BrokerPanel, virtual_nodes::VirtualNodesPanel}},
+    gui::{
+        UIComponent,
+        drawables::popup::Popup,
+        panels::{broker::BrokerPanel, virtual_nodes::VirtualNodesPanel},
+    },
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
     simulator::{Record, SimbaBroker, Simulator, SimulatorConfig},
@@ -276,7 +280,15 @@ impl SimbaApp {
             n.p.api.lock().unwrap().load_results.async_call(None);
             n.p.simulation_run = true;
         }
-        n.p.broker_panel = Some(BrokerPanel::new(n.p.server.lock().unwrap().get_simulator().lock().unwrap().get_broker() as SharedRoLock<SimbaBroker>));
+        n.p.broker_panel = Some(BrokerPanel::new(
+            n.p.server
+                .lock()
+                .unwrap()
+                .get_simulator()
+                .lock()
+                .unwrap()
+                .get_broker() as SharedRoLock<SimbaBroker>,
+        ));
         n
     }
 
@@ -316,7 +328,16 @@ impl SimbaApp {
             self.p.api.lock().unwrap().load_results.async_call(None);
             self.p.simulation_run = true;
         }
-        self.p.broker_panel = Some(BrokerPanel::new(self.p.server.lock().unwrap().get_simulator().lock().unwrap().get_broker() as SharedRoLock<SimbaBroker>));
+        self.p.broker_panel = Some(BrokerPanel::new(
+            self.p
+                .server
+                .lock()
+                .unwrap()
+                .get_simulator()
+                .lock()
+                .unwrap()
+                .get_broker() as SharedRoLock<SimbaBroker>,
+        ));
         self
     }
 
@@ -335,7 +356,9 @@ impl SimbaApp {
                 drawables::robot::Robot::init(robot, config),
             );
         }
-        if let Some(plugin_api) = &self.p.plugin_api && let Some(drawable) = plugin_api.get_drawable(config) {
+        if let Some(plugin_api) = &self.p.plugin_api
+            && let Some(drawable) = plugin_api.get_drawable(config)
+        {
             self.p.drawables.push(drawable);
         }
     }
@@ -397,7 +420,9 @@ impl SimbaApp {
         let time = round_precision(time, TIME_ROUND).unwrap();
         match &node {
             NodeRecord::ComputationUnit(rec) => {
-                self.p.virtual_nodes_panel.add_record(rec.name.clone(), time, node.clone());
+                self.p
+                    .virtual_nodes_panel
+                    .add_record(rec.name.clone(), time, node.clone());
             }
             NodeRecord::Robot(n) => {
                 if let Some(r) = self.p.robots.get_mut(&n.name) {
@@ -722,7 +747,12 @@ impl eframe::App for SimbaApp {
                         });
                     }
                     if self.enabled_views.virtual_nodes {
-                        self.p.virtual_nodes_panel.draw(ui, ctx, "virtual_nodes_panel", self.p.current_draw_time);
+                        self.p.virtual_nodes_panel.draw(
+                            ui,
+                            ctx,
+                            "virtual_nodes_panel",
+                            self.p.current_draw_time,
+                        );
                     }
                     if self.enabled_views.broker {
                         if let Some(panel) = &mut self.p.broker_panel {

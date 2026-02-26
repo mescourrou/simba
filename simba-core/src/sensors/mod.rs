@@ -35,17 +35,20 @@ use {
     speed_sensor::{SpeedObservation, SpeedObservationRecord},
 };
 
+use crate::{
+    errors::SimbaResult,
+    node::Node,
+    recordable::Recordable,
+    sensors::{
+        displacement_sensor::{DisplacementObservation, DisplacementObservationRecord},
+        external_sensor::{ExternalObservation, ExternalObservationRecord},
+    },
+};
 #[cfg(feature = "gui")]
 use crate::{
     gui::{UIComponent, utils::string_combobox},
     simulator::SimulatorConfig,
     utils::enum_tools::ToVec,
-};
-use crate::{
-    errors::SimbaResult, node::Node, recordable::Recordable, sensors::{
-        displacement_sensor::{DisplacementObservation, DisplacementObservationRecord},
-        external_sensor::{ExternalObservation, ExternalObservationRecord},
-    }
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

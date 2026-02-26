@@ -414,7 +414,11 @@ impl SensorManager {
     /// the initialization of the modules.
     pub fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
         for sensor in &mut self.sensors {
-            sensor.sensor.write().unwrap().post_init(node, initial_time)?;
+            sensor
+                .sensor
+                .write()
+                .unwrap()
+                .post_init(node, initial_time)?;
         }
         Ok(())
     }
@@ -558,7 +562,10 @@ impl SensorManager {
                         .write()
                         .unwrap()
                         .send_to(
-                            key_base.join_str(to).join_str(Self::CHANNEL_NAME).join_str(Self::OBSERVATION_CHANNEL),
+                            key_base
+                                .join_str(to)
+                                .join_str(Self::CHANNEL_NAME)
+                                .join_str(Self::OBSERVATION_CHANNEL),
                             Envelope {
                                 from: node.name(),
                                 message: obs_serialized,

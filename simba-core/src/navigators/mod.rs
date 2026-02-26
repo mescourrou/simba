@@ -183,7 +183,7 @@ pub trait Navigator:
     fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
         Ok(())
     }
-    
+
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
     fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError;
 

@@ -67,7 +67,7 @@ impl UIComponent for BernouilliRandomVariableConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeterministBernouilliRandomVariable {
     /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
     my_seed: f32,
@@ -84,10 +84,8 @@ impl DeterministBernouilliRandomVariable {
             probability: config.probability,
         }
     }
-}
 
-impl DeterministRandomVariable for DeterministBernouilliRandomVariable {
-    fn generate(&self, time: f32) -> Vec<f32> {
+    pub fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
         for p in &self.probability {
@@ -96,7 +94,7 @@ impl DeterministRandomVariable for DeterministBernouilliRandomVariable {
         v
     }
 
-    fn dim(&self) -> usize {
+    pub fn dim(&self) -> usize {
         self.probability.len()
     }
 }

@@ -1,10 +1,15 @@
 use pyo3::prelude::*;
 
 use crate::{
-    errors::SimbaResult, node::Node, pywrappers::{NodeWrapper, SensorObservationWrapper}, sensors::{SensorObservation, fault_models::fault_model::FaultModel}, simulator::SimulatorConfig, utils::{
+    errors::SimbaResult,
+    node::Node,
+    pywrappers::{NodeWrapper, SensorObservationWrapper},
+    sensors::{SensorObservation, fault_models::fault_model::FaultModel},
+    simulator::SimulatorConfig,
+    utils::{
         macros::python_class_config,
         python::{call_py_method, call_py_method_void, load_class_from_python_script},
-    }
+    },
 };
 
 python_class_config!(
@@ -33,12 +38,7 @@ impl PythonFaultModel {
 impl FaultModel for PythonFaultModel {
     fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
         let py_node = NodeWrapper::from_rust(node);
-        call_py_method_void!(
-            self.instance,
-            "post_init",
-            py_node,
-            initial_time
-        );
+        call_py_method_void!(self.instance, "post_init", py_node, initial_time);
         Ok(())
     }
 
@@ -46,7 +46,6 @@ impl FaultModel for PythonFaultModel {
         &mut self,
         time: f32,
         seed: f32,
-        period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
     ) {
@@ -60,7 +59,6 @@ impl FaultModel for PythonFaultModel {
             Vec<SensorObservationWrapper>,
             time,
             seed,
-            period,
             py_obs_list
         );
         obs_list.clear();

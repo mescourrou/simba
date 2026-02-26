@@ -79,7 +79,8 @@ use std::{
     fs::OpenOptions,
     io::SeekFrom,
     path::{Path, PathBuf},
-    thread::JoinHandle, time::Duration,
+    thread::JoinHandle,
+    time::Duration,
 };
 use std::{collections::BTreeMap, ffi::CString};
 
@@ -714,8 +715,11 @@ impl Simulator {
         )?;
         let meta_data = node.meta_data();
         let name = meta_data.read().unwrap().name.clone();
-        self.meta_data_list.write().unwrap().insert(name.clone(), meta_data);
-        
+        self.meta_data_list
+            .write()
+            .unwrap()
+            .insert(name.clone(), meta_data);
+
         node.set_state(NodeState::Running);
         self.service_managers
             .insert(name.clone(), node.service_manager());
@@ -723,7 +727,7 @@ impl Simulator {
             name.clone(),
             node.post_creation_init(&self.service_managers, self.meta_data_list.clone(), time),
         );
-        
+
         self.spawn_node(node, running_parameters)
     }
 
@@ -1085,7 +1089,7 @@ impl Simulator {
             if *node_sync_params.time_cv.force_finish.lock().unwrap() {
                 break;
             }
-            next_time = node.next_time_step(next_time)?;
+            next_time = node.next_time_step(next_time + TIME_ROUND / 2.)?;
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Got next_time: {next_time}");
             }
@@ -1204,7 +1208,6 @@ impl Simulator {
             if *time_cv.force_finish.lock().unwrap() {
                 return Ok(());
             }
-            
 
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!(

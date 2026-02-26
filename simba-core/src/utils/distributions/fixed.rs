@@ -64,7 +64,7 @@ impl UIComponent for FixedRandomVariableConfig {
 }
 
 /// Random variable which always return the same value.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeterministFixedRandomVariable {
     values: Vec<f32>,
 }
@@ -75,14 +75,12 @@ impl DeterministFixedRandomVariable {
             values: config.values,
         }
     }
-}
 
-impl DeterministRandomVariable for DeterministFixedRandomVariable {
-    fn generate(&self, _time: f32) -> Vec<f32> {
+    pub fn generate(&self, _time: f32) -> Vec<f32> {
         self.values.clone()
     }
 
-    fn dim(&self) -> usize {
+    pub fn dim(&self) -> usize {
         self.values.len()
     }
 }

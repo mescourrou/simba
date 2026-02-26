@@ -127,7 +127,7 @@ impl UIComponent for AdditiveRobotCenteredPolarFaultConfig {
 #[derive(Debug)]
 pub struct AdditiveRobotCenteredPolarFault {
     apparition: DeterministBernouilliRandomVariable,
-    distributions: SharedMutex<Vec<Box<dyn DeterministRandomVariable>>>,
+    distributions: SharedMutex<Vec<DeterministRandomVariable>>,
     variable_order: Vec<String>,
     config: AdditiveRobotCenteredPolarFaultConfig,
 }
@@ -143,7 +143,7 @@ impl AdditiveRobotCenteredPolarFault {
                 .distributions
                 .iter()
                 .map(|conf| va_factory.make_variable(conf.clone()))
-                .collect::<Vec<Box<dyn DeterministRandomVariable>>>(),
+                .collect::<Vec<DeterministRandomVariable>>(),
         ));
         if !config.variable_order.is_empty() {
             assert!(
@@ -174,11 +174,10 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
         &mut self,
         _time: f32,
         seed: f32,
-        period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
     ) {
-        let obs_seed_increment = 1. / (100. * period);
+        let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
         let mut seed = seed;
         for obs in obs_list {
             seed += obs_seed_increment;

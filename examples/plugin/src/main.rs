@@ -211,7 +211,12 @@ impl MyWonderfulStateEstimator {
 }
 
 impl StateEstimator for MyWonderfulStateEstimator {
-    fn prediction_step(&mut self, _robot: &mut simba::node::Node, _command: Option<Command>, time: f32) {
+    fn prediction_step(
+        &mut self,
+        _robot: &mut simba::node::Node,
+        _command: Option<Command>,
+        time: f32,
+    ) {
         self.last_prediction = time;
     }
 

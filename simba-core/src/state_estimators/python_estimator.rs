@@ -121,7 +121,13 @@ impl StateEstimator for PythonEstimator {
         }
         let node_py = NodeWrapper::from_rust(node);
         let command = command.map(|c| CommandWrapper::from_rust(&c));
-        call_py_method_void!(self.state_estimator, "prediction_step", node_py, command, time);
+        call_py_method_void!(
+            self.state_estimator,
+            "prediction_step",
+            node_py,
+            command,
+            time
+        );
     }
 
     fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32) {

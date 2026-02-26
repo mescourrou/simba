@@ -27,7 +27,8 @@ robots:
           send_to: ["Central Unit"]
           config:
             type: RobotSensor
-            period: 0.1
+            activation_time: 
+              period: {type: Num, value: 0.1}
             detection_distance: 100.0
         - name: "LandmarkSensor"
           config: 
@@ -61,7 +62,8 @@ robots:
           send_to: ["Central Unit"]
           config: 
             type: RobotSensor
-            period: 0.1
+            activation_time: 
+              period: {type: Num, value: 0.1}
             detection_distance: 100.0
 computation_units:
   - name: "Central Unit"
@@ -72,4 +74,5 @@ computation_units:
         config: 
           type: Perfect
           targets: ["robot1", "robot2"]
-          prediction_period: 0.1
+          prediction_activation:
+            period: {type: Num, value: 0.1}

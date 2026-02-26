@@ -23,6 +23,7 @@ use crate::utils::geometry::{
     segments_intersection,
 };
 use crate::utils::maths::round_precision;
+use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 #[cfg(feature = "gui")]
 use crate::{
     constants::TIME_ROUND_DECIMALS,
@@ -50,7 +51,7 @@ pub struct OrientedLandmarkSensorConfig {
     /// config path.
     pub map_path: String,
     /// Observation period of the sensor.
-    pub period: Option<f32>,
+    pub activation_time: Option<PeriodicityConfig>,
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
@@ -64,7 +65,11 @@ impl Default for OrientedLandmarkSensorConfig {
         Self {
             detection_distance: 5.0,
             map_path: String::from(""),
-            period: Some(0.1),
+            activation_time: Some(PeriodicityConfig {
+                period: crate::config::NumberConfig::Num(0.1),
+                offset: None,
+                table: None,
+            }),
             faults: Vec::new(),
             filters: Vec::new(),
             xray: false,
@@ -95,17 +100,20 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label("Period:");
-                    if let Some(p) = &mut self.period {
-                        if *p < TIME_ROUND {
-                            *p = TIME_ROUND;
+                    if let Some(p) = &mut self.activation_time {
+                        p.show_mut(
+                            ui,
+                            ctx,
+                            buffer_stack,
+                            global_config,
+                            current_node_name,
+                            unique_id,
+                        );
+                        if ui.button("Remove activation").clicked() {
+                            self.activation_time = None;
                         }
-                        ui.add(egui::DragValue::new(p).max_decimals(TIME_ROUND_DECIMALS));
-                        if ui.button("X").clicked() {
-                            self.period = None;
-                        }
-                    } else if ui.button("+").clicked() {
-                        self.period = Self::default().period;
+                    } else if ui.button("Add activation").clicked() {
+                        self.activation_time = Self::default().activation_time;
                     }
                 });
 
@@ -150,11 +158,10 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label("Period:");
-                    if let Some(p) = &self.period {
-                        ui.label(format!("{}", p));
+                    if let Some(p) = &self.activation_time {
+                        p.show(ui, ctx, unique_id);
                     } else {
-                        ui.label("None");
+                        ui.label("No activation");
                     }
                 });
 
@@ -508,7 +515,7 @@ pub struct OrientedLandmarkSensor {
     /// Landmarks list.
     landmarks: Vec<OrientedLandmark>,
     /// Observation period
-    period: Option<f32>,
+    activation_time: Option<Periodicity>,
     /// Last observation time.
     last_time: f32,
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
@@ -566,11 +573,20 @@ impl OrientedLandmarkSensor {
         }
         drop(unlock_filters);
 
+        let activation_time = config
+            .activation_time
+            .as_ref()
+            .map(|p| Periodicity::from_config(p, va_factory, initial_time));
+        let last_time = activation_time
+            .as_ref()
+            .map(|p| p.next_time())
+            .unwrap_or(initial_time);
+
         let mut sensor = Self {
             detection_distance: config.detection_distance,
             landmarks: Vec::new(),
-            period: config.period,
-            last_time: initial_time,
+            activation_time,
+            last_time,
             faults: fault_models,
             filters,
             xray: config.xray,
@@ -623,7 +639,7 @@ impl Sensor for OrientedLandmarkSensor {
         }
         Ok(())
     }
-    
+
     fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
         if (time - self.last_time).abs() < TIME_ROUND {
@@ -941,8 +957,8 @@ impl Sensor for OrientedLandmarkSensor {
             }
 
             for (i, (pose, width)) in observed_poses.iter().zip(observed_width.iter()).enumerate() {
-                let landmark_seed = (i + 1) as f32 / (100. * self.period.unwrap_or(TIME_ROUND))
-                    * ((landmark.id + 1) as f32);
+                let landmark_seed =
+                    (i + 1) as f32 / (100. * (time - self.last_time)) * ((landmark.id + 1) as f32);
                 let pose = rotation_matrix.transpose() * (pose - state.pose);
                 let mut new_obs = Vec::new();
                 let obs = SensorObservation::OrientedLandmark(OrientedLandmarkObservation {
@@ -965,7 +981,6 @@ impl Sensor for OrientedLandmarkSensor {
                         fault_model.add_faults(
                             time,
                             time + landmark_seed,
-                            self.period.unwrap_or(TIME_ROUND),
                             &mut new_obs,
                             SensorObservation::OrientedLandmark(
                                 OrientedLandmarkObservation::default(),
@@ -981,14 +996,15 @@ impl Sensor for OrientedLandmarkSensor {
                 }
             }
         }
+        self.activation_time.as_mut().map(|p| p.update(time));
         self.last_time = time;
         observation_list
     }
 
     /// Get the next observation time.
     fn next_time_step(&self) -> f32 {
-        if let Some(p) = &self.period {
-            round_precision(self.last_time + p, TIME_ROUND).unwrap()
+        if let Some(activation) = &self.activation_time {
+            activation.next_time()
         } else {
             f32::INFINITY
         }

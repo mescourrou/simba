@@ -32,5 +32,6 @@ pub trait Drawable {
         _painter_info: &PainterInfo,
         _scale: f32,
         _time: f32,
-    ) {}
+    ) {
+    }
 }

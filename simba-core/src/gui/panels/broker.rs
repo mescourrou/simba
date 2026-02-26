@@ -10,12 +10,15 @@ pub struct BrokerPanel {
 
 impl BrokerPanel {
     pub fn new(broker: SharedRoLock<SimbaBroker>) -> Self {
-        Self {
-            broker,
-        }
+        Self { broker }
     }
 
-    fn draw_subtree(&self, ui: &mut egui::Ui, nodes: &Vec<(PathKey, PathKey)>, current_node: PathKey) {
+    fn draw_subtree(
+        &self,
+        ui: &mut egui::Ui,
+        nodes: &Vec<(PathKey, PathKey)>,
+        current_node: PathKey,
+    ) {
         let mut children = Vec::new();
         for (path, parent) in nodes {
             if path == parent {
@@ -25,7 +28,11 @@ impl BrokerPanel {
                 children.push(path.clone());
             }
         }
-        let current_node_str= current_node.to_vec().last().unwrap_or(&"/".to_string()).clone();
+        let current_node_str = current_node
+            .to_vec()
+            .last()
+            .unwrap_or(&"/".to_string())
+            .clone();
         if children.is_empty() {
             ui.label(current_node_str);
             return;

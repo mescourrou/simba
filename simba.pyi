@@ -384,7 +384,7 @@ class FaultModel:
     def post_init(self, node: Node) -> None:
         pass
 
-    def add_faults(self, time: float, seed: float, period: float, obs_list: List[SensorObservation]) -> List[SensorObservation]:
+    def add_faults(self, time: float, seed: float, obs_list: List[SensorObservation]) -> List[SensorObservation]:
         raise NotImplementedError()
 
 class PhysicsFaultModel:

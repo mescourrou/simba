@@ -165,7 +165,11 @@ impl Node {
             }
         }
         if let Some(sensor_manager) = self.sensor_manager() {
-            sensor_manager.write().unwrap().post_init(self, initial_time).unwrap();
+            sensor_manager
+                .write()
+                .unwrap()
+                .post_init(self, initial_time)
+                .unwrap();
         }
         if let Some(navigator) = self.navigator() {
             navigator.write().unwrap().post_init(self).unwrap();
@@ -173,7 +177,6 @@ impl Node {
         if let Some(controller) = self.controller() {
             controller.write().unwrap().post_init(self).unwrap();
         }
-        
 
         let (node_server, node_client) =
             internal_api::make_node_api(&self.node_meta_data.read().unwrap().node_type);
@@ -293,7 +296,11 @@ impl Node {
                     "control_loop_state_estimator_prediction_step".to_string(),
                 )
             });
-            state_estimator.write().unwrap().prediction_step(self, self.current_command.clone(), time);
+            state_estimator.write().unwrap().prediction_step(
+                self,
+                self.current_command.clone(),
+                time,
+            );
             if let Some(time_analysis) = &self.time_analysis {
                 time_analysis
                     .lock()
@@ -786,7 +793,8 @@ impl Node {
     pub fn meta_data_list(
         &self,
     ) -> Option<SharedRoLock<HashMap<String, SharedRoLock<NodeMetaData>>>> {
-        self.meta_data_list.clone() as Option<Arc<dyn RoLock<HashMap<String, SharedRoLock<NodeMetaData>>>>>
+        self.meta_data_list.clone()
+            as Option<Arc<dyn RoLock<HashMap<String, SharedRoLock<NodeMetaData>>>>>
     }
 
     pub fn pre_kill(&mut self) {

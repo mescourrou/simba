@@ -180,10 +180,22 @@ impl<
         #[cfg(feature = "debug_mode")]
         {
             debug!("Removing {} dead clients from channel", dead_clients.len());
-            debug!("Current receiver list: {:?}", receivers.iter().map(|(id, rec)| (id, rec.0)).collect::<Vec<_>>());
-            debug!("Current sender list: {:?}", senders.iter().map(|(id, sender)| (id, sender.0)).collect::<Vec<_>>());
+            debug!(
+                "Current receiver list: {:?}",
+                receivers
+                    .iter()
+                    .map(|(id, rec)| (id, rec.0))
+                    .collect::<Vec<_>>()
+            );
+            debug!(
+                "Current sender list: {:?}",
+                senders
+                    .iter()
+                    .map(|(id, sender)| (id, sender.0))
+                    .collect::<Vec<_>>()
+            );
         }
-        
+
         // Remove the dead clients
         for (key, sender_id) in dead_clients.into_iter() {
             #[cfg(feature = "debug_mode")]

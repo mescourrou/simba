@@ -6,8 +6,8 @@ pub use app::SimbaApp;
 mod configurator;
 mod drawables;
 pub use drawables::Drawable;
-pub mod utils;
 mod panels;
+pub mod utils;
 
 use crate::{
     plugin_api::PluginAPI,

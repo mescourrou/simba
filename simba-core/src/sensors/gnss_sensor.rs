@@ -20,6 +20,7 @@ use crate::simulator::SimulatorConfig;
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::maths::round_precision;
+use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 #[cfg(feature = "gui")]
 use crate::{constants::TIME_ROUND_DECIMALS, gui::UIComponent};
 use log::debug;
@@ -33,7 +34,7 @@ extern crate nalgebra as na;
 #[config_derives]
 pub struct GNSSSensorConfig {
     /// Observation period of the sensor.
-    pub period: Option<f32>,
+    pub activation_time: Option<PeriodicityConfig>,
     /// Fault on the x, y positions, and on the x and y velocities
     #[check]
     pub faults: Vec<FaultModelConfig>,
@@ -44,7 +45,11 @@ pub struct GNSSSensorConfig {
 impl Default for GNSSSensorConfig {
     fn default() -> Self {
         Self {
-            period: Some(1.),
+            activation_time: Some(PeriodicityConfig {
+                period: crate::config::NumberConfig::Num(1.0),
+                offset: None,
+                table: None,
+            }),
             faults: Vec::new(),
             filters: Vec::new(),
         }
@@ -66,17 +71,20 @@ impl UIComponent for GNSSSensorConfig {
             .id_salt(format!("gnss-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Period:");
-                    if let Some(p) = &mut self.period {
-                        if *p <= TIME_ROUND {
-                            *p = TIME_ROUND;
+                    if let Some(p) = &mut self.activation_time {
+                        p.show_mut(
+                            ui,
+                            ctx,
+                            buffer_stack,
+                            global_config,
+                            current_node_name,
+                            unique_id,
+                        );
+                        if ui.button("Remove activation").clicked() {
+                            self.activation_time = None;
                         }
-                        ui.add(egui::DragValue::new(p).max_decimals(TIME_ROUND_DECIMALS));
-                        if ui.button("X").clicked() {
-                            self.period = None;
-                        }
-                    } else if ui.button("+").clicked() {
-                        self.period = Self::default().period;
+                    } else if ui.button("Add activation").clicked() {
+                        self.activation_time = Self::default().activation_time;
                     }
                 });
 
@@ -107,11 +115,10 @@ impl UIComponent for GNSSSensorConfig {
             .id_salt(format!("gnss-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Period:");
-                    if let Some(p) = &self.period {
-                        ui.label(format!("{}", p));
+                    if let Some(p) = &self.activation_time {
+                        p.show(ui, ctx, unique_id);
                     } else {
-                        ui.label("None");
+                        ui.label("No activation");
                     }
                 });
 
@@ -184,7 +191,7 @@ impl Recordable<GNSSObservationRecord> for GNSSObservation {
 #[derive(Debug)]
 pub struct GNSSSensor {
     /// Observation period
-    period: Option<f32>,
+    activation_time: Option<Periodicity>,
     /// Last observation time.
     last_time: f32,
     /// Fault models for x and y positions and on x and y velocities
@@ -237,9 +244,18 @@ impl GNSSSensor {
             ));
         }
         drop(unlock_filters);
+
+        let activation_time = config
+            .activation_time
+            .as_ref()
+            .map(|p| Periodicity::from_config(p, va_factory, initial_time));
+        let last_time = activation_time
+            .as_ref()
+            .map(|p| p.next_time())
+            .unwrap_or(initial_time);
         Self {
-            period: config.period,
-            last_time: initial_time,
+            activation_time,
+            last_time,
             faults: fault_models,
             filters,
         }
@@ -300,7 +316,6 @@ impl Sensor for GNSSSensor {
                 fault_model.add_faults(
                     time,
                     time,
-                    self.period.unwrap_or(TIME_ROUND),
                     &mut observation_list,
                     SensorObservation::GNSS(GNSSObservation::default()),
                 );
@@ -309,13 +324,14 @@ impl Sensor for GNSSSensor {
             debug!("GNSS Observation was filtered out");
         }
 
+        self.activation_time.as_mut().map(|p| p.update(time));
         self.last_time = time;
         observation_list
     }
 
     fn next_time_step(&self) -> f32 {
-        if let Some(period) = &self.period {
-            round_precision(self.last_time + period, TIME_ROUND).unwrap()
+        if let Some(activation) = &self.activation_time {
+            activation.next_time()
         } else {
             f32::INFINITY
         }

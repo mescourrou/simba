@@ -170,7 +170,11 @@ where
             return;
         }
         #[cfg(feature = "debug_mode")]
-        log::debug!("Adding meta channel for key: {}, parent: {:?}", key, parent_key);
+        log::debug!(
+            "Adding meta channel for key: {}, parent: {:?}",
+            key,
+            parent_key
+        );
         let parent_node_id = match parent_key {
             Some(parent_key) => self
                 .key_to_node_id
@@ -221,17 +225,28 @@ where
         node_id: NodeIdType,
         reception_delay: f32,
     ) -> Option<Client<MessageType>> {
-        match self.get_channel(key)
-            .map(|mut channel| channel.client(node_id, reception_delay)) {
+        match self
+            .get_channel(key)
+            .map(|mut channel| channel.client(node_id, reception_delay))
+        {
             Some(client) => Some(client),
             None => {
                 if self.meta_exists(key) {
-                    warn!("Trying to subscribe to channel '{}' which is a meta channel. Use `subscribe_to_meta` instead.", key);    
+                    warn!(
+                        "Trying to subscribe to channel '{}' which is a meta channel. Use `subscribe_to_meta` instead.",
+                        key
+                    );
                 } else {
-                    warn!("Trying to subscribe to channel '{}' that does not exist", key);
+                    warn!(
+                        "Trying to subscribe to channel '{}' that does not exist",
+                        key
+                    );
                 }
                 #[cfg(feature = "debug_mode")]
-                log::debug!("Available channels:\n{}", self.channels.keys().map(|k| format!("- {}", k)).join("\n"));
+                log::debug!(
+                    "Available channels:\n{}",
+                    self.channels.keys().map(|k| format!("- {}", k)).join("\n")
+                );
                 None
             }
         }
@@ -275,8 +290,11 @@ where
         self.channels.clear();
         self.key_to_node_id.clear();
         self.key_tree = Tree::new(None);
-        let root = self.key_tree.add_node(Node::new_with_auto_id(Some(KeyType::default())), None);
-        self.key_to_node_id.insert(KeyType::default(), root.unwrap());
+        let root = self
+            .key_tree
+            .add_node(Node::new_with_auto_id(Some(KeyType::default())), None);
+        self.key_to_node_id
+            .insert(KeyType::default(), root.unwrap());
     }
 
     fn channel_exists(&self, key: &KeyType) -> bool {
@@ -419,7 +437,10 @@ where
         client_condition_args: Option<&HashMap<NodeIdType, ConditionArgType>>,
     ) {
         #[cfg(feature = "debug_mode")]
-        log::debug!("Processing messages for broker with {} channels", self.channels.len());
+        log::debug!(
+            "Processing messages for broker with {} channels",
+            self.channels.len()
+        );
         for channel in self.channels.values() {
             channel.process_messages(client_condition_args);
         }
@@ -616,7 +637,7 @@ where
                 panic!("The new key should be a descendant of the parent key");
             }
         }
-        
+
         self.broker.add_metachannel(
             key.to_string(),
             key.parent().map(|k| k.to_string()).as_ref(),
@@ -625,19 +646,28 @@ where
     }
 
     fn add_subchannel(&mut self, key: PathKey, parent_key: &PathKey) {
-        assert!(parent_key.absolute(), "Only absolute keys can be used as parent keys");
+        assert!(
+            parent_key.absolute(),
+            "Only absolute keys can be used as parent keys"
+        );
         self.add_metachannel(parent_key.clone(), None);
         self.broker
             .add_subchannel(key.to_string(), &parent_key.to_string());
     }
 
     fn channel_exists(&self, key: &PathKey) -> bool {
-        assert!(key.absolute(), "Only absolute keys can be used to check channel existence");
+        assert!(
+            key.absolute(),
+            "Only absolute keys can be used to check channel existence"
+        );
         self.broker.channel_exists(&key.to_string())
     }
 
     fn meta_exists(&self, key: &PathKey) -> bool {
-        assert!(key.absolute(), "Only absolute keys can be used to check meta channel existence");
+        assert!(
+            key.absolute(),
+            "Only absolute keys can be used to check meta channel existence"
+        );
         self.broker.meta_exists(&key.to_string())
     }
 
@@ -692,7 +722,10 @@ where
     }
 
     fn remove_channel(&mut self, key: &PathKey) {
-        assert!(key.absolute(), "Only absolute keys can be used to remove a channel");
+        assert!(
+            key.absolute(),
+            "Only absolute keys can be used to remove a channel"
+        );
         self.broker.remove_channel(&key.to_string());
     }
 
@@ -718,8 +751,9 @@ where
     ) -> Result<(), String> {
         for key in keys {
             let key = multi_client.transform_key(key);
-            if self.channel_exists(&key) && let Some(client) =
-                self.subscribe_to(&key, multi_client.node_id().clone(), reception_delay)
+            if self.channel_exists(&key)
+                && let Some(client) =
+                    self.subscribe_to(&key, multi_client.node_id().clone(), reception_delay)
             {
                 multi_client.add_client(&key, client);
             } else if self.meta_exists(&key) {

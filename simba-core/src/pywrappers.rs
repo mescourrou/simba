@@ -1,5 +1,9 @@
 #![allow(clippy::useless_conversion)]
-use std::{collections::BTreeMap, str::FromStr, sync::{Arc, RwLock, Weak}};
+use std::{
+    collections::BTreeMap,
+    str::FromStr,
+    sync::{Arc, RwLock, Weak},
+};
 
 use nalgebra::{SVector, Vector2, Vector3};
 use pyo3::{exceptions::PyTypeError, prelude::*};

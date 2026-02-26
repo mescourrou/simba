@@ -99,11 +99,10 @@ impl FaultModel for MisdetectionFault {
         &mut self,
         _time: f32,
         seed: f32,
-        period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
     ) {
-        let obs_seed_increment = 1. / (100. * period);
+        let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
         let mut seed = seed;
         for i in (0..obs_list.len()).rev() {
             seed += obs_seed_increment;

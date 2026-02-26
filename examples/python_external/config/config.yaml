@@ -24,7 +24,8 @@ robots:
       proportional_gains: [1.0, 6.0]
     state_estimator:
       type: Perfect
-      prediction_period: 0.1
+      prediction_activation:
+        period: {type: Num, value: 0.1}
     state_estimator_bench:
       - name: "Filter"
         config:
@@ -51,7 +52,8 @@ robots:
       proportional_gains: [1.0, 6.0]
     state_estimator:
       type: Perfect
-      prediction_period: 0.1
+      prediction_activation:
+        period: {type: Num, value: 0.1}
     state_estimator_bench:
       - name: "Filter"
         config:

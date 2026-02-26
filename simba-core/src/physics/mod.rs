@@ -154,9 +154,14 @@ impl UIComponent for PhysicsRecord {
 }
 
 use crate::{
-    errors::SimbaResult, networking::service::HasService, node::{Node, node_factory::FromConfigArguments},
-    physics::robot_models::Command, recordable::Recordable, simulator::SimulatorConfig,
-    state_estimators::State, utils::SharedRwLock,
+    errors::SimbaResult,
+    networking::service::HasService,
+    node::{Node, node_factory::FromConfigArguments},
+    physics::robot_models::Command,
+    recordable::Recordable,
+    simulator::SimulatorConfig,
+    state_estimators::State,
+    utils::SharedRwLock,
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -183,7 +188,7 @@ pub trait Physics:
     + Recordable<PhysicsRecord>
     + HasService<GetRealStateReq, GetRealStateResp>
 {
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+    fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
         Ok(())
     }
 

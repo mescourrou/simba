@@ -134,7 +134,7 @@ impl UIComponent for NormalRandomVariableConfig {
 }
 
 /// Random variable which return a random value following a normal distribution.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeterministNormalRandomVariable {
     /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
     my_seed: f32,
@@ -154,15 +154,13 @@ impl DeterministNormalRandomVariable {
                 .expect("Impossible to create the normal distribution"),
         }
     }
-}
 
-impl DeterministRandomVariable for DeterministNormalRandomVariable {
-    fn generate(&self, time: f32) -> Vec<f32> {
+    pub fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         self.nd.sample(&mut rng).iter().map(|x| *x as f32).collect()
     }
 
-    fn dim(&self) -> usize {
+    pub fn dim(&self) -> usize {
         self.nd.mean().unwrap().len()
     }
 }

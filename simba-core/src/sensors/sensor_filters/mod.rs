@@ -1,17 +1,20 @@
 use simba_macros::config_derives;
 
-#[cfg(feature = "gui")]
-use crate::{gui::UIComponent, utils::enum_tools::ToVec};
 use crate::{
-    errors::SimbaResult, sensors::{
+    errors::SimbaResult,
+    sensors::{
         SensorObservation,
         sensor_filters::{
             id_filter::{IdFilter, IdFilterConfig},
             python_filter::{PythonFilter, PythonFilterConfig},
             range_filter::{RangeFilter, RangeFilterConfig},
         },
-    }, simulator::SimulatorConfig, state_estimators::State
+    },
+    simulator::SimulatorConfig,
+    state_estimators::State,
 };
+#[cfg(feature = "gui")]
+use crate::{gui::UIComponent, utils::enum_tools::ToVec};
 
 pub mod id_filter;
 pub mod label_filter;

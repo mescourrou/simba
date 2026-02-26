@@ -6,10 +6,18 @@ use pyo3::{prelude::*, types::PyDict};
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    constants::TIME_ROUND, errors::SimbaResult, logger::is_enabled, node::Node, physics::robot_models::Command, pywrappers::{CommandWrapper, NodeWrapper, ObservationWrapper, WorldStateWrapper}, recordable::Recordable, sensors::Observation, utils::{
+    constants::TIME_ROUND,
+    errors::SimbaResult,
+    logger::is_enabled,
+    node::Node,
+    physics::robot_models::Command,
+    pywrappers::{CommandWrapper, NodeWrapper, ObservationWrapper, WorldStateWrapper},
+    recordable::Recordable,
+    sensors::Observation,
+    utils::{
         maths::round_precision,
         python::{call_py_method, call_py_method_void},
-    }
+    },
 };
 
 use super::{
@@ -182,7 +190,9 @@ impl PythonStateEstimator {
             .try_recv_closure_mut(|node| self.post_init(node));
         self.prediction_step
             .clone()
-            .try_recv_closure_mut(|request| self.prediction_step(request.node, request.command, request.time));
+            .try_recv_closure_mut(|request| {
+                self.prediction_step(request.node, request.command, request.time)
+            });
         self.correction_step
             .clone()
             .try_recv_closure_mut(|request| {

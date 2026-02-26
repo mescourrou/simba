@@ -12,7 +12,11 @@ use std::{
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
-    errors::SimbaResult, navigators::{Navigator, NavigatorRecord}, networking::network::Network, simulator::SimbaBrokerMultiClient, utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff}
+    errors::SimbaResult,
+    navigators::{Navigator, NavigatorRecord},
+    networking::network::Network,
+    simulator::SimbaBrokerMultiClient,
+    utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff},
 };
 
 extern crate nalgebra as na;

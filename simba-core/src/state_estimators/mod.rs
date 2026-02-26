@@ -437,13 +437,15 @@ use crate::gui::{
     UIComponent,
     utils::{string_combobox, text_singleline_with_apply},
 };
-use crate::{physics::robot_models::Command, utils::determinist_random_variable::RandomVariableTypeConfig};
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
 use crate::utils::occupancy_grid::OccupancyGrid;
 use crate::{errors::SimbaResult, node::Node};
 use crate::{networking::network::Network, simulator::SimulatorConfig};
+use crate::{
+    physics::robot_models::Command, utils::determinist_random_variable::RandomVariableTypeConfig,
+};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -593,9 +595,14 @@ pub fn make_state_estimator_from_config(
     initial_time: f32,
 ) -> SimbaResult<Box<dyn StateEstimator>> {
     Ok(match config {
-        StateEstimatorConfig::Perfect(c) => Box::new(
-            perfect_estimator::PerfectEstimator::from_config(c, global_config, initial_time),
-        ) as Box<dyn StateEstimator>,
+        StateEstimatorConfig::Perfect(c) => {
+            Box::new(perfect_estimator::PerfectEstimator::from_config(
+                c,
+                global_config,
+                va_factory,
+                initial_time,
+            )) as Box<dyn StateEstimator>
+        }
         StateEstimatorConfig::External(c) => {
             Box::new(external_estimator::ExternalEstimator::from_config(
                 c,

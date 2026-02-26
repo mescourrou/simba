@@ -170,7 +170,7 @@ impl UIComponent for MisassociationFaultConfig {
 #[derive(Debug)]
 pub struct MisassociationFault {
     apparition: DeterministBernouilliRandomVariable,
-    distribution: SharedMutex<Box<dyn DeterministRandomVariable>>,
+    distribution: SharedMutex<DeterministRandomVariable>,
     sort: Sort,
     id_list: Vec<(String, Vector2<f32>)>,
     _source: Source,
@@ -240,11 +240,10 @@ impl FaultModel for MisassociationFault {
         &mut self,
         _time: f32,
         seed: f32,
-        period: f32,
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,
     ) {
-        let obs_seed_increment = 1. / (100. * period);
+        let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
         let mut seed = seed;
         let mut id_list = self.id_list.clone();
 
