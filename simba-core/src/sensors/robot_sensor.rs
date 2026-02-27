@@ -47,6 +47,7 @@ pub struct RobotSensorConfig {
     pub faults: Vec<FaultModelConfig>,
     #[check]
     pub filters: Vec<SensorFilterConfig>,
+    pub xray: bool,
 }
 
 impl Default for RobotSensorConfig {
@@ -60,6 +61,7 @@ impl Default for RobotSensorConfig {
             }),
             faults: Vec::new(),
             filters: Vec::new(),
+            xray: false,
         }
     }
 }
@@ -104,6 +106,11 @@ impl UIComponent for RobotSensorConfig {
                     }
                 });
 
+                ui.horizontal(|ui| {
+                    ui.label("X-Ray mode:");
+                    ui.checkbox(&mut self.xray, "");
+                });
+
                 SensorFilterConfig::show_filters_mut(
                     &mut self.filters,
                     ui,
@@ -140,6 +147,10 @@ impl UIComponent for RobotSensorConfig {
                     } else {
                         ui.label("No activation");
                     }
+                });
+
+                ui.horizontal(|ui| {
+                    ui.label(format!("X-Ray mode: {}", self.xray));
                 });
 
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
@@ -388,6 +399,7 @@ pub struct RobotSensor {
     activation_time: Option<Periodicity>,
     /// Last observation time.
     last_time: Option<f32>,
+    xray: bool,
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
     filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
 }
@@ -449,6 +461,7 @@ impl RobotSensor {
             activation_time: period,
             last_time: None,
             faults: fault_models,
+            xray: config.xray,
             filters,
         }
     }
@@ -507,13 +520,14 @@ impl Sensor for RobotSensor {
                 time,
             ) {
                 Ok(other_state) => {
-                    let d = ((other_state.pose.x - state.pose.x).powi(2)
-                        + (other_state.pose.y - state.pose.y).powi(2))
-                    .sqrt();
-                    if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-                        debug!("Distance is {d}");
-                    }
-                    if d <= self.detection_distance {
+                    if node.environment().is_target_observable(
+                        &other_state.pose.fixed_rows::<2>(0).clone_owned(), 
+                        Some(0.),
+                        &state.pose.fixed_rows::<2>(0).clone_owned(),
+                        if self.xray { None } else { Some(0.) },
+                        self.detection_distance,
+                        Some(node.name().clone()),
+                    ) {
                         let robot_seed = (i as f32) / (100. * (time - self.last_time.unwrap_or(-1.)));
                         let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
                         let mut new_obs = Vec::new();

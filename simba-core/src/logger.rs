@@ -86,6 +86,7 @@ pub enum InternalLog {
     NavigatorDetailed,
     Scenario,
     Environment,
+    EnvironmentDetailed,
 }
 
 #[config_derives]

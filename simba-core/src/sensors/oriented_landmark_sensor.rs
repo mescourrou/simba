@@ -733,6 +733,7 @@ impl Sensor for OrientedLandmarkSensor {
             &state.pose.fixed_rows::<2>(0).clone_owned(),
             if self.xray { None } else { Some(0.) },
             self.detection_distance,
+            Some(node.name().clone()),
         );
         debug!("Observable landmarks: {:?}", observable_landmarks);
         for (i, landmark) in observable_landmarks.iter().enumerate() {

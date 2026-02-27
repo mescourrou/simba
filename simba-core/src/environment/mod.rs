@@ -6,6 +6,7 @@ use std::{
     sync::{Arc, RwLock, RwLockReadGuard},
 };
 
+use libc::in_addr;
 use log::{debug, error};
 use nalgebra::{CStride, Const, DefaultAllocator, Dim, Vector2, Vector3, VectorView, VectorView2};
 use serde::{Deserialize, Serialize};
@@ -80,6 +81,8 @@ impl crate::gui::UIComponent for EnvironmentConfig {
 pub struct Environment {
     map: Map,
     meta_data_list: SharedRwLock<HashMap<String, SharedRoLock<NodeMetaData>>>,
+    /// Cache for landmark_in_range, to avoid recomputing it multiple times for the same position and max_distance.
+    cache: SharedRwLock<HashMap<String, (Vector2<f32>, f32, Vec<(OrientedLandmark, Option<(Vector2<f32>, Vector2<f32>)>)>)>>,
 }
 
 impl Environment {
@@ -92,6 +95,7 @@ impl Environment {
         Ok(Self {
             map,
             meta_data_list: Arc::new(RwLock::new(HashMap::new())),
+            cache: Arc::new(RwLock::new(HashMap::new())),
         })
     }
 
@@ -99,21 +103,19 @@ impl Environment {
         &self.map
     }
 
-    /// Get the list of landmarks that are observable from the given position, considering the detection distance and possible obstructions.
-    ///
-    /// # Arguments
-    /// * `position` - The position of the observer.
-    /// * `observer_height` - The height of the observer, used for obstruction checks. If None, no obstruction checks are performed (equivalent to xray mode).
-    /// * `max_distance` - The maximum distance at which landmarks can be observed.
-    ///
-    /// # Returns
-    /// A vector of observed landmarks, with their observed pose and width (if partially observed) and in the map frame.
-    pub fn get_observable_landmarks(
-        &self,
-        position: &Vector2<f32>,
-        observer_height: Option<f32>,
-        max_distance: f32,
-    ) -> Vec<OrientedLandmark> {
+    /// Get the list of landmarks that are in range from the given position.
+    /// For widthed landmarks, they are returned if they are in the observation circle or intersect it.
+    /// The intersection points are also returned, which can be extremities of the landmark of intersection with the observation circle.
+    fn landmarks_in_range(&self, position: &Vector2<f32>, max_distance: f32, cache_key: Option<String>) -> Vec<(OrientedLandmark, Option<(Vector2<f32>, Vector2<f32>)>)> {
+        if let Some(cache_key) = &cache_key && 
+            let Some((cached_position, cached_distance, cached_landmarks)) = self.cache.read().unwrap().get(cache_key) &&
+            (cached_position - position).norm() < 1e-6 && (*cached_distance - max_distance).abs() < 1e-6 {
+            if is_enabled(InternalLog::EnvironmentDetailed) {
+                debug!("Cache hit for landmarks_in_range with key {}", cache_key);
+            }
+            return cached_landmarks.clone();
+        }
+
         let mut in_range_landmarks = Vec::new();
 
         // List all landmarks in range
@@ -152,8 +154,33 @@ impl Environment {
             // In range landmark
             // Ponctual one has no intersection
             // Otherwise, intersection is either with circle or extremities
-            in_range_landmarks.push((landmark, intersections));
+            in_range_landmarks.push((landmark.clone(), intersections));
         }
+
+        if let Some(cache_key) = cache_key {
+            self.cache.write().unwrap().insert(cache_key, (position.clone_owned(), max_distance, in_range_landmarks.clone()));
+        }
+
+        in_range_landmarks
+    }
+
+    /// Get the list of landmarks that are observable from the given position, considering the detection distance and possible obstructions.
+    ///
+    /// # Arguments
+    /// * `position` - The position of the observer.
+    /// * `observer_height` - The height of the observer, used for obstruction checks. If None, no obstruction checks are performed (equivalent to xray mode).
+    /// * `max_distance` - The maximum distance at which landmarks can be observed.
+    ///
+    /// # Returns
+    /// A vector of observed landmarks, with their observed pose and width (if partially observed) and in the map frame.
+    pub fn get_observable_landmarks(
+        &self,
+        position: &Vector2<f32>,
+        observer_height: Option<f32>,
+        max_distance: f32,
+        cache_key: Option<String>,
+    ) -> Vec<OrientedLandmark> {
+        let in_range_landmarks = self.landmarks_in_range(position, max_distance, cache_key);
 
         let mut observed_landmarks = Vec::new();
 
@@ -164,16 +191,26 @@ impl Environment {
             } else {
                 vec![landmark.pose.fixed_rows::<2>(0).clone_owned()]
             };
-            if let Some(observer_height) = observer_height {
+            if let Some(observer_height) = observer_height{
                 // Check for obstruction
                 // TODO: use a more efficient algorithm, and less specific case-oriented
                 for (possible_obstruction, possible_intersect) in &in_range_landmarks {
-                    if is_enabled(InternalLog::Environment) {
+                    if is_enabled(InternalLog::Environment) || is_enabled(InternalLog::EnvironmentDetailed) {
                         debug!(
                             "Checking obstruction of landmark {} by landmark {}",
                             landmark.id, possible_obstruction.id
                         );
                     }
+                    if possible_obstruction.height < observer_height {
+                        if is_enabled(InternalLog::EnvironmentDetailed) {
+                            debug!(
+                                "Possible obstruction {} is lower than observer, cannot obstruct.",
+                                possible_obstruction.id
+                            );
+                        }
+                        continue;
+                    }
+
                     // Cannot obstruct itself
                     // If obstruction is lower than landmark, cannot obstruct
                     // If obstruction has no height, cannot obstruct
@@ -187,7 +224,7 @@ impl Environment {
                     if possible_intersect.is_none() {
                         continue;
                     }
-                    if is_enabled(InternalLog::Environment) {
+                    if is_enabled(InternalLog::EnvironmentDetailed) {
                         debug!(
                             "Possible obstruction intersection points: {:?}",
                             possible_intersect
@@ -199,7 +236,7 @@ impl Environment {
                             intersections.len() % 2 == 0,
                             "Intersections should be pairs of points."
                         );
-                        if is_enabled(InternalLog::Environment) {
+                        if is_enabled(InternalLog::EnvironmentDetailed) {
                             debug!("Current intersections: {:?}", intersections);
                         }
                         let mut new_intersections = Vec::new();
@@ -228,7 +265,7 @@ impl Environment {
                                 let chunk_length = (chunk_intersections[1]
                                     - chunk_intersections[0])
                                     .norm_squared();
-                                if is_enabled(InternalLog::SensorManagerDetailed) {
+                                if is_enabled(InternalLog::EnvironmentDetailed) {
                                     debug!(
                                         "Projected intersections: {:?}, {:?}",
                                         projected1, projected2
@@ -237,7 +274,7 @@ impl Environment {
                                 }
                                 if projected1.is_none() && projected2.is_none() {
                                     // No intersection, not obstructed, keep points
-                                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                                    if is_enabled(InternalLog::EnvironmentDetailed) {
                                         debug!(
                                             "No intersection after projection, not obstructed, keeping points."
                                         );
@@ -252,7 +289,7 @@ impl Environment {
                                         .dot(&(chunk_intersections[1] - chunk_intersections[0]));
                                     if dot2 - 1e-3 < 0. || dot2 + 1e-3 > chunk_length {
                                         // projected2 is out of segment, not obstructed, keep points
-                                        if is_enabled(InternalLog::SensorManagerDetailed) {
+                                        if is_enabled(InternalLog::EnvironmentDetailed) {
                                             debug!(
                                                 "Projected2 is out of segment, not obstructed, keeping points."
                                             );
@@ -261,7 +298,7 @@ impl Environment {
                                         continue;
                                     }
                                     // partially obstructed, keep second part
-                                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                                    if is_enabled(InternalLog::EnvironmentDetailed) {
                                         debug!("Partially obstructed, keeping second part.");
                                     }
                                     new_intersections.push(projected2);
@@ -273,7 +310,7 @@ impl Environment {
                                         .dot(&(chunk_intersections[1] - chunk_intersections[0]));
                                     if dot1 - 1e-3 < 0. || dot1 + 1e-3 > chunk_length {
                                         // projected1 is out of segment, not obstructed, keep points
-                                        if is_enabled(InternalLog::SensorManagerDetailed) {
+                                        if is_enabled(InternalLog::EnvironmentDetailed) {
                                             debug!(
                                                 "Projected1 is out of segment, not obstructed, keeping points."
                                             );
@@ -282,7 +319,7 @@ impl Environment {
                                         continue;
                                     }
                                     // partially obstructed, keep first part
-                                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                                    if is_enabled(InternalLog::EnvironmentDetailed) {
                                         debug!("Partially obstructed, keeping first part.");
                                     }
                                     new_intersections.push(chunk_intersections[0]);
@@ -294,7 +331,7 @@ impl Environment {
                                         .dot(&(chunk_intersections[1] - chunk_intersections[0]));
                                     let dot2 = (projected2 - chunk_intersections[0])
                                         .dot(&(chunk_intersections[1] - chunk_intersections[0]));
-                                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                                    if is_enabled(InternalLog::EnvironmentDetailed) {
                                         debug!(
                                             "Dot products: dot1: {}, dot2: {}, chunk_length: {}",
                                             dot1, dot2, chunk_length
@@ -311,7 +348,7 @@ impl Environment {
                                             || (dot1 > chunk_length && dot2 > chunk_length)
                                         {
                                             // both projected points are out of segment, not obstructed, keep points
-                                            if is_enabled(InternalLog::SensorManagerDetailed) {
+                                            if is_enabled(InternalLog::EnvironmentDetailed) {
                                                 debug!(
                                                     "Both projected points are out of segment, not obstructed, keeping points."
                                                 );
@@ -320,7 +357,7 @@ impl Environment {
                                                 .extend_from_slice(&chunk_intersections);
                                             continue;
                                         } else {
-                                            if is_enabled(InternalLog::SensorManagerDetailed) {
+                                            if is_enabled(InternalLog::EnvironmentDetailed) {
                                                 debug!(
                                                     "Projected points are on different sides, fully obstructed, removing points."
                                                 );
@@ -331,7 +368,7 @@ impl Environment {
                                     if inside1 && !inside2 {
                                         // partially obstructed, keep first part
                                         if (chunk_intersections[0] - projected1).norm() > 1e-3 {
-                                            if is_enabled(InternalLog::SensorManagerDetailed) {
+                                            if is_enabled(InternalLog::EnvironmentDetailed) {
                                                 debug!("Partially obstructed, keeping first part.");
                                             }
                                             new_intersections.push(chunk_intersections[0]);
@@ -342,7 +379,7 @@ impl Environment {
                                     if !inside1 && inside2 {
                                         // partially obstructed, keep second part
                                         if (chunk_intersections[1] - projected2).norm() > 1e-3 {
-                                            if is_enabled(InternalLog::SensorManagerDetailed) {
+                                            if is_enabled(InternalLog::EnvironmentDetailed) {
                                                 debug!(
                                                     "Partially obstructed, keeping second part."
                                                 );
@@ -353,7 +390,7 @@ impl Environment {
                                         continue;
                                     }
                                     // both inside, keep external parts
-                                    if is_enabled(InternalLog::SensorManagerDetailed) {
+                                    if is_enabled(InternalLog::EnvironmentDetailed) {
                                         debug!("Partially obstructed, keeping external parts.");
                                     }
 
@@ -381,7 +418,7 @@ impl Environment {
                         }
                     }
                 }
-                if is_enabled(InternalLog::SensorManagerDetailed) {
+                if is_enabled(InternalLog::Environment) || is_enabled(InternalLog::EnvironmentDetailed) {
                     debug!(
                         "Intersections after obstruction checks: {:?}",
                         intersections
@@ -424,6 +461,71 @@ impl Environment {
             }
         }
         observed_landmarks
+    }
+
+    pub fn is_target_observable(
+        &self,
+        target_position: &Vector2<f32>,
+        target_height: Option<f32>,
+        observer_position: &Vector2<f32>,
+        observer_height: Option<f32>,
+        max_distance: f32,
+        cache_key: Option<String>,
+    ) -> bool {
+        if (target_position - observer_position).norm() > max_distance {
+            return false;
+        }
+        // If target or observer has no height, we consider it observable
+        // xray mode for observer
+        // and always observable for target if it has no height (e.g. a landmark with height 0)
+        if target_height.is_none() || observer_height.is_none() {
+            return true;
+        }
+
+        let in_range_landmarks = self.landmarks_in_range(observer_position, max_distance, cache_key);
+
+        for (possible_obstruction, possible_intersect) in &in_range_landmarks {
+            if is_enabled(InternalLog::EnvironmentDetailed) {
+                debug!(
+                    "Checking obstruction of target by landmark {}",
+                    possible_obstruction.id
+                );
+            }
+            if possible_obstruction.height < observer_height.unwrap() {
+                if is_enabled(InternalLog::EnvironmentDetailed) {
+                    debug!(
+                        "Possible obstruction {} is lower than observer, cannot obstruct.",
+                        possible_obstruction.id
+                    );
+                }
+                continue;
+            }
+            if possible_obstruction.height <= 0. {
+                if is_enabled(InternalLog::EnvironmentDetailed) {
+                    debug!(
+                        "Possible obstruction {} has no height, cannot obstruct.",
+                        possible_obstruction.id
+                    );
+                }
+                continue;
+            }
+            // Ponctual landmark cannot obstruct
+            if possible_intersect.is_none() {
+                continue;
+            }
+            let (p1, p2) = possible_intersect.unwrap();
+            if segments_intersection(observer_position, target_position, &p1, &p2).is_some() {
+                if is_enabled(InternalLog::EnvironmentDetailed) {
+                    debug!(
+                        "Target is obstructed by landmark {}",
+                        possible_obstruction.id
+                    );
+                }
+                // Obstructed
+                return false;
+            }
+        }
+        true
     }
 
     pub fn clear_meta_data(&self) {
