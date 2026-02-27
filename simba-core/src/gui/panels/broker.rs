@@ -13,11 +13,7 @@ impl BrokerPanel {
         Self { broker }
     }
 
-    fn draw_subtree(
-        ui: &mut egui::Ui,
-        nodes: &Vec<(PathKey, PathKey)>,
-        current_node: PathKey,
-    ) {
+    fn draw_subtree(ui: &mut egui::Ui, nodes: &Vec<(PathKey, PathKey)>, current_node: PathKey) {
         let mut children = Vec::new();
         for (path, parent) in nodes {
             if path == parent {

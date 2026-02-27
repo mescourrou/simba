@@ -60,8 +60,3 @@ This landmark can be partially visible depending on the height. Even with 2D wor
 ```
 
 Please note that ponctual landmarks (without width) cannot occlude other landmarks but can be occluded by planar landmarks if they are lower in height.
-
-**Use cases**:
-- GPS-denied localization
-- Marker-based navigation
-- Visual landmark tracking

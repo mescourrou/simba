@@ -10,6 +10,8 @@ use super::fault_models::fault_model::{
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
@@ -20,8 +22,6 @@ use crate::simulator::SimulatorConfig;
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
-#[cfg(feature = "gui")]
-use crate::gui::UIComponent;
 use log::debug;
 use nalgebra::{Vector2, Vector3};
 use serde_derive::{Deserialize, Serialize};

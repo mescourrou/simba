@@ -72,19 +72,18 @@ impl crate::gui::UIComponent for EnvironmentConfig {
 }
 
 type TwoPoints = (Vector2<f32>, Vector2<f32>);
-type CacheValue = (Vector2<f32>, f32, Vec<(OrientedLandmark, Option<TwoPoints>)>);
+type CacheValue = (
+    Vector2<f32>,
+    f32,
+    Vec<(OrientedLandmark, Option<TwoPoints>)>,
+);
 
 #[derive(Debug, Clone, Default)]
 pub struct Environment {
     map: Map,
     meta_data_list: SharedRwLock<HashMap<String, SharedRoLock<NodeMetaData>>>,
     /// Cache for landmark_in_range, to avoid recomputing it multiple times for the same position and max_distance.
-    cache: SharedRwLock<
-        HashMap<
-            String,
-            CacheValue,
-        >,
-    >,
+    cache: SharedRwLock<HashMap<String, CacheValue>>,
 }
 
 impl Environment {
@@ -107,7 +106,6 @@ impl Environment {
     pub fn map(&self) -> &Map {
         &self.map
     }
-
 
     /// Get the list of landmarks that are in range from the given position.
     /// For widthed landmarks, they are returned if they are in the observation circle or intersect it.
@@ -432,7 +430,9 @@ impl Environment {
                             }
                         }
                         intersections = new_intersections;
-                    } else if intersections.len() == 1 && segments_intersection(position, &intersections[0], &p1, &p2).is_some() { 
+                    } else if intersections.len() == 1
+                        && segments_intersection(position, &intersections[0], &p1, &p2).is_some()
+                    {
                         // Try to look at a ponctual landmark, check if segment intersects obstruction
                         // Obstructed, remove point
                         intersections.clear();

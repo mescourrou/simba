@@ -22,9 +22,7 @@ use crate::gui::{
 use crate::{
     environment::Environment,
     node::NodeState,
-    sensors::{
-        SensorObservation, fault_models::fault_model::FaultModelConfig,
-    },
+    sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     simulator::SimulatorConfig,
     utils::{
         SharedMutex,

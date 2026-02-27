@@ -17,10 +17,7 @@ use crate::{
 };
 
 #[cfg(feature = "gui")]
-use crate::gui::{
-    UIComponent,
-    utils::string_checkbox,
-};
+use crate::gui::{UIComponent, utils::string_checkbox};
 use crate::recordable::Recordable;
 use crate::sensors::Observation;
 use crate::simulator::SimulatorConfig;
