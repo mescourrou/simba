@@ -9,12 +9,19 @@ nav:
     - Reference Overview: config_reference.md
     - Component Configuration:
       - Overview: config/index.md
+      - Robot: config/10_robot.md
+      - Computation Units: config/11_computation_units.md
       - Navigation: config/navigation.md
       - Controller: config/controller.md
       - Physics: config/physics.md
       - Sensors: config/sensors.md
       - State Estimator: config/state_estimator.md
       - Network: config/network.md
+    - Simulator-level Configuration:
+      - Logging: config/20_log.md
+      - Results: config/30_results.md
+      - Time Analysis: config/40_time_analysis.md
+      - Environment: config/environment.md
     - Advanced:
       - Computation Units: config/computation_units.md
       - Scenario: config/scenario.md

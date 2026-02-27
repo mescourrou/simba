@@ -149,10 +149,13 @@ impl Default for SpeedSensorRecord {
 #[cfg(feature = "gui")]
 impl UIComponent for SpeedSensorRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
-        ui.label(format!("Last time: {}", match self.last_time {
-            Some(t) => t.to_string(),
-            None => "None".to_string(),
-        }));
+        ui.label(format!(
+            "Last time: {}",
+            match self.last_time {
+                Some(t) => t.to_string(),
+                None => "None".to_string(),
+            }
+        ));
         ui.label("Last state: ");
         self.last_state.show(ui, ctx, unique_id);
     }
@@ -296,7 +299,9 @@ impl Sensor for SpeedSensor {
 
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if let Some(last_time) = self.last_time && (time - last_time).abs() < TIME_ROUND {
+        if let Some(last_time) = self.last_time
+            && (time - last_time).abs() < TIME_ROUND
+        {
             return observation_list;
         }
         let arc_physic = node

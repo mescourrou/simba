@@ -5,31 +5,26 @@ landmarks:
     theta: 0.7854
     width: 2.8284
     height: 0
-    covariance: 0.01
   - id: 2
     x: 5.5
     y: 7
     theta: 1.5708
     width: 3
     height: 1
-    covariance: 0.01
   - id: 3
     x: 6
     y: 6.5
     theta: 0.588
     width: 3.6056
     height: 2
-    covariance: 0.01
   - id: 4
     x: 10
     y: 8
     theta: -2.5
     height: 1
-    covariance: 0.01
   - id: 5
     x: 14
     y: 7.5
     theta: 0
     width: 7
     height: 1
-    covariance: 0.01

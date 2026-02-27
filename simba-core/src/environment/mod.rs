@@ -82,11 +82,23 @@ pub struct Environment {
     map: Map,
     meta_data_list: SharedRwLock<HashMap<String, SharedRoLock<NodeMetaData>>>,
     /// Cache for landmark_in_range, to avoid recomputing it multiple times for the same position and max_distance.
-    cache: SharedRwLock<HashMap<String, (Vector2<f32>, f32, Vec<(OrientedLandmark, Option<(Vector2<f32>, Vector2<f32>)>)>)>>,
+    cache: SharedRwLock<
+        HashMap<
+            String,
+            (
+                Vector2<f32>,
+                f32,
+                Vec<(OrientedLandmark, Option<(Vector2<f32>, Vector2<f32>)>)>,
+            ),
+        >,
+    >,
 }
 
 impl Environment {
-    pub fn from_config(config: &EnvironmentConfig, global_config: &SimulatorConfig) -> SimbaResult<Self> {
+    pub fn from_config(
+        config: &EnvironmentConfig,
+        global_config: &SimulatorConfig,
+    ) -> SimbaResult<Self> {
         let map = if let Some(map_path) = &config.map_path {
             Map::load_from_path(&global_config.base_path.join(map_path))?
         } else {
@@ -106,10 +118,18 @@ impl Environment {
     /// Get the list of landmarks that are in range from the given position.
     /// For widthed landmarks, they are returned if they are in the observation circle or intersect it.
     /// The intersection points are also returned, which can be extremities of the landmark of intersection with the observation circle.
-    fn landmarks_in_range(&self, position: &Vector2<f32>, max_distance: f32, cache_key: Option<String>) -> Vec<(OrientedLandmark, Option<(Vector2<f32>, Vector2<f32>)>)> {
-        if let Some(cache_key) = &cache_key && 
-            let Some((cached_position, cached_distance, cached_landmarks)) = self.cache.read().unwrap().get(cache_key) &&
-            (cached_position - position).norm() < 1e-6 && (*cached_distance - max_distance).abs() < 1e-6 {
+    fn landmarks_in_range(
+        &self,
+        position: &Vector2<f32>,
+        max_distance: f32,
+        cache_key: Option<String>,
+    ) -> Vec<(OrientedLandmark, Option<(Vector2<f32>, Vector2<f32>)>)> {
+        if let Some(cache_key) = &cache_key
+            && let Some((cached_position, cached_distance, cached_landmarks)) =
+                self.cache.read().unwrap().get(cache_key)
+            && (cached_position - position).norm() < 1e-6
+            && (*cached_distance - max_distance).abs() < 1e-6
+        {
             if is_enabled(InternalLog::EnvironmentDetailed) {
                 debug!("Cache hit for landmarks_in_range with key {}", cache_key);
             }
@@ -158,7 +178,14 @@ impl Environment {
         }
 
         if let Some(cache_key) = cache_key {
-            self.cache.write().unwrap().insert(cache_key, (position.clone_owned(), max_distance, in_range_landmarks.clone()));
+            self.cache.write().unwrap().insert(
+                cache_key,
+                (
+                    position.clone_owned(),
+                    max_distance,
+                    in_range_landmarks.clone(),
+                ),
+            );
         }
 
         in_range_landmarks
@@ -191,11 +218,13 @@ impl Environment {
             } else {
                 vec![landmark.pose.fixed_rows::<2>(0).clone_owned()]
             };
-            if let Some(observer_height) = observer_height{
+            if let Some(observer_height) = observer_height {
                 // Check for obstruction
                 // TODO: use a more efficient algorithm, and less specific case-oriented
                 for (possible_obstruction, possible_intersect) in &in_range_landmarks {
-                    if is_enabled(InternalLog::Environment) || is_enabled(InternalLog::EnvironmentDetailed) {
+                    if is_enabled(InternalLog::Environment)
+                        || is_enabled(InternalLog::EnvironmentDetailed)
+                    {
                         debug!(
                             "Checking obstruction of landmark {} by landmark {}",
                             landmark.id, possible_obstruction.id
@@ -418,7 +447,9 @@ impl Environment {
                         }
                     }
                 }
-                if is_enabled(InternalLog::Environment) || is_enabled(InternalLog::EnvironmentDetailed) {
+                if is_enabled(InternalLog::Environment)
+                    || is_enabled(InternalLog::EnvironmentDetailed)
+                {
                     debug!(
                         "Intersections after obstruction checks: {:?}",
                         intersections
@@ -482,7 +513,8 @@ impl Environment {
             return true;
         }
 
-        let in_range_landmarks = self.landmarks_in_range(observer_position, max_distance, cache_key);
+        let in_range_landmarks =
+            self.landmarks_in_range(observer_position, max_distance, cache_key);
 
         for (possible_obstruction, possible_intersect) in &in_range_landmarks {
             if is_enabled(InternalLog::EnvironmentDetailed) {

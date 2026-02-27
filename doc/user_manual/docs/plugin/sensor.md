@@ -51,8 +51,9 @@ impl MyWonderfulSensor {
 }
 
 impl Sensor for MyWonderfulSensor {
-    fn init(&mut self, node: &mut Node) {
+    fn post_init(&mut self, node: &mut Node, _initial_time: f32) -> SimbaResult<()> {
         println!("Initializing MyWonderfulSensor for node {}", node.name());
+        Ok(())
     }
 
     fn get_observations(&mut self, _node: &mut Node, time: f32) -> Vec<SensorObservation> {

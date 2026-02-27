@@ -368,7 +368,11 @@ impl SimbaApp {
 
     fn draw(&mut self, ui: &mut egui::Ui, viewport: Rect) -> Result<Vec<Shape>, Vec2> {
         let mut shapes = Vec::new();
-        shapes.extend(self.p.map.draw(ui, &viewport, &self.p.painter_info, self.drawing_scale)?);
+        shapes.extend(
+            self.p
+                .map
+                .draw(ui, &viewport, &self.p.painter_info, self.drawing_scale)?,
+        );
         for robot in self.p.robots.values() {
             shapes.extend(robot.draw(
                 ui,

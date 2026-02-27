@@ -22,7 +22,8 @@ sensor_manager:
       config:                        # Sensor-specific config
         type: RobotSensor
         detection_distance: 10.0
-        period: 0.1
+        activation_time:
+          period: {type: Num, value: 0.1}
         faults: []
 ```
 
@@ -68,7 +69,7 @@ sensor_manager:
 **Default**: `false`
 
 - `true`: Sensor sends data on-demand (event-driven), based on `SensorTrigger` message reception
-- `false`: Sensor sends data periodically (use sensor's `period` parameter)
+- `false`: Sensor sends data periodically (use sensor's `activation_time` parameter)
 
 ## Sensor Type: `RobotSensor`
 
@@ -78,7 +79,8 @@ Detects other robots within range. Returns position, and orientation of detected
 config:
   type: RobotSensor
   detection_distance: 10.0           # Detection range (meters)
-  period: 0.1                        # Update period (seconds)
+  activation_time:
+    period: {type: Num, value: 0.1}  # Update period (seconds)
   faults: []                         # Sensor faults (see Sensor Faults)
   filters: []                        # Measurement filters (see Sensor Filters)
 ```
@@ -90,14 +92,14 @@ config:
 
 ## Sensor Type: `OrientedLandmarkSensor`
 
-Detects landmarks (beacons, markers) with pose information. Perfect for landmark-based navigation and SLAM.
+Detects landmarks (beacons, markers) with pose information. Perfect for landmark-based navigation and SLAM. Landmarks are defined in the `environment` configuration of the simulator (see [Environment Configuration](environment.md)).
 
 ```yaml
 config:
   type: OrientedLandmarkSensor
   detection_distance: 10.0           # Detection range (meters)
-  map_path: maps/landmarks.yaml      # Landmark locations file
-  period: 0.1                        # Update period (seconds)
+  activation_time:
+    period: {type: Num, value: 0.1}  # Update period (seconds)
   xray: false                        # Can see through walls?
   faults: []                         # Sensor faults
   filters: []                        # Measurement filters
@@ -105,55 +107,9 @@ config:
 
 **Parameters**:
 - `detection_distance`: Maximum range to detect landmarks (meters)
-- `map_path`: Path to YAML file defining landmark positions (relative to config)
-- `period`: How often measurements are updated
+- `activation_time`: How often measurements are updated. Use `period` for periodic updates. You can set a `table` of activation times for more complex patterns.
 - `xray`: If `true`, sensor can detect landmarks even if obstructed. If `false`, height of landmarks are considered to determine visibility (or partial visibility).
 
-### Landmark Map Format
-
-Create a YAML file (e.g., `maps/landmarks.yaml`):
-
-```yaml
-landmarks:
-  - id: 1                    # Unique landmark identifier
-    x: 5.0                   # X coordinate (meters)
-    y: 5.0                   # Y coordinate (meters)
-    theta: 0.0               # Orientation (radians)
-  - id: 2
-    x: 10.0
-    y: 10.0
-    theta: 1.57
-```
-
-See the `config_example/maps/landmarks_square.yaml` file in the repository for a complete example.
-
-You can define planar landmarks, by the addition of a `width` field. `x`, `y`, and `theta` define the center pose, while `width` defines the size of the landmark.
-```yaml
-  - id: 3
-    x: 15.0
-    y: 5.0
-    theta: 0.0
-    width: 1.0               # Landmark width (meters)
-```
-
-This landmark can be partially visible depending on the height. Even with 2D world, occlusions are considered based on landmark height: a higher landmark can occlude a lower ones. 0 height means the landmark is always visible.
-
-```yaml
-  - id: 4
-    x: 20.0
-    y: 5.0
-    theta: 0.0
-    width: 1.0
-    height: 2.0              # Landmark height (meters)
-  - id: 5
-    x: 20.0
-    y: 7.0
-    theta: 0.0
-    width: 1.0
-    height: 1.0              # Lower height, can be occluded by landmark 4
-```
-
-Please note that ponctual landmarks (without width) cannot occlude other landmarks but can be occluded by planar landmarks if they are lower in height.
 
 **Use cases**:
 - GPS-denied localization
@@ -167,7 +123,8 @@ Measures robot velocity (odometry). Returns `[linear_velocity, angular_velocity]
 ```yaml
 config:
   type: SpeedSensor
-  period: 0.1                        # Update period (seconds)
+  activation_time:
+    period: {type: Num, value: 0.1}  # Update period (seconds)
   faults: []
   filters: []
 ```
@@ -183,7 +140,8 @@ Measures robot displacement (dead reckoning). Returns position changes `[dx, dy,
 ```yaml
 config:
   type: DisplacementSensor
-  period: 0.1                        # Update frequency (seconds)
+  activation_time:
+    period: {type: Num, value: 0.1}  # Update frequency (seconds)
   faults: []
   filters: []
 ```
@@ -199,7 +157,8 @@ GNSS-like absolute position and velocity measurement. Returns global coordinates
 ```yaml
 config:
   type: GNSSSensor
-  period: 0.1                        # Update period (seconds)
+  activation_time:
+    period: {type: Num, value: 0.1}  # Update period (seconds)
   faults: []
   filters: []
 ```
@@ -276,8 +235,8 @@ sensor_manager:
       config:
         type: OrientedLandmarkSensor
         detection_distance: 15.0
-        map_path: maps/landmarks.yaml
-        period: 0.1
+        activation_time:
+          period: {type: Num, value: 0.1}
 ```
 
 ### Robot sharing observations with central unit
@@ -290,7 +249,8 @@ sensor_manager:
       config:
         type: RobotSensor
         detection_distance: 20.0
-        period: 0.05
+        activation_time:
+          period: {type: Num, value: 0.05}
 ```
 
 ### Sensor with realistic noise
@@ -300,7 +260,8 @@ sensor_manager:
     - name: gps
       config:
         type: GNSSSensor
-        period: 1.0
+        activation_time:
+          period: {type: Num, value: 1.0}
         faults:
           - type: AdditiveRobotCentered
             apparition:

@@ -1,5 +1,28 @@
 # Changelogs
 
+## v1.6.0
+Features:
+- [breaking] Send current command to state estimator prediction step
+- [breaking] Add `post_init` method to all components
+- [breaking] Refactor period: becomes activation times
+- [breaking] Move map and landmark management to simulator level
+- Landmark obstruction computation for RobotSensor
+- AsyncSimulator: Access to simulator instance
+- Simulator getter for network broker
+- Export `debug_mode` feature from simba-com
+
+GUI:
+- Plugin API for GUI drawable
+- Add virtual nodes (computation units) record visualizer
+- Add Broker channel visualization panel
+
+Fixes:
+- Run navigator and controller when they require it from next_time_step implementation
+- Fix observation `send_to` channel name
+- Missing next_time_step calls to python components
+- Unreliable BTeeMap for metadata changed to HashMap
+- Remove unsafe reference to NodeWrapper for Python bindings
+
 ## v1.5.0
 - [breaking] New publisher-subscriber communication system allowing deeper user intervention and observation
 - Publish scenario events on /simba/scenario

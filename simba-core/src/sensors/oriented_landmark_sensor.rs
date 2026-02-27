@@ -172,7 +172,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
 /// Record of the [`OrientedLandmarkSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OrientedLandmarkSensorRecord {
-    last_time: Option<f32>  ,
+    last_time: Option<f32>,
 }
 
 impl Default for OrientedLandmarkSensorRecord {
@@ -184,10 +184,13 @@ impl Default for OrientedLandmarkSensorRecord {
 #[cfg(feature = "gui")]
 impl UIComponent for OrientedLandmarkSensorRecord {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(format!("Last time: {}", match self.last_time {
-            Some(t) => t.to_string(),
-            None => "None".to_string(),
-        }));
+        ui.label(format!(
+            "Last time: {}",
+            match self.last_time {
+                Some(t) => t.to_string(),
+                None => "None".to_string(),
+            }
+        ));
     }
 }
 
@@ -376,7 +379,9 @@ impl Sensor for OrientedLandmarkSensor {
 
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if let Some(last_time) = self.last_time && (time - last_time).abs() < TIME_ROUND {
+        if let Some(last_time) = self.last_time
+            && (time - last_time).abs() < TIME_ROUND
+        {
             return observation_list;
         }
         let state = if let Some(arc_physic) = node.physics() {
@@ -737,8 +742,8 @@ impl Sensor for OrientedLandmarkSensor {
         );
         debug!("Observable landmarks: {:?}", observable_landmarks);
         for (i, landmark) in observable_landmarks.iter().enumerate() {
-            let landmark_seed =
-                (i + 1) as f32 / (100. * (time - self.last_time.unwrap_or(-1.))) * ((landmark.id + 1) as f32);
+            let landmark_seed = (i + 1) as f32 / (100. * (time - self.last_time.unwrap_or(-1.)))
+                * ((landmark.id + 1) as f32);
             let pose = rotation_matrix.transpose() * (landmark.pose - state.pose);
             let obs = SensorObservation::OrientedLandmark(OrientedLandmarkObservation {
                 id: landmark.id,
