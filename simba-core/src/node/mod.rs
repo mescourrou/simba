@@ -16,6 +16,7 @@ use std::sync::Arc;
 
 use log::{debug, info};
 
+use crate::environment::Environment;
 use crate::errors::{SimbaError, SimbaErrorTypes};
 use crate::networking;
 use crate::networking::network::MessageFlag;
@@ -116,6 +117,8 @@ pub struct Node {
     pub(self) node_message_client: SimbaBrokerMultiClient,
 
     pub(self) current_command: Option<Command>,
+
+    pub(self) environment: Arc<Environment>,
 }
 
 impl Node {
@@ -779,6 +782,10 @@ impl Node {
             Some(c) => Some(Arc::clone(c)),
             None => None,
         }
+    }
+
+    pub fn environment(&self) -> &Arc<Environment> {
+        &self.environment
     }
 
     /// Get a Arc clone of Service Manager.

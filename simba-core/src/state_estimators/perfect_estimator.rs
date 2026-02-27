@@ -38,7 +38,6 @@ pub struct PerfectEstimatorConfig {
     /// Prediction period.
     pub prediction_activation: Option<PeriodicityConfig>,
     pub targets: Vec<String>,
-    pub map_path: Option<String>,
 }
 
 impl Default for PerfectEstimatorConfig {
@@ -50,7 +49,6 @@ impl Default for PerfectEstimatorConfig {
                 table: None,
             }),
             targets: vec!["self".to_string()],
-            map_path: None,
         }
     }
 }
@@ -105,21 +103,6 @@ impl UIComponent for PerfectEstimatorConfig {
                     ui.label("Targets:");
                     string_checkbox(ui, &possible_targets, &mut self.targets);
                 });
-
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Map path:");
-                    let mut enabled = self.map_path.is_some();
-                    ui.checkbox(&mut enabled, "Enable");
-                    if enabled {
-                        path_finder(
-                            ui,
-                            self.map_path.as_mut().unwrap(),
-                            &global_config.base_path,
-                        );
-                    } else {
-                        self.map_path = None;
-                    }
-                });
             });
     }
 
@@ -140,15 +123,6 @@ impl UIComponent for PerfectEstimatorConfig {
                     ui.label("Targets: ");
                     for t in &self.targets {
                         ui.label(format!("{t}, "));
-                    }
-                });
-
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Map path: ");
-                    if let Some(p) = &self.map_path {
-                        ui.label(p);
-                    } else {
-                        ui.label("None");
                     }
                 });
             });
@@ -204,23 +178,6 @@ impl PerfectEstimator {
                 world_state.ego = Some(State::new());
             } else {
                 world_state.objects.insert(target.clone(), State::new());
-            }
-        }
-        if let Some(map_path) = &config.map_path {
-            let mut map_path = Path::new(map_path);
-            let joined_path = global_config.base_path.join(map_path);
-            if map_path.is_relative() {
-                map_path = joined_path.as_path();
-            }
-            let landmarks = OrientedLandmarkSensor::load_map_from_path(map_path);
-            for landmark in landmarks {
-                world_state.landmarks.insert(
-                    landmark.id,
-                    State {
-                        pose: landmark.pose,
-                        velocity: [0., 0., 0.].into(),
-                    },
-                );
             }
         }
 
@@ -293,6 +250,14 @@ impl StateEstimator for PerfectEstimator {
         for obj in objects_to_delete {
             self.world_state.objects.remove(&obj);
         }
+
+        let landmarks = node.environment().map().landmarks.clone();
+        self.world_state.landmarks = landmarks
+            .iter()
+            .enumerate()
+            .map(|(i, l)| (i as i32, State::from_vector(l.pose.as_slice())))
+            .collect();
+
         self.prediction_activation.as_mut().map(|p| p.update(time));
         self.last_time_prediction = time;
     }

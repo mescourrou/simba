@@ -8,6 +8,7 @@ use crate::gui::{
     utils::{string_combobox, text_singleline_with_apply},
 };
 use crate::{
+    environment::Environment,
     sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
         SharedMutex,
@@ -202,6 +203,7 @@ impl FaultModel for ClutterFault {
         seed: f32,
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,
+        environment: &Arc<Environment>,
     ) {
         let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
         let mut seed = seed;

@@ -2,12 +2,15 @@
 //!
 //! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
 
+use std::sync::Arc;
+
 use log::debug;
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::{
+    environment::Environment,
     logger::is_enabled,
     sensors::SensorObservation,
     utils::{
@@ -101,6 +104,7 @@ impl FaultModel for MisdetectionFault {
         seed: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
+        environment: &Arc<Environment>,
     ) {
         let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
         let mut seed = seed;

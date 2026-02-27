@@ -10,6 +10,7 @@ use super::fault_models::fault_model::{
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+use crate::environment::Environment;
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
@@ -132,19 +133,22 @@ impl UIComponent for GNSSSensorConfig {
 /// Record of the [`GNSSSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GNSSSensorRecord {
-    last_time: f32,
+    last_time: Option<f32>,
 }
 
 impl Default for GNSSSensorRecord {
     fn default() -> Self {
-        Self { last_time: 0. }
+        Self { last_time: None }
     }
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for GNSSSensorRecord {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(format!("Last time: {}", self.last_time));
+        ui.label(format!("Last time: {}", match self.last_time {
+            Some(t) => t.to_string(),
+            None => "None".to_string(),
+        }));
     }
 }
 
@@ -193,7 +197,7 @@ pub struct GNSSSensor {
     /// Observation period
     activation_time: Option<Periodicity>,
     /// Last observation time.
-    last_time: f32,
+    last_time: Option<f32>,
     /// Fault models for x and y positions and on x and y velocities
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
     filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
@@ -249,13 +253,9 @@ impl GNSSSensor {
             .activation_time
             .as_ref()
             .map(|p| Periodicity::from_config(p, va_factory, initial_time));
-        let last_time = activation_time
-            .as_ref()
-            .map(|p| p.next_time())
-            .unwrap_or(initial_time);
         Self {
             activation_time,
-            last_time,
+            last_time: None,
             faults: fault_models,
             filters,
         }
@@ -281,12 +281,12 @@ impl Sensor for GNSSSensor {
         Ok(())
     }
 
-    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
+    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.last_time).abs() < TIME_ROUND {
+        if let Some(last_time) = self.last_time && (time - last_time).abs() < TIME_ROUND {
             return observation_list;
         }
-        let arc_physic = robot
+        let arc_physic = node
             .physics()
             .expect("Node with GNSS sensor should have Physics");
         let physic = arc_physic.read().unwrap();
@@ -318,6 +318,7 @@ impl Sensor for GNSSSensor {
                     time,
                     &mut observation_list,
                     SensorObservation::GNSS(GNSSObservation::default()),
+                    node.environment(),
                 );
             }
         } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
@@ -325,7 +326,7 @@ impl Sensor for GNSSSensor {
         }
 
         self.activation_time.as_mut().map(|p| p.update(time));
-        self.last_time = time;
+        self.last_time = Some(time);
         observation_list
     }
 

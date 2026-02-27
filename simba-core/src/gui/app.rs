@@ -131,6 +131,7 @@ struct PrivateParams {
     config: Option<SimulatorConfig>,
     current_draw_time: f32,
     robots: BTreeMap<String, drawables::robot::Robot>,
+    map: drawables::map::Map,
     drawables: Vec<Box<dyn drawables::Drawable>>,
     playing: Option<(f32, std::time::Instant)>,
     simulation_run: bool,
@@ -157,6 +158,7 @@ impl Default for PrivateParams {
             config: None,
             current_draw_time: 0.,
             robots: BTreeMap::new(),
+            map: drawables::map::Map::default(),
             drawables: Vec::new(),
             playing: None,
             simulation_run: false,
@@ -350,6 +352,7 @@ impl SimbaApp {
             return;
         }
         let config = self.p.config.as_ref().unwrap();
+        self.p.map = drawables::map::Map::init(&config.environment, &config);
         for robot in &config.robots {
             self.p.robots.insert(
                 robot.name.clone(),
@@ -365,6 +368,7 @@ impl SimbaApp {
 
     fn draw(&mut self, ui: &mut egui::Ui, viewport: Rect) -> Result<Vec<Shape>, Vec2> {
         let mut shapes = Vec::new();
+        shapes.extend(self.p.map.draw(ui, &viewport, &self.p.painter_info, self.drawing_scale)?);
         for robot in self.p.robots.values() {
             shapes.extend(robot.draw(
                 ui,

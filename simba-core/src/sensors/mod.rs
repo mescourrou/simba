@@ -25,6 +25,8 @@ pub mod sensor_filters;
 
 extern crate confy;
 
+use std::sync::Arc;
+
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -36,6 +38,7 @@ use {
 };
 
 use crate::{
+    environment::Environment,
     errors::SimbaResult,
     node::Node,
     recordable::Recordable,

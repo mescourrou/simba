@@ -1,12 +1,13 @@
 //! TODO: Lots of code duplication between fault models, need to find a way to factorize
 
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::{
+    environment::Environment,
     errors::SimbaResult,
     sensors::{
         SensorObservation,
@@ -284,5 +285,6 @@ pub trait FaultModel: Debug + Sync + Send {
         seed: f32,
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,
+        environment: &Arc<Environment>,
     );
 }

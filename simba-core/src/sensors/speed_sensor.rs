@@ -11,6 +11,7 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
+use crate::environment::Environment;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
@@ -132,14 +133,14 @@ impl UIComponent for SpeedSensorConfig {
 /// Record of the [`SpeedSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SpeedSensorRecord {
-    last_time: f32,
+    last_time: Option<f32>,
     last_state: StateRecord,
 }
 
 impl Default for SpeedSensorRecord {
     fn default() -> Self {
         Self {
-            last_time: 0.,
+            last_time: None,
             last_state: StateRecord::default(),
         }
     }
@@ -148,7 +149,10 @@ impl Default for SpeedSensorRecord {
 #[cfg(feature = "gui")]
 impl UIComponent for SpeedSensorRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
-        ui.label(format!("Last time: {}", self.last_time));
+        ui.label(format!("Last time: {}", match self.last_time {
+            Some(t) => t.to_string(),
+            None => "None".to_string(),
+        }));
         ui.label("Last state: ");
         self.last_state.show(ui, ctx, unique_id);
     }
@@ -199,7 +203,7 @@ pub struct SpeedSensor {
     /// Observation period
     activation_time: Option<Periodicity>,
     /// Last observation time.
-    last_time: f32,
+    last_time: Option<f32>,
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
     filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
 }
@@ -254,14 +258,10 @@ impl SpeedSensor {
             .activation_time
             .as_ref()
             .map(|p| Periodicity::from_config(p, va_factory, initial_time));
-        let last_time = period
-            .as_ref()
-            .map(|p| p.next_time())
-            .unwrap_or(initial_time);
         Self {
             last_state: State::new(),
             activation_time: period,
-            last_time,
+            last_time: None,
             faults: fault_models,
             filters,
         }
@@ -294,12 +294,12 @@ impl Sensor for SpeedSensor {
         Ok(())
     }
 
-    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
+    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.last_time).abs() < TIME_ROUND {
+        if let Some(last_time) = self.last_time && (time - last_time).abs() < TIME_ROUND {
             return observation_list;
         }
-        let arc_physic = robot
+        let arc_physic = node
             .physics()
             .expect("Node with Speed sensor should have Physics");
         let physic = arc_physic.read().unwrap();
@@ -326,6 +326,7 @@ impl Sensor for SpeedSensor {
                     time,
                     &mut observation_list,
                     SensorObservation::Speed(SpeedObservation::default()),
+                    node.environment(),
                 );
             }
         } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
@@ -333,7 +334,7 @@ impl Sensor for SpeedSensor {
         }
 
         self.activation_time.as_mut().map(|p| p.update(time));
-        self.last_time = time;
+        self.last_time = Some(time);
         self.last_state = state.clone();
         observation_list
     }

@@ -7,6 +7,7 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
+use crate::environment::Environment;
 use crate::errors::SimbaErrorTypes;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
@@ -151,19 +152,22 @@ impl UIComponent for RobotSensorConfig {
 /// Record of the [`RobotSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct RobotSensorRecord {
-    last_time: f32,
+    last_time: Option<f32>,
 }
 
 impl Default for RobotSensorRecord {
     fn default() -> Self {
-        Self { last_time: 0. }
+        Self { last_time: None }
     }
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for RobotSensorRecord {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(format!("Last time: {}", self.last_time));
+        ui.label(format!("Last time: {}", match self.last_time {
+            Some(t) => t.to_string(),
+            None => "None".to_string(),
+        }));
     }
 }
 
@@ -383,7 +387,7 @@ pub struct RobotSensor {
     /// Observation period
     activation_time: Option<Periodicity>,
     /// Last observation time.
-    last_time: f32,
+    last_time: Option<f32>,
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
     filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
 }
@@ -440,14 +444,10 @@ impl RobotSensor {
             .activation_time
             .as_ref()
             .map(|p| Periodicity::from_config(p, va_factory, initial_time));
-        let last_time = period
-            .as_ref()
-            .map(|p| p.next_time())
-            .unwrap_or(initial_time);
         Self {
             detection_distance: config.detection_distance,
             activation_time: period,
-            last_time,
+            last_time: None,
             faults: fault_models,
             filters,
         }
@@ -475,7 +475,7 @@ impl Sensor for RobotSensor {
 
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.last_time).abs() < TIME_ROUND {
+        if let Some(last_time) = self.last_time && (time - last_time).abs() < TIME_ROUND {
             return observation_list;
         }
         if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
@@ -514,7 +514,7 @@ impl Sensor for RobotSensor {
                         debug!("Distance is {d}");
                     }
                     if d <= self.detection_distance {
-                        let robot_seed = (i as f32) / (100. * (time - self.last_time));
+                        let robot_seed = (i as f32) / (100. * (time - self.last_time.unwrap_or(-1.)));
                         let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
                         let mut new_obs = Vec::new();
                         let labels = node
@@ -549,6 +549,7 @@ impl Sensor for RobotSensor {
                                     SensorObservation::OrientedRobot(
                                         OrientedRobotObservation::default(),
                                     ),
+                                    node.environment(),
                                 );
                             }
                             observation_list.extend(new_obs);
@@ -575,7 +576,7 @@ impl Sensor for RobotSensor {
             };
         }
         self.activation_time.as_mut().map(|p| p.update(time));
-        self.last_time = time;
+        self.last_time = Some(time);
         observation_list
     }
 

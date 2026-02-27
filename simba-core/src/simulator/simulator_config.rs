@@ -7,6 +7,7 @@ use std::path::Path;
 
 use crate::{
     VERSION,
+    environment::EnvironmentConfig,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::LoggerConfig,
     node::node_factory::{ComputationUnitConfig, RobotConfig},
@@ -61,6 +62,8 @@ pub struct SimulatorConfig {
     pub computation_units: Vec<ComputationUnitConfig>,
     #[check]
     pub scenario: ScenarioConfig,
+    #[check]
+    pub environment: EnvironmentConfig,
 }
 
 impl Default for SimulatorConfig {
@@ -77,6 +80,7 @@ impl Default for SimulatorConfig {
             computation_units: Vec::new(),
             max_time: 60.,
             scenario: ScenarioConfig::default(),
+            environment: EnvironmentConfig::default(),
         }
     }
 }
@@ -205,6 +209,18 @@ impl crate::gui::UIComponent for SimulatorConfig {
                 }
             });
 
+            ui.horizontal(|ui| {
+                ui.label("Environment: ");
+                self.environment.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+            });
+
             ui.vertical(|ui| {
                 ui.label("Robots:");
                 let mut remove = None;
@@ -282,6 +298,11 @@ impl crate::gui::UIComponent for SimulatorConfig {
                 } else {
                     ui.label("Time Analysis disabled");
                 }
+            });
+
+            ui.horizontal(|ui| {
+                ui.label("Environment: ");
+                self.environment.show(ui, ctx, unique_id);
             });
 
             ui.vertical(|ui| {

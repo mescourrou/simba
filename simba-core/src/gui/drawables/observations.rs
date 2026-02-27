@@ -80,27 +80,15 @@ impl OrientedRobotObservation {
 
 pub struct OrientedLandmarkObservation {
     color: Color32,
-    map: Map,
     arrow_len: f32,
 }
 
 impl OrientedLandmarkObservation {
-    pub fn init(config: &OrientedLandmarkSensorConfig, sim_config: &SimulatorConfig) -> Self {
+    pub fn init(_config: &OrientedLandmarkSensorConfig, _sim_config: &SimulatorConfig) -> Self {
         Self {
             color: Color32::from_rgb(255, 165, 0), // Orange
-            map: Map::init(&config.map_path, sim_config),
             arrow_len: 0.2,
         }
-    }
-
-    pub fn draw_map(
-        &self,
-        ui: &mut egui::Ui,
-        viewport: &Rect,
-        painter_info: &PainterInfo,
-        scale: f32,
-    ) -> Result<Vec<Shape>, Vec2> {
-        self.map.draw(ui, viewport, painter_info, scale)
     }
 
     pub fn draw(

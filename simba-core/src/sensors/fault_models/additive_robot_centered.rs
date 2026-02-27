@@ -9,6 +9,7 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
+    environment::Environment,
     sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
         SharedMutex,
@@ -214,6 +215,7 @@ impl FaultModel for AdditiveRobotCenteredFault {
         seed: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
+        environment: &Arc<Environment>,
     ) {
         let dt = time - self.last_time;
         let obs_seed_increment = 1. / (100. * obs_list.len() as f32);

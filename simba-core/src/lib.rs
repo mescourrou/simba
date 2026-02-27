@@ -52,6 +52,7 @@ pub use simba_com;
 
 pub mod config;
 pub mod controllers;
+pub mod environment;
 pub mod logger;
 pub mod navigators;
 pub mod networking;

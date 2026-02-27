@@ -10,6 +10,7 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
+    environment::Environment,
     sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
         SharedMutex,
@@ -204,6 +205,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
         seed: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
+        environment: &Arc<Environment>,
     ) {
         let obs_seed_increment = 1. / (1000. * obs_list.len() as f32);
         let mut seed = seed;

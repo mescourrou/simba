@@ -11,7 +11,9 @@ results:
 #   exporter: TraceEventExporter
 #   output_path: "time_performance"
 #   keep_last: true
-max_time: 60.
+max_time: 60
+environment:
+  map_path: "maps/landmarks_square.yaml"
 robots:
   - name: "robot1"
     navigator:
@@ -39,7 +41,6 @@ robots:
         - name: "LandmarkSensor"
           config:
             type: OrientedLandmarkSensor
-            map_path: "maps/landmarks_square.yaml"
             detection_distance: 6.0
   - name: "robot2"
     navigator:
@@ -67,5 +68,4 @@ robots:
         - name: "LandmarkSensor"
           config:
             type: OrientedLandmarkSensor
-            map_path: "maps/landmarks_square.yaml"
             detection_distance: 6.0

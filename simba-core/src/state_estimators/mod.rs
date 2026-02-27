@@ -224,7 +224,7 @@ impl State {
         }
     }
 
-    pub fn from_vector(vec: Vec<f32>) -> Self {
+    pub fn from_vector(vec: &[f32]) -> Self {
         let mut state = State::new();
         if !vec.is_empty() {
             state.pose.x = vec[0];

@@ -51,6 +51,7 @@ use crate::{
     VERSION,
     api::internal_api::NodeClient,
     constants::TIME_ROUND,
+    environment::Environment,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::{LoggerConfig, init_log, is_enabled},
     networking::{
@@ -251,7 +252,7 @@ pub struct Simulator {
     scenario: SharedMutex<Scenario>,
     plugin_api: Option<Arc<dyn PluginAPI>>,
     service_managers: BTreeMap<String, SharedRwLock<ServiceManager>>,
-    meta_data_list: SharedRwLock<HashMap<String, SharedRoLock<NodeMetaData>>>,
+    environment: Arc<Environment>,
 }
 
 impl Simulator {
@@ -286,7 +287,7 @@ impl Simulator {
             ))),
             plugin_api: None,
             service_managers: BTreeMap::new(),
-            meta_data_list: Arc::new(RwLock::new(HashMap::new())),
+            environment: Arc::new(Environment::default()),
         }
     }
 
@@ -330,7 +331,7 @@ impl Simulator {
     pub fn reset(&mut self, plugin_api: Option<Arc<dyn PluginAPI>>) -> SimbaResult<()> {
         info!("Reset node");
         self.network_manager.reset();
-        self.meta_data_list.write().unwrap().clear();
+        self.environment.clear_meta_data();
         self.nodes = Vec::new();
         self.time_cv = Arc::new(TimeCv::new());
         let config = self.config.clone();
@@ -351,6 +352,8 @@ impl Simulator {
         });
 
         self.plugin_api = plugin_api.clone();
+
+        self.environment = Arc::new(Environment::from_config(&config.environment, &config)?);
 
         self.service_managers = BTreeMap::new();
         // Create robots
@@ -377,7 +380,11 @@ impl Simulator {
             info!("Finishing initialization of {}", node.name());
             self.node_apis.insert(
                 node.name(),
-                node.post_creation_init(&self.service_managers, self.meta_data_list.clone(), 0.),
+                node.post_creation_init(
+                    &self.service_managers,
+                    self.environment.get_meta_data().clone(),
+                    0.,
+                ),
             );
         }
 
@@ -578,11 +585,12 @@ impl Simulator {
                 new_name: None,
                 broker: &self.network_manager.broker(),
                 initial_time,
+                environment: self.environment.clone(),
             },
         )?;
         let meta_data = new_node.meta_data();
         let name = meta_data.read().unwrap().name.clone();
-        self.meta_data_list.write().unwrap().insert(name, meta_data);
+        self.environment.insert_meta_data(name, meta_data);
         if new_node.state() != NodeState::Running {
             return Ok(());
         }
@@ -609,11 +617,12 @@ impl Simulator {
                 new_name: None,
                 initial_time,
                 broker: &self.network_manager.broker(),
+                environment: self.environment.clone(),
             },
         )?;
         let meta_data = new_node.meta_data();
         let name = meta_data.read().unwrap().name.clone();
-        self.meta_data_list.write().unwrap().insert(name, meta_data);
+        self.environment.insert_meta_data(name, meta_data);
         if new_node.state() != NodeState::Running {
             return Ok(());
         }
@@ -711,21 +720,23 @@ impl Simulator {
                 new_name: Some(new_node_name),
                 initial_time: time,
                 broker: &self.network_manager.broker(),
+                environment: self.environment.clone(),
             },
         )?;
         let meta_data = node.meta_data();
         let name = meta_data.read().unwrap().name.clone();
-        self.meta_data_list
-            .write()
-            .unwrap()
-            .insert(name.clone(), meta_data);
+        self.environment.insert_meta_data(name.clone(), meta_data);
 
         node.set_state(NodeState::Running);
         self.service_managers
             .insert(name.clone(), node.service_manager());
         self.node_apis.insert(
             name.clone(),
-            node.post_creation_init(&self.service_managers, self.meta_data_list.clone(), time),
+            node.post_creation_init(
+                &self.service_managers,
+                self.environment.get_meta_data().clone(),
+                time,
+            ),
         );
 
         self.spawn_node(node, running_parameters)
@@ -1218,17 +1229,21 @@ impl Simulator {
                     waiting_nodes
                 );
             }
-            let node_states =
-                HashMap::from_iter(self.meta_data_list.read().unwrap().iter().filter_map(
-                    |(node_name, meta_data)| {
+            let node_states = HashMap::from_iter(
+                self.environment
+                    .get_meta_data()
+                    .read()
+                    .unwrap()
+                    .iter()
+                    .filter_map(|(node_name, meta_data)| {
                         let meta_data = meta_data.read().unwrap();
                         if meta_data.state == NodeState::Running {
                             Some((node_name.clone(), meta_data.position))
                         } else {
                             None
                         }
-                    },
-                ));
+                    }),
+            );
 
             // for (node_name, node_api) in self.node_apis.iter() {
             //     if let Some(state_update) = &node_api.state_update

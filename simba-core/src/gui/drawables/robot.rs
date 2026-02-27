@@ -72,10 +72,6 @@ impl Robot {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
 
-        if let Some(lobs) = &self.landmark_obs {
-            shapes.extend(lobs.draw_map(ui, viewport, painter_info, scale)?);
-        }
-
         if let Some((_, record)) = self.records.get_data_beq_time(time) {
             let pose = record.physics.pose();
             let position = Vec2::new(pose[0], pose[1]);

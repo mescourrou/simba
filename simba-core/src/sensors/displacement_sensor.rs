@@ -12,6 +12,7 @@ use super::{Sensor, SensorObservation, SensorRecord};
 use crate::config::NumberConfig;
 use crate::constants::TIME_ROUND;
 
+use crate::environment::Environment;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
@@ -146,7 +147,7 @@ impl UIComponent for DisplacementSensorConfig {
 /// Record of the [`DisplacementSensor`], which contains nothing for now.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DisplacementSensorRecord {
-    last_time: f32,
+    last_time: Option<f32>,
     last_state: StateRecord,
     lie_movement: bool,
 }
@@ -154,7 +155,7 @@ pub struct DisplacementSensorRecord {
 impl Default for DisplacementSensorRecord {
     fn default() -> Self {
         Self {
-            last_time: 0.,
+            last_time: None,
             last_state: StateRecord::default(),
             lie_movement: false,
         }
@@ -164,7 +165,10 @@ impl Default for DisplacementSensorRecord {
 #[cfg(feature = "gui")]
 impl UIComponent for DisplacementSensorRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
-        ui.label(format!("Last time: {}", self.last_time));
+        ui.label(format!("Last time: {}", match self.last_time {
+            Some(t) => t.to_string(),
+            None => "None".to_string(),
+        }));
         ui.label(format!("Lie movement: {}", self.lie_movement));
         ui.label("Last state: ");
         self.last_state.show(ui, ctx, unique_id);
@@ -214,7 +218,7 @@ pub struct DisplacementSensor {
     /// Observation period
     activation_time: Option<Periodicity>,
     /// Last observation time.
-    last_time: f32,
+    last_time: Option<f32>,
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
     filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
     lie_movement: bool,
@@ -272,14 +276,10 @@ impl DisplacementSensor {
             .activation_time
             .as_ref()
             .map(|p| Periodicity::from_config(p, va_factory, initial_time));
-        let last_time = activation_time
-            .as_ref()
-            .map(|p| p.next_time())
-            .unwrap_or(initial_time);
         Self {
             last_state: initial_state.clone(),
             activation_time,
-            last_time,
+            last_time: None,
             faults: fault_models,
             filters,
             lie_movement: config.lie_movement,
@@ -313,12 +313,12 @@ impl Sensor for DisplacementSensor {
         Ok(())
     }
 
-    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
+    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.last_time).abs() < TIME_ROUND {
+        if let Some(last_time) = self.last_time && (time - last_time).abs() < TIME_ROUND {
             return observation_list;
         }
-        let arc_physic = robot
+        let arc_physic = node
             .physics()
             .expect("Node with Displacement sensor should have Physics");
         let physic = arc_physic.read().unwrap();
@@ -371,6 +371,7 @@ impl Sensor for DisplacementSensor {
                     time,
                     &mut observation_list,
                     SensorObservation::Displacement(DisplacementObservation::default()),
+                    node.environment(),
                 );
             }
         } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
@@ -378,7 +379,7 @@ impl Sensor for DisplacementSensor {
         }
 
         self.activation_time.as_mut().map(|p| p.update(time));
-        self.last_time = time;
+        self.last_time = Some(time);
         self.last_state = state.clone();
         observation_list
     }

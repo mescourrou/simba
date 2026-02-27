@@ -11,6 +11,8 @@ time_analysis:
 results: {} #default results
 max_time: 60.
 random_seed: 85646513.6849618
+environment:
+  map_path: "maps/landmarks_square.yaml"
 robots:
   - name: "robot1"
     navigator: 
@@ -33,7 +35,6 @@ robots:
         - name: "LandmarkSensor"
           config: 
             type: OrientedLandmarkSensor
-            map_path: "maps/landmarks_square.yaml"
             detection_distance: 10.0
             faults:
               - type: AdditiveRobotCentered # Gaussian White Noise

@@ -210,14 +210,16 @@ impl Periodicity {
                     .make_variable(rand_config.clone())
                     .generate(0.)
                     .first()
-                    .expect("Periodicity offset random variable should generate at least one value"),
+                    .expect(
+                        "Periodicity offset random variable should generate at least one value",
+                    ),
                 TIME_ROUND,
             )
             .unwrap(),
             None => round_precision(
-                *period.generate(0.)
-                    .first()
-                    .expect("Periodicity period random variable should generate at least one value"),
+                *period.generate(0.).first().expect(
+                    "Periodicity period random variable should generate at least one value",
+                ),
                 TIME_ROUND,
             )
             .unwrap(),

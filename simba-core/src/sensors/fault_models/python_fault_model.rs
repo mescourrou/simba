@@ -1,6 +1,9 @@
+use std::sync::Arc;
+
 use pyo3::prelude::*;
 
 use crate::{
+    environment::Environment,
     errors::SimbaResult,
     node::Node,
     pywrappers::{NodeWrapper, SensorObservationWrapper},
@@ -48,6 +51,7 @@ impl FaultModel for PythonFaultModel {
         seed: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
+        environment: &Arc<Environment>,
     ) {
         let py_obs_list: Vec<SensorObservationWrapper> = obs_list
             .iter()

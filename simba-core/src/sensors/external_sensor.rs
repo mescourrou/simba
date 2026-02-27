@@ -21,6 +21,7 @@ use serde_json::Value;
 use simba_macros::config_derives;
 
 use crate::constants::TIME_ROUND;
+use crate::environment::Environment;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};

@@ -13,6 +13,7 @@ use crate::gui::{UIComponent, utils::text_singleline_with_apply};
 
 use crate::{
     controllers::{self, ControllerConfig, ControllerRecord, pid},
+    environment::Environment,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
     navigators::{self, NavigatorConfig, NavigatorRecord, go_to},
@@ -674,6 +675,7 @@ pub struct MakeNodeParams<'a> {
     pub new_name: Option<&'a str>,
     pub broker: &'a SharedRwLock<SimbaBroker>,
     pub initial_time: f32,
+    pub environment: Arc<Environment>,
 }
 
 pub struct NodeFactory {}
@@ -834,6 +836,7 @@ impl NodeFactory {
             meta_data_list: None,
             node_message_client: client,
             current_command: None,
+            environment: params.environment.clone(),
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -925,6 +928,7 @@ impl NodeFactory {
             meta_data_list: None,
             node_message_client: client,
             current_command: None,
+            environment: params.environment.clone(),
         };
 
         for state_estimator_config in &config.state_estimators {
