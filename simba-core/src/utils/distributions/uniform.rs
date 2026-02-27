@@ -7,8 +7,6 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 
-use crate::utils::determinist_random_variable::DeterministRandomVariable;
-
 /// Configuration for a uniform random variable.
 #[config_derives]
 pub struct UniformRandomVariableConfig {

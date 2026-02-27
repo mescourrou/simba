@@ -5,7 +5,6 @@ use statrs::{distribution::MultivariateNormal, statistics::MeanN};
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::utils::determinist_random_variable::DeterministRandomVariable;
 
 /// Configuration for a normal random variable.
 #[config_derives]

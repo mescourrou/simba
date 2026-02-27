@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 use simba_com::pub_sub::{BrokerTrait, PathKey};
 
@@ -14,7 +14,6 @@ impl BrokerPanel {
     }
 
     fn draw_subtree(
-        &self,
         ui: &mut egui::Ui,
         nodes: &Vec<(PathKey, PathKey)>,
         current_node: PathKey,
@@ -39,15 +38,15 @@ impl BrokerPanel {
         }
         egui::CollapsingHeader::new(current_node_str).show(ui, |ui| {
             for child in children {
-                self.draw_subtree(ui, nodes, child);
+                Self::draw_subtree(ui, nodes, child);
             }
         });
     }
 
-    pub fn draw(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str, time: f32) {
+    pub fn draw(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str, _time: f32) {
         egui::CollapsingHeader::new("Channels").show(ui, |ui| {
             let tree = self.broker.read().unwrap().meta_tree();
-            self.draw_subtree(ui, &tree, PathKey::from_str("/").unwrap());
+            Self::draw_subtree(ui, &tree, PathKey::from_str("/").unwrap());
         });
     }
 }

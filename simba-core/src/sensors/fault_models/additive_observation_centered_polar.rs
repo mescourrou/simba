@@ -205,7 +205,7 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
         seed: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
-        environment: &Arc<Environment>,
+        _environment: &Arc<Environment>,
     ) {
         let obs_seed_increment = 1. / (1000. * obs_list.len() as f32);
         let mut seed = seed;

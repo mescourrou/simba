@@ -7,7 +7,6 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
-use crate::environment::Environment;
 use crate::errors::SimbaErrorTypes;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
@@ -23,7 +22,6 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::utils::maths::round_precision;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use serde_derive::{Deserialize, Serialize};
 
@@ -161,15 +159,9 @@ impl UIComponent for RobotSensorConfig {
 }
 
 /// Record of the [`RobotSensor`], which contains nothing for now.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct RobotSensorRecord {
     last_time: Option<f32>,
-}
-
-impl Default for RobotSensorRecord {
-    fn default() -> Self {
-        Self { last_time: None }
-    }
 }
 
 #[cfg(feature = "gui")]
@@ -414,7 +406,7 @@ impl RobotSensor {
             &RobotSensorConfig::default(),
             &None,
             &SimulatorConfig::default(),
-            &"NoName".to_string(),
+            "NoName",
             &DeterministRandomVariableFactory::default(),
             0.0,
         )
@@ -427,7 +419,7 @@ impl RobotSensor {
         config: &RobotSensorConfig,
         _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        node_name: &String,
+        node_name: &str,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
     ) -> Self {
@@ -595,7 +587,9 @@ impl Sensor for RobotSensor {
                 }
             };
         }
-        self.activation_time.as_mut().map(|p| p.update(time));
+        if let Some(p) = self.activation_time.as_mut() {
+            p.update(time);
+        }
         self.last_time = Some(time);
         observation_list
     }

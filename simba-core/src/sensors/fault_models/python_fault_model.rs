@@ -51,7 +51,7 @@ impl FaultModel for PythonFaultModel {
         seed: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
-        environment: &Arc<Environment>,
+        _environment: &Arc<Environment>,
     ) {
         let py_obs_list: Vec<SensorObservationWrapper> = obs_list
             .iter()

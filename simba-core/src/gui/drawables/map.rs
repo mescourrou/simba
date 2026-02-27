@@ -1,15 +1,10 @@
-use std::{path::Path, sync::Mutex};
-
 use egui::{Color32, Rect, Shape, Stroke, Vec2};
 
 use crate::{
     environment::{self, EnvironmentConfig, oriented_landmark::OrientedLandmark},
     gui::app::PainterInfo,
-    sensors::oriented_landmark_sensor::OrientedLandmarkSensor,
     simulator::SimulatorConfig,
 };
-
-static LOADED_MAPS: Mutex<Vec<(String, Vec<OrientedLandmark>)>> = Mutex::new(Vec::new());
 
 pub struct Map {
     color: Color32,

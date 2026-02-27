@@ -4,7 +4,6 @@
 
 use std::{
     ops::Rem,
-    path::Path,
     sync::{Arc, Mutex},
 };
 
@@ -25,7 +24,6 @@ use crate::{
     node::NodeState,
     sensors::{
         SensorObservation, fault_models::fault_model::FaultModelConfig,
-        oriented_landmark_sensor::OrientedLandmarkSensor,
     },
     simulator::SimulatorConfig,
     utils::{
@@ -175,8 +173,8 @@ pub struct MisassociationFault {
 impl MisassociationFault {
     pub fn from_config(
         config: &MisassociationFaultConfig,
-        global_config: &SimulatorConfig,
-        robot_name: &String,
+        _global_config: &SimulatorConfig,
+        _robot_name: &str,
         va_factory: &DeterministRandomVariableFactory,
         _initial_time: f32,
     ) -> Self {
@@ -207,7 +205,7 @@ impl FaultModel for MisassociationFault {
         _time: f32,
         seed: f32,
         obs_list: &mut Vec<SensorObservation>,
-        obs_type: SensorObservation,
+        _obs_type: SensorObservation,
         environment: &Arc<Environment>,
     ) {
         let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
@@ -237,13 +235,9 @@ impl FaultModel for MisassociationFault {
                 .collect(),
         };
 
-        match self.sort {
-            Sort::Random => {
-                let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + seed).to_bits() as u64);
-                id_list.shuffle(&mut rng);
-            }
-            // Sort distance is done later as it depends on the observation
-            _ => {}
+        if self.sort == Sort::Random {
+            let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + seed).to_bits() as u64);
+            id_list.shuffle(&mut rng);
         }
         for obs in obs_list {
             seed += obs_seed_increment;

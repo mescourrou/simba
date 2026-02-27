@@ -58,7 +58,7 @@ use crate::{
         network::Envelope, network_manager::NetworkManager, service_manager::ServiceManager,
     },
     node::{
-        Node, NodeMetaData, NodeState,
+        Node, NodeState,
         node_factory::{
             ComputationUnitConfig, MakeNodeParams, NodeFactory, NodeRecord, RobotConfig,
         },
@@ -68,7 +68,7 @@ use crate::{
     scenario::{Scenario, config::ScenarioConfig},
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
     utils::{
-        SharedMutex, SharedRoLock, SharedRwLock, barrier::Barrier,
+        SharedMutex, SharedRwLock, barrier::Barrier,
         determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
         python::CONVERT_TO_DICT,
     },
@@ -81,7 +81,6 @@ use std::{
     io::SeekFrom,
     path::{Path, PathBuf},
     thread::JoinHandle,
-    time::Duration,
 };
 use std::{collections::BTreeMap, ffi::CString};
 

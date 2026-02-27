@@ -636,7 +636,7 @@ pub trait StateEstimator:
     /// * `node` -- mutable reference on the current [`Node`] to be able to interact with
     ///   other modules.
     /// * `command` -- Command sent to the physics. Can be None at the first step or with
-    /// non-physical nodes (Computation Units).
+    ///   non-physical nodes (Computation Units).
     /// * `time` -- Time to reach.
     fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32);
 

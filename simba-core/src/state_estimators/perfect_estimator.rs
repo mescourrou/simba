@@ -4,8 +4,6 @@ the groundtruth to provide the estimation. It can be used when the state used
 by the controller should be perfect.
 */
 
-use std::path::Path;
-
 use super::{State, WorldState, WorldStateRecord};
 use crate::{
     constants::TIME_ROUND,
@@ -21,13 +19,11 @@ use crate::{
 #[cfg(feature = "gui")]
 use crate::gui::{
     UIComponent,
-    utils::{path_finder, string_checkbox},
+    utils::string_checkbox,
 };
 use crate::recordable::Recordable;
 use crate::sensors::Observation;
-use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
 use crate::simulator::SimulatorConfig;
-use crate::utils::maths::round_precision;
 use log::{error, info, warn};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
@@ -168,7 +164,7 @@ impl PerfectEstimator {
     /// Creates a new [`PerfectEstimator`] from the given `config`.
     pub fn from_config(
         config: &PerfectEstimatorConfig,
-        global_config: &SimulatorConfig,
+        _global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
     ) -> Self {
@@ -258,7 +254,9 @@ impl StateEstimator for PerfectEstimator {
             .map(|(i, l)| (i as i32, State::from_vector(l.pose.as_slice())))
             .collect();
 
-        self.prediction_activation.as_mut().map(|p| p.update(time));
+        if let Some(p) = self.prediction_activation.as_mut() {
+            p.update(time);
+        }
         self.last_time_prediction = time;
     }
 

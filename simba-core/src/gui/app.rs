@@ -7,7 +7,6 @@ use std::{
 
 use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
-use simba_com::time_ordered_data::TimeOrderedData;
 
 use crate::{
     AUTHORS, VERSION,
@@ -352,7 +351,7 @@ impl SimbaApp {
             return;
         }
         let config = self.p.config.as_ref().unwrap();
-        self.p.map = drawables::map::Map::init(&config.environment, &config);
+        self.p.map = drawables::map::Map::init(&config.environment, config);
         for robot in &config.robots {
             self.p.robots.insert(
                 robot.name.clone(),

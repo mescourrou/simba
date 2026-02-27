@@ -14,9 +14,7 @@ use crate::{
     logger::is_enabled,
     sensors::SensorObservation,
     utils::{
-        determinist_random_variable::{
-            DeterministRandomVariable, DeterministRandomVariableFactory,
-        },
+        determinist_random_variable::DeterministRandomVariableFactory,
         distributions::bernouilli::{
             BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable,
         },
@@ -104,7 +102,7 @@ impl FaultModel for MisdetectionFault {
         seed: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
-        environment: &Arc<Environment>,
+        _environment: &Arc<Environment>,
     ) {
         let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
         let mut seed = seed;

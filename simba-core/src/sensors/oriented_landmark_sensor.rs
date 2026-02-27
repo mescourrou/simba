@@ -8,9 +8,7 @@ use super::fault_models::fault_model::{
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
-use crate::environment::oriented_landmark::OrientedLandmark;
-use crate::environment::{Environment, Map};
-use crate::logger::{InternalLog, is_enabled};
+use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::sensor_filters::{
@@ -20,28 +18,18 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::utils::geometry::{
-    segment_circle_intersection, segment_to_line_intersection, segment_triangle_intersection,
-    segments_intersection,
-};
-use crate::utils::maths::round_precision;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 #[cfg(feature = "gui")]
-use crate::{
-    constants::TIME_ROUND_DECIMALS,
-    gui::{UIComponent, utils::path_finder},
-};
-use nalgebra::Vector2;
+use crate::gui::UIComponent;
 use serde_derive::{Deserialize, Serialize};
 
-use log::{debug, error};
+use log::debug;
 extern crate nalgebra as na;
 use na::Vector3;
 use simba_macros::config_derives;
 
-use std::path::Path;
 use std::sync::{Arc, Mutex};
-use std::{fmt, vec};
+use std::vec;
 
 /// Configuration of the [`OrientedLandmarkSensor`].
 #[config_derives]
@@ -170,15 +158,9 @@ impl UIComponent for OrientedLandmarkSensorConfig {
 }
 
 /// Record of the [`OrientedLandmarkSensor`], which contains nothing for now.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct OrientedLandmarkSensorRecord {
     last_time: Option<f32>,
-}
-
-impl Default for OrientedLandmarkSensorRecord {
-    fn default() -> Self {
-        Self { last_time: None }
-    }
 }
 
 #[cfg(feature = "gui")]
@@ -301,7 +283,7 @@ impl OrientedLandmarkSensor {
             &OrientedLandmarkSensorConfig::default(),
             &None,
             &SimulatorConfig::default(),
-            &"NoName".to_string(),
+            "NoName",
             &DeterministRandomVariableFactory::default(),
             0.0,
         )
@@ -314,7 +296,7 @@ impl OrientedLandmarkSensor {
         config: &OrientedLandmarkSensorConfig,
         _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        robot_name: &String,
+        robot_name: &str,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
     ) -> Self {
@@ -779,7 +761,9 @@ impl Sensor for OrientedLandmarkSensor {
                 );
             }
         }
-        self.activation_time.as_mut().map(|p| p.update(time));
+        if let Some(p) = self.activation_time.as_mut() {
+            p.update(time);
+        }
         self.last_time = Some(time);
         observation_list
     }

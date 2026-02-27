@@ -13,8 +13,6 @@ use crate::{
     simulator::SimulatorConfig,
 };
 
-use super::map::Map;
-
 pub struct OrientedRobotObservation {
     color: Color32,
     arrow_len: f32,

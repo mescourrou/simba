@@ -37,7 +37,7 @@ use crate::{
     },
     simulator::{AsyncSimulator, SimbaBrokerMultiClient, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
-    utils::{SharedRwLock, occupancy_grid::OccupancyGrid},
+    utils::occupancy_grid::OccupancyGrid,
 };
 
 #[derive(Clone, Debug)]
@@ -991,7 +991,7 @@ impl NodeWrapper {
     pub fn from_rust(n: &Node) -> Self {
         Self {
             name: n.name(),
-            network: n.network().as_ref().map(|net| Arc::downgrade(net)),
+            network: n.network().as_ref().map(Arc::downgrade),
         }
     }
 }

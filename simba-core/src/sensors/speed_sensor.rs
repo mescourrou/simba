@@ -11,7 +11,6 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
-use crate::environment::Environment;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
@@ -25,7 +24,6 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::utils::maths::round_precision;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
@@ -131,19 +129,10 @@ impl UIComponent for SpeedSensorConfig {
 }
 
 /// Record of the [`SpeedSensor`], which contains nothing for now.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct SpeedSensorRecord {
     last_time: Option<f32>,
     last_state: StateRecord,
-}
-
-impl Default for SpeedSensorRecord {
-    fn default() -> Self {
-        Self {
-            last_time: None,
-            last_state: StateRecord::default(),
-        }
-    }
 }
 
 #[cfg(feature = "gui")]
@@ -218,7 +207,7 @@ impl SpeedSensor {
             &SpeedSensorConfig::default(),
             &None,
             &SimulatorConfig::default(),
-            &"NoName".to_string(),
+            "NoName",
             &DeterministRandomVariableFactory::default(),
             0.0,
         )
@@ -229,7 +218,7 @@ impl SpeedSensor {
         config: &SpeedSensorConfig,
         _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        robot_name: &String,
+        robot_name: &str,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
     ) -> Self {
@@ -338,7 +327,9 @@ impl Sensor for SpeedSensor {
             debug!("Speed observation was filtered out");
         }
 
-        self.activation_time.as_mut().map(|p| p.update(time));
+        if let Some(p) = self.activation_time.as_mut() {
+            p.update(time);
+        }
         self.last_time = Some(time);
         self.last_state = state.clone();
         observation_list

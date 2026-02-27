@@ -12,7 +12,6 @@ use super::{Sensor, SensorObservation, SensorRecord};
 use crate::config::NumberConfig;
 use crate::constants::TIME_ROUND;
 
-use crate::environment::Environment;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
@@ -27,7 +26,6 @@ use crate::state_estimators::{State, StateRecord};
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::geometry::smallest_theta_diff;
-use crate::utils::maths::round_precision;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use log::debug;
 use nalgebra::{Matrix3, Vector2};
@@ -89,10 +87,8 @@ impl UIComponent for DisplacementSensorConfig {
                         if ui.button("Remove activation").clicked() {
                             self.activation_time = None;
                         }
-                    } else {
-                        if ui.button("Add activation").clicked() {
-                            self.activation_time = Some(PeriodicityConfig::default());
-                        }
+                    } else if ui.button("Add activation").clicked() {
+                        self.activation_time = Some(PeriodicityConfig::default());
                     }
                 });
 
@@ -145,21 +141,11 @@ impl UIComponent for DisplacementSensorConfig {
 }
 
 /// Record of the [`DisplacementSensor`], which contains nothing for now.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DisplacementSensorRecord {
     last_time: Option<f32>,
     last_state: StateRecord,
-    lie_movement: bool,
-}
-
-impl Default for DisplacementSensorRecord {
-    fn default() -> Self {
-        Self {
-            last_time: None,
-            last_state: StateRecord::default(),
-            lie_movement: false,
-        }
-    }
+    lie_movement: bool, // Default is false
 }
 
 #[cfg(feature = "gui")]
@@ -234,7 +220,7 @@ impl DisplacementSensor {
             &DisplacementSensorConfig::default(),
             &None,
             &SimulatorConfig::default(),
-            &"NoName".to_string(),
+            "NoName",
             &DeterministRandomVariableFactory::default(),
             0.0,
             &State::default(),
@@ -246,7 +232,7 @@ impl DisplacementSensor {
         config: &DisplacementSensorConfig,
         _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        robot_name: &String,
+        robot_name: &str,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
         initial_state: &State,
@@ -383,7 +369,9 @@ impl Sensor for DisplacementSensor {
             debug!("Displacement observation was filtered out");
         }
 
-        self.activation_time.as_mut().map(|p| p.update(time));
+        if let Some(p) = self.activation_time.as_mut() {
+            p.update(time);
+        }
         self.last_time = Some(time);
         self.last_state = state.clone();
         observation_list

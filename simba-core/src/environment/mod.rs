@@ -3,12 +3,11 @@ use std::collections::BTreeMap;
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{Arc, RwLock, RwLockReadGuard},
+    sync::{Arc, RwLock},
 };
 
-use libc::in_addr;
-use log::{debug, error};
-use nalgebra::{CStride, Const, DefaultAllocator, Dim, Vector2, Vector3, VectorView, VectorView2};
+use log::debug;
+use nalgebra::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -31,14 +30,9 @@ use crate::{gui::utils::path_finder, simulator::SimulatorConfig};
 pub mod oriented_landmark;
 
 #[config_derives]
+#[derive(Default)]
 pub struct EnvironmentConfig {
     pub map_path: Option<String>,
-}
-
-impl Default for EnvironmentConfig {
-    fn default() -> Self {
-        Self { map_path: None }
-    }
 }
 
 #[cfg(feature = "gui")]
@@ -77,6 +71,9 @@ impl crate::gui::UIComponent for EnvironmentConfig {
     }
 }
 
+type TwoPoints = (Vector2<f32>, Vector2<f32>);
+type CacheValue = (Vector2<f32>, f32, Vec<(OrientedLandmark, Option<TwoPoints>)>);
+
 #[derive(Debug, Clone, Default)]
 pub struct Environment {
     map: Map,
@@ -85,11 +82,7 @@ pub struct Environment {
     cache: SharedRwLock<
         HashMap<
             String,
-            (
-                Vector2<f32>,
-                f32,
-                Vec<(OrientedLandmark, Option<(Vector2<f32>, Vector2<f32>)>)>,
-            ),
+            CacheValue,
         >,
     >,
 }
@@ -115,6 +108,7 @@ impl Environment {
         &self.map
     }
 
+
     /// Get the list of landmarks that are in range from the given position.
     /// For widthed landmarks, they are returned if they are in the observation circle or intersect it.
     /// The intersection points are also returned, which can be extremities of the landmark of intersection with the observation circle.
@@ -123,7 +117,7 @@ impl Environment {
         position: &Vector2<f32>,
         max_distance: f32,
         cache_key: Option<String>,
-    ) -> Vec<(OrientedLandmark, Option<(Vector2<f32>, Vector2<f32>)>)> {
+    ) -> Vec<(OrientedLandmark, Option<TwoPoints>)> {
         if let Some(cache_key) = &cache_key
             && let Some((cached_position, cached_distance, cached_landmarks)) =
                 self.cache.read().unwrap().get(cache_key)
@@ -159,12 +153,12 @@ impl Environment {
                     continue;
                 }
 
-                intersections = segment_circle_intersection(&pt1, &pt2, &position, max_distance);
+                intersections = segment_circle_intersection(&pt1, &pt2, position, max_distance);
                 if intersections.is_none() {
                     continue;
                 }
             } else if landmark.width > 0.0 {
-                intersections = segment_circle_intersection(&pt1, &pt2, &position, max_distance);
+                intersections = segment_circle_intersection(&pt1, &pt2, position, max_distance);
                 if intersections.is_none() {
                     // Entire segment is inside the detection circle
                     intersections = Some((pt1, pt2));
@@ -275,18 +269,18 @@ impl Environment {
                             if let Some((i1, i2)) = segment_triangle_intersection(
                                 &p1,
                                 &p2,
-                                &position,
+                                position,
                                 &chunk_intersections[0],
                                 &chunk_intersections[1],
                             ) {
                                 let projected1 = segment_to_line_intersection(
-                                    &position,
+                                    position,
                                     &i1,
                                     &chunk_intersections[0],
                                     &chunk_intersections[1],
                                 );
                                 let projected2 = segment_to_line_intersection(
-                                    &position,
+                                    position,
                                     &i2,
                                     &chunk_intersections[0],
                                     &chunk_intersections[1],
@@ -438,13 +432,11 @@ impl Environment {
                             }
                         }
                         intersections = new_intersections;
-                    } else if intersections.len() == 1 {
+                    } else if intersections.len() == 1 && segments_intersection(position, &intersections[0], &p1, &p2).is_some() { 
                         // Try to look at a ponctual landmark, check if segment intersects obstruction
-                        if segments_intersection(&position, &intersections[0], &p1, &p2).is_some() {
-                            // Obstructed, remove point
-                            intersections.clear();
-                            break;
-                        }
+                        // Obstructed, remove point
+                        intersections.clear();
+                        break;
                     }
                 }
                 if is_enabled(InternalLog::Environment)
@@ -480,7 +472,7 @@ impl Environment {
                 }
             }
 
-            for (i, (pose, width)) in observed_poses.iter().zip(observed_width.iter()).enumerate() {
+            for (pose, width) in observed_poses.iter().zip(observed_width.iter()) {
                 let obs = OrientedLandmark {
                     id: landmark.id,
                     labels: landmark.labels.clone(),
@@ -599,7 +591,7 @@ impl Map {
                     format!(
                         "Error from Confy while loading the map file {} : {}",
                         path.display(),
-                        error.to_string()
+                        error
                     ),
                 ));
             }

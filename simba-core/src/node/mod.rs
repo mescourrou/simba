@@ -21,7 +21,6 @@ use crate::errors::{SimbaError, SimbaErrorTypes};
 use crate::networking;
 use crate::networking::network::MessageFlag;
 use crate::physics::robot_models::Command;
-use crate::sensors::sensor_manager;
 use crate::simulator::SimbaBrokerMultiClient;
 use crate::state_estimators::State;
 use crate::time_analysis::TimeAnalysisNode;

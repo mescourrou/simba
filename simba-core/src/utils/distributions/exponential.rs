@@ -5,7 +5,6 @@ use statrs::distribution::Exp;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::utils::determinist_random_variable::DeterministRandomVariable;
 
 /// Configuration for a uniform random variable.
 #[config_derives]

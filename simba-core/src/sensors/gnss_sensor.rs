@@ -10,7 +10,6 @@ use super::fault_models::fault_model::{
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
-use crate::environment::Environment;
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
@@ -20,10 +19,9 @@ use crate::sensors::sensor_filters::{
 use crate::simulator::SimulatorConfig;
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::utils::maths::round_precision;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 #[cfg(feature = "gui")]
-use crate::{constants::TIME_ROUND_DECIMALS, gui::UIComponent};
+use crate::gui::UIComponent;
 use log::debug;
 use nalgebra::{Vector2, Vector3};
 use serde_derive::{Deserialize, Serialize};
@@ -131,15 +129,9 @@ impl UIComponent for GNSSSensorConfig {
 }
 
 /// Record of the [`GNSSSensor`], which contains nothing for now.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GNSSSensorRecord {
     last_time: Option<f32>,
-}
-
-impl Default for GNSSSensorRecord {
-    fn default() -> Self {
-        Self { last_time: None }
-    }
 }
 
 #[cfg(feature = "gui")]
@@ -213,7 +205,7 @@ impl GNSSSensor {
             &GNSSSensorConfig::default(),
             &None,
             &SimulatorConfig::default(),
-            &"NoName".to_string(),
+            "NoName",
             &DeterministRandomVariableFactory::default(),
             0.0,
         )
@@ -224,7 +216,7 @@ impl GNSSSensor {
         config: &GNSSSensorConfig,
         _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        robot_name: &String,
+        robot_name: &str,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
     ) -> Self {
@@ -330,7 +322,9 @@ impl Sensor for GNSSSensor {
             debug!("GNSS Observation was filtered out");
         }
 
-        self.activation_time.as_mut().map(|p| p.update(time));
+        if let Some(p) = self.activation_time.as_mut() {
+            p.update(time);
+        }
         self.last_time = Some(time);
         observation_list
     }

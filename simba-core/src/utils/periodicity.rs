@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use simba_macros::config_derives;
 
 use crate::{
@@ -227,24 +225,21 @@ impl Periodicity {
         Self {
             period,
             next_activation_time: round_precision(initial_time + offset, TIME_ROUND).unwrap(),
-            periodic_table: match &config.table {
-                Some(table) => Some({
-                    let mut table = table.clone();
-                    table.sort_by(|a, b| {
-                        a.partial_cmp(b)
-                            .expect("Periodic table values should not be NaN")
-                    });
-                    assert!(
-                        table.first().unwrap() >= &0.,
-                        "Periodic table values should be positive or null"
-                    );
-                    table
-                        .iter()
-                        .map(|v| round_precision(*v, TIME_ROUND).unwrap())
-                        .collect()
-                }),
-                None => None,
-            },
+            periodic_table: config.table.as_ref().map(|table| {
+                let mut table = table.clone();
+                table.sort_by(|a, b| {
+                    a.partial_cmp(b)
+                        .expect("Periodic table values should not be NaN")
+                });
+                assert!(
+                    table.first().unwrap() >= &0.,
+                    "Periodic table values should be positive or null"
+                );
+                table
+                    .iter()
+                    .map(|v| round_precision(*v, TIME_ROUND).unwrap())
+                    .collect()
+            }),
             table_index: 0,
             table_offset: offset,
         }
@@ -266,7 +261,7 @@ impl Periodicity {
                     TIME_ROUND,
                 )
                 .unwrap();
-                self.table_index = self.table_index + 1;
+                self.table_index += 1;
             } else {
                 self.next_activation_time = round_precision(
                     time + self.period.generate(time)[0].max(TIME_ROUND),

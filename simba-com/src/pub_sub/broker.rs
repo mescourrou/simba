@@ -691,7 +691,7 @@ where
             .filter_map(|id| {
                 let node = self.broker.key_tree.get_node_by_id(id).unwrap();
                 let key = PathKey::from_str(&node.get_value().unwrap().unwrap()).unwrap();
-                if key.len() == 0 {
+                if key.is_empty() {
                     return None;
                 }
                 let parent_key = if let Ok(Some(parent_id)) = node.get_parent_id() {
@@ -706,7 +706,7 @@ where
                             .unwrap(),
                     )
                     .unwrap();
-                    if pkey.len() > 0 {
+                    if !pkey.is_empty() {
                         pkey
                     } else {
                         // Force root key to be absolute

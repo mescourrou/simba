@@ -237,7 +237,7 @@ impl FaultModelConfig {
 pub fn make_fault_model_from_config(
     config: &FaultModelConfig,
     global_config: &SimulatorConfig,
-    robot_name: &String,
+    robot_name: &str,
     va_factory: &DeterministRandomVariableFactory,
     initial_time: f32,
 ) -> Box<dyn FaultModel> {
