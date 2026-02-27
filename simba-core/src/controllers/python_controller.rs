@@ -108,6 +108,15 @@ impl std::fmt::Debug for PythonController {
 }
 
 impl Controller for PythonController {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of post_init");
+        }
+        let py_node = NodeWrapper::from_rust(node);
+        call_py_method_void!(self.controller, "post_init", (py_node,));
+        Ok(())
+    }
+
     fn make_command(&mut self, node: &mut Node, error: &ControllerError, time: f32) -> Command {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of make_command");
@@ -130,6 +139,13 @@ impl Controller for PythonController {
         }
         let node_py = NodeWrapper::from_rust(node);
         call_py_method_void!(self.controller, "pre_loop_hook", node_py, time);
+    }
+
+    fn next_time_step(&self) -> Option<f32> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of next_time_step");
+        }
+        call_py_method!(self.controller, "next_time_step", Option<f32>,)
     }
 }
 

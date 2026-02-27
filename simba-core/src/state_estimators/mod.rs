@@ -224,7 +224,7 @@ impl State {
         }
     }
 
-    pub fn from_vector(vec: Vec<f32>) -> Self {
+    pub fn from_vector(vec: &[f32]) -> Self {
         let mut state = State::new();
         if !vec.is_empty() {
             state.pose.x = vec[0];
@@ -271,7 +271,6 @@ impl State {
         for rv_config in config.random.iter() {
             let rv = va_factory.make_variable(rv_config.clone());
             let sampled_value = rv.generate(0.);
-            println!("Sampled value: {:?}", sampled_value);
             for sample in sampled_value {
                 assert!(
                     i < config.variable_order.len(),
@@ -294,12 +293,10 @@ impl State {
                     ),
                 }
                 i += 1;
-                println!("Intermediate state: {:?}", state);
             }
         }
 
         if i != 0 && (add_r != 0. || add_theta != 0.) {
-            println!("Do polar things");
             state.pose.z += add_theta;
             state.pose.z = mod2pi(state.pose.z);
             state.pose.x += add_r * state.pose.z.cos();
@@ -440,13 +437,15 @@ use crate::gui::{
     UIComponent,
     utils::{string_combobox, text_singleline_with_apply},
 };
-use crate::utils::determinist_random_variable::RandomVariableTypeConfig;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 use crate::utils::geometry::mod2pi;
 use crate::utils::occupancy_grid::OccupancyGrid;
 use crate::{errors::SimbaResult, node::Node};
 use crate::{networking::network::Network, simulator::SimulatorConfig};
+use crate::{
+    physics::robot_models::Command, utils::determinist_random_variable::RandomVariableTypeConfig,
+};
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
@@ -596,9 +595,14 @@ pub fn make_state_estimator_from_config(
     initial_time: f32,
 ) -> SimbaResult<Box<dyn StateEstimator>> {
     Ok(match config {
-        StateEstimatorConfig::Perfect(c) => Box::new(
-            perfect_estimator::PerfectEstimator::from_config(c, global_config, initial_time),
-        ) as Box<dyn StateEstimator>,
+        StateEstimatorConfig::Perfect(c) => {
+            Box::new(perfect_estimator::PerfectEstimator::from_config(
+                c,
+                global_config,
+                va_factory,
+                initial_time,
+            )) as Box<dyn StateEstimator>
+        }
         StateEstimatorConfig::External(c) => {
             Box::new(external_estimator::ExternalEstimator::from_config(
                 c,
@@ -620,6 +624,10 @@ use crate::sensors::Observation;
 pub trait StateEstimator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<StateEstimatorRecord>
 {
+    fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
+        Ok(())
+    }
+
     /// Prediction step of the state estimator.
     ///
     /// The prediction step should be able to compute the state of the node at the given time.
@@ -627,8 +635,10 @@ pub trait StateEstimator:
     /// ## Arguments
     /// * `node` -- mutable reference on the current [`Node`] to be able to interact with
     ///   other modules.
+    /// * `command` -- Command sent to the physics. Can be None at the first step or with
+    ///   non-physical nodes (Computation Units).
     /// * `time` -- Time to reach.
-    fn prediction_step(&mut self, node: &mut Node, time: f32);
+    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32);
 
     /// Correction step of the state estimator.
     ///

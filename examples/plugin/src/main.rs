@@ -3,6 +3,7 @@ use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
 use simba::controllers::external_controller::ExternalControllerRecord;
 use simba::controllers::{Controller, ControllerError, ControllerRecord};
+use simba::errors::SimbaResult;
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::{Navigator, NavigatorRecord};
 use simba::networking::network::{Envelope, Network};
@@ -38,18 +39,11 @@ struct MyWonderfulControllerRecord {}
 struct MyWonderfulControllerConfig {}
 
 #[derive(Debug)]
-struct MyWonderfulController {
-    letter_box_rx: SharedMutex<Receiver<Envelope>>,
-    letter_box_tx: Sender<Envelope>,
-}
+struct MyWonderfulController {}
 
 impl MyWonderfulController {
     pub fn from_config(_config: MyWonderfulControllerConfig, _initial_time: f32) -> Self {
-        let (tx, rx) = mpsc::channel();
-        Self {
-            letter_box_rx: Arc::new(Mutex::new(rx)),
-            letter_box_tx: tx,
-        }
+        Self {}
     }
 }
 
@@ -66,11 +60,7 @@ impl Controller for MyWonderfulController {
         })
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
-        while let Ok(_envelope) = self.letter_box_rx.lock().unwrap().try_recv() {
-            // i.e. Do something with received messages
-        }
-    }
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {}
 }
 
 impl Recordable<ControllerRecord> for MyWonderfulController {
@@ -210,7 +200,12 @@ impl MyWonderfulStateEstimator {
 }
 
 impl StateEstimator for MyWonderfulStateEstimator {
-    fn prediction_step(&mut self, _robot: &mut simba::node::Node, time: f32) {
+    fn prediction_step(
+        &mut self,
+        _robot: &mut simba::node::Node,
+        _command: Option<Command>,
+        time: f32,
+    ) {
         self.last_prediction = time;
     }
 
@@ -276,8 +271,9 @@ impl MyWonderfulSensor {
 }
 
 impl Sensor for MyWonderfulSensor {
-    fn init(&mut self, node: &mut Node, _initial_time: f32) {
+    fn post_init(&mut self, node: &mut Node, _initial_time: f32) -> SimbaResult<()> {
         println!("Initializing MyWonderfulSensor for node {}", node.name());
+        Ok(())
     }
 
     fn get_observations(&mut self, _node: &mut Node, time: f32) -> Vec<SensorObservation> {

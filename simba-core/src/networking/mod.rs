@@ -116,10 +116,12 @@ mod tests {
     use simba_com::pub_sub::{MultiClientTrait, PathKey};
 
     use crate::{
+        config::NumberConfig,
         constants::TIME_ROUND,
         logger::LogLevel,
         networking::network::{Envelope, Network, NetworkConfig},
         node::{Node, node_factory::RobotConfig},
+        physics::robot_models::Command,
         plugin_api::PluginAPI,
         recordable::Recordable,
         sensors::{
@@ -177,7 +179,12 @@ mod tests {
             }
         }
 
-        fn prediction_step(&mut self, node: &mut crate::node::Node, time: f32) {
+        fn prediction_step(
+            &mut self,
+            node: &mut crate::node::Node,
+            _command: Option<Command>,
+            time: f32,
+        ) {
             self.last_time = time;
             if node.name() == "node2" {
                 while let Some((_path, envelope)) = self.message_client.try_receive(time) {
@@ -257,7 +264,10 @@ mod tests {
         let mut config = SimulatorConfig::default();
         config.log.log_level = LogLevel::Off;
         // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
-        config.max_time = RobotSensorConfig::default().period.unwrap() * 1.1;
+        config.max_time = match RobotSensorConfig::default().activation_time.unwrap().period {
+            NumberConfig::Num(p) => p,
+            _ => 1.,
+        } * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             state_estimator_bench: vec![BenchStateEstimatorConfig {
@@ -322,7 +332,10 @@ mod tests {
         let mut config = SimulatorConfig::default();
         config.log.log_level = LogLevel::Off;
         // config.log.log_level = LogLevel::Internal(vec![crate::logger::InternalLog::All]);
-        config.max_time = RobotSensorConfig::default().period.unwrap() * 1.1;
+        config.max_time = match RobotSensorConfig::default().activation_time.unwrap().period {
+            NumberConfig::Num(p) => p,
+            _ => 1.,
+        } * 1.1;
         config.robots.push(RobotConfig {
             name: "node1".to_string(),
             sensor_manager: SensorManagerConfig {

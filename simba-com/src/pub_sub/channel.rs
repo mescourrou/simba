@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::Debug,
     hash::Hash,
     sync::{
@@ -117,7 +117,7 @@ impl<
         &self,
         client_condition_args: Option<&HashMap<NodeIdType, ConditionArgType>>,
     ) {
-        let mut dead_clients = Vec::new();
+        let mut dead_clients = HashSet::new();
         // Lock sender and receiver to avoid list manipulation and keeping ids consistent between the receiving phase and the removing phase
         let mut receivers = self.receivers.lock().unwrap();
         let mut senders = self.senders.lock().unwrap();
@@ -125,7 +125,7 @@ impl<
         for (from_id, receiver) in receivers.iter() {
             while let Ok(message) = receiver.1.try_recv() {
                 if message.1 < 0. {
-                    dead_clients.push((from_id.clone(), receiver.0));
+                    dead_clients.insert((from_id.clone(), receiver.0));
                     break;
                 }
                 messages_to_send.push((from_id.clone(), receiver.0, message));
@@ -159,7 +159,7 @@ impl<
                             //     e.to_string()
                             // );
                             // Assume dead client
-                            dead_clients.push((to_id.clone(), *sender_id));
+                            dead_clients.insert((to_id.clone(), *sender_id));
                         } else {
                             #[cfg(feature = "debug_mode")]
                             debug!("Message from {:?} to {:?} sent", from_id, to_id);
@@ -174,8 +174,30 @@ impl<
                 }
             }
         }
+        if dead_clients.is_empty() {
+            return;
+        }
+        #[cfg(feature = "debug_mode")]
+        {
+            debug!("Removing {} dead clients from channel", dead_clients.len());
+            debug!(
+                "Current receiver list: {:?}",
+                receivers
+                    .iter()
+                    .map(|(id, rec)| (id, rec.0))
+                    .collect::<Vec<_>>()
+            );
+            debug!(
+                "Current sender list: {:?}",
+                senders
+                    .iter()
+                    .map(|(id, sender)| (id, sender.0))
+                    .collect::<Vec<_>>()
+            );
+        }
+
         // Remove the dead clients
-        for (key, sender_id) in dead_clients.into_iter().rev() {
+        for (key, sender_id) in dead_clients.into_iter() {
             #[cfg(feature = "debug_mode")]
             debug!(
                 "Removing client {:?} with sender id {} from channel",
@@ -184,22 +206,22 @@ impl<
             // Remove receivers
             let mut clients = receivers
                 .remove(&key)
-                .expect("Client to remove does not exist in receivers");
+                .expect("Client name to remove does not exist in receivers");
             let client_index = clients
                 .iter()
                 .position(|(id, _)| *id == sender_id)
-                .expect("Client to remove does not exist in receivers");
+                .expect("Client id to remove does not exist in receivers");
             clients.remove(client_index);
             receivers.insert_many(key.clone(), clients);
 
             // Remove senders
             let mut clients = senders
                 .remove(&key)
-                .expect("Client to remove does not exist in senders");
+                .expect("Client name to remove does not exist in senders");
             let client_index = clients
                 .iter()
                 .position(|(id, _)| *id == sender_id)
-                .expect("Client to remove does not exist in senders");
+                .expect("Client id to remove does not exist in senders");
             clients.remove(client_index);
             senders.insert_many(key.clone(), clients);
         }

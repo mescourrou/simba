@@ -6,7 +6,7 @@ extern crate nalgebra as na;
 use std::f32::consts::PI;
 
 use na::SVector;
-use nalgebra::Matrix3;
+use nalgebra::{Const, Matrix, Matrix3, Storage};
 
 /// Computes the projection of a point on a segment.
 ///
@@ -65,12 +65,17 @@ pub fn smallest_theta_diff(a: f32, b: f32) -> f32 {
     diff
 }
 
-pub fn segment_circle_intersection(
-    p1: &SVector<f32, 2>,
-    p2: &SVector<f32, 2>,
-    center: &SVector<f32, 2>,
+pub fn segment_circle_intersection<S1, S2, S3>(
+    p1: &Matrix<f32, Const<2>, Const<1>, S1>,
+    p2: &Matrix<f32, Const<2>, Const<1>, S2>,
+    center: &Matrix<f32, Const<2>, Const<1>, S3>,
     radius: f32,
-) -> Option<(SVector<f32, 2>, SVector<f32, 2>)> {
+) -> Option<(SVector<f32, 2>, SVector<f32, 2>)>
+where
+    S1: Storage<f32, Const<2>, Const<1>>,
+    S2: Storage<f32, Const<2>, Const<1>>,
+    S3: Storage<f32, Const<2>, Const<1>>,
+{
     // For wide landmarks, check if a part of the landmark is in range
     // Source: https://stackoverflow.com/questions/1073336/circle-line-segment-collision-detection-algorithm
 
@@ -97,7 +102,7 @@ pub fn segment_circle_intersection(
         // segment is a point
         let dist_sq = (p1 - center).dot(&(p1 - center));
         if dist_sq <= radius * radius {
-            return Some((*p1, *p1));
+            return Some((p1.clone_owned(), p1.clone_owned()));
         } else {
             return None;
         }
@@ -131,26 +136,29 @@ pub fn segment_circle_intersection(
     // If we are here, we have an intersection
     let mut intersect1 = p1 + t1 * d;
     if t1 < 0. {
-        intersect1 = *p1;
+        intersect1 = p1.clone_owned();
     }
     let mut intersect2 = p1 + t2 * d;
     if t2 > 1. {
-        intersect2 = *p2;
+        intersect2 = p2.clone_owned();
     }
     Some((intersect1, intersect2))
 }
 
-pub fn segments_intersection(
-    a1: &SVector<f32, 2>,
-    a2: &SVector<f32, 2>,
-    b1: &SVector<f32, 2>,
-    b2: &SVector<f32, 2>,
-) -> Option<SVector<f32, 2>> {
+pub fn segments_intersection<S>(
+    a1: &Matrix<f32, Const<2>, Const<1>, S>,
+    a2: &Matrix<f32, Const<2>, Const<1>, S>,
+    b1: &Matrix<f32, Const<2>, Const<1>, S>,
+    b2: &Matrix<f32, Const<2>, Const<1>, S>,
+) -> Option<SVector<f32, 2>>
+where
+    S: Storage<f32, Const<2>, Const<1>>,
+{
     // Source: https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect // response https://stackoverflow.com/a/28390934
-    let ax = a2.x - a1.x;
-    let ay = a2.y - a1.y;
-    let bx = b2.x - b1.x;
-    let by = b2.y - b1.y;
+    let ax = a2[0] - a1[0];
+    let ay = a2[1] - a1[1];
+    let bx = b2[0] - b1[0];
+    let by = b2[1] - b1[1];
     let d = ax * by - ay * bx;
 
     // parallel lines
@@ -160,8 +168,8 @@ pub fn segments_intersection(
 
     let pos = d > 0.0;
 
-    let ua = bx * (a1.y - b1.y) - by * (a1.x - b1.x);
-    let ub = ax * (a1.y - b1.y) - ay * (a1.x - b1.x);
+    let ua = bx * (a1[1] - b1[1]) - by * (a1[0] - b1[0]);
+    let ub = ax * (a1[1] - b1[1]) - ay * (a1[0] - b1[0]);
 
     if ((ua < 0.) == pos && ua != 0.) || ((ub < 0.) == pos && ub != 0.) {
         // no intersection
@@ -175,21 +183,24 @@ pub fn segments_intersection(
 
     // Get the intersection point\
     let ua = ua / d;
-    Some(SVector::<f32, 2>::new(a1.x + ua * ax, a1.y + ua * ay))
+    Some(SVector::<f32, 2>::new(a1[0] + ua * ax, a1[1] + ua * ay))
 }
 
-pub fn segment_to_line_intersection(
-    a1: &SVector<f32, 2>,
-    a2: &SVector<f32, 2>,
-    l1: &SVector<f32, 2>,
-    l2: &SVector<f32, 2>,
-) -> Option<SVector<f32, 2>> {
+pub fn segment_to_line_intersection<S>(
+    a1: &Matrix<f32, Const<2>, Const<1>, S>,
+    a2: &Matrix<f32, Const<2>, Const<1>, S>,
+    l1: &Matrix<f32, Const<2>, Const<1>, S>,
+    l2: &Matrix<f32, Const<2>, Const<1>, S>,
+) -> Option<SVector<f32, 2>>
+where
+    S: Storage<f32, Const<2>, Const<1>>,
+{
     // Source: https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect // response https://stackoverflow.com/a/28390934
 
-    let ax = a2.x - a1.x;
-    let ay = a2.y - a1.y;
-    let bx = l2.x - l1.x;
-    let by = l2.y - l1.y;
+    let ax = a2[0] - a1[0];
+    let ay = a2[1] - a1[1];
+    let bx = l2[0] - l1[0];
+    let by = l2[1] - l1[1];
     let d = ax * by - ay * bx;
 
     // parallel lines
@@ -197,21 +208,24 @@ pub fn segment_to_line_intersection(
         return None;
     }
 
-    let ua = bx * (a1.y - l1.y) - by * (a1.x - l1.x);
+    let ua = bx * (a1[1] - l1[1]) - by * (a1[0] - l1[0]);
     // let ub = ax * (a1.y - l1.y) - ay * (a1.x - l1.x);
 
     // Get the intersection point
     let ua = ua / d;
-    Some(SVector::<f32, 2>::new(a1.x + ua * ax, a1.y + ua * ay))
+    Some(SVector::<f32, 2>::new(a1[0] + ua * ax, a1[1] + ua * ay))
 }
 
-pub fn segment_triangle_intersection(
-    p1: &SVector<f32, 2>,
-    p2: &SVector<f32, 2>,
-    triangle_top: &SVector<f32, 2>,
-    triangle_a: &SVector<f32, 2>,
-    triangle_b: &SVector<f32, 2>,
-) -> Option<(SVector<f32, 2>, SVector<f32, 2>)> {
+pub fn segment_triangle_intersection<S>(
+    p1: &Matrix<f32, Const<2>, Const<1>, S>,
+    p2: &Matrix<f32, Const<2>, Const<1>, S>,
+    triangle_top: &Matrix<f32, Const<2>, Const<1>, S>,
+    triangle_a: &Matrix<f32, Const<2>, Const<1>, S>,
+    triangle_b: &Matrix<f32, Const<2>, Const<1>, S>,
+) -> Option<(SVector<f32, 2>, SVector<f32, 2>)>
+where
+    S: Storage<f32, Const<2>, Const<1>>,
+{
     // Check if collinear triangle
     if aligned_points(triangle_top, triangle_a, triangle_b, 1e-10) {
         return None;
@@ -249,7 +263,7 @@ pub fn segment_triangle_intersection(
     );
 
     if p1inside && p2inside {
-        return Some((*p1, *p2));
+        return Some((p1.clone_owned(), p2.clone_owned()));
     }
     let edges = vec![
         (triangle_top, triangle_a),
@@ -265,9 +279,9 @@ pub fn segment_triangle_intersection(
         for (e1, e2) in &edges {
             if let Some(intersection) = segments_intersection(inside_point, outside_point, e1, e2) {
                 if p1inside {
-                    return Some((*inside_point, intersection));
+                    return Some((inside_point.clone_owned(), intersection));
                 } else {
-                    return Some((intersection, *inside_point));
+                    return Some((intersection, inside_point.clone_owned()));
                 }
             }
         }
@@ -304,13 +318,19 @@ pub fn segment_triangle_intersection(
     None
 }
 
-pub fn aligned_points(
-    p1: &SVector<f32, 2>,
-    p2: &SVector<f32, 2>,
-    p3: &SVector<f32, 2>,
+pub fn aligned_points<S1, S2, S3>(
+    p1: &Matrix<f32, Const<2>, Const<1>, S1>,
+    p2: &Matrix<f32, Const<2>, Const<1>, S2>,
+    p3: &Matrix<f32, Const<2>, Const<1>, S3>,
     tolerance: f32,
-) -> bool {
-    let area = (p1.x * (p2.y - p3.y) + p2.x * (p3.y - p1.y) + p3.x * (p1.y - p2.y)).abs() / 2.0;
+) -> bool
+where
+    S1: Storage<f32, Const<2>, Const<1>>,
+    S2: Storage<f32, Const<2>, Const<1>>,
+    S3: Storage<f32, Const<2>, Const<1>>,
+{
+    let area =
+        (p1[0] * (p2[1] - p3[1]) + p2[0] * (p3[1] - p1[1]) + p3[0] * (p1[1] - p2[1])).abs() / 2.0;
     area < tolerance
 }
 

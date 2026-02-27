@@ -8,6 +8,7 @@ use crate::gui::{
     utils::{string_combobox, text_singleline_with_apply},
 };
 use crate::{
+    environment::Environment,
     sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
         SharedMutex,
@@ -146,8 +147,8 @@ impl UIComponent for ClutterFaultConfig {
 
 #[derive(Debug)]
 pub struct ClutterFault {
-    apparition: SharedMutex<Box<dyn DeterministRandomVariable>>,
-    distributions: SharedMutex<Vec<Box<dyn DeterministRandomVariable>>>,
+    apparition: SharedMutex<DeterministRandomVariable>,
+    distributions: SharedMutex<Vec<DeterministRandomVariable>>,
     variable_order: Vec<String>,
     observation_id: String,
     config: ClutterFaultConfig,
@@ -164,7 +165,7 @@ impl ClutterFault {
                 .distributions
                 .iter()
                 .map(|conf| va_factory.make_variable(conf.clone()))
-                .collect::<Vec<Box<dyn DeterministRandomVariable>>>(),
+                .collect::<Vec<DeterministRandomVariable>>(),
         ));
         if !config.variable_order.is_empty() {
             assert!(
@@ -200,11 +201,11 @@ impl FaultModel for ClutterFault {
         &mut self,
         _time: f32,
         seed: f32,
-        period: f32,
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,
+        _environment: &Arc<Environment>,
     ) {
-        let obs_seed_increment = 1. / (100. * period);
+        let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
         let mut seed = seed;
 
         let n_obs = self.apparition.lock().unwrap().generate(seed)[0]

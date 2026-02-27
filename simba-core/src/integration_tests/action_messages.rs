@@ -59,6 +59,7 @@ mod kill_node {
         constants::TIME_ROUND,
         networking::network::{Envelope, MessageFlag},
         node::Node,
+        physics::robot_models::Command,
         recordable::Recordable,
         sensors::Observation,
         state_estimators::{
@@ -99,7 +100,12 @@ mod kill_node {
             }
         }
 
-        fn prediction_step(&mut self, _node: &mut crate::node::Node, time: f32) {
+        fn prediction_step(
+            &mut self,
+            _node: &mut crate::node::Node,
+            _command: Option<Command>,
+            time: f32,
+        ) {
             self.last_time = time;
         }
 
@@ -195,6 +201,7 @@ mod trigger_sensor {
         constants::TIME_ROUND,
         networking::network::{Envelope, Network},
         node::Node,
+        physics::robot_models::Command,
         plugin_api::PluginAPI,
         recordable::Recordable,
         sensors::{Observation, sensor_manager::SensorTriggerMessage},
@@ -257,7 +264,12 @@ mod trigger_sensor {
             }
         }
 
-        fn prediction_step(&mut self, _node: &mut crate::node::Node, time: f32) {
+        fn prediction_step(
+            &mut self,
+            _node: &mut crate::node::Node,
+            _command: Option<Command>,
+            time: f32,
+        ) {
             self.last_time = time;
         }
 
@@ -338,7 +350,7 @@ fn trigger_sensor() {
                 name: "RobotSensor".to_string(),
                 config: SensorConfig::RobotSensor(RobotSensorConfig {
                     detection_distance: 100.,
-                    period: None,
+                    activation_time: None,
                     ..Default::default()
                 }),
                 triggered: true,

@@ -1,14 +1,10 @@
-use std::{path::Path, sync::Mutex};
-
 use egui::{Color32, Rect, Shape, Stroke, Vec2};
 
 use crate::{
+    environment::{self, EnvironmentConfig, oriented_landmark::OrientedLandmark},
     gui::app::PainterInfo,
-    sensors::oriented_landmark_sensor::{OrientedLandmark, OrientedLandmarkSensor},
     simulator::SimulatorConfig,
 };
-
-static LOADED_MAPS: Mutex<Vec<(String, Vec<OrientedLandmark>)>> = Mutex::new(Vec::new());
 
 pub struct Map {
     color: Color32,
@@ -16,22 +12,27 @@ pub struct Map {
     arrow_len: f32,
 }
 
-impl Map {
-    pub fn init(path: &String, sim_config: &SimulatorConfig) -> Self {
-        let mut loaded_maps = LOADED_MAPS.lock().unwrap();
-        for (p, v) in loaded_maps.iter() {
-            if p == path {
-                return Self {
-                    color: Color32::RED,
-                    landmarks: v.clone(),
-                    arrow_len: 0.2,
-                };
-            }
+impl Default for Map {
+    fn default() -> Self {
+        Self {
+            color: Color32::RED,
+            landmarks: Vec::new(),
+            arrow_len: 0.2,
         }
+    }
+}
 
-        let landmarks =
-            OrientedLandmarkSensor::load_map_from_path(&sim_config.base_path.join(Path::new(path)));
-        loaded_maps.push((path.clone(), landmarks.clone()));
+impl Map {
+    pub fn init(environment_config: &EnvironmentConfig, sim_config: &SimulatorConfig) -> Self {
+        let path = &environment_config.map_path;
+        let landmarks = if let Some(path) = path {
+            environment::Map::load_from_path(&sim_config.base_path.join(path))
+                .expect("Failed to load map")
+                .landmarks
+        } else {
+            Vec::new()
+        };
+        log::info!("Loaded map with {} landmarks", landmarks.len());
         Self {
             color: Color32::RED,
             landmarks,

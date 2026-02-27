@@ -5,7 +5,6 @@ use statrs::distribution::Exp;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::utils::determinist_random_variable::DeterministRandomVariable;
 
 /// Configuration for a uniform random variable.
 #[config_derives]
@@ -66,7 +65,7 @@ impl UIComponent for ExponentialRandomVariableConfig {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeterministExponentialRandomVariable {
     /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
     my_seed: f32,
@@ -86,10 +85,8 @@ impl DeterministExponentialRandomVariable {
                 .collect(),
         }
     }
-}
 
-impl DeterministRandomVariable for DeterministExponentialRandomVariable {
-    fn generate(&self, time: f32) -> Vec<f32> {
+    pub fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
         for p in &self.exponential {
@@ -98,7 +95,7 @@ impl DeterministRandomVariable for DeterministExponentialRandomVariable {
         v
     }
 
-    fn dim(&self) -> usize {
+    pub fn dim(&self) -> usize {
         self.exponential.len()
     }
 }

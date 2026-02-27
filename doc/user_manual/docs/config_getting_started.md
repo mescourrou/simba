@@ -30,7 +30,7 @@ robots:
 After default application, it will result in:
 
 ```yaml
-version: 1.4.5
+version: 1.6.0
 max_time: 10.0
 log:
   log_level: 
@@ -42,6 +42,8 @@ time_analysis:
   output_path: time_performance # .json or .csv will be appended
   analysis_unit: s
 random_seed: null # Different seed each run
+environment:
+  map_path: null
 robots:
   - name: robot1
     navigator:
@@ -68,7 +70,8 @@ robots:
         velocity: [0.0, 0.0]
     state_estimator:
       type: Perfect
-      prediction_period: 0.1
+      prediction_activation:
+        perdiod: {type: Num, value: 0.1}
       targets:
         - self
     sensor_manager:
@@ -131,7 +134,8 @@ sensor_manager:
       config:
         type: RobotSensor
         detection_distance: 10.0  # Can detect robots within 10 meters
-        period: 0.1  # Sensor updates every 0.1 seconds
+        activation_time: # Sensor updates every 0.1 seconds
+          period: {type: Num, value: 0.1}
         faults: []   # No sensor faults
 ```
 

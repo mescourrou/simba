@@ -26,6 +26,7 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
 use crate::networking::network::Network;
+use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::utils::SharedRwLock;
@@ -123,12 +124,16 @@ impl std::fmt::Debug for ExternalEstimator {
 }
 
 impl StateEstimator for ExternalEstimator {
-    fn prediction_step(&mut self, node: &mut Node, time: f32) {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        self.state_estimator.post_init(node)
+    }
+
+    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32) {
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
-            println!("Error trying to update estimate too soon !");
+            log::error!("Error trying to update estimate too soon !");
             return;
         }
-        self.state_estimator.prediction_step(node, time);
+        self.state_estimator.prediction_step(node, command, time);
     }
 
     fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32) {

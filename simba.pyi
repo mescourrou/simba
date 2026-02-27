@@ -284,13 +284,16 @@ class StateEstimator:
     def __init__(self, config: dict, initial_time: float):
         raise NotImplementedError()
     
+    def post_init(self, node: Node) -> None:
+        pass
+    
     def state(self) -> WorldState:
         raise NotImplementedError()
     
     def record(self) -> str:
         raise NotImplementedError()
 
-    def prediction_step(self, node: Node, time: float):
+    def prediction_step(self, node: Node, command: Command, time: float):
         raise NotImplementedError()
 
     def correction_step(self, node: Node, observations: List[Observation], time: float):
@@ -303,6 +306,9 @@ class StateEstimator:
         raise NotImplementedError()
     
 class Controller:
+    def post_init(self, node: Node) -> None:
+        pass
+
     def record(self) -> str:
         raise NotImplementedError()
 
@@ -312,10 +318,13 @@ class Controller:
     def pre_loop_hook(self, node: Node, time: float):
         raise NotImplementedError()
     
-    def next_time_step(self) -> float|None
+    def next_time_step(self) -> float|None:
         pass
     
 class Navigator:
+    def post_init(self, node: Node) -> None:
+        pass
+
     def record(self) -> str:
         raise NotImplementedError()
 
@@ -325,20 +334,23 @@ class Navigator:
     def pre_loop_hook(self, node: Node, time: float):
         raise NotImplementedError()
 
-    def next_time_step(self) -> float|None
+    def next_time_step(self) -> float|None:
         pass
         
 class Physics:
+    def post_init(self, node: Node) -> None:
+        pass
+
     def record(self) -> str:
         raise NotImplementedError()
 
-    def update_state(self, time): 
+    def update_state(self, time: float): 
         raise NotImplementedError()
         
-    def apply_command(self, command: Command, time):
+    def apply_command(self, command: Command, time: float):
         raise NotImplementedError()
         
-    def state(self, time) -> State: 
+    def state(self, time: float) -> State: 
         raise NotImplementedError()
     
     def next_time_step(self) -> float|None:
@@ -369,13 +381,22 @@ def run_gui(plugin_api: PluginAPI | None):
 
 
 class FaultModel:
-    def add_faults(self, time: float, seed: float, period: float, obs_list: List[SensorObservation]) -> List[SensorObservation]:
+    def post_init(self, node: Node) -> None:
+        pass
+
+    def add_faults(self, time: float, seed: float, obs_list: List[SensorObservation]) -> List[SensorObservation]:
         raise NotImplementedError()
 
 class PhysicsFaultModel:
+    def post_init(self, node: Node) -> None:
+        pass
+
     def add_faults(self, time: float, state: State) -> State:
         raise NotImplementedError()
 
 class SensorFilter:
+    def post_init(self, node: Node) -> None:
+        pass
+    
     def filter_observations(self, time: float, observation: SensorObservation, observer_state: State, observee_state: State | None) -> SensorObservation|None:
         raise NotImplementedError()

@@ -10,6 +10,7 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
+    environment::Environment,
     sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     utils::{
         SharedMutex,
@@ -155,7 +156,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
 #[derive(Debug)]
 pub struct AdditiveObservationCenteredPolarFault {
     apparition: DeterministBernouilliRandomVariable,
-    distributions: SharedMutex<Vec<Box<dyn DeterministRandomVariable>>>,
+    distributions: SharedMutex<Vec<DeterministRandomVariable>>,
     variable_order: Vec<String>,
     config: AdditiveObservationCenteredPolarFaultConfig,
 }
@@ -171,7 +172,7 @@ impl AdditiveObservationCenteredPolarFault {
                 .distributions
                 .iter()
                 .map(|conf| va_factory.make_variable(conf.clone()))
-                .collect::<Vec<Box<dyn DeterministRandomVariable>>>(),
+                .collect::<Vec<DeterministRandomVariable>>(),
         ));
         if !config.variable_order.is_empty() {
             assert!(
@@ -202,11 +203,11 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
         &mut self,
         _time: f32,
         seed: f32,
-        period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
+        _environment: &Arc<Environment>,
     ) {
-        let obs_seed_increment = 1. / (1000. * period);
+        let obs_seed_increment = 1. / (1000. * obs_list.len() as f32);
         let mut seed = seed;
         for obs in obs_list {
             seed += obs_seed_increment;

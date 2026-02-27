@@ -51,31 +51,28 @@ impl DeterministRandomVariableFactory {
     }
 
     /// Create a new random variable with the given configuration.
-    pub fn make_variable(
-        &self,
-        config: RandomVariableTypeConfig,
-    ) -> Box<dyn DeterministRandomVariable> {
+    pub fn make_variable(&self, config: RandomVariableTypeConfig) -> DeterministRandomVariable {
         let local_seed = self.seed_generator.lock().unwrap().r#gen::<f32>() * 1000000.;
         match config {
             RandomVariableTypeConfig::None => {
-                Box::new(DeterministFixedRandomVariable::from_config(
+                DeterministRandomVariable::Fixed(DeterministFixedRandomVariable::from_config(
                     local_seed,
                     FixedRandomVariableConfig::default(),
                 ))
             }
-            RandomVariableTypeConfig::Fixed(c) => {
-                Box::new(DeterministFixedRandomVariable::from_config(local_seed, c))
-            }
-            RandomVariableTypeConfig::Uniform(c) => {
-                Box::new(DeterministUniformRandomVariable::from_config(local_seed, c))
-            }
-            RandomVariableTypeConfig::Normal(c) => {
-                Box::new(DeterministNormalRandomVariable::from_config(local_seed, c))
-            }
-            RandomVariableTypeConfig::Poisson(c) => {
-                Box::new(DeterministPoissonRandomVariable::from_config(local_seed, c))
-            }
-            RandomVariableTypeConfig::Exponential(c) => Box::new(
+            RandomVariableTypeConfig::Fixed(c) => DeterministRandomVariable::Fixed(
+                DeterministFixedRandomVariable::from_config(local_seed, c),
+            ),
+            RandomVariableTypeConfig::Uniform(c) => DeterministRandomVariable::Uniform(
+                DeterministUniformRandomVariable::from_config(local_seed, c),
+            ),
+            RandomVariableTypeConfig::Normal(c) => DeterministRandomVariable::Normal(
+                DeterministNormalRandomVariable::from_config(local_seed, c),
+            ),
+            RandomVariableTypeConfig::Poisson(c) => DeterministRandomVariable::Poisson(
+                DeterministPoissonRandomVariable::from_config(local_seed, c),
+            ),
+            RandomVariableTypeConfig::Exponential(c) => DeterministRandomVariable::Exponential(
                 DeterministExponentialRandomVariable::from_config(local_seed, c),
             ),
         }
@@ -101,12 +98,36 @@ impl Default for DeterministRandomVariableFactory {
     }
 }
 
-/// Trait for a random variable with a deterministic behavior.
-pub trait DeterministRandomVariable:
-    std::fmt::Debug + std::marker::Send + std::marker::Sync
-{
-    fn generate(&self, time: f32) -> Vec<f32>;
-    fn dim(&self) -> usize;
+#[derive(Debug, Clone)]
+pub enum DeterministRandomVariable {
+    /// Fixed value
+    Fixed(DeterministFixedRandomVariable),
+    Uniform(DeterministUniformRandomVariable),
+    Normal(DeterministNormalRandomVariable),
+    Poisson(DeterministPoissonRandomVariable),
+    Exponential(DeterministExponentialRandomVariable),
+}
+
+impl DeterministRandomVariable {
+    pub fn generate(&self, time: f32) -> Vec<f32> {
+        match self {
+            DeterministRandomVariable::Fixed(v) => v.generate(time),
+            DeterministRandomVariable::Uniform(v) => v.generate(time),
+            DeterministRandomVariable::Normal(v) => v.generate(time),
+            DeterministRandomVariable::Poisson(v) => v.generate(time),
+            DeterministRandomVariable::Exponential(v) => v.generate(time),
+        }
+    }
+
+    pub fn dim(&self) -> usize {
+        match self {
+            DeterministRandomVariable::Fixed(v) => v.dim(),
+            DeterministRandomVariable::Uniform(v) => v.dim(),
+            DeterministRandomVariable::Normal(v) => v.dim(),
+            DeterministRandomVariable::Poisson(v) => v.dim(),
+            DeterministRandomVariable::Exponential(v) => v.dim(),
+        }
+    }
 }
 
 /// Configuration of the random variable: fixed, uniform or normal.

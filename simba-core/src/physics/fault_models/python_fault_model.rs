@@ -3,12 +3,12 @@ use pyo3::prelude::*;
 use crate::{
     errors::SimbaResult,
     physics::fault_models::fault_model::PhysicsFaultModel,
-    pywrappers::StateWrapper,
+    pywrappers::{NodeWrapper, StateWrapper},
     simulator::SimulatorConfig,
     state_estimators::State,
     utils::{
         macros::python_class_config,
-        python::{call_py_method, load_class_from_python_script},
+        python::{call_py_method, call_py_method_void, load_class_from_python_script},
     },
 };
 
@@ -40,6 +40,11 @@ impl PythonPhysicsFaultModel {
 }
 
 impl PhysicsFaultModel for PythonPhysicsFaultModel {
+    fn post_init(&mut self, node: &mut crate::node::Node) -> SimbaResult<()> {
+        call_py_method_void!(self.instance, "post_init", (NodeWrapper::from_rust(node),));
+        Ok(())
+    }
+
     fn add_faults(&self, time: f32, state: &mut State) {
         let py_state = StateWrapper::from_rust(state);
         let new_state = call_py_method!(self.instance, "add_faults", StateWrapper, time, py_state);

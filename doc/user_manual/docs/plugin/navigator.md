@@ -32,18 +32,11 @@ struct MyWonderfulNavigatorRecord {}
 struct MyWonderfulNavigatorConfig {}
 
 #[derive(Debug)]
-struct MyWonderfulNavigator {
-    letter_box_rx: SharedMutex<Receiver<Envelope>>,
-    letter_box_tx: Sender<Envelope>,
-}
+struct MyWonderfulNavigator {}
 
 impl MyWonderfulNavigator {
     pub fn from_config(_config: MyWonderfulNavigatorConfig, _initial_time: f32) -> Self {
-        let (tx, rx) = mpsc::channel();
-        Self {
-            letter_box_rx: Arc::new(Mutex::new(rx)),
-            letter_box_tx: tx,
-        }
+        Self {}
     }
 }
 
@@ -61,11 +54,7 @@ impl Navigator for MyWonderfulNavigator {
         }
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
-        while let Ok(_envelope) = self.letter_box_rx.lock().unwrap().try_recv() {
-            // i.e. Do something with received messages
-        }
-    }
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {}
 }
 
 impl Recordable<NavigatorRecord> for MyWonderfulNavigator {
@@ -76,9 +65,4 @@ impl Recordable<NavigatorRecord> for MyWonderfulNavigator {
     }
 }
 
-impl MessageHandler for MyWonderfulNavigator {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_tx.clone())
-    }
-}
 ```

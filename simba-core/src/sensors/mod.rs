@@ -35,19 +35,20 @@ use {
     speed_sensor::{SpeedObservation, SpeedObservationRecord},
 };
 
-#[cfg(feature = "gui")]
 use crate::{
-    gui::{UIComponent, utils::string_combobox},
-    simulator::SimulatorConfig,
-    utils::enum_tools::ToVec,
-};
-use crate::{
+    errors::SimbaResult,
     node::Node,
     recordable::Recordable,
     sensors::{
         displacement_sensor::{DisplacementObservation, DisplacementObservationRecord},
         external_sensor::{ExternalObservation, ExternalObservationRecord},
     },
+};
+#[cfg(feature = "gui")]
+use crate::{
+    gui::{UIComponent, utils::string_combobox},
+    simulator::SimulatorConfig,
+    utils::enum_tools::ToVec,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -367,7 +368,9 @@ pub trait Sensor:
 {
     /// Initialize the [`Sensor`]. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    fn init(&mut self, node: &mut Node, initial_time: f32);
+    fn post_init(&mut self, _node: &mut Node, _initial_time: f32) -> SimbaResult<()> {
+        Ok(())
+    }
 
     /// Get the observations available at the given `time`.
     ///

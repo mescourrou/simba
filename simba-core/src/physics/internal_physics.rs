@@ -214,6 +214,12 @@ use super::{GetRealStateReq, GetRealStateResp};
 use super::{Physics, PhysicsRecord};
 
 impl Physics for InternalPhysics {
+    fn post_init(&mut self, node: &mut crate::node::Node) -> crate::errors::SimbaResult<()> {
+        for fault in self.faults.lock().unwrap().iter_mut() {
+            fault.post_init(node)?;
+        }
+        Ok(())
+    }
     /// Apply the given `command` perfectly.
     fn apply_command(&mut self, command: &Command, _time: f32) {
         self.current_command = command.clone();

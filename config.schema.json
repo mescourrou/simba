@@ -15,6 +15,12 @@
         "$ref": "#/$defs/ComputationUnitConfig"
       }
     },
+    "environment": {
+      "$ref": "#/$defs/EnvironmentConfig",
+      "default": {
+        "map_path": null
+      }
+    },
     "log": {
       "$ref": "#/$defs/LoggerConfig",
       "default": {
@@ -83,7 +89,7 @@
     },
     "version": {
       "type": "string",
-      "default": "1.5.0"
+      "default": "1.6.0"
     }
   },
   "additionalProperties": false,
@@ -194,8 +200,14 @@
         "config": {
           "$ref": "#/$defs/StateEstimatorConfig",
           "default": {
-            "map_path": null,
-            "prediction_period": 0.10000000149011612,
+            "prediction_activation": {
+              "offset": null,
+              "period": {
+                "type": "Num",
+                "value": 0.10000000149011612
+              },
+              "table": null
+            },
             "targets": [
               "self"
             ],
@@ -341,6 +353,19 @@
           ]
         }
       ]
+    },
+    "EnvironmentConfig": {
+      "type": "object",
+      "properties": {
+        "map_path": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "additionalProperties": false
     },
     "EventConfig": {
       "type": "object",
@@ -810,6 +835,19 @@
           "properties": {
             "type": {
               "type": "string",
+              "const": "NetworkMessagesDetailed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
               "const": "ServiceHandling"
             }
           },
@@ -947,6 +985,32 @@
           "required": [
             "type"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Environment"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "EnvironmentDetailed"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
         }
       ]
     },
@@ -1071,9 +1135,16 @@
         "config": {
           "$ref": "#/$defs/SensorConfig",
           "default": {
+            "activation_time": {
+              "offset": null,
+              "period": {
+                "type": "Num",
+                "value": 0.10000000149011612
+              },
+              "table": null
+            },
             "faults": [],
             "filters": [],
-            "period": 0.10000000149011612,
             "type": "SpeedSensor"
           }
         },
@@ -1270,6 +1341,41 @@
           ]
         }
       ]
+    },
+    "PeriodicityConfig": {
+      "type": "object",
+      "properties": {
+        "offset": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NumberConfig"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "period": {
+          "$ref": "#/$defs/NumberConfig",
+          "default": {
+            "type": "Num",
+            "value": 1.0
+          }
+        },
+        "table": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "default": null,
+          "items": {
+            "type": "number",
+            "format": "float"
+          }
+        }
+      },
+      "additionalProperties": false
     },
     "PhysicsConfig": {
       "description": "Enumeration of the different physic implementations.",
@@ -1858,8 +1964,14 @@
           "description": "[`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to use, and its configuration.",
           "$ref": "#/$defs/StateEstimatorConfig",
           "default": {
-            "map_path": null,
-            "prediction_period": 0.10000000149011612,
+            "prediction_activation": {
+              "offset": null,
+              "period": {
+                "type": "Num",
+                "value": 0.10000000149011612
+              },
+              "table": null
+            },
             "targets": [
               "self"
             ],
@@ -1948,6 +2060,25 @@
           "description": "Configuration of the [`OrientedLandmarkSensor`].",
           "type": "object",
           "properties": {
+            "activation_time": {
+              "description": "Observation period of the sensor.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PeriodicityConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": {
+                "offset": null,
+                "period": {
+                  "type": "Num",
+                  "value": 0.10000000149011612
+                },
+                "table": null
+              }
+            },
             "detection_distance": {
               "description": "Max distance of detection.",
               "type": "number",
@@ -1967,20 +2098,6 @@
               "items": {
                 "$ref": "#/$defs/SensorFilterConfig"
               }
-            },
-            "map_path": {
-              "description": "Path to the map (with real position of the landmarks), relative to the simulator\nconfig path.",
-              "type": "string",
-              "default": ""
-            },
-            "period": {
-              "description": "Observation period of the sensor.",
-              "type": [
-                "number",
-                "null"
-              ],
-              "format": "float",
-              "default": 0.10000000149011612
             },
             "type": {
               "type": "string",
@@ -2001,6 +2118,25 @@
           "description": "Configuration of the [`SpeedSensor`].",
           "type": "object",
           "properties": {
+            "activation_time": {
+              "description": "Observation period of the sensor.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PeriodicityConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": {
+                "offset": null,
+                "period": {
+                  "type": "Num",
+                  "value": 0.10000000149011612
+                },
+                "table": null
+              }
+            },
             "faults": {
               "type": "array",
               "default": [],
@@ -2014,15 +2150,6 @@
               "items": {
                 "$ref": "#/$defs/SensorFilterConfig"
               }
-            },
-            "period": {
-              "description": "Observation period of the sensor.",
-              "type": [
-                "number",
-                "null"
-              ],
-              "format": "float",
-              "default": 0.10000000149011612
             },
             "type": {
               "type": "string",
@@ -2038,6 +2165,25 @@
           "description": "Configuration of the [`DisplacementSensor`].",
           "type": "object",
           "properties": {
+            "activation_time": {
+              "description": "Observation period of the sensor.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PeriodicityConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": {
+                "offset": null,
+                "period": {
+                  "type": "Num",
+                  "value": 0.10000000149011612
+                },
+                "table": null
+              }
+            },
             "faults": {
               "type": "array",
               "default": [],
@@ -2056,15 +2202,6 @@
               "type": "boolean",
               "default": false
             },
-            "period": {
-              "description": "Observation period of the sensor.",
-              "type": [
-                "number",
-                "null"
-              ],
-              "format": "float",
-              "default": 0.10000000149011612
-            },
             "type": {
               "type": "string",
               "const": "DisplacementSensor"
@@ -2079,6 +2216,25 @@
           "description": "Configuration of the [`GNSSSensor`].",
           "type": "object",
           "properties": {
+            "activation_time": {
+              "description": "Observation period of the sensor.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PeriodicityConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": {
+                "offset": null,
+                "period": {
+                  "type": "Num",
+                  "value": 1.0
+                },
+                "table": null
+              }
+            },
             "faults": {
               "description": "Fault on the x, y positions, and on the x and y velocities",
               "type": "array",
@@ -2094,15 +2250,6 @@
                 "$ref": "#/$defs/SensorFilterConfig"
               }
             },
-            "period": {
-              "description": "Observation period of the sensor.",
-              "type": [
-                "number",
-                "null"
-              ],
-              "format": "float",
-              "default": 1.0
-            },
             "type": {
               "type": "string",
               "const": "GNSSSensor"
@@ -2117,6 +2264,25 @@
           "description": "Configuration of the [`RobotSensor`].",
           "type": "object",
           "properties": {
+            "activation_time": {
+              "description": "Observation period of the sensor.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PeriodicityConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": {
+                "offset": null,
+                "period": {
+                  "type": "Num",
+                  "value": 0.10000000149011612
+                },
+                "table": null
+              }
+            },
             "detection_distance": {
               "description": "Max distance of detection.",
               "type": "number",
@@ -2137,18 +2303,13 @@
                 "$ref": "#/$defs/SensorFilterConfig"
               }
             },
-            "period": {
-              "description": "Observation period of the sensor.",
-              "type": [
-                "number",
-                "null"
-              ],
-              "format": "float",
-              "default": 0.10000000149011612
-            },
             "type": {
               "type": "string",
               "const": "RobotSensor"
+            },
+            "xray": {
+              "type": "boolean",
+              "default": false
             }
           },
           "additionalProperties": false,
@@ -2329,6 +2490,7 @@
               "const": "Map"
             }
           },
+          "additionalProperties": false,
           "required": [
             "type"
           ]
@@ -2415,18 +2577,24 @@
           "description": "Configuration for [`PerfectEstimator`].",
           "type": "object",
           "properties": {
-            "map_path": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "default": null
-            },
-            "prediction_period": {
+            "prediction_activation": {
               "description": "Prediction period.",
-              "type": "number",
-              "format": "float",
-              "default": 0.10000000149011612
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PeriodicityConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": {
+                "offset": null,
+                "period": {
+                  "type": "Num",
+                  "value": 0.10000000149011612
+                },
+                "table": null
+              }
             },
             "targets": {
               "type": "array",

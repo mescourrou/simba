@@ -40,23 +40,23 @@ struct MyWonderfulStateEstimatorConfig {}
 #[derive(Debug)]
 struct MyWonderfulStateEstimator {
     last_prediction: f32,
-    letter_box_rx: SharedMutex<Receiver<Envelope>>,
-    letter_box_tx: Sender<Envelope>,
 }
 
 impl MyWonderfulStateEstimator {
     pub fn from_config(_config: MyWonderfulStateEstimatorConfig, initial_time: f32) -> Self {
-        let (tx, rx) = mpsc::channel();
         Self {
             last_prediction: initial_time,
-            letter_box_rx: Arc::new(Mutex::new(rx)),
-            letter_box_tx: tx,
         }
     }
 }
 
 impl StateEstimator for MyWonderfulStateEstimator {
-    fn prediction_step(&mut self, _robot: &mut simba::node::Node, time: f32) {
+    fn prediction_step(
+        &mut self,
+        _robot: &mut simba::node::Node,
+        _command: Option<Command>,
+        time: f32,
+    ) {
         self.last_prediction = time;
     }
 
@@ -76,11 +76,7 @@ impl StateEstimator for MyWonderfulStateEstimator {
         WorldState::new()
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {
-        while let Ok(_envelope) = self.letter_box_rx.lock().unwrap().try_recv() {
-            // i.e. Do something with received messages
-        }
-    }
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {}
 }
 
 impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
@@ -91,12 +87,6 @@ impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
             })
             .unwrap(),
         })
-    }
-}
-
-impl MessageHandler for MyWonderfulStateEstimator {
-    fn get_letter_box(&self) -> Option<Sender<Envelope>> {
-        Some(self.letter_box_tx.clone())
     }
 }
 ```

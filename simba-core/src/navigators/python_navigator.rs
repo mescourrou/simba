@@ -107,6 +107,15 @@ impl std::fmt::Debug for PythonNavigator {
 }
 
 impl Navigator for PythonNavigator {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of post_init");
+        }
+        let node_py = NodeWrapper::from_rust(node);
+        call_py_method_void!(self.navigator, "post_init", (node_py,));
+        Ok(())
+    }
+
     fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of compute_error");
@@ -128,6 +137,13 @@ impl Navigator for PythonNavigator {
         }
         let node_py = NodeWrapper::from_rust(node);
         call_py_method_void!(self.navigator, "pre_loop_hook", node_py, time);
+    }
+
+    fn next_time_step(&self) -> Option<f32> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of next_time_step");
+        }
+        call_py_method!(self.navigator, "next_time_step", Option<f32>,)
     }
 }
 

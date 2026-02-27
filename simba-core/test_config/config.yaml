@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../../config.schema.json
 log:
-  log_level: {type: Off}
+  log_level: {type: Debug}
     # type: Internal
     # value: [type: All]
 time_analysis:
@@ -11,6 +11,8 @@ time_analysis:
 results: {} #default results
 max_time: 60.
 random_seed: 85646513.6849618
+environment:
+  map_path: "maps/landmarks_square.yaml"
 robots:
   - name: "robot1"
     navigator: 
@@ -27,12 +29,12 @@ robots:
           send_to: ["Central Unit"]
           config:
             type: RobotSensor
-            period: 0.1
+            activation_time: 
+              period: {type: Num, value: 0.1}
             detection_distance: 100.0
         - name: "LandmarkSensor"
           config: 
             type: OrientedLandmarkSensor
-            map_path: "maps/landmarks_square.yaml"
             detection_distance: 10.0
             faults:
               - type: AdditiveRobotCentered # Gaussian White Noise
@@ -61,7 +63,8 @@ robots:
           send_to: ["Central Unit"]
           config: 
             type: RobotSensor
-            period: 0.1
+            activation_time: 
+              period: {type: Num, value: 0.1}
             detection_distance: 100.0
 computation_units:
   - name: "Central Unit"
@@ -72,4 +75,5 @@ computation_units:
         config: 
           type: Perfect
           targets: ["robot1", "robot2"]
-          prediction_period: 0.1
+          prediction_activation:
+            period: {type: Num, value: 0.1}

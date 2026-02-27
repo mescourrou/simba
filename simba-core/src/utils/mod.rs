@@ -12,6 +12,7 @@ pub mod macros;
 pub mod maths;
 pub mod numbers;
 pub mod occupancy_grid;
+pub mod periodicity;
 pub mod python;
 pub mod read_only_lock;
 

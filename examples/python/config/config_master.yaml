@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../config.schema.json
 log:
   log_level: #!Internal ["All"]
-    type: Info
+    type: Debug
 results:
   result_path: "../result.json"
   show_figures: true # Disabled for automatic testing
@@ -20,7 +20,8 @@ robots:
       target_speed: 0.5
     state_estimator: 
       type: Perfect
-      prediction_period: 0.1
+      prediction_activation:
+        period: {type: Num, value: 0.1}
 computation_units:
   - name: "master"
     state_estimators:

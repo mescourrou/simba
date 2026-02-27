@@ -9,16 +9,20 @@ class StateEstimator(simba.StateEstimator):
     def __init__(self, config: dict, initial_time: float):
         self.last_time = initial_time
 
+    def post_init(self, node: simba.Node) -> None:
+        node.make_channel("my_channel")
+        self.client = node.subscribe(["/simba/command/robot1"])
+
     def state(self) -> simba.WorldState:
         return simba.WorldState()
 
     def record(self) -> str:
         return "{}"
 
-    def prediction_step(self, node: simba.Node, time: float):
+    def prediction_step(self, node: simba.Node, command: simba.Command, time: float):
         pass
 
-    def correction_step(self, node: simba.Node, observations: List[simba.Observation], t: float):
+    def correction_step(self, node: simba.Node, observations: List[simba.Observation], time: float):
         pass
 
 
@@ -30,19 +34,19 @@ class StateEstimator(simba.StateEstimator):
         if abs(5 - time) < 0.001:
             print("Try to send message")
             msg = simba.MessageTypes.GoTo(simba.GoToMessage([10,10]))
-            node.send_message("robot1", msg, time)
+            self.client.send("/simba/command/robot1", msg, time)
             print("Message sent")
 
         if abs(20 - time) < 0.001:
             print("Try to send message")
             msg = simba.MessageTypes.GoTo(simba.GoToMessage([-10,10]))
-            node.send_message("robot1", msg, time)
+            self.client.send("/simba/command/robot1", msg, time)
             print("Message sent")
 
         if abs(30 - time) < 0.001:
             print("Try to send message")
             msg = simba.MessageTypes.GoTo(simba.GoToMessage([-10,-10]))
-            node.send_message("robot1", msg, time)
+            self.client.send("/simba/command/robot1", msg, time)
             print("Message sent")
 
 

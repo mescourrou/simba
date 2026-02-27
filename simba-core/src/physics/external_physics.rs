@@ -123,6 +123,10 @@ impl std::fmt::Debug for ExternalPhysics {
 }
 
 impl Physics for ExternalPhysics {
+    fn post_init(&mut self, node: &mut crate::node::Node) -> SimbaResult<()> {
+        self.physics.post_init(node)
+    }
+
     fn apply_command(&mut self, command: &Command, time: f32) {
         self.physics.apply_command(command, time);
     }

@@ -178,6 +178,10 @@ use crate::node::Node;
 pub trait Controller:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<ControllerRecord>
 {
+    fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
+        Ok(())
+    }
+
     /// Compute the command from the given error.
     ///
     /// ## Arguments

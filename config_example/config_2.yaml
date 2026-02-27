@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=../config.schema.json
-version: 1.4.5
+version: 1.6.0
 log:
   included_nodes: []
   excluded_nodes: []
@@ -14,6 +14,8 @@ time_analysis:
   output_path: time_performance
   analysis_unit: s
 random_seed: null
+environment:
+  map_path: maps/landmarks_obstruction.yaml
 robots:
 - name: robot1
   navigator: 
@@ -53,10 +55,10 @@ robots:
       - y
   state_estimator:
     type: Perfect
-    prediction_period: 0.1
+    prediction_activation:
+      period: {type: Num, value: 0.1}
     targets:
     - self
-    map_path: null
   sensor_manager:
     sensors:
     - name: RobotSensor
@@ -65,14 +67,15 @@ robots:
       config:
         type: RobotSensor
         detection_distance: 100.0
-        period: 0.1
+        activation_time:
+          period: {type: Num, value: 0.1}
         faults: []
     - name: LandmarkSensor
       config: 
         type: OrientedLandmarkSensor
         detection_distance: 100.0
-        map_path: maps/landmarks_obstruction.yaml
-        period: 0.1
+        activation_time:
+          period: {type: Num, value: 0.1}
         faults:
         - type: AdditiveRobotCentered
           apparition:
@@ -141,7 +144,8 @@ robots:
     faults: []
   state_estimator: 
     type: Perfect
-    prediction_period: 0.1
+    prediction_activation:
+      period: {type: Num, value: 0.1}
     targets:
     - self
     map_path: null
@@ -153,7 +157,8 @@ robots:
       config: 
         type: RobotSensor
         detection_distance: 100.0
-        period: 0.1
+        activation_time:
+          period: {type: Num, value: 0.1}
         faults: []
         filters:
           - type: RangeFilter
@@ -187,7 +192,8 @@ computation_units:
   - name: central_perfect
     config: 
       type: Perfect
-      prediction_period: 0.1
+      prediction_activation:
+        period: {type: Num, value: 0.1}
       targets:
       - robot1
       - robot2

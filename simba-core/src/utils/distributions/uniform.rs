@@ -7,8 +7,6 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 
-use crate::utils::determinist_random_variable::DeterministRandomVariable;
-
 /// Configuration for a uniform random variable.
 #[config_derives]
 pub struct UniformRandomVariableConfig {
@@ -81,7 +79,7 @@ impl UIComponent for UniformRandomVariableConfig {
 }
 
 /// Random variable which return a random value between a min and a max, with a uniform distribution.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeterministUniformRandomVariable {
     /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
     my_seed: f32,
@@ -103,10 +101,8 @@ impl DeterministUniformRandomVariable {
             max: config.max,
         }
     }
-}
 
-impl DeterministRandomVariable for DeterministUniformRandomVariable {
-    fn generate(&self, time: f32) -> Vec<f32> {
+    pub fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
         for (min, max) in zip(&self.min, &self.max) {
@@ -115,7 +111,7 @@ impl DeterministRandomVariable for DeterministUniformRandomVariable {
         v
     }
 
-    fn dim(&self) -> usize {
+    pub fn dim(&self) -> usize {
         self.max.len()
     }
 }

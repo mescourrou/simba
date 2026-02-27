@@ -11,6 +11,9 @@ class Controller(simba.Controller):
         else:
             self.speed = 2
 
+    def post_init(self, node: simba.Node) -> None:
+        pass
+
     def record(self) -> str:
         print("This is record from python!")
         return json.dumps({
@@ -26,6 +29,8 @@ class Controller(simba.Controller):
     def pre_loop_hook(self, node: simba.Node, time: float):
         pass
 
+    def next_time_step(self):
+        return None
 
 class SimulatorAPI(simba.PluginAPI):
     def get_controller(self, config: dict, global_config: dict, initial_time: float):

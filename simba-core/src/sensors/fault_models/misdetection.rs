@@ -2,18 +2,19 @@
 //!
 //! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
 
+use std::sync::Arc;
+
 use log::debug;
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::{
+    environment::Environment,
     logger::is_enabled,
     sensors::SensorObservation,
     utils::{
-        determinist_random_variable::{
-            DeterministRandomVariable, DeterministRandomVariableFactory,
-        },
+        determinist_random_variable::DeterministRandomVariableFactory,
         distributions::bernouilli::{
             BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable,
         },
@@ -99,11 +100,11 @@ impl FaultModel for MisdetectionFault {
         &mut self,
         _time: f32,
         seed: f32,
-        period: f32,
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
+        _environment: &Arc<Environment>,
     ) {
-        let obs_seed_increment = 1. / (100. * period);
+        let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
         let mut seed = seed;
         for i in (0..obs_list.len()).rev() {
             seed += obs_seed_increment;

@@ -122,6 +122,10 @@ impl std::fmt::Debug for ExternalNavigator {
 }
 
 impl Navigator for ExternalNavigator {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        self.navigator.post_init(node)
+    }
+
     fn compute_error(&mut self, robot: &mut Node, world_state: WorldState) -> ControllerError {
         self.navigator.compute_error(robot, world_state)
     }

@@ -51,13 +51,14 @@ use crate::{
     VERSION,
     api::internal_api::NodeClient,
     constants::TIME_ROUND,
+    environment::Environment,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::{LoggerConfig, init_log, is_enabled},
     networking::{
         network::Envelope, network_manager::NetworkManager, service_manager::ServiceManager,
     },
     node::{
-        Node, NodeMetaData, NodeState,
+        Node, NodeState,
         node_factory::{
             ComputationUnitConfig, MakeNodeParams, NodeFactory, NodeRecord, RobotConfig,
         },
@@ -67,7 +68,7 @@ use crate::{
     scenario::{Scenario, config::ScenarioConfig},
     time_analysis::{TimeAnalysisConfig, TimeAnalysisFactory},
     utils::{
-        SharedMutex, SharedRoLock, SharedRwLock, barrier::Barrier,
+        SharedMutex, SharedRwLock, barrier::Barrier,
         determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
         python::CONVERT_TO_DICT,
     },
@@ -184,8 +185,8 @@ struct NodeSyncParams {
     end_time_step_sync: Arc<Mutex<bool>>,
 }
 
-pub(crate) type SimbaBroker = PathBroker<Envelope, String, Option<[f32; 2]>>;
-pub(crate) type SimbaBrokerMultiClient = PathMultiClient<Envelope, String>;
+pub type SimbaBroker = PathBroker<Envelope, String, Option<[f32; 2]>>;
+pub type SimbaBrokerMultiClient = PathMultiClient<Envelope, String>;
 
 /// This is the central structure which manages the run of the scenario.
 ///
@@ -250,7 +251,7 @@ pub struct Simulator {
     scenario: SharedMutex<Scenario>,
     plugin_api: Option<Arc<dyn PluginAPI>>,
     service_managers: BTreeMap<String, SharedRwLock<ServiceManager>>,
-    meta_data_list: SharedRwLock<BTreeMap<String, SharedRoLock<NodeMetaData>>>,
+    environment: Arc<Environment>,
 }
 
 impl Simulator {
@@ -285,7 +286,7 @@ impl Simulator {
             ))),
             plugin_api: None,
             service_managers: BTreeMap::new(),
-            meta_data_list: Arc::new(RwLock::new(BTreeMap::new())),
+            environment: Arc::new(Environment::default()),
         }
     }
 
@@ -328,10 +329,10 @@ impl Simulator {
 
     pub fn reset(&mut self, plugin_api: Option<Arc<dyn PluginAPI>>) -> SimbaResult<()> {
         info!("Reset node");
-        self.meta_data_list.write().unwrap().clear();
+        self.network_manager.reset();
+        self.environment.clear_meta_data();
         self.nodes = Vec::new();
         self.time_cv = Arc::new(TimeCv::new());
-        self.network_manager = NetworkManager::new();
         let config = self.config.clone();
         self.common_time = Arc::new(RwLock::new(f32::INFINITY));
 
@@ -350,6 +351,8 @@ impl Simulator {
         });
 
         self.plugin_api = plugin_api.clone();
+
+        self.environment = Arc::new(Environment::from_config(&config.environment, &config)?);
 
         self.service_managers = BTreeMap::new();
         // Create robots
@@ -376,7 +379,11 @@ impl Simulator {
             info!("Finishing initialization of {}", node.name());
             self.node_apis.insert(
                 node.name(),
-                node.post_creation_init(&self.service_managers, self.meta_data_list.clone(), 0.),
+                node.post_creation_init(
+                    &self.service_managers,
+                    self.environment.get_meta_data().clone(),
+                    0.,
+                ),
             );
         }
 
@@ -577,11 +584,12 @@ impl Simulator {
                 new_name: None,
                 broker: &self.network_manager.broker(),
                 initial_time,
+                environment: self.environment.clone(),
             },
         )?;
         let meta_data = new_node.meta_data();
         let name = meta_data.read().unwrap().name.clone();
-        self.meta_data_list.write().unwrap().insert(name, meta_data);
+        self.environment.insert_meta_data(name, meta_data);
         if new_node.state() != NodeState::Running {
             return Ok(());
         }
@@ -608,11 +616,12 @@ impl Simulator {
                 new_name: None,
                 initial_time,
                 broker: &self.network_manager.broker(),
+                environment: self.environment.clone(),
             },
         )?;
         let meta_data = new_node.meta_data();
         let name = meta_data.read().unwrap().name.clone();
-        self.meta_data_list.write().unwrap().insert(name, meta_data);
+        self.environment.insert_meta_data(name, meta_data);
         if new_node.state() != NodeState::Running {
             return Ok(());
         }
@@ -710,15 +719,25 @@ impl Simulator {
                 new_name: Some(new_node_name),
                 initial_time: time,
                 broker: &self.network_manager.broker(),
+                environment: self.environment.clone(),
             },
         )?;
+        let meta_data = node.meta_data();
+        let name = meta_data.read().unwrap().name.clone();
+        self.environment.insert_meta_data(name.clone(), meta_data);
+
         node.set_state(NodeState::Running);
         self.service_managers
-            .insert(node.name(), node.service_manager());
+            .insert(name.clone(), node.service_manager());
         self.node_apis.insert(
-            node.name(),
-            node.post_creation_init(&self.service_managers, self.meta_data_list.clone(), time),
+            name.clone(),
+            node.post_creation_init(
+                &self.service_managers,
+                self.environment.get_meta_data().clone(),
+                time,
+            ),
         );
+
         self.spawn_node(node, running_parameters)
     }
 
@@ -1080,7 +1099,7 @@ impl Simulator {
             if *node_sync_params.time_cv.force_finish.lock().unwrap() {
                 break;
             }
-            next_time = node.next_time_step(next_time)?;
+            next_time = node.next_time_step(next_time + TIME_ROUND / 2.)?;
             if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                 debug!("Got next_time: {next_time}");
             }
@@ -1209,17 +1228,21 @@ impl Simulator {
                     waiting_nodes
                 );
             }
-            let node_states =
-                HashMap::from_iter(self.meta_data_list.read().unwrap().iter().filter_map(
-                    |(node_name, meta_data)| {
+            let node_states = HashMap::from_iter(
+                self.environment
+                    .get_meta_data()
+                    .read()
+                    .unwrap()
+                    .iter()
+                    .filter_map(|(node_name, meta_data)| {
                         let meta_data = meta_data.read().unwrap();
                         if meta_data.state == NodeState::Running {
                             Some((node_name.clone(), meta_data.position))
                         } else {
                             None
                         }
-                    },
-                ));
+                    }),
+            );
 
             // for (node_name, node_api) in self.node_apis.iter() {
             //     if let Some(state_update) = &node_api.state_update
@@ -1244,9 +1267,6 @@ impl Simulator {
                     if waiting_nodes >= *running_parameters.nb_nodes.read().unwrap() {
                         running_parameters.barrier.add_one();
                         time_end_procedure = true;
-                        debug!(
-                            "All nodes waiting for end of time step procedure, starting procedure..."
-                        );
                         waiting_nodes = 0;
                     }
                     *lock = false;
@@ -1422,6 +1442,10 @@ def show():
             self.async_api_server = Some(SimulatorAsyncApiServer::new(0.));
         }
         Arc::new(self.async_api_server.as_mut().unwrap().new_client())
+    }
+
+    pub fn get_broker(&self) -> SharedRwLock<SimbaBroker> {
+        self.network_manager.broker()
     }
 }
 

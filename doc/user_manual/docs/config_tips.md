@@ -24,7 +24,7 @@ This guide provides best practices, common patterns, and troubleshooting advice 
 Two robots that coordinate through communication:
 
 ```yaml
-version: 1.4.5
+version: 1.6.0
 max_time: 30.0
 
 robots:
@@ -60,7 +60,8 @@ robots:
           config:
             type: RobotSensor
             detection_distance: 20.0    # Can see 20m away
-            period: 0.1
+            activation_time:
+              period: {type: Num, value: 0.1}
             faults: []
     network:
       range: 25.0                       # Can communicate up to 25m
@@ -99,7 +100,8 @@ robots:
           config:
             type: RobotSensor
             detection_distance: 20.0
-            period: 0.1
+            activation_time:
+              period: {type: Num, value: 0.1}
             faults: []
     network:
       range: 25.0
@@ -111,9 +113,10 @@ robots:
 Configure realistic sensor noise and faults at startup:
 
 ```yaml
-version: 1.4.5
+version: 1.6.0
 max_time: 20.0
-
+environment:
+  map_path: maps/landmarks.yaml
 robots:
   - name: robot1
     navigator:
@@ -140,14 +143,16 @@ robots:
           proportionnal_to_velocity: 1.0
     state_estimator:
       type: Perfect
-      prediction_period: 0.1
+      prediction_activation:
+        period: {type: Num, value: 0.1}
     sensor_manager:
       sensors:
         # GPS with occasional errors
         - name: GPS
           config:
             type: GNSSSensor
-            period: 0.5                     # Low update rate
+            activation_time:                     # Low update rate
+              period: {type: Num, value: 0.5}    # 2 Hz
             faults:
               - type: AdditiveRobotCentered
                 apparition:
@@ -165,8 +170,8 @@ robots:
           config:
             type: OrientedLandmarkSensor
             detection_distance: 15.0
-            map_path: maps/landmarks.yaml
-            period: 0.1
+            activation_time:
+              period: {type: Num, value: 0.1}    # 10 Hz
             faults:
               - type: Misdetection
                 apparition:
@@ -184,9 +189,10 @@ robots:
 One computation unit receives sensor data from all robots and performs centralized state estimation:
 
 ```yaml
-version: 1.4.5
+version: 1.6.0
 max_time: 20.0
-
+environment:
+  map_path: maps/landmarks.yaml
 robots:
   - name: robot1
     sensor_manager:
@@ -196,14 +202,15 @@ robots:
           config:
             type: OrientedLandmarkSensor
             detection_distance: 15.0
-            map_path: maps/landmarks.yaml
-            period: 0.1
+            activation_time:
+              period: {type: Num, value: 0.1}
         - name: robot_detector
           send_to: [Central Processing]  # Share robot detections
           config:
             type: RobotSensor
             detection_distance: 10.0
-            period: 0.1
+            activation_time:
+              period: {type: Num, value: 0.1}
     network:
       range: 100.0                       # Large communication range
       reception_delay: 0.01
@@ -217,14 +224,15 @@ robots:
           config:
             type: OrientedLandmarkSensor
             detection_distance: 15.0
-            map_path: maps/landmarks.yaml
-            period: 0.1
+            activation_time:
+              period: {type: Num, value: 0.1}
         - name: robot_detector
           send_to: [Central Processing]  # Share robot detections
           config:
             type: RobotSensor
             detection_distance: 10.0
-            period: 0.1
+            activation_time:
+              period: {type: Num, value: 0.1}
     network:
       range: 100.0
       reception_delay: 0.01
@@ -257,7 +265,7 @@ computation_units:
 Specify the correct version matching your simulator to get a warning when using different major versions:
 
 ```yaml
-version: 1.4.5  # Match your installed SiMBA version
+version: 1.6.0  # Match your installed SiMBA version
 ```
 
 Check with: `simba-cmd --version`
@@ -282,7 +290,7 @@ In configuration:
 ```yaml
 navigator:
   trajectory_path: paths/robot1_path.yaml  # Relative to config file
-state_estimator:
+environment:
   map_path: maps/landmarks.yaml
 ```
 
@@ -292,7 +300,7 @@ Enable auto-completion in your editor:
 
 ```yaml
 # yaml-language-server: $schema=../config.schema.json
-version: 1.4.5
+version: 1.6.0
 ```
 
 This provides:
@@ -309,7 +317,8 @@ Match sensor properties to real-world devices:
 - name: GPS_HighRes
   config:
     type: GNSSSensor
-    period: 1.0
+    activation_time:
+      period: {type: Num, value: 1.0}
     faults:
       - type: AdditiveRobotCentered
         distributions:
@@ -317,11 +326,12 @@ Match sensor properties to real-world devices:
             mean: [0.0, 0.0]
             covariance: [0.01, 0.0, 0.0, 0.01]
 
-# Low-cost GPS (10Hz, 1m accuracy)
+# Low-cost GPS (1Hz, 1m accuracy)
 - name: GPS_LowCost
   config:
     type: GNSSSensor
-    period: 0.1
+    activation_time:
+      period: {type: Num, value: 1.0}
     faults:
       - type: AdditiveRobotCentered
         distributions:
@@ -501,7 +511,7 @@ results:
 
 **Possible causes**:
 1. Detection distance too small
-2. Sensor `period` too large (updates too slowly)
+2. Sensor `activation_time` too large (updates too slowly)
 3. Target outside detection range
 
 **Solution**:
@@ -512,7 +522,8 @@ sensor_manager:
       config:
         type: RobotSensor
         detection_distance: 50.0  # Increase range
-        period: 0.05              # Increase update rate
+        activation_time:
+          period: {type: Num, value: 0.05}  # Increase update rate
 ```
 
 ### Issue: Simulation runs very slowly
@@ -521,7 +532,8 @@ sensor_manager:
 
 1. **Reduce sensor update rates**:
 ```yaml
-period: 0.5  # 2 Hz instead of 10 Hz
+activation_time:
+  period: {type: Num, value: 0.5}  # 2 Hz instead of 10 Hz
 ```
 
 2. **Disable time analysis** (set to `null` instead of removing):
@@ -533,7 +545,8 @@ time_analysis: null  # Disable performance analysis
 ```yaml
 state_estimator:
   type: Perfect
-  prediction_period: 0.5  # Slower updates
+  prediction_activation: # Slower updates
+    period: {type: Num, value: 0.5}
 ```
 
 4. **Reduce logging**:
@@ -577,7 +590,7 @@ physics:
 ### For Detailed Analysis
 
 ```yaml
-version: 1.4.5
+version: 1.6.0
 max_time: 10.0  # Shorter simulation
 
 log:

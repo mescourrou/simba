@@ -167,6 +167,10 @@ impl AsyncSimulator {
             .unwrap()
             .show();
     }
+
+    pub fn get_simulator(&self) -> Arc<Mutex<Simulator>> {
+        self.server.lock().unwrap().get_simulator()
+    }
 }
 
 pub struct SimulatorAsyncApi {

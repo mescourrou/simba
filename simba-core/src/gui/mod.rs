@@ -5,6 +5,8 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 pub use app::SimbaApp;
 mod configurator;
 mod drawables;
+pub use drawables::Drawable;
+mod panels;
 pub mod utils;
 
 use crate::{

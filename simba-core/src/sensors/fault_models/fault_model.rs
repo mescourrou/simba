@@ -1,12 +1,14 @@
 //! TODO: Lots of code duplication between fault models, need to find a way to factorize
 
-use std::fmt::Debug;
+use std::{fmt::Debug, sync::Arc};
 
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::{
+    environment::Environment,
+    errors::SimbaResult,
     sensors::{
         SensorObservation,
         fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig},
@@ -235,7 +237,7 @@ impl FaultModelConfig {
 pub fn make_fault_model_from_config(
     config: &FaultModelConfig,
     global_config: &SimulatorConfig,
-    robot_name: &String,
+    robot_name: &str,
     va_factory: &DeterministRandomVariableFactory,
     initial_time: f32,
 ) -> Box<dyn FaultModel> {
@@ -273,12 +275,16 @@ pub fn make_fault_model_from_config(
 }
 
 pub trait FaultModel: Debug + Sync + Send {
+    fn post_init(&mut self, _node: &mut crate::node::Node, _initial_time: f32) -> SimbaResult<()> {
+        Ok(())
+    }
+
     fn add_faults(
         &mut self,
         time: f32,
         seed: f32,
-        period: f32,
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,
+        environment: &Arc<Environment>,
     );
 }

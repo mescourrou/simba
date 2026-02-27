@@ -11,6 +11,7 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
@@ -23,7 +24,7 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use crate::utils::maths::round_precision;
+use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
@@ -34,7 +35,7 @@ extern crate nalgebra as na;
 #[config_derives]
 pub struct SpeedSensorConfig {
     /// Observation period of the sensor.
-    pub period: Option<f32>,
+    pub activation_time: Option<PeriodicityConfig>,
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
@@ -44,7 +45,11 @@ pub struct SpeedSensorConfig {
 impl Default for SpeedSensorConfig {
     fn default() -> Self {
         Self {
-            period: Some(0.1),
+            activation_time: Some(PeriodicityConfig {
+                period: crate::config::NumberConfig::Num(0.1),
+                offset: None,
+                table: None,
+            }),
             faults: Vec::new(),
             filters: Vec::new(),
         }
@@ -66,17 +71,20 @@ impl UIComponent for SpeedSensorConfig {
             .id_salt(format!("speed-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Period:");
-                    if let Some(p) = &mut self.period {
-                        if *p <= TIME_ROUND {
-                            *p = TIME_ROUND;
+                    if let Some(p) = &mut self.activation_time {
+                        p.show_mut(
+                            ui,
+                            ctx,
+                            buffer_stack,
+                            global_config,
+                            current_node_name,
+                            unique_id,
+                        );
+                        if ui.button("Remove activation").clicked() {
+                            self.activation_time = None;
                         }
-                        ui.add(egui::DragValue::new(p));
-                        if ui.button("X").clicked() {
-                            self.period = None;
-                        }
-                    } else if ui.button("+").clicked() {
-                        self.period = Self::default().period;
+                    } else if ui.button("Add activation").clicked() {
+                        self.activation_time = Self::default().activation_time;
                     }
                 });
 
@@ -107,11 +115,10 @@ impl UIComponent for SpeedSensorConfig {
             .id_salt(format!("speed-sensor-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Period:");
-                    if let Some(p) = &self.period {
-                        ui.label(format!("{}", p));
+                    if let Some(p) = &self.activation_time {
+                        p.show(ui, ctx, unique_id);
                     } else {
-                        ui.label("None");
+                        ui.label("No activation");
                     }
                 });
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
@@ -122,25 +129,22 @@ impl UIComponent for SpeedSensorConfig {
 }
 
 /// Record of the [`SpeedSensor`], which contains nothing for now.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct SpeedSensorRecord {
-    last_time: f32,
+    last_time: Option<f32>,
     last_state: StateRecord,
-}
-
-impl Default for SpeedSensorRecord {
-    fn default() -> Self {
-        Self {
-            last_time: 0.,
-            last_state: StateRecord::default(),
-        }
-    }
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for SpeedSensorRecord {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
-        ui.label(format!("Last time: {}", self.last_time));
+        ui.label(format!(
+            "Last time: {}",
+            match self.last_time {
+                Some(t) => t.to_string(),
+                None => "None".to_string(),
+            }
+        ));
         ui.label("Last state: ");
         self.last_state.show(ui, ctx, unique_id);
     }
@@ -189,9 +193,9 @@ pub struct SpeedSensor {
     /// Last state to compute the velocity.
     last_state: State,
     /// Observation period
-    period: Option<f32>,
+    activation_time: Option<Periodicity>,
     /// Last observation time.
-    last_time: f32,
+    last_time: Option<f32>,
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
     filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
 }
@@ -203,7 +207,7 @@ impl SpeedSensor {
             &SpeedSensorConfig::default(),
             &None,
             &SimulatorConfig::default(),
-            &"NoName".to_string(),
+            "NoName",
             &DeterministRandomVariableFactory::default(),
             0.0,
         )
@@ -214,7 +218,7 @@ impl SpeedSensor {
         config: &SpeedSensorConfig,
         _plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        robot_name: &String,
+        robot_name: &str,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
     ) -> Self {
@@ -242,10 +246,14 @@ impl SpeedSensor {
         }
         drop(unlock_filters);
 
+        let period = config
+            .activation_time
+            .as_ref()
+            .map(|p| Periodicity::from_config(p, va_factory, initial_time));
         Self {
             last_state: State::new(),
-            period: config.period,
-            last_time: initial_time,
+            activation_time: period,
+            last_time: None,
             faults: fault_models,
             filters,
         }
@@ -261,22 +269,31 @@ impl Default for SpeedSensor {
 use crate::node::Node;
 
 impl Sensor for SpeedSensor {
-    fn init(&mut self, robot: &mut Node, initial_time: f32) {
-        self.last_state = robot
+    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
+        self.last_state = node
             .physics()
             .expect("Node with Speed sensor should have Physics")
             .read()
             .unwrap()
             .state(initial_time)
             .clone();
+        for filter in self.filters.lock().unwrap().iter_mut() {
+            filter.post_init(node, initial_time)?;
+        }
+        for fault_model in self.faults.lock().unwrap().iter_mut() {
+            fault_model.post_init(node, initial_time)?;
+        }
+        Ok(())
     }
 
-    fn get_observations(&mut self, robot: &mut Node, time: f32) -> Vec<SensorObservation> {
+    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
-        if (time - self.last_time).abs() < TIME_ROUND {
+        if let Some(last_time) = self.last_time
+            && (time - last_time).abs() < TIME_ROUND
+        {
             return observation_list;
         }
-        let arc_physic = robot
+        let arc_physic = node
             .physics()
             .expect("Node with Speed sensor should have Physics");
         let physic = arc_physic.read().unwrap();
@@ -301,23 +318,26 @@ impl Sensor for SpeedSensor {
                 fault_model.add_faults(
                     time,
                     time,
-                    self.period.unwrap_or(TIME_ROUND),
                     &mut observation_list,
                     SensorObservation::Speed(SpeedObservation::default()),
+                    node.environment(),
                 );
             }
         } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
             debug!("Speed observation was filtered out");
         }
 
-        self.last_time = time;
+        if let Some(p) = self.activation_time.as_mut() {
+            p.update(time);
+        }
+        self.last_time = Some(time);
         self.last_state = state.clone();
         observation_list
     }
 
     fn next_time_step(&self) -> f32 {
-        if let Some(period) = &self.period {
-            round_precision(self.last_time + period, TIME_ROUND).unwrap()
+        if let Some(activation) = &self.activation_time {
+            activation.next_time()
         } else {
             f32::INFINITY
         }

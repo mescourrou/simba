@@ -146,8 +146,8 @@ impl std::fmt::Debug for ExternalSensor {
 }
 
 impl Sensor for ExternalSensor {
-    fn init(&mut self, node: &mut Node, initial_time: f32) {
-        self.sensor.init(node, initial_time);
+    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
+        self.sensor.post_init(node, initial_time)
     }
 
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {

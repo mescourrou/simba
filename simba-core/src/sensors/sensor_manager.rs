@@ -392,10 +392,12 @@ impl SensorManager {
                 .unwrap()
                 .subscribe_to(&[sensor_manager_key], None),
         );
-        debug!(
-            "Sensor Manager subscribed to channel {:?}",
-            manager.message_client.as_ref().unwrap().subscribed_keys()
-        );
+        if is_enabled(crate::logger::InternalLog::SensorManager) {
+            debug!(
+                "Sensor Manager subscribed to channel {:?}",
+                manager.message_client.as_ref().unwrap().subscribed_keys()
+            );
+        }
         manager.next_time = None;
         for sensor in &manager.sensors {
             manager.next_time = Some(
@@ -410,17 +412,22 @@ impl SensorManager {
 
     /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    pub fn init(&mut self, node: &mut Node, initial_time: f32) {
+    pub fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
         for sensor in &mut self.sensors {
-            sensor.sensor.write().unwrap().init(node, initial_time);
+            sensor
+                .sensor
+                .write()
+                .unwrap()
+                .post_init(node, initial_time)?;
         }
+        Ok(())
     }
 
     pub fn handle_messages(&mut self, time: f32) {
         while let Some((path, envelope)) = self.message_client.as_ref().unwrap().try_receive(time) {
             debug!(
-                "Sensor Manager received message on path {:?} at time {}: {:?}",
-                path, envelope.timestamp, envelope.message
+                "Sensor Manager received message on path {:?} at time {}",
+                path, envelope.timestamp
             );
             if path
                 == self
@@ -555,7 +562,10 @@ impl SensorManager {
                         .write()
                         .unwrap()
                         .send_to(
-                            key_base.join_str(to).join_str(Self::OBSERVATION_CHANNEL),
+                            key_base
+                                .join_str(to)
+                                .join_str(Self::CHANNEL_NAME)
+                                .join_str(Self::OBSERVATION_CHANNEL),
                             Envelope {
                                 from: node.name(),
                                 message: obs_serialized,

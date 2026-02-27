@@ -66,7 +66,7 @@ The root of your configuration file includes:
 ## Configuration File Structure
 
 ```yaml
-version: 1.4.5
+version: 1.6.0
 max_time: 100.0
 log:
   log_level: Info
@@ -74,6 +74,8 @@ results:
   result_path: simulation_results
   save_mode: AtTheEnd
 random_seed: 42
+environment:
+  map_path: my_map.yaml
 robots:
   - name: robot1
     navigator: { ... }        # See Navigation Configuration

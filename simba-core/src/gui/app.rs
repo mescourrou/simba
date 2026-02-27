@@ -13,11 +13,15 @@ use crate::{
     api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
     constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
     errors::{SimbaError, SimbaErrorTypes},
-    gui::{UIComponent, drawables::popup::Popup},
+    gui::{
+        UIComponent,
+        drawables::popup::Popup,
+        panels::{broker::BrokerPanel, virtual_nodes::VirtualNodesPanel},
+    },
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
-    simulator::{Record, Simulator, SimulatorConfig},
-    utils::{SharedMutex, maths::round_precision, numbers::OrderedF32},
+    simulator::{Record, SimbaBroker, Simulator, SimulatorConfig},
+    utils::{SharedMutex, SharedRoLock, maths::round_precision, numbers::OrderedF32},
 };
 
 use super::{
@@ -122,9 +126,12 @@ impl PainterInfo {
 struct PrivateParams {
     server: SharedMutex<AsyncApiRunner>,
     api: SharedMutex<AsyncApi>,
+    plugin_api: Option<Arc<dyn PluginAPI>>,
     config: Option<SimulatorConfig>,
     current_draw_time: f32,
     robots: BTreeMap<String, drawables::robot::Robot>,
+    map: drawables::map::Map,
+    drawables: Vec<Box<dyn drawables::Drawable>>,
     playing: Option<(f32, std::time::Instant)>,
     simulation_run: bool,
     configurator: Option<Configurator>,
@@ -132,6 +139,8 @@ struct PrivateParams {
     painter_info: PainterInfo,
     popups: Vec<Popup>,
     record_buffer: SharedMutex<Vec<Record>>,
+    virtual_nodes_panel: VirtualNodesPanel,
+    broker_panel: Option<BrokerPanel>,
     current_max_time: f32,
     drawable_instants: BTreeSet<OrderedF32>,
 }
@@ -144,9 +153,12 @@ impl Default for PrivateParams {
         Self {
             server,
             api,
+            plugin_api: None,
             config: None,
             current_draw_time: 0.,
             robots: BTreeMap::new(),
+            map: drawables::map::Map::default(),
+            drawables: Vec::new(),
             playing: None,
             simulation_run: false,
             configurator: None,
@@ -154,10 +166,19 @@ impl Default for PrivateParams {
             painter_info: PainterInfo::default(),
             popups: Vec::new(),
             record_buffer: Arc::new(Mutex::new(Vec::new())),
+            virtual_nodes_panel: VirtualNodesPanel::new(),
+            broker_panel: None,
             current_max_time: 0.,
             drawable_instants: BTreeSet::new(),
         }
     }
+}
+
+#[derive(Deserialize, Serialize, Default)]
+struct EnabledViews {
+    configuration: bool,
+    virtual_nodes: bool,
+    broker: bool,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -172,6 +193,7 @@ pub struct SimbaApp {
     p: PrivateParams,
     drawing_scale: f32,
     follow_sim_time: bool,
+    enabled_views: EnabledViews,
 }
 
 impl Default for SimbaApp {
@@ -190,6 +212,7 @@ impl Default for SimbaApp {
             },
             drawing_scale: 100.,
             follow_sim_time: true,
+            enabled_views: EnabledViews::default(),
         }
     }
 }
@@ -225,11 +248,12 @@ impl SimbaApp {
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
-        server.lock().unwrap().run(plugin_api);
+        server.lock().unwrap().run(plugin_api.clone());
         let mut n = Self {
             p: PrivateParams {
                 server,
                 api,
+                plugin_api,
                 ..Default::default()
             },
             ..Default::default()
@@ -257,6 +281,15 @@ impl SimbaApp {
             n.p.api.lock().unwrap().load_results.async_call(None);
             n.p.simulation_run = true;
         }
+        n.p.broker_panel = Some(BrokerPanel::new(
+            n.p.server
+                .lock()
+                .unwrap()
+                .get_simulator()
+                .lock()
+                .unwrap()
+                .get_broker() as SharedRoLock<SimbaBroker>,
+        ));
         n
     }
 
@@ -268,9 +301,10 @@ impl SimbaApp {
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
-        server.lock().unwrap().run(plugin_api);
+        server.lock().unwrap().run(plugin_api.clone());
         self.p.server = server;
         self.p.api = api;
+        self.p.plugin_api = plugin_api;
         if let Some(config) = default_config_path {
             self.config_path = config.to_str().unwrap().to_string();
             self.p.config = None;
@@ -295,6 +329,16 @@ impl SimbaApp {
             self.p.api.lock().unwrap().load_results.async_call(None);
             self.p.simulation_run = true;
         }
+        self.p.broker_panel = Some(BrokerPanel::new(
+            self.p
+                .server
+                .lock()
+                .unwrap()
+                .get_simulator()
+                .lock()
+                .unwrap()
+                .get_broker() as SharedRoLock<SimbaBroker>,
+        ));
         self
     }
 
@@ -307,18 +351,38 @@ impl SimbaApp {
             return;
         }
         let config = self.p.config.as_ref().unwrap();
+        self.p.map = drawables::map::Map::init(&config.environment, config);
         for robot in &config.robots {
             self.p.robots.insert(
                 robot.name.clone(),
                 drawables::robot::Robot::init(robot, config),
             );
         }
+        if let Some(plugin_api) = &self.p.plugin_api
+            && let Some(drawable) = plugin_api.get_drawable(config)
+        {
+            self.p.drawables.push(drawable);
+        }
     }
 
     fn draw(&mut self, ui: &mut egui::Ui, viewport: Rect) -> Result<Vec<Shape>, Vec2> {
         let mut shapes = Vec::new();
+        shapes.extend(
+            self.p
+                .map
+                .draw(ui, &viewport, &self.p.painter_info, self.drawing_scale)?,
+        );
         for robot in self.p.robots.values() {
             shapes.extend(robot.draw(
+                ui,
+                &viewport,
+                &self.p.painter_info,
+                self.drawing_scale,
+                self.p.current_draw_time,
+            )?);
+        }
+        for drawable in &self.p.drawables {
+            shapes.extend(drawable.draw(
                 ui,
                 &viewport,
                 &self.p.painter_info,
@@ -346,15 +410,30 @@ impl SimbaApp {
                 self.p.current_draw_time,
             );
         }
+
+        for drawable in self.p.drawables.iter_mut() {
+            drawable.react(
+                ui,
+                ctx,
+                response,
+                &self.p.painter_info,
+                self.drawing_scale,
+                self.p.current_draw_time,
+            );
+        }
     }
 
     fn add_result(&mut self, time: f32, node: NodeRecord) {
         let time = round_precision(time, TIME_ROUND).unwrap();
-        match node {
-            NodeRecord::ComputationUnit(_) => {}
+        match &node {
+            NodeRecord::ComputationUnit(rec) => {
+                self.p
+                    .virtual_nodes_panel
+                    .add_record(rec.name.clone(), time, node.clone());
+            }
             NodeRecord::Robot(n) => {
                 if let Some(r) = self.p.robots.get_mut(&n.name) {
-                    r.add_record(time, *n);
+                    r.add_record(time, *n.clone());
                 } else if let Some(config) = &self.p.config
                     && let Some(new_config) =
                         config.robots.iter().find(|rc| rc.name == n.model_name)
@@ -367,6 +446,9 @@ impl SimbaApp {
                     log::error!("Received record for unknown robot {}", n.name);
                 }
             }
+        }
+        for drawable in self.p.drawables.iter_mut() {
+            drawable.add_record(time, node.clone());
         }
         if time > self.p.current_max_time {
             self.p.current_max_time = time;
@@ -427,6 +509,12 @@ impl eframe::App for SimbaApp {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                             self.quit();
                         }
+                    });
+                    ui.add_space(16.0);
+                    ui.menu_button("View", |ui| {
+                        ui.checkbox(&mut self.enabled_views.configuration, "Configuration");
+                        ui.checkbox(&mut self.enabled_views.virtual_nodes, "Virtual Nodes");
+                        ui.checkbox(&mut self.enabled_views.broker, "Communication Broker");
                     });
                     ui.add_space(16.0);
                     ui.menu_button("Help", |ui| {
@@ -653,13 +741,36 @@ impl eframe::App for SimbaApp {
         });
 
         egui::SidePanel::right("right-panel").show(ctx, |ui| {
-            egui::CollapsingHeader::new("Configuration").show(ui, |ui| {
-                egui::ScrollArea::both().show(ui, |ui| {
-                    if let Some(cfg) = &self.p.config {
-                        let unique_id = String::new();
-                        cfg.show(ui, ctx, &unique_id);
+            ui.horizontal(|ui| {
+                ui.vertical(|ui| {
+                    if self.enabled_views.configuration {
+                        egui::CollapsingHeader::new("Configuration").show(ui, |ui| {
+                            egui::ScrollArea::both().show(ui, |ui| {
+                                if let Some(cfg) = &self.p.config {
+                                    let unique_id = String::new();
+                                    cfg.show(ui, ctx, &unique_id);
+                                }
+                            });
+                        });
+                    }
+                    if self.enabled_views.virtual_nodes {
+                        self.p.virtual_nodes_panel.draw(
+                            ui,
+                            ctx,
+                            "virtual_nodes_panel",
+                            self.p.current_draw_time,
+                        );
+                    }
+                    if self.enabled_views.broker {
+                        if let Some(panel) = &mut self.p.broker_panel {
+                            panel.draw(ui, ctx, "broker_panel", self.p.current_draw_time);
+                        } else {
+                            ui.label("Broker information not available.");
+                        }
                     }
                 });
+                // Allow resizing the side panel by dragging
+                ui.take_available_width();
             });
         });
 

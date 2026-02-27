@@ -13,6 +13,7 @@ use crate::gui::{UIComponent, utils::text_singleline_with_apply};
 
 use crate::{
     controllers::{self, ControllerConfig, ControllerRecord, pid},
+    environment::Environment,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::is_enabled,
     navigators::{self, NavigatorConfig, NavigatorRecord, go_to},
@@ -106,6 +107,16 @@ pub enum NodeRecord {
     // Box RobotRecord to reduce size of NodeRecord
     Robot(Box<RobotRecord>),
     ComputationUnit(ComputationUnitRecord),
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for NodeRecord {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        match &self {
+            Self::Robot(robot_record) => robot_record.show(ui, ctx, unique_id),
+            Self::ComputationUnit(cu_record) => cu_record.show(ui, ctx, unique_id),
+        }
+    }
 }
 
 impl NodeRecord {
@@ -664,6 +675,7 @@ pub struct MakeNodeParams<'a> {
     pub new_name: Option<&'a str>,
     pub broker: &'a SharedRwLock<SimbaBroker>,
     pub initial_time: f32,
+    pub environment: Arc<Environment>,
 }
 
 pub struct NodeFactory {}
@@ -823,6 +835,8 @@ impl NodeFactory {
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
             node_message_client: client,
+            current_command: None,
+            environment: params.environment.clone(),
         };
 
         for state_estimator_config in &config.state_estimator_bench {
@@ -913,6 +927,8 @@ impl NodeFactory {
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
             node_message_client: client,
+            current_command: None,
+            environment: params.environment.clone(),
         };
 
         for state_estimator_config in &config.state_estimators {

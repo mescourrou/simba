@@ -1,9 +1,7 @@
 # yaml-language-server: $schema=../../../config.schema.json
 log:
   log_level:
-    type: Internal
-    value:
-      - type: All
+    type: Debug
 results:
   result_path: "../result.json"
   show_figures: false # Disabled for automatic testing
@@ -13,7 +11,9 @@ results:
 #   exporter: TraceEventExporter
 #   output_path: "time_performance"
 #   keep_last: true
-max_time: 60.
+max_time: 60
+environment:
+  map_path: "maps/landmarks_square.yaml"
 robots:
   - name: "robot1"
     navigator:
@@ -26,7 +26,8 @@ robots:
       proportional_gains: [1.0, 6.0]
     state_estimator:
       type: Perfect
-      prediction_period: 0.1
+      prediction_activation:
+        period: {type: Num, value: 0.1}
     state_estimator_bench:
       - name: "Filter"
         config:
@@ -40,7 +41,6 @@ robots:
         - name: "LandmarkSensor"
           config:
             type: OrientedLandmarkSensor
-            map_path: "maps/landmarks_square.yaml"
             detection_distance: 6.0
   - name: "robot2"
     navigator:
@@ -53,7 +53,8 @@ robots:
       proportional_gains: [1.0, 6.0]
     state_estimator:
       type: Perfect
-      prediction_period: 0.1
+      prediction_activation:
+        period: {type: Num, value: 0.1}
     state_estimator_bench:
       - name: "Filter"
         config:
@@ -67,5 +68,4 @@ robots:
         - name: "LandmarkSensor"
           config:
             type: OrientedLandmarkSensor
-            map_path: "maps/landmarks_square.yaml"
             detection_distance: 6.0

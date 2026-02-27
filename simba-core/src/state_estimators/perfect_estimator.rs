@@ -4,23 +4,23 @@ the groundtruth to provide the estimation. It can be used when the state used
 by the controller should be perfect.
 */
 
-use std::path::Path;
-
 use super::{State, WorldState, WorldStateRecord};
 use crate::{
-    constants::TIME_ROUND, errors::SimbaErrorTypes, networking::service_manager::ServiceError,
+    constants::TIME_ROUND,
+    errors::SimbaErrorTypes,
+    networking::service_manager::ServiceError,
+    physics::robot_models::Command,
+    utils::{
+        determinist_random_variable::DeterministRandomVariableFactory,
+        periodicity::{Periodicity, PeriodicityConfig},
+    },
 };
 
 #[cfg(feature = "gui")]
-use crate::gui::{
-    UIComponent,
-    utils::{path_finder, string_checkbox},
-};
+use crate::gui::{UIComponent, utils::string_checkbox};
 use crate::recordable::Recordable;
 use crate::sensors::Observation;
-use crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensor;
 use crate::simulator::SimulatorConfig;
-use crate::utils::maths::round_precision;
 use log::{error, info, warn};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
@@ -29,18 +29,19 @@ use simba_macros::config_derives;
 #[config_derives]
 pub struct PerfectEstimatorConfig {
     /// Prediction period.
-    #[check(ge(0.))]
-    pub prediction_period: f32,
+    pub prediction_activation: Option<PeriodicityConfig>,
     pub targets: Vec<String>,
-    pub map_path: Option<String>,
 }
 
 impl Default for PerfectEstimatorConfig {
     fn default() -> Self {
         Self {
-            prediction_period: 0.1,
+            prediction_activation: Some(PeriodicityConfig {
+                period: crate::config::NumberConfig::Num(0.1),
+                offset: None,
+                table: None,
+            }),
             targets: vec!["self".to_string()],
-            map_path: None,
         }
     }
 }
@@ -60,14 +61,25 @@ impl UIComponent for PerfectEstimatorConfig {
             .id_salt(format!("perfect-estimator-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label("Prediction period:");
-                    if self.prediction_period < TIME_ROUND {
-                        self.prediction_period = TIME_ROUND;
+                    ui.label("Prediction activation:");
+                    if let Some(p) = &mut self.prediction_activation {
+                        p.show_mut(
+                            ui,
+                            _ctx,
+                            _buffer_stack,
+                            global_config,
+                            current_node_name,
+                            unique_id,
+                        );
+                        if ui.button("Remove").clicked() {
+                            self.prediction_activation = None;
+                        }
+                    } else {
+                        ui.label("None");
+                        if ui.button("Add").clicked() {
+                            self.prediction_activation = Self::default().prediction_activation;
+                        }
                     }
-                    ui.add(
-                        egui::DragValue::new(&mut self.prediction_period)
-                            .max_decimals((1. / TIME_ROUND) as usize),
-                    );
                 });
 
                 let mut possible_targets =
@@ -84,21 +96,6 @@ impl UIComponent for PerfectEstimatorConfig {
                     ui.label("Targets:");
                     string_checkbox(ui, &possible_targets, &mut self.targets);
                 });
-
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Map path:");
-                    let mut enabled = self.map_path.is_some();
-                    ui.checkbox(&mut enabled, "Enable");
-                    if enabled {
-                        path_finder(
-                            ui,
-                            self.map_path.as_mut().unwrap(),
-                            &global_config.base_path,
-                        );
-                    } else {
-                        self.map_path = None;
-                    }
-                });
             });
     }
 
@@ -107,22 +104,18 @@ impl UIComponent for PerfectEstimatorConfig {
             .id_salt(format!("perfect-estimator-{}", unique_id))
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.label(format!("Prediction period: {}", self.prediction_period));
+                    ui.label("Prediction activation:");
+                    if let Some(p) = &self.prediction_activation {
+                        p.show(ui, _ctx, unique_id);
+                    } else {
+                        ui.label("None");
+                    }
                 });
 
                 ui.horizontal_wrapped(|ui| {
                     ui.label("Targets: ");
                     for t in &self.targets {
                         ui.label(format!("{t}, "));
-                    }
-                });
-
-                ui.horizontal_wrapped(|ui| {
-                    ui.label("Map path: ");
-                    if let Some(p) = &self.map_path {
-                        ui.label(p);
-                    } else {
-                        ui.label("None");
                     }
                 });
             });
@@ -159,25 +152,17 @@ pub struct PerfectEstimator {
     /// Estimation of the state on the `last_time_prediction`.
     world_state: WorldState,
     /// Prediction period, in seconds.
-    prediction_period: f32,
+    prediction_activation: Option<Periodicity>,
     /// Last time the state was updated/predicted.
     last_time_prediction: f32,
 }
 
 impl PerfectEstimator {
-    /// Create a new [`PerfectEstimator`] using default [`PerfectEstimatorConfig`].
-    pub fn new() -> Self {
-        Self::from_config(
-            &PerfectEstimatorConfig::default(),
-            &SimulatorConfig::default(),
-            0.0,
-        )
-    }
-
     /// Creates a new [`PerfectEstimator`] from the given `config`.
     pub fn from_config(
         config: &PerfectEstimatorConfig,
-        global_config: &SimulatorConfig,
+        _global_config: &SimulatorConfig,
+        va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
     ) -> Self {
         let mut world_state = WorldState::new();
@@ -188,35 +173,20 @@ impl PerfectEstimator {
                 world_state.objects.insert(target.clone(), State::new());
             }
         }
-        if let Some(map_path) = &config.map_path {
-            let mut map_path = Path::new(map_path);
-            let joined_path = global_config.base_path.join(map_path);
-            if map_path.is_relative() {
-                map_path = joined_path.as_path();
-            }
-            let landmarks = OrientedLandmarkSensor::load_map_from_path(map_path);
-            for landmark in landmarks {
-                world_state.landmarks.insert(
-                    landmark.id,
-                    State {
-                        pose: landmark.pose,
-                        velocity: [0., 0., 0.].into(),
-                    },
-                );
-            }
-        }
 
+        let activation = config
+            .prediction_activation
+            .as_ref()
+            .map(|p| Periodicity::from_config(p, va_factory, initial_time));
+        let last_time = activation
+            .as_ref()
+            .map(|p| p.next_time())
+            .unwrap_or(initial_time);
         Self {
-            prediction_period: config.prediction_period,
+            prediction_activation: activation,
             world_state,
-            last_time_prediction: initial_time,
+            last_time_prediction: last_time,
         }
-    }
-}
-
-impl Default for PerfectEstimator {
-    fn default() -> Self {
-        Self::new()
     }
 }
 
@@ -224,9 +194,13 @@ use super::{StateEstimator, StateEstimatorRecord};
 use crate::node::Node;
 
 impl StateEstimator for PerfectEstimator {
-    fn prediction_step(&mut self, node: &mut Node, time: f32) {
+    fn prediction_step(&mut self, node: &mut Node, _command: Option<Command>, time: f32) {
         if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
-            error!("Error trying to update estimate too soon !");
+            error!(
+                "Error trying to update estimate too soon! (it is {} but expecting {})",
+                time,
+                self.next_time_step()
+            );
             return;
         }
         info!("Doing prediction step");
@@ -269,6 +243,17 @@ impl StateEstimator for PerfectEstimator {
         for obj in objects_to_delete {
             self.world_state.objects.remove(&obj);
         }
+
+        let landmarks = node.environment().map().landmarks.clone();
+        self.world_state.landmarks = landmarks
+            .iter()
+            .enumerate()
+            .map(|(i, l)| (i as i32, State::from_vector(l.pose.as_slice())))
+            .collect();
+
+        if let Some(p) = self.prediction_activation.as_mut() {
+            p.update(time);
+        }
         self.last_time_prediction = time;
     }
 
@@ -279,11 +264,11 @@ impl StateEstimator for PerfectEstimator {
     }
 
     fn next_time_step(&self) -> f32 {
-        round_precision(
-            self.last_time_prediction + self.prediction_period,
-            TIME_ROUND,
-        )
-        .unwrap()
+        if let Some(period) = &self.prediction_activation {
+            period.next_time()
+        } else {
+            f32::INFINITY
+        }
     }
 
     fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {}

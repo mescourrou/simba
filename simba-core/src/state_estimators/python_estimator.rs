@@ -12,7 +12,8 @@ use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
-use crate::pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper};
+use crate::physics::robot_models::Command;
+use crate::pywrappers::{CommandWrapper, NodeWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
@@ -105,12 +106,28 @@ impl std::fmt::Debug for PythonEstimator {
 }
 
 impl StateEstimator for PythonEstimator {
-    fn prediction_step(&mut self, node: &mut Node, time: f32) {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of post_init");
+        }
+        let node_py = NodeWrapper::from_rust(node);
+        call_py_method_void!(self.state_estimator, "post_init", (node_py,));
+        Ok(())
+    }
+
+    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
         let node_py = NodeWrapper::from_rust(node);
-        call_py_method_void!(self.state_estimator, "prediction_step", node_py, time);
+        let command = command.map(|c| CommandWrapper::from_rust(&c));
+        call_py_method_void!(
+            self.state_estimator,
+            "prediction_step",
+            node_py,
+            command,
+            time
+        );
     }
 
     fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32) {

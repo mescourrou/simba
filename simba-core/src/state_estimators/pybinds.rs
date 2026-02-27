@@ -7,9 +7,11 @@ use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
     constants::TIME_ROUND,
+    errors::SimbaResult,
     logger::is_enabled,
     node::Node,
-    pywrappers::{NodeWrapper, ObservationWrapper, WorldStateWrapper},
+    physics::robot_models::Command,
+    pywrappers::{CommandWrapper, NodeWrapper, ObservationWrapper, WorldStateWrapper},
     recordable::Recordable,
     sensors::Observation,
     utils::{
@@ -25,23 +27,31 @@ use super::{
 
 #[derive(Debug, Clone)]
 pub struct PythonStateEstimatorAsyncClient {
-    pub prediction_step: RemoteFunctionCall<PythonStateEstimatorPredictionStepRequest, ()>,
-    pub correction_step: RemoteFunctionCall<PythonStateEstimatorCorrectionStepRequest, ()>,
-    pub state: RemoteFunctionCall<(), WorldState>,
-    pub next_time_step: RemoteFunctionCall<(), f32>,
-    pub record: RemoteFunctionCall<(), StateEstimatorRecord>,
-    pub pre_loop_hook: RemoteFunctionCall<PythonStateEstimatorPreLoopHookRequest, ()>,
+    post_init: RemoteFunctionCall<NodeWrapper, SimbaResult<()>>,
+    prediction_step: RemoteFunctionCall<PythonStateEstimatorPredictionStepRequest, ()>,
+    correction_step: RemoteFunctionCall<PythonStateEstimatorCorrectionStepRequest, ()>,
+    state: RemoteFunctionCall<(), WorldState>,
+    next_time_step: RemoteFunctionCall<(), f32>,
+    record: RemoteFunctionCall<(), StateEstimatorRecord>,
+    pre_loop_hook: RemoteFunctionCall<PythonStateEstimatorPreLoopHookRequest, ()>,
 }
 
 impl StateEstimator for PythonStateEstimatorAsyncClient {
-    fn prediction_step(&mut self, node: &mut Node, time: f32) {
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+        let node_py = NodeWrapper::from_rust(node);
+        self.post_init.call(node_py).unwrap()
+    }
+
+    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Start prediction step from async client");
         }
         let node_py = NodeWrapper::from_rust(node);
+        let command = command.map(|c| CommandWrapper::from_rust(&c));
         self.prediction_step
             .call(PythonStateEstimatorPredictionStepRequest {
                 node: node_py,
+                command,
                 time,
             })
             .unwrap()
@@ -101,6 +111,7 @@ impl Recordable<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
 pub struct PythonStateEstimator {
     model: Py<PyAny>,
     client: PythonStateEstimatorAsyncClient,
+    post_init: Arc<RemoteFunctionCallHost<NodeWrapper, SimbaResult<()>>>,
     prediction_step: Arc<RemoteFunctionCallHost<PythonStateEstimatorPredictionStepRequest, ()>>,
     correction_step: Arc<RemoteFunctionCallHost<PythonStateEstimatorCorrectionStepRequest, ()>>,
     state: Arc<RemoteFunctionCallHost<(), WorldState>>,
@@ -112,6 +123,7 @@ pub struct PythonStateEstimator {
 #[derive(Debug, Clone)]
 pub struct PythonStateEstimatorPredictionStepRequest {
     pub node: NodeWrapper,
+    pub command: Option<CommandWrapper>,
     pub time: f32,
 }
 
@@ -137,6 +149,7 @@ impl PythonStateEstimator {
                 debug!("Model got: {}", py_model.bind(py).dir().unwrap());
             });
         }
+        let (post_init_client, post_init_host) = rfc::make_pair();
         let (prediction_step_client, prediction_step_host) = rfc::make_pair();
         let (correction_step_client, correction_step_host) = rfc::make_pair();
         let (state_client, state_host) = rfc::make_pair();
@@ -147,6 +160,7 @@ impl PythonStateEstimator {
         PythonStateEstimator {
             model: py_model,
             client: PythonStateEstimatorAsyncClient {
+                post_init: post_init_client,
                 prediction_step: prediction_step_client,
                 correction_step: correction_step_client,
                 state: state_client,
@@ -154,6 +168,7 @@ impl PythonStateEstimator {
                 record: record_client,
                 pre_loop_hook: pre_loop_hook_client,
             },
+            post_init: Arc::new(post_init_host),
             prediction_step: Arc::new(prediction_step_host),
             correction_step: Arc::new(correction_step_host),
             state: Arc::new(state_host),
@@ -170,9 +185,14 @@ impl PythonStateEstimator {
     }
 
     pub fn check_requests(&mut self) {
+        self.post_init
+            .clone()
+            .try_recv_closure_mut(|node| self.post_init(node));
         self.prediction_step
             .clone()
-            .try_recv_closure_mut(|request| self.prediction_step(request.node, request.time));
+            .try_recv_closure_mut(|request| {
+                self.prediction_step(request.node, request.command, request.time)
+            });
         self.correction_step
             .clone()
             .try_recv_closure_mut(|request| {
@@ -190,11 +210,19 @@ impl PythonStateEstimator {
             .try_recv_closure_mut(|request| self.pre_loop_hook(request.node, request.time));
     }
 
-    fn prediction_step(&mut self, node: NodeWrapper, time: f32) {
+    fn post_init(&mut self, node: NodeWrapper) -> SimbaResult<()> {
+        if is_enabled(crate::logger::InternalLog::API) {
+            debug!("Calling python implementation of post_init");
+        }
+        call_py_method_void!(self.model, "post_init", (node,));
+        Ok(())
+    }
+
+    fn prediction_step(&mut self, node: NodeWrapper, command: Option<CommandWrapper>, time: f32) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Calling python implementation of prediction_step");
         }
-        call_py_method_void!(self.model, "prediction_step", node, time);
+        call_py_method_void!(self.model, "prediction_step", node, command, time);
     }
 
     fn correction_step(&mut self, node: NodeWrapper, observations: &Vec<Observation>, time: f32) {
@@ -263,6 +291,8 @@ impl StateEstimatorWrapper {
             name: String::from("anonyme"),
         }
     }
+
+    fn post_init(&mut self, _node: NodeWrapper) {}
 
     fn prediction_step(&mut self, _node: NodeWrapper, _time: f32) {
         unimplemented!()
