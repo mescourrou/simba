@@ -375,6 +375,13 @@ impl Simulator {
                 .insert(node.name(), node.service_manager());
         }
 
+        self.scenario = Arc::new(Mutex::new(Scenario::from_config(
+            &config.scenario,
+            &config,
+            &self.determinist_va_factory,
+            &self.network_manager.broker(),
+        )));
+
         for node in self.nodes.iter_mut() {
             info!("Finishing initialization of {}", node.name());
             self.node_apis.insert(
@@ -387,12 +394,6 @@ impl Simulator {
             );
         }
 
-        self.scenario = Arc::new(Mutex::new(Scenario::from_config(
-            &config.scenario,
-            &config,
-            &self.determinist_va_factory,
-            &self.network_manager.broker(),
-        )));
         Ok(())
     }
 
