@@ -10,27 +10,57 @@ use crate::{
 
 #[config_derives]
 pub struct RangeFilterConfig {
-    #[check(and(and(eq(self.variables.len(), self.min_range.len()), eq(self.variables.len(), self.max_range.len())), inside(self.variables.clone(), vec![
-        "x".to_string(),
-        "y".to_string(),
-        "orientation".to_string(),
-        "theta".to_string(),
-        "position_x".to_string(),
-        "position_y".to_string(),
-        "velocity_x".to_string(),
-        "velocity_y".to_string(),
-        "w".to_string(),
-        "v".to_string(),
-        "self_velocity".to_string(),
-        "target_velocity".to_string(),
-        "width".to_string(),
-        "height".to_string(),]
-    )))]
     pub variables: Vec<String>,
     pub min_range: Vec<f32>,
     pub max_range: Vec<f32>,
     pub inside: bool,
 }
+
+impl Check for RangeFilterConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.variables.len() != self.min_range.len() || self.variables.len() != self.max_range.len() {
+            errors.push(format!(
+                "variables, min_range and max_range should have the same length, got {} variables, {} min_range and {} max_range",
+                self.variables.len(),
+                self.min_range.len(),
+                self.max_range.len()
+            ));
+        }
+        let possible_variables = [
+            "x",
+            "y",
+            "orientation",
+            "r",
+            "theta",
+            "position_x",
+            "position_y",
+            "velocity_x",
+            "velocity_y",
+            "w",
+            "v",
+            "self_velocity",
+            "target_velocity",
+            "width",
+            "height",
+        ];
+        for var in &self.variables {
+            if !possible_variables.contains(&var.as_str()) {
+                errors.push(format!(
+                    "Unknown variable name: '{}'. Available variable names: [{}]",
+                    var,
+                    possible_variables.join(", ")
+                ));
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
 
 impl Default for RangeFilterConfig {
     fn default() -> Self {

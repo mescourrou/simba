@@ -27,6 +27,7 @@ use pyo3::{pyclass, pymethods};
 use serde_derive::{Deserialize, Serialize};
 use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::config_derives;
+use config_checker::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all, set_all)]
@@ -47,14 +48,31 @@ impl GoToMessage {
 #[config_derives]
 pub struct GoToConfig {
     pub target_point: Option<[f32; 2]>,
-    #[check(ge(0.))]
     pub target_speed: f32,
     /// Distance where to stop when reaching the end of the trajectory
-    #[check(ge(0.))]
     pub stop_distance: f32,
     /// Coefficient of the target velocity, multiplied by the remaining distance
-    #[check(ge(0.))]
     pub stop_ramp_coefficient: f32,
+}
+
+impl Check for GoToConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errs = Vec::new();
+        if self.target_speed < 0. {
+            errs.push("Target speed should be positive".to_string());
+        }
+        if self.stop_distance < 0. {
+            errs.push("Stop distance should be positive".to_string());
+        }
+        if self.stop_ramp_coefficient < 0. {
+            errs.push("Stop ramp coefficient should be positive".to_string());
+        }
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err(errs)
+        }
+    }
 }
 
 impl Default for GoToConfig {

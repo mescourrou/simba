@@ -192,12 +192,19 @@ impl UIComponent for SensorObservationRecord {
 /// Enumerates all the possible sensors configurations.
 #[config_derives]
 pub enum SensorConfig {
+    #[check]
     OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorConfig),
+    #[check]
     SpeedSensor(speed_sensor::SpeedSensorConfig),
+    #[check]
     DisplacementSensor(displacement_sensor::DisplacementSensorConfig),
+    #[check]
     GNSSSensor(gnss_sensor::GNSSSensorConfig),
+    #[check]
     RobotSensor(robot_sensor::RobotSensorConfig),
+    #[check]
     ScanSensor(scan_sensor::ScanSensorConfig),
+    #[check]
     External(external_sensor::ExternalSensorConfig),
 }
 

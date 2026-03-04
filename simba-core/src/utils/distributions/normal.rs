@@ -15,6 +15,30 @@ pub struct NormalRandomVariableConfig {
     pub covariance: Vec<f64>,
 }
 
+impl Check for NormalRandomVariableConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.mean.is_empty() {
+            errors.push("Mean vector cannot be empty.".to_string());
+        }
+        if self.covariance.is_empty() {
+            errors.push("Covariance vector cannot be empty.".to_string());
+        }
+        if self.mean.len().pow(2) != self.covariance.len() {
+            errors.push(format!(
+                "The length of the covariance vector should be the square of the means' one. Got {} mean values and {} covariance values.",
+                self.mean.len(),
+                self.covariance.len()
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
 impl Default for NormalRandomVariableConfig {
     fn default() -> Self {
         Self {

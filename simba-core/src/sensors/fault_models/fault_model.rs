@@ -32,12 +32,19 @@ use super::{
 
 #[config_derives]
 pub enum FaultModelConfig {
+    #[check]
     AdditiveRobotCentered(AdditiveRobotCenteredFaultConfig),
+    #[check]
     AdditiveRobotCenteredPolar(AdditiveRobotCenteredPolarFaultConfig),
+    #[check]
     AdditiveObservationCenteredPolar(AdditiveObservationCenteredPolarFaultConfig),
+    #[check]
     Clutter(ClutterFaultConfig),
+    #[check]
     Misdetection(MisdetectionFaultConfig),
+    #[check]
     Misassociation(MisassociationFaultConfig),
+    #[check]
     Python(PythonFaultModelConfig),
 }
 

@@ -12,6 +12,23 @@ pub struct BernouilliRandomVariableConfig {
     pub probability: Vec<f32>,
 }
 
+impl Check for BernouilliRandomVariableConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.probability.is_empty() {
+            errors.push("Probability vector cannot be empty.".to_string());
+        }
+        if self.probability.iter().any(|p| *p < 0. || *p > 1.) {
+            errors.push("Probabilities must be between 0 and 1.".to_string());
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
 impl Default for BernouilliRandomVariableConfig {
     fn default() -> Self {
         Self {

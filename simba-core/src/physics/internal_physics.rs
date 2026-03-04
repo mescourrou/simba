@@ -23,6 +23,7 @@ use crate::{
 };
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
+use config_checker::*;
 
 /// Config for the [`InternalPhysics`].
 #[config_derives]

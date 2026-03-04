@@ -5,6 +5,7 @@ use crate::utils::determinist_random_variable::RandomVariableTypeConfig;
 #[config_derives(tag_content)]
 pub enum NumberConfig {
     Num(f32),
+    #[check]
     Rand(RandomVariableTypeConfig),
 }
 

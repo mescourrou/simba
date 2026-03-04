@@ -25,8 +25,24 @@ use super::fault_model::FaultModel;
 
 #[config_derives]
 pub struct MisdetectionFaultConfig {
-    #[check(eq(self.apparition.probability.len(), 1))]
     pub apparition: BernouilliRandomVariableConfig,
+}
+
+impl Check for MisdetectionFaultConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.apparition.probability.len() != 1 {
+            errors.push(format!(
+                "Apparition probability should be of length 1, got {}",
+                self.apparition.probability.len()
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for MisdetectionFaultConfig {

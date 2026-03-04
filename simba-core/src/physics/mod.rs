@@ -23,12 +23,16 @@ use std::sync::{Arc, RwLock};
 
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
+use config_checker::*;
 
 /// Enumeration of the different physic implementations.
 #[config_derives]
 pub enum PhysicsConfig {
+    #[check]
     Internal(internal_physics::InternalPhysicConfig),
+    #[check]
     External(external_physics::ExternalPhysicsConfig),
+    #[check]
     Python(python_physics::PythonPhysicsConfig),
 }
 

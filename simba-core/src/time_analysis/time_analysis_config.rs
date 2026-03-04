@@ -13,12 +13,28 @@ use crate::time_analysis::ProfileExporterConfig;
 
 #[config_derives]
 pub struct TimeAnalysisConfig {
+    #[check]
     pub exporter: ProfileExporterConfig,
     pub keep_last: bool,
     pub output_path: String,
-    #[convert(as_str)]
-    #[check(inside("s", "ms", "us", "µs", "ns"))]
     pub analysis_unit: String,
+}
+
+impl Check for TimeAnalysisConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if !["s", "ms", "us", "µs", "ns"].contains(&self.analysis_unit.as_str()) {
+            errors.push(format!(
+                "Invalid analysis unit: {}. Must be one of s, ms, us, µs, ns.",
+                self.analysis_unit
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for TimeAnalysisConfig {

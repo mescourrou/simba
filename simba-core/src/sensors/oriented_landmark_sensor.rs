@@ -35,9 +35,9 @@ use std::vec;
 #[config_derives]
 pub struct OrientedLandmarkSensorConfig {
     /// Max distance of detection.
-    #[check[ge(0.)]]
     pub detection_distance: f32,
     /// Observation period of the sensor.
+    #[check]
     pub activation_time: Option<PeriodicityConfig>,
     #[check]
     pub faults: Vec<FaultModelConfig>,
@@ -45,6 +45,23 @@ pub struct OrientedLandmarkSensorConfig {
     pub filters: Vec<SensorFilterConfig>,
     /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
     pub xray: bool,
+}
+
+impl Check for OrientedLandmarkSensorConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.detection_distance < 0. {
+            errors.push(format!(
+                "Detection distance should be positive, got {}",
+                self.detection_distance
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for OrientedLandmarkSensorConfig {
@@ -722,7 +739,7 @@ impl Sensor for OrientedLandmarkSensor {
             self.detection_distance,
             Some(node.name()),
         );
-        debug!("Observable landmarks: {:?}", observable_landmarks);
+        
         for (i, landmark) in observable_landmarks.iter().enumerate() {
             let landmark_seed = (i + 1) as f32 / (100. * (time - self.last_time.unwrap_or(-1.)))
                 * ((landmark.id + 1) as f32);

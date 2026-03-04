@@ -16,9 +16,42 @@ use crate::{constants::TIME_ROUND_DECIMALS, gui::UIComponent};
 
 #[config_derives]
 pub struct PeriodicityConfig {
+    #[check]
     pub period: NumberConfig,
+    #[check]
     pub offset: Option<NumberConfig>,
     pub table: Option<Vec<f32>>,
+}
+
+impl Check for PeriodicityConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if let NumberConfig::Num(num) = &self.period {
+            if *num <= 0. {
+                errors.push("Periodicity period should be positive".to_string());
+            }
+        }
+        if let Some(offset) = &self.offset {
+            if let NumberConfig::Num(num) = offset {
+                if *num < 0. {
+                    errors.push("Periodicity offset should be positive or null".to_string());
+                }
+            }
+        }
+        if let Some(table) = &self.table {
+            if table.iter().any(|v| *v < 0.) {
+                errors.push("Periodic table values should be positive or null".to_string());
+            }
+            if let NumberConfig::Num(p) = &self.period && table.iter().any(|v| *v > *p) {
+                errors.push("Periodic table values should be within the period".to_string());
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for PeriodicityConfig {

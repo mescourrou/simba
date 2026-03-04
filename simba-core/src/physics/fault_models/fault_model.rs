@@ -20,6 +20,7 @@ use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 #[config_derives]
 pub enum PhysicsFaultModelConfig {
+    #[check]
     AdditiveRobotCentered(AdditiveRobotCenteredPhysicsFaultConfig),
 }
 

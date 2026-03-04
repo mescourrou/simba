@@ -19,18 +19,41 @@ pub enum RayConfig {
 #[config_derives]
 pub struct ScanSensorConfig {
     /// Max distance of detection.
-    #[check[gt(0.)]]
     pub detection_distance: f32,
+    #[check]
     pub rays: RayConfig,
     /// Height of the sensor: will only detect objects at this height or higher.
-    #[check[ge(0.)]]
     pub height: f32,
     /// Observation period of the sensor.
+    #[check]
     pub activation_time: Option<PeriodicityConfig>,
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
     pub filters: Vec<SensorFilterConfig>,
+}
+
+impl Check for ScanSensorConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.detection_distance < 0. {
+            errors.push(format!(
+                "Detection distance should be positive, got {}",
+                self.detection_distance
+            ));
+        }
+        if self.height < 0. {
+            errors.push(format!(
+                "Height should be positive, got {}",
+                self.height
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for ScanSensorConfig {

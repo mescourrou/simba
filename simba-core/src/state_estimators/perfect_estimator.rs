@@ -29,6 +29,7 @@ use simba_macros::config_derives;
 #[config_derives]
 pub struct PerfectEstimatorConfig {
     /// Prediction period.
+    #[check]
     pub prediction_activation: Option<PeriodicityConfig>,
     pub targets: Vec<String>,
 }

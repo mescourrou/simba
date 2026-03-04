@@ -16,6 +16,7 @@ use crate::{logger::is_enabled, recordable::Recordable};
 use crate::utils::geometry::*;
 
 use serde_derive::{Deserialize, Serialize};
+use config_checker::*;
 
 /// Config of the [`Trajectory`].
 #[derive(Serialize, Deserialize, Debug, Check)]

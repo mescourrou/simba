@@ -10,6 +10,20 @@ pub struct FixedRandomVariableConfig {
     pub values: Vec<f32>,
 }
 
+impl Check for FixedRandomVariableConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.values.is_empty() {
+            errors.push("Values vector cannot be empty.".to_string());
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
 impl Default for FixedRandomVariableConfig {
     fn default() -> Self {
         Self { values: vec![0.] }

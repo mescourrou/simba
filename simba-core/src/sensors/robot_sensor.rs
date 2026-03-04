@@ -37,15 +37,32 @@ use std::sync::{Arc, Mutex};
 #[config_derives]
 pub struct RobotSensorConfig {
     /// Max distance of detection.
-    #[check[ge(0.)]]
     pub detection_distance: f32,
     /// Observation period of the sensor.
+    #[check]
     pub activation_time: Option<PeriodicityConfig>,
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
     pub filters: Vec<SensorFilterConfig>,
     pub xray: bool,
+}
+
+impl Check for RobotSensorConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.detection_distance < 0. {
+            errors.push(format!(
+                "Detection distance should be positive, got {}",
+                self.detection_distance
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for RobotSensorConfig {

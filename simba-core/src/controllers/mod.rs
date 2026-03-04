@@ -26,6 +26,7 @@ use crate::{plugin_api::PluginAPI, simulator::SimulatorConfig};
 
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
+use config_checker::*;
 
 /// Errors used by the controllers: lateral, orientation and velocity.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -55,8 +56,11 @@ impl UIComponent for ControllerError {
 /// Enumerates the strategies configurations.
 #[config_derives]
 pub enum ControllerConfig {
+    #[check]
     PID(pid::PIDConfig),
+    #[check]
     External(external_controller::ExternalControllerConfig),
+    #[check]
     Python(python_controller::PythonControllerConfig),
 }
 

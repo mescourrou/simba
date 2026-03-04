@@ -14,6 +14,7 @@ use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 use simba_com::pub_sub::{BrokerTrait, BrokerTraitExtended, PathKey};
 use simba_macros::config_derives;
+use config_checker::*;
 
 use crate::logger::is_enabled;
 use crate::networking::channels;
@@ -27,11 +28,29 @@ use crate::{constants::TIME_ROUND, gui::UIComponent};
 #[config_derives]
 pub struct NetworkConfig {
     /// Limit range communication, 0 for no limit.
-    #[check(ge(0.))]
     pub range: f32,
     /// Communication delay (fixed). 0 for no delay (not stable).
-    #[check(ge(0.))]
     pub reception_delay: f32,
+}
+
+impl Check for NetworkConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.range < 0. {
+            errors.push(format!("Range should be positive, got {}", self.range));
+        }
+        if self.reception_delay < 0. {
+            errors.push(format!(
+                "Reception_delay should be positive, got {}",
+                self.reception_delay
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for NetworkConfig {

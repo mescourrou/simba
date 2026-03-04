@@ -241,7 +241,7 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
     // Parse attributes to check for skip_check
     let attr_str = attr.to_string();
 
-    let mut check_derive = quote! { config_checker::macros::Check, };
+    let mut check_derive = quote! { Check, };
     let mut deserialize_derive = quote! { serde::Deserialize, };
     let mut tagged_derive = quote! { #[serde(tag = "type")] };
     let mut jsonschema_derive = quote! {
@@ -310,6 +310,7 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     // Standard derives for config types
     let output = quote! {
+        use config_checker::*;
         #[derive(
             serde::Serialize,
             #deserialize_derive

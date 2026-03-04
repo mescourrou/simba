@@ -21,6 +21,7 @@ use na::Vector3;
 
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
+use config_checker::*;
 
 use std::path::Path;
 
@@ -30,17 +31,36 @@ pub struct TrajectoryFollowerConfig {
     /// Path to load the path. The file should be compatible with [`TrajectoryConfig`].
     pub trajectory_path: String,
     /// Distance of the point which is projected on the trajectory.
-    #[check(ge(0.))]
     pub forward_distance: f32,
     /// Speed to reach, in m/s.
-    #[check(ge(0.))]
     pub target_speed: f32,
     /// Distance where to stop when reaching the end of the trajectory
-    #[check(ge(0.))]
     pub stop_distance: f32,
     /// Coefficient of the target velocity, multiplied by the remaining distance
-    #[check(ge(0.))]
     pub stop_ramp_coefficient: f32,
+}
+
+impl Check for TrajectoryFollowerConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errs = Vec::new();
+        if self.forward_distance < 0. {
+            errs.push("Forward distance should be positive".to_string());
+        }
+        if self.target_speed < 0. {
+            errs.push("Target speed should be positive".to_string());
+        }
+        if self.stop_distance < 0. {
+            errs.push("Stop distance should be positive".to_string());
+        }
+        if self.stop_ramp_coefficient < 0. {
+            errs.push("Stop ramp coefficient should be positive".to_string());
+        }
+        if errs.is_empty() {
+            Ok(())
+        } else {
+            Err(errs)
+        }
+    }
 }
 
 impl Default for TrajectoryFollowerConfig {

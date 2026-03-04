@@ -19,6 +19,7 @@ use std::sync::{Arc, RwLock};
 
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
+use config_checker::*;
 
 use crate::controllers::ControllerError;
 use crate::errors::SimbaResult;
@@ -32,9 +33,13 @@ use crate::state_estimators::WorldState;
 /// Enumerate the configuration of the different strategies.
 #[config_derives]
 pub enum NavigatorConfig {
+    #[check]
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerConfig),
+    #[check]
     External(external_navigator::ExternalNavigatorConfig),
+    #[check]
     Python(python_navigator::PythonNavigatorConfig),
+    #[check]
     GoTo(go_to::GoToConfig),
 }
 

@@ -23,8 +23,11 @@ pub mod range_filter;
 
 #[config_derives]
 pub enum SensorFilterConfig {
+    #[check]
     RangeFilter(RangeFilterConfig),
+    #[check]
     IdFilter(IdFilterConfig),
+    #[check]
     PythonFilter(PythonFilterConfig),
 }
 

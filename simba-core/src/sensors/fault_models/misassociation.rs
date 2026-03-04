@@ -55,13 +55,29 @@ pub enum Source {
 
 #[config_derives]
 pub struct MisassociationFaultConfig {
-    #[check(eq(self.apparition.probability.len(), 1))]
+    #[check]
     pub apparition: BernouilliRandomVariableConfig,
     #[check]
     pub distribution: RandomVariableTypeConfig,
-    #[check(if(is_enum(self.source, Source::Robots), !is_enum(Sort::Distance)))]
     pub sort: Sort,
     pub source: Source,
+}
+
+impl Check for MisassociationFaultConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.apparition.probability.len() != 1 {
+            errors.push(format!(
+                "Apparition probability should be of length 1, got {}",
+                self.apparition.probability.len()
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for MisassociationFaultConfig {

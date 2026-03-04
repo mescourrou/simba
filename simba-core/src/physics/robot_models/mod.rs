@@ -41,7 +41,9 @@ impl UIComponent for Command {
 
 #[config_derives]
 pub enum RobotModelConfig {
+    #[check]
     Unicycle(UnicycleConfig),
+    #[check]
     Holonomic(HolonomicConfig),
 }
 

@@ -47,13 +47,29 @@ use simba_macros::config_derives;
 #[config_derives]
 pub struct StateConfig {
     /// Position and orientation of the robot
-    #[check(le(self.velocity.len(), 3))]
     pub pose: Vec<f32>,
     /// Linear velocity
-    #[check(le(self.velocity.len(), 2))]
     pub velocity: Vec<f32>,
+    #[check]
     pub random: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
+}
+
+impl Check for StateConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.pose.len() > 3 {
+            errors.push(format!("Pose should contain at most 3 elements, got {}", self.pose.len()));
+        }
+        if self.velocity.len() > 2 {
+            errors.push(format!("Velocity should contain at most 2 elements, got {}", self.velocity.len()));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for StateConfig {
@@ -463,8 +479,11 @@ use std::sync::Arc;
 /// ```
 #[config_derives]
 pub enum StateEstimatorConfig {
+    #[check]
     Perfect(perfect_estimator::PerfectEstimatorConfig),
+    #[check]
     External(external_estimator::ExternalEstimatorConfig),
+    #[check]
     Python(python_estimator::PythonEstimatorConfig),
 }
 

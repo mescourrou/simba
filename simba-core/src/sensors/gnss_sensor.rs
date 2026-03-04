@@ -33,6 +33,7 @@ extern crate nalgebra as na;
 #[config_derives]
 pub struct GNSSSensorConfig {
     /// Observation period of the sensor.
+    #[check]
     pub activation_time: Option<PeriodicityConfig>,
     /// Fault on the x, y positions, and on the x and y velocities
     #[check]

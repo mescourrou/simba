@@ -23,8 +23,11 @@ pub struct EventConfig {
 
 #[config_derives(tag_content)]
 pub enum EventTriggerConfig {
+    #[check]
     Time(TimeEventTriggerConfig),
+    #[check]
     Proximity(ProximityEventTriggerConfig),
+    #[check]
     Area(AreaEventTriggerConfig),
 }
 

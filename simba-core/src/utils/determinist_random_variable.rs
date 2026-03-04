@@ -136,13 +136,31 @@ pub enum RandomVariableTypeConfig {
     /// No random variable
     None,
     /// Fixed value
+    #[check]
     Fixed(FixedRandomVariableConfig),
     /// Uniform distribution
+    #[check]
     Uniform(UniformRandomVariableConfig),
     /// Normal distribution
+    #[check]
     Normal(NormalRandomVariableConfig),
+    #[check]
     Poisson(PoissonRandomVariableConfig),
+    #[check]
     Exponential(ExponentialRandomVariableConfig),
+}
+
+impl RandomVariableTypeConfig {
+    pub fn dim(&self) -> usize {
+        match self {
+            RandomVariableTypeConfig::None => 0,
+            RandomVariableTypeConfig::Fixed(c) => c.values.len(),
+            RandomVariableTypeConfig::Uniform(c) => c.max.len(),
+            RandomVariableTypeConfig::Normal(c) => c.mean.len(),
+            RandomVariableTypeConfig::Poisson(c) => c.lambda.len(),
+            RandomVariableTypeConfig::Exponential(c) => c.lambda.len(),
+        }
+    }
 }
 
 impl Default for RandomVariableTypeConfig {

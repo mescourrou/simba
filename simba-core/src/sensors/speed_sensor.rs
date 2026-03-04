@@ -35,6 +35,7 @@ extern crate nalgebra as na;
 #[config_derives]
 pub struct SpeedSensorConfig {
     /// Observation period of the sensor.
+    #[check]
     pub activation_time: Option<PeriodicityConfig>,
     #[check]
     pub faults: Vec<FaultModelConfig>,

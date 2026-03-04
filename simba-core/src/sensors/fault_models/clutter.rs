@@ -26,13 +26,29 @@ use super::fault_model::FaultModel;
 
 #[config_derives]
 pub struct ClutterFaultConfig {
-    // #[check(eq(self.apparition.probability.len(), 1))]
     #[check]
     pub apparition: RandomVariableTypeConfig,
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
     pub observation_id: String,
+}
+
+impl Check for ClutterFaultConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.apparition.dim() != 1 {
+            errors.push(format!(
+                "Apparition probability should be of length 1, got {}",
+                self.apparition.dim()
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for ClutterFaultConfig {

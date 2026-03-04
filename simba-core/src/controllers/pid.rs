@@ -18,7 +18,7 @@ use crate::recordable::Recordable;
 use crate::utils::maths::{Derivator, Integrator};
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
-use config_checker::ConfigCheckable;
+use config_checker::*;
 use log::warn;
 use nalgebra::Vector2;
 use serde::de::{MapAccess, SeqAccess, Visitor};
@@ -32,9 +32,10 @@ use simba_macros::config_derives;
 /// - longitudinal velocity (All models)
 /// - lateral velocity (Holonomic model)
 /// - angular velocity (All models)
-#[config_derives(skip_check, skip_deserialize)]
+#[config_derives(skip_deserialize)]
 #[derive(Default)]
 pub struct PIDConfig {
+    #[check]
     pub robot_model: Option<RobotModelConfig>,
     pub proportional_gains: Vec<f32>,
     pub derivative_gains: Vec<f32>,
@@ -116,42 +117,30 @@ impl PIDConfig {
     }
 }
 
-impl ConfigCheckable for PIDConfig {
-    fn __check(&self, depth: usize) -> Result<(), String> {
-        use colored::Colorize;
-        let depth_space = vec!["| "; depth].join("");
-        let mut ret = Ok(());
+impl Check for PIDConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errs = Vec::new();
         if self.robot_model.is_none() {
             warn!(
-                "{} No model given to PID controller, will use physics' one or default",
-                "NOTE:".blue()
+                "No model given to PID controller, will use physics' one or default"
             );
             return Ok(());
         }
         let canonical_config = Self::default_from_model(self.robot_model.as_ref().unwrap());
         if canonical_config.proportional_gains.len() != self.proportional_gains.len() {
-            if ret.is_ok() {
-                ret = Err(String::new());
-            }
-            ret = Err(ret.err().unwrap() + format!("{}  {depth_space}Length of proportional gains mismatch ({} vs {} expected for {} model)\n", "ERROR:".red(), self.proportional_gains.len(), canonical_config.proportional_gains.len(), self.robot_model.as_ref().unwrap()).as_str());
+            errs.push(format!("Length of proportional gains mismatch ({} vs {} expected for {} model)", self.proportional_gains.len(), canonical_config.proportional_gains.len(), self.robot_model.as_ref().unwrap()));
         }
         if canonical_config.integral_gains.len() != self.integral_gains.len() {
-            if ret.is_ok() {
-                ret = Err(String::new());
-            }
-            ret = Err(ret.err().unwrap() + format!("{}  {depth_space}Length of integral gains mismatch ({} vs {} expected for {} model)\n", "ERROR:".red(), self.integral_gains.len(), canonical_config.integral_gains.len(), self.robot_model.as_ref().unwrap()).as_str());
+            errs.push(format!("Length of integral gains mismatch ({} vs {} expected for {} model)", self.integral_gains.len(), canonical_config.integral_gains.len(), self.robot_model.as_ref().unwrap()));
         }
         if canonical_config.derivative_gains.len() != self.derivative_gains.len() {
-            if ret.is_ok() {
-                ret = Err(String::new());
-            }
-            ret = Err(ret.err().unwrap() + format!("{}  {depth_space}Length of derivative gains mismatch ({} vs {} expected for {} model)\n", "ERROR:".red(), self.derivative_gains.len(), canonical_config.derivative_gains.len(), self.robot_model.as_ref().unwrap()).as_str());
+            errs.push(format!("Length of derivative gains mismatch ({} vs {} expected for {} model)", self.derivative_gains.len(), canonical_config.derivative_gains.len(), self.robot_model.as_ref().unwrap()));
         }
-        ret
-    }
-
-    fn check(&self) -> Result<(), String> {
-        self.__check(0)
+        if !errs.is_empty() {
+            Err(errs)
+        } else {
+            Ok(())
+        }
     }
 }
 
@@ -489,7 +478,7 @@ impl PID {
             }) = physics_config
             {
                 config_clone.robot_model = Some(model.clone());
-                if config_clone.check().is_err() {
+                if config_clone.do_check().is_err() {
                     config_clone = PIDConfig::default_from_model(model);
                     warn!(
                         "No model given in PID Config and gains given mismatch physics model ({}) => resetting gains",

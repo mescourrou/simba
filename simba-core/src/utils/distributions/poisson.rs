@@ -13,6 +13,23 @@ pub struct PoissonRandomVariableConfig {
     pub lambda: Vec<f64>,
 }
 
+impl Check for PoissonRandomVariableConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.lambda.is_empty() {
+            errors.push("Lambda vector cannot be empty.".to_string());
+        }
+        if self.lambda.iter().any(|p| *p < 0.) {
+            errors.push("Lambdas must be non-negative.".to_string());
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
 impl Default for PoissonRandomVariableConfig {
     fn default() -> Self {
         Self { lambda: vec![1.] }

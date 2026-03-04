@@ -29,12 +29,28 @@ use super::fault_model::FaultModel;
 
 #[config_derives]
 pub struct AdditiveRobotCenteredPolarFaultConfig {
-    #[check(eq(self.apparition.probability.len(), 1))]
     #[check]
     pub apparition: BernouilliRandomVariableConfig,
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
     pub variable_order: Vec<String>,
+}
+
+impl Check for AdditiveRobotCenteredPolarFaultConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.apparition.probability.len() != 1 {
+            errors.push(format!(
+                "Apparition probability should be of length 1, got {}",
+                self.apparition.probability.len()
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for AdditiveRobotCenteredPolarFaultConfig {

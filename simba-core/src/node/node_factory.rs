@@ -7,6 +7,7 @@ use log::debug;
 use serde::{Deserialize, Serialize};
 use simba_com::pub_sub::{BrokerTrait, PathKey};
 use simba_macros::config_derives;
+use config_checker::*;
 
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::text_singleline_with_apply};

@@ -41,8 +41,24 @@ impl UIComponent for UnicycleCommand {
 #[config_derives]
 pub struct UnicycleConfig {
     /// Distance between the two wheels, to compute the angular velocity from the wheel speeds.
-    #[check(ge(0.))]
     pub wheel_distance: f32,
+}
+
+impl Check for UnicycleConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.wheel_distance < 0. {
+            errors.push(format!(
+                "Wheel distance should be positive, got {}",
+                self.wheel_distance
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 #[cfg(feature = "gui")]
