@@ -19,6 +19,7 @@ pub struct Robot {
     landmark_obs: Option<OrientedLandmarkObservation>,
     robot_obs: Option<OrientedRobotObservation>,
     gnss_obs: Option<drawables::observations::GNSSObservation>,
+    scan_obs: Option<drawables::observations::ScanObservation>,
     context_info_enabled: bool,
 }
 
@@ -27,7 +28,7 @@ impl Robot {
         let mut landmark_obs = None;
         let mut robot_obs = None;
         let mut gnss_obs = None;
-
+        let mut scan_obs = None;
         for sensor_conf in &config.sensor_manager.sensors {
             match &sensor_conf.config {
                 SensorConfig::GNSSSensor(c) => {
@@ -43,6 +44,9 @@ impl Robot {
                 SensorConfig::RobotSensor(c) => {
                     robot_obs = Some(OrientedRobotObservation::init(c, sim_config))
                 }
+                SensorConfig::ScanSensor(c) => {
+                    scan_obs = Some(drawables::observations::ScanObservation::init(c, sim_config))
+                }
                 SensorConfig::External(_) => {}
             }
         }
@@ -54,6 +58,7 @@ impl Robot {
             landmark_obs,
             robot_obs,
             gnss_obs,
+            scan_obs,
             context_info_enabled: false,
         }
     }
@@ -126,6 +131,16 @@ impl Robot {
                             painter_info,
                             scale,
                             o,
+                        )?)
+                    }
+                    SensorObservationRecord::Scan(o) => {
+                        shapes.extend(self.scan_obs.as_ref().unwrap().draw(
+                            ui,
+                            viewport,
+                            painter_info,
+                            scale,
+                            o,
+                            &Vector3::from(pose),
                         )?)
                     }
                     _ => {}

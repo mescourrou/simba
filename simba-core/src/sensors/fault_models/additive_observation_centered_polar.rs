@@ -301,12 +301,6 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                             self.config.clone(),
                         ));
                 }
-                SensorObservation::Speed(_) => {
-                    panic!("Not implemented (appropriated for this sensor?)");
-                }
-                SensorObservation::Displacement(_) => {
-                    panic!("Not implemented (use AdditiveRobotCenteredPolar fault instead)");
-                }
                 SensorObservation::OrientedLandmark(o) => {
                     let mut r_add = 0.;
                     let mut z_add = 0.;
@@ -356,9 +350,10 @@ impl FaultModel for AdditiveObservationCenteredPolarFault {
                         );
                     }
                 }
-                SensorObservation::External(_) => {
-                    panic!(
-                        "AdditiveObservationCenteredPolarFault cannot fault ExternalObservation"
+                _ => {
+                    unimplemented!(
+                        "AdditiveObservationCenteredPolarFault cannot apply fault to {} observations",
+                        obs.to_string()
                     );
                 }
             }

@@ -211,7 +211,7 @@ impl FaultModel for ClutterFault {
         let n_obs = self.apparition.lock().unwrap().generate(seed)[0]
             .abs()
             .floor() as usize;
-        for _ in 0..n_obs {
+        for clutter_number in 0..n_obs {
             seed += obs_seed_increment;
             let mut random_sample = Vec::new();
             for d in self.distributions.lock().unwrap().iter() {
@@ -362,9 +362,56 @@ impl FaultModel for ClutterFault {
                     o.applied_faults
                         .push(FaultModelConfig::Clutter(self.config.clone()));
                 }
+                SensorObservation::Scan(_) => {
+                    // Add points directly to the observation list. Each point is not a different observation
+                    let mut new_r = 0.;
+                    let mut new_theta = 0.;
+                    let mut new_radial_velocity = 0.;
+                    if !self.variable_order.is_empty() {
+                        let mut new_x = 0.;
+                        let mut new_y = 0.;
+                        for (i, variable) in self.variable_order.iter().enumerate() {
+                            match variable.as_str() {
+                                "x" => new_x = random_sample[i],
+                                "y" => new_y = random_sample[i],
+                                "r" => new_r = random_sample[i],
+                                "theta" => new_theta = random_sample[i],
+                                "v" => new_radial_velocity = random_sample[i],
+                                &_ => panic!(
+                                    "Unknown variable name: '{}'. Available variable names: [x, y, r, theta, v]",
+                                    variable
+                                ),
+                            }
+                            new_r += new_x.hypot(new_y);
+                            new_theta += new_y.atan2(new_x);
+                        }
+                    } else {
+                        assert!(
+                            random_sample.len() >= 3,
+                            "The distribution of an Clutter fault for Scan observation need to be of dimension 3 (r, theta, radial_velocity)."
+                        );
+                        new_r = random_sample[0];
+                        new_theta = random_sample[1];
+                        new_radial_velocity = random_sample[2];
+                    }
+                    if let SensorObservation::Scan(o) = &mut obs_list.first_mut().expect("obs_list should not be empty (ClutterFault for Scan observations)") {
+                        o.distances.push(new_r);
+                        o.angles.push(new_theta);
+                        o.radial_velocities.push(new_radial_velocity);
+                        if clutter_number == 0 {
+                            o.applied_faults
+                                .push(FaultModelConfig::Clutter(self.config.clone()));
+                        }
+                    } else {
+                        panic!("obs_list should contain Scan observations (ClutterFault)");
+                    }
+                }
                 SensorObservation::External(_) => {
                     panic!("ClutterFault cannot fault ExternalObservation");
                 }
+            }
+            if matches!(new_obs, SensorObservation::Scan(_)) {
+                continue;
             }
             obs_list.push(new_obs);
         }

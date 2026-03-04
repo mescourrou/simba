@@ -1,10 +1,11 @@
+use log::debug;
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::string_combobox};
 use crate::{
-    sensors::{SensorObservation, sensor_filters::SensorFilter},
-    state_estimators::State,
+    sensors::{SensorObservation, scan_sensor::ScanObservation, sensor_filters::SensorFilter},
+    state_estimators::State, utils::geometry::is_angle_inside,
 };
 
 #[config_derives]
@@ -336,8 +337,68 @@ impl SensorFilter for RangeFilter {
                     }
                 }
             }
-            SensorObservation::External(_) => {
-                panic!("RangeFilter cannot filter ExternalObservation");
+            SensorObservation::Scan(o) => {
+                // Keep observation but remove points outside of range
+                let mut new_obs = ScanObservation {
+                    distances: Vec::new(),
+                    angles: Vec::new(),
+                    radial_velocities: Vec::new(),
+                    applied_faults: o.applied_faults.clone(),
+                };
+                for ((d, angle), v) in o.distances.iter().zip(o.angles.iter()).zip(o.radial_velocities.iter()) {
+                    let mut keep = true;
+                    for (i, var) in self.config.variables.iter().enumerate() {
+                        let var_in_range = match var.as_str() {
+                            "r" => {
+                                *d >= self.config.min_range[i] && *d <= self.config.max_range[i]
+                            }
+                            "theta" => {
+                                is_angle_inside(*angle, self.config.min_range[i], self.config.max_range[i])
+                            }
+                            "x" => {
+                                let x = d * angle.cos();
+                                x >= self.config.min_range[i]
+                                    && x <= self.config.max_range[i]
+                            }
+                            "y" => {
+                                let y = d * angle.sin();
+                                y >= self.config.min_range[i]
+                                    && y <= self.config.max_range[i]
+                            }
+                            "self_velocity" => {
+                                observer_state.velocity.fixed_rows::<2>(0).norm()
+                                    >= self.config.min_range[i]
+                                    && observer_state.velocity.fixed_rows::<2>(0).norm()
+                                        <= self.config.max_range[i]
+                            }
+                            "v" => {
+                                *v >= self.config.min_range[i] && *v <= self.config.max_range[i]
+                            }
+                            &_ => panic!(
+                                "Unknown variable name: '{}'. Available variable names: [r, theta, x, y, self_velocity, v]",
+                                self.config.variables[i]
+                            ),
+                        };
+                        if self.config.inside {
+                            if !var_in_range {
+                                keep = false;
+                                break;
+                            }
+                        } else if var_in_range {
+                            keep = false;
+                            break;
+                        }
+                    }
+                    if keep {
+                        new_obs.distances.push(*d);
+                        new_obs.angles.push(*angle);
+                        new_obs.radial_velocities.push(*v);
+                    }
+                }
+                return Some(SensorObservation::Scan(new_obs));
+            }
+            _ => {
+                panic!("RangeFilter cannot filter {} observations", observation.to_string());
             }
         }
 

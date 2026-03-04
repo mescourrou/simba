@@ -258,15 +258,6 @@ impl FaultModel for MisassociationFault {
                     o.applied_faults
                         .push(FaultModelConfig::Misassociation(self.config.clone()));
                 }
-                SensorObservation::GNSS(_) => {
-                    panic!("Not implemented (appropriated for this sensor?)");
-                }
-                SensorObservation::Speed(_) => {
-                    panic!("Not implemented (appropriated for this sensor?)");
-                }
-                SensorObservation::Displacement(_) => {
-                    panic!("Not implemented (appropriated for this sensor?)");
-                }
                 SensorObservation::OrientedLandmark(o) => {
                     if let Sort::Distance = self.sort {
                         id_list.sort_by_key(|i| {
@@ -283,8 +274,8 @@ impl FaultModel for MisassociationFault {
                     o.applied_faults
                         .push(FaultModelConfig::Misassociation(self.config.clone()));
                 }
-                SensorObservation::External(_) => {
-                    panic!("MisassociationFault cannot fault ExternalObservation");
+                _ => {
+                    unimplemented!("MisassociationFault cannot apply fault to {} observations", obs.to_string());
                 }
             }
         }

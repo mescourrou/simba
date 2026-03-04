@@ -28,6 +28,7 @@ use crate::node::Node;
 use crate::node::node_factory::FromConfigArguments;
 use crate::sensors::displacement_sensor::DisplacementSensor;
 use crate::sensors::external_sensor::ExternalSensor;
+use crate::sensors::scan_sensor::ScanSensor;
 use crate::simulator::SimbaBrokerMultiClient;
 use crate::state_estimators::State;
 use crate::utils::SharedRwLock;
@@ -363,6 +364,14 @@ impl SensorManager {
                         from_config_args.initial_time,
                     )) as Box<dyn Sensor>,
                     SensorConfig::RobotSensor(c) => Box::new(RobotSensor::from_config(
+                        c,
+                        from_config_args.plugin_api,
+                        from_config_args.global_config,
+                        from_config_args.node_name,
+                        from_config_args.va_factory,
+                        from_config_args.initial_time,
+                    )) as Box<dyn Sensor>,
+                    SensorConfig::ScanSensor(c) => Box::new(ScanSensor::from_config(
                         c,
                         from_config_args.plugin_api,
                         from_config_args.global_config,

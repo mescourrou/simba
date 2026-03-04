@@ -17,6 +17,7 @@ pub mod external_sensor;
 pub mod gnss_sensor;
 pub mod oriented_landmark_sensor;
 pub mod robot_sensor;
+pub mod scan_sensor;
 pub mod sensor_manager;
 pub mod speed_sensor;
 
@@ -26,7 +27,7 @@ pub mod sensor_filters;
 extern crate confy;
 
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::config_derives;
+use simba_macros::{EnumToString, config_derives};
 
 use {
     gnss_sensor::{GNSSObservation, GNSSObservationRecord},
@@ -41,7 +42,7 @@ use crate::{
     recordable::Recordable,
     sensors::{
         displacement_sensor::{DisplacementObservation, DisplacementObservationRecord},
-        external_sensor::{ExternalObservation, ExternalObservationRecord},
+        external_sensor::{ExternalObservation, ExternalObservationRecord}, scan_sensor::{ScanObservation, ScanObservationRecord},
     },
 };
 #[cfg(feature = "gui")]
@@ -133,13 +134,14 @@ impl UIComponent for ObservationRecord {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, EnumToString)]
 pub enum SensorObservation {
     OrientedLandmark(OrientedLandmarkObservation),
     Speed(SpeedObservation),
     Displacement(DisplacementObservation),
     GNSS(GNSSObservation),
     OrientedRobot(OrientedRobotObservation),
+    Scan(ScanObservation),
     External(ExternalObservation),
 }
 
@@ -155,6 +157,7 @@ impl Recordable<SensorObservationRecord> for SensorObservation {
             SensorObservation::OrientedRobot(o) => {
                 SensorObservationRecord::OrientedRobot(o.record())
             }
+            SensorObservation::Scan(o) => SensorObservationRecord::Scan(o.record()),
             SensorObservation::External(o) => SensorObservationRecord::External(o.record()),
         }
     }
@@ -167,6 +170,7 @@ pub enum SensorObservationRecord {
     Displacement(DisplacementObservationRecord),
     GNSS(GNSSObservationRecord),
     OrientedRobot(OrientedRobotObservationRecord),
+    Scan(ScanObservationRecord),
     External(ExternalObservationRecord),
 }
 
@@ -179,6 +183,7 @@ impl UIComponent for SensorObservationRecord {
             Self::Displacement(r) => r.show(ui, ctx, unique_id),
             Self::GNSS(r) => r.show(ui, ctx, unique_id),
             Self::OrientedRobot(r) => r.show(ui, ctx, unique_id),
+            Self::Scan(r) => r.show(ui, ctx, unique_id),
             Self::External(r) => r.show(ui, ctx, unique_id),
         });
     }
@@ -192,6 +197,7 @@ pub enum SensorConfig {
     DisplacementSensor(displacement_sensor::DisplacementSensorConfig),
     GNSSSensor(gnss_sensor::GNSSSensorConfig),
     RobotSensor(robot_sensor::RobotSensorConfig),
+    ScanSensor(scan_sensor::ScanSensorConfig),
     External(external_sensor::ExternalSensorConfig),
 }
 
@@ -240,6 +246,9 @@ impl UIComponent for SensorConfig {
                 "RobotSensor" => {
                     *self = SensorConfig::RobotSensor(robot_sensor::RobotSensorConfig::default())
                 }
+                "ScanSensor" => {
+                    *self = SensorConfig::ScanSensor(scan_sensor::ScanSensorConfig::default())
+                }
                 "External" => {
                     *self = SensorConfig::External(external_sensor::ExternalSensorConfig::default())
                 }
@@ -287,6 +296,14 @@ impl UIComponent for SensorConfig {
                 current_node_name,
                 unique_id,
             ),
+            SensorConfig::ScanSensor(c) => c.show_mut(
+                ui,
+                ctx,
+                buffer_stack,
+                global_config,
+                current_node_name,
+                unique_id,
+            ),
             SensorConfig::External(c) => c.show_mut(
                 ui,
                 ctx,
@@ -308,6 +325,7 @@ impl UIComponent for SensorConfig {
             SensorConfig::DisplacementSensor(c) => c.show(ui, ctx, unique_id),
             SensorConfig::GNSSSensor(c) => c.show(ui, ctx, unique_id),
             SensorConfig::RobotSensor(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::ScanSensor(c) => c.show(ui, ctx, unique_id),
             SensorConfig::External(c) => c.show(ui, ctx, unique_id),
         }
     }
@@ -321,6 +339,7 @@ pub enum SensorRecord {
     DisplacementSensor(displacement_sensor::DisplacementSensorRecord),
     GNSSSensor(gnss_sensor::GNSSSensorRecord),
     RobotSensor(robot_sensor::RobotSensorRecord),
+    ScanSensor(scan_sensor::ScanSensorRecord),
     External(external_sensor::ExternalSensorRecord),
 }
 
@@ -350,6 +369,11 @@ impl UIComponent for SensorRecord {
             }
             Self::RobotSensor(r) => {
                 egui::CollapsingHeader::new("RobotSensor").show(ui, |ui| {
+                    r.show(ui, ctx, unique_id);
+                });
+            }
+            Self::ScanSensor(r) => {
+                egui::CollapsingHeader::new("ScanSensor").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }

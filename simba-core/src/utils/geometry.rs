@@ -53,6 +53,27 @@ pub fn mod2pi(f: f32) -> f32 {
     f
 }
 
+/// Check if an angle is inside an interval of angles, taking into account the circular nature of angles.
+/// 
+/// `start` is considered to be on the right `end`: if `start` = 0 and `end` = PI/2, the interval is [0, PI/2], if `start` = PI/2 and `end` = 0, the interval is [PI/2, PI] U [-PI, 0].
+/// # Arguments
+/// * `angle` - The angle to check, in radians.
+/// * `start` - The start of the interval, in radians.
+/// * `end` - The end of the interval, in radians.
+/// 
+pub fn is_angle_inside(angle: f32, start: f32, end: f32) -> bool {
+    let angle = mod2pi(angle);
+    let start = mod2pi(start);
+    let end = mod2pi(end);
+    if start <= end {
+        // Start and end are on the same side of the circle (uninterrupted interval)
+        start <= angle && angle <= end
+    } else {
+        // Start and end are on different sides of the circle (interrupted interval)
+        start <= angle || angle <= end
+    }
+}
+
 /// Computes the smallest difference between two angles,
 /// i.e. the difference between `a` and `b` in the range `[-PI/2, PI/2]` (a-b).
 pub fn smallest_theta_diff(a: f32, b: f32) -> f32 {

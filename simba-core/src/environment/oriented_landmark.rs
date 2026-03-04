@@ -11,9 +11,23 @@ pub struct OrientedLandmark {
     pub width: f32,
 }
 
+impl OrientedLandmark {
+    pub fn extremities(&self) -> (Vector3<f32>, Vector3<f32>) {
+        if self.width <= 0. {
+            return (self.pose, self.pose);
+        }
+        let half_width = self.width / 2.;
+        let rotation_matrix = Rotation2::new(self.pose.z);
+        let width_vector = rotation_matrix * Vector2::new(0., half_width);
+        let extremity1 = self.pose + Vector3::new(width_vector.x, width_vector.y, 0.);
+        let extremity2 = self.pose - Vector3::new(width_vector.x, width_vector.y, 0.);
+        (extremity1, extremity2)
+    }
+}
+
 use std::fmt;
 
-use nalgebra::Vector3;
+use nalgebra::{Rotation2, Vector2, Vector3};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 impl Serialize for OrientedLandmark {

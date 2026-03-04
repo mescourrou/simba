@@ -319,6 +319,37 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                             self.config.clone(),
                         ));
                 }
+                SensorObservation::Scan(o) => {
+                    for i in 0..o.distances.len() {
+                        let mut random_sample = Vec::new();
+                        for d in self.distributions.lock().unwrap().iter() {
+                            random_sample.extend_from_slice(&d.generate(seed + 100. * i as f32 / o.distances.len() as f32));
+                        }
+                        if !self.variable_order.is_empty() {
+                            for (j, variable) in self.variable_order.iter().enumerate() {
+                                match variable.as_str() {
+                                    "r" => o.distances[i] += random_sample[j],
+                                    "theta" => o.angles[i] += random_sample[j],
+                                    "v" => o.radial_velocities[i] += random_sample[j],
+                                    &_ => panic!(
+                                        "Unknown variable name: '{}'. Available variable names: [r, theta, v]",
+                                        variable
+                                    ),
+                                }
+                            }
+                        } else {
+                            assert!(
+                                random_sample.len() >= 3,
+                                "The distribution of an AdditiveRobotCenteredPolar fault for Scan observation need to be of dimension 3 (r, theta, v)."
+                            );
+                            o.distances[i] += random_sample[0];
+                            o.angles[i] += random_sample[1];
+                            o.radial_velocities[i] += random_sample[2];
+                        }
+                    }
+                    o.applied_faults
+                        .push(FaultModelConfig::AdditiveRobotCenteredPolar(self.config.clone()));
+                }
                 SensorObservation::External(_) => {
                     panic!("AdditiveRobotCenteredPolarFault cannot fault ExternalObservation");
                 }

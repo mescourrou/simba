@@ -152,15 +152,6 @@ impl SensorFilter for IdFilter {
         _observee_state: Option<&State>,
     ) -> Option<SensorObservation> {
         match &observation {
-            SensorObservation::GNSS(_) => {
-                unimplemented!("IdFilter cannot filter GNSSObservation");
-            }
-            SensorObservation::Speed(_) => {
-                unimplemented!("IdFilter cannot filter SpeedObservation");
-            }
-            SensorObservation::Displacement(_) => {
-                unimplemented!("IdFilter cannot filter DisplacementObservation");
-            }
             SensorObservation::OrientedLandmark(obs) => {
                 let label = &obs.id.to_string();
                 if !self.keep_label(label) {
@@ -173,8 +164,8 @@ impl SensorFilter for IdFilter {
                     return None;
                 }
             }
-            SensorObservation::External(_) => {
-                panic!("IdFilter cannot filter ExternalObservation");
+            _ => {
+                panic!("IdFilter cannot filter {} observations", observation.to_string());
             }
         }
 

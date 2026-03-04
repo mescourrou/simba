@@ -420,6 +420,45 @@ impl FaultModel for AdditiveRobotCenteredFault {
                     o.applied_faults
                         .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
                 }
+                SensorObservation::Scan(o) => {
+                    for i in 0..o.distances.len() {
+                        let mut random_sample = Vec::new();
+                        for d in self.distributions.lock().unwrap().iter() {
+                            random_sample.extend_from_slice(&d.generate(seed + i as f32 / (100. * o.distances.len() as f32)));
+                        }
+                        let mut adding_radial_velocity = 0.;
+                        let mut adding_x = 0.;
+                        let mut adding_y = 0.;
+                        if !self.variable_order.is_empty() {
+                            for (j, variable) in self.variable_order.iter().enumerate() {
+                                match variable.as_str() {
+                                    "x" => adding_x += random_sample[j],
+                                    "y" => adding_y += random_sample[j],
+                                    "v" => adding_radial_velocity += random_sample[j],
+                                    &_ => panic!(
+                                        "Unknown variable name: '{}'. Available variable names: [x, y, v]",
+                                        variable
+                                    ),
+                                }
+                            }
+                        } else {
+                            assert!(
+                                random_sample.len() >= 3,
+                                "The distribution of an AdditiveRobotCentered fault for Scan observation need to be of dimension 3 (x, y, v)."
+                            );
+                            adding_x += random_sample[0];
+                            adding_y += random_sample[1];
+                            adding_radial_velocity += random_sample[2];
+                        }
+                        let adding_r = adding_x.hypot(adding_y);
+                        let adding_theta = adding_y.atan2(adding_x);
+                        o.distances[i] += adding_r;
+                        o.angles[i] += adding_theta;
+                        o.radial_velocities[i] += adding_radial_velocity;
+                    }
+                    o.applied_faults
+                        .push(FaultModelConfig::AdditiveRobotCentered(self.config.clone()));
+                }
                 SensorObservation::External(_) => {
                     panic!("AdditiveRobotCenteredFault cannot fault ExternalObservation");
                 }

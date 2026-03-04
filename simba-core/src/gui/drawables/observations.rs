@@ -8,7 +8,7 @@ use crate::{
         oriented_landmark_sensor::{
             OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,
         },
-        robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig},
+        robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig}, scan_sensor::{ScanObservationRecord, ScanSensorConfig},
     },
     simulator::SimulatorConfig,
 };
@@ -202,6 +202,44 @@ impl GNSSObservation {
                 width: 0.01 * scale,
             },
         ));
+        Ok(shapes)
+    }
+}
+
+pub struct ScanObservation {
+    color: Color32,
+}
+
+impl ScanObservation {
+    pub fn init(_config: &ScanSensorConfig, _sim_config: &SimulatorConfig) -> Self {
+        Self {
+            color: Color32::from_rgb(255, 165, 0), // Orange
+        }
+    }
+
+    pub fn draw(
+        &self,
+        _ui: &mut egui::Ui,
+        _viewport: &Rect,
+        painter_info: &PainterInfo,
+        scale: f32,
+        obs: &ScanObservationRecord,
+        robot_pose: &Vector3<f32>,
+    ) -> Result<Vec<Shape>, Vec2> {
+        let mut shapes = Vec::new();
+        let center = painter_info.zero(scale);
+
+        let rot_matrix = Rotation2::new(robot_pose[2]);
+        for (d, angle) in obs.distances.iter().zip(obs.angles.iter()) {
+            let obs_position = Vector2::new(d * angle.cos(), d * angle.sin());
+            let obs_position = rot_matrix * obs_position + robot_pose.fixed_rows::<2>(0);
+            let obs_position = Vec2::new(obs_position.x, obs_position.y);
+            if !painter_info.is_inside(&obs_position) {
+                return Err(obs_position);
+            }
+            let obs_position = center + obs_position * scale;
+            shapes.push(Shape::circle_filled(obs_position, 0.05 * scale, self.color));
+        }
         Ok(shapes)
     }
 }

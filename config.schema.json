@@ -1768,6 +1768,56 @@
         }
       ]
     },
+    "RayConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "format": "uint",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Regular"
+            }
+          },
+          "minimum": 0,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "DegreeTable"
+            }
+          },
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "RadianTable"
+            }
+          },
+          "items": {
+            "type": "number",
+            "format": "float"
+          },
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
     "ResultConfig": {
       "type": "object",
       "properties": {
@@ -2310,6 +2360,67 @@
             "xray": {
               "type": "boolean",
               "default": false
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "activation_time": {
+              "description": "Observation period of the sensor.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PeriodicityConfig"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": {
+                "offset": null,
+                "period": {
+                  "type": "Num",
+                  "value": 0.10000000149011612
+                },
+                "table": null
+              }
+            },
+            "detection_distance": {
+              "description": "Max distance of detection.",
+              "type": "number",
+              "format": "float",
+              "default": 0.0
+            },
+            "faults": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/FaultModelConfig"
+              }
+            },
+            "filters": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "$ref": "#/$defs/SensorFilterConfig"
+              }
+            },
+            "height": {
+              "description": "Height of the sensor: will only detect objects at this height or higher.",
+              "type": "number",
+              "format": "float",
+              "default": 0.0
+            },
+            "rays": {
+              "$ref": "#/$defs/RayConfig"
+            },
+            "type": {
+              "type": "string",
+              "const": "ScanSensor"
             }
           },
           "additionalProperties": false,
