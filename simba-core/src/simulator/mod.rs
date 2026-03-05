@@ -965,6 +965,9 @@ impl Simulator {
             taf.save_results();
         }
 
+        if is_enabled(crate::logger::InternalLog::NodeRunning) {
+            debug!("Collecting results");
+        }
         let mut new_records = Vec::new();
         if let Some(async_api) = &self.async_api {
             while let Ok(record) = async_api.records.lock().unwrap().try_recv() {

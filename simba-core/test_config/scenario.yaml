@@ -3,7 +3,8 @@ version: 1.6.0
 log:
   included_nodes: []
   excluded_nodes: []
-  log_level: {type: Debug}
+  log_level: 
+    type: Info
     # type: Internal
     # value: [type: All]
 results: {} #default results
