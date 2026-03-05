@@ -223,10 +223,10 @@ impl Scenario {
                         self.broker
                             .write()
                             .unwrap()
-                            .subscribe_to(&command_key, name.clone(), 0.);
+                            .subscribe_to(&command_key, "scenario".to_string(), 0.);
                     tmp_client.unwrap().send(
                         Envelope {
-                            from: "".to_string(),
+                            from: "scenario".to_string(),
                             message: serde_json::Value::Null,
                             message_flags: vec![MessageFlag::Kill],
                             timestamp: time,

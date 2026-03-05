@@ -125,7 +125,7 @@ impl<T> TimeOrderedData<T> {
     pub fn get_data_beq_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter().rev() {
             if data_time <= &time {
-                return Some((time, data));
+                return Some((*data_time, data));
             }
         }
         None
@@ -140,7 +140,7 @@ impl<T> TimeOrderedData<T> {
     pub fn get_data_before_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
         for (data_time, data) in self.data.iter_mut().rev() {
             if data_time < &mut time {
-                return Some((time, data));
+                return Some((*data_time, data));
             }
         }
         None
@@ -155,7 +155,7 @@ impl<T> TimeOrderedData<T> {
     pub fn get_data_before_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter().rev() {
             if data_time < &time {
-                return Some((time, data));
+                return Some((*data_time, data));
             }
         }
         None
@@ -170,7 +170,7 @@ impl<T> TimeOrderedData<T> {
     pub fn get_data_geq_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
         for (data_time, data) in self.data.iter_mut() {
             if data_time >= &mut time {
-                return Some((time, data));
+                return Some((*data_time, data));
             }
         }
         None
@@ -185,7 +185,7 @@ impl<T> TimeOrderedData<T> {
     pub fn get_data_geq_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
             if data_time >= &time {
-                return Some((time, data));
+                return Some((*data_time, data));
             }
         }
         None
@@ -200,7 +200,7 @@ impl<T> TimeOrderedData<T> {
     pub fn get_data_after_time_mut(&mut self, mut time: f32) -> Option<(f32, &mut T)> {
         for (data_time, data) in self.data.iter_mut() {
             if data_time > &mut time {
-                return Some((time, data));
+                return Some((*data_time, data));
             }
         }
         None
@@ -215,7 +215,7 @@ impl<T> TimeOrderedData<T> {
     pub fn get_data_after_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
             if data_time > &time {
-                return Some((time, data));
+                return Some((*data_time, data));
             }
         }
         None
@@ -230,7 +230,7 @@ impl<T> TimeOrderedData<T> {
     pub fn get_data_at_time(&self, time: f32) -> Option<(f32, &T)> {
         for (data_time, data) in self.data.iter() {
             if (*data_time - time).abs() < self.time_round / 2. {
-                return Some((time, data));
+                return Some((*data_time, data));
             }
         }
         None
@@ -245,7 +245,7 @@ impl<T> TimeOrderedData<T> {
     pub fn get_data_at_time_mut(&mut self, time: f32) -> Option<(f32, &mut T)> {
         for (data_time, data) in self.data.iter_mut() {
             if (*data_time - time).abs() < self.time_round / 2. {
-                return Some((time, data));
+                return Some((*data_time, data));
             }
         }
         None

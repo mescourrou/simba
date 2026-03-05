@@ -808,7 +808,7 @@ impl Node {
     }
 
     pub fn kill(&mut self, time: f32) {
-        self.node_meta_data.write().unwrap().state = NodeState::Zombie;
+        self.node_meta_data.write().unwrap().state = NodeState::Terminated;
         if let Some(service_manager) = &self.service_manager {
             service_manager.write().unwrap().unsubscribe_node();
         }

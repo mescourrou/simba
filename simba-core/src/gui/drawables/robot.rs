@@ -5,7 +5,7 @@ use simba_com::time_ordered_data::TimeOrderedData;
 use crate::{
     constants::TIME_ROUND,
     gui::{UIComponent, app::PainterInfo, drawables},
-    node::node_factory::{RobotConfig, RobotRecord},
+    node::{NodeState, node_factory::{RobotConfig, RobotRecord}},
     sensors::{SensorConfig, SensorObservationRecord},
     simulator::SimulatorConfig,
 };
@@ -77,6 +77,9 @@ impl Robot {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
 
+        if let Some((max_time, _)) = self.records.max_time() && time > max_time + TIME_ROUND {
+            return Ok(shapes);
+        }
         if let Some((_, record)) = self.records.get_data_beq_time(time) {
             let pose = record.physics.pose();
             let position = Vec2::new(pose[0], pose[1]);

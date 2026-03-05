@@ -752,10 +752,11 @@ impl NodeFactory {
 
     pub fn make_robot(config: &RobotConfig, params: &mut MakeNodeParams) -> SimbaResult<Node> {
         let node_type = NodeType::Robot;
+        let node_name = params.new_name.unwrap_or(&config.name).to_string();
         // Make global channels
-        let client = Self::make_global_channels(&config.name, params.broker)?;
+        let client = Self::make_global_channels(&node_name, params.broker)?;
         let network = Arc::new(RwLock::new(Network::from_config(
-            config.name.clone(),
+            node_name.clone(),
             &config.network,
             params.global_config,
             params.va_factory,
@@ -766,7 +767,7 @@ impl NodeFactory {
             global_config: params.global_config,
             initial_time: params.initial_time,
             network: &network,
-            node_name: &config.name,
+            node_name: &node_name,
             plugin_api: params.plugin_api,
             va_factory: params.va_factory,
         };
@@ -774,7 +775,7 @@ impl NodeFactory {
         let initial_state = physics.read().unwrap().state(params.initial_time).clone();
         let mut node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
-                name: params.new_name.unwrap_or(&config.name).to_string(),
+                name: node_name.clone(),
                 node_type,
                 model_name: config.name.clone(),
                 labels: config.labels.clone(),
@@ -832,7 +833,7 @@ impl NodeFactory {
             time_analysis: params
                 .time_analysis_factory
                 .as_mut()
-                .map(|taf| taf.new_node(config.name.clone())),
+                .map(|taf| taf.new_node(node_name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
             node_message_client: client,
@@ -879,9 +880,10 @@ impl NodeFactory {
         params: &mut MakeNodeParams,
     ) -> SimbaResult<Node> {
         let node_type = NodeType::ComputationUnit;
-        let client = Self::make_global_channels(&config.name, params.broker)?;
+        let node_name = params.new_name.unwrap_or(&config.name).to_string();
+        let client = Self::make_global_channels(&node_name, params.broker)?;
         let network = Arc::new(RwLock::new(Network::from_config(
-            config.name.clone(),
+            node_name.clone(),
             &config.network,
             params.global_config,
             params.va_factory,
@@ -892,13 +894,13 @@ impl NodeFactory {
             global_config: params.global_config,
             initial_time: params.initial_time,
             network: &network,
-            node_name: &config.name,
+            node_name: &node_name,
             plugin_api: params.plugin_api,
             va_factory: params.va_factory,
         };
         let mut node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
-                name: params.new_name.unwrap_or(&config.name).to_string(),
+                name: node_name.clone(),
                 node_type,
                 model_name: config.name.clone(),
                 labels: config.labels.clone(),
@@ -924,7 +926,7 @@ impl NodeFactory {
             time_analysis: params
                 .time_analysis_factory
                 .as_mut()
-                .map(|taf| taf.new_node(config.name.clone())),
+                .map(|taf| taf.new_node(node_name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
             node_message_client: client,
