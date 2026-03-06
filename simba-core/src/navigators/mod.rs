@@ -17,9 +17,9 @@ pub mod pybinds;
 extern crate confy;
 use std::sync::{Arc, RwLock};
 
+use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
-use config_checker::*;
 
 use crate::controllers::ControllerError;
 use crate::errors::SimbaResult;
@@ -59,10 +59,7 @@ impl UIComponent for NavigatorConfig {
             ui.label("Navigator:");
             string_combobox(
                 ui,
-                &NavigatorConfig::to_vec()
-                    .iter()
-                    .map(|x: &&str| String::from(*x))
-                    .collect(),
+                &NavigatorConfig::to_vec(),
                 &mut current_str,
                 format!("navigator-choice-{}", unique_id),
             );

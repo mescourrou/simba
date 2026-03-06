@@ -48,13 +48,14 @@ use crate::{
     navigators::Navigator,
     networking::network::Network,
     physics::Physics,
-    sensors::Sensor,
+    sensors::{Sensor, sensor_filters::SensorFilter},
     simulator::SimulatorConfig,
     state_estimators::StateEstimator,
     utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 /// Trait to link the simulator to the external implementation.
+#[allow(unused_variables)]
 pub trait PluginAPI: Send + Sync {
     /// Return the [`StateEstimator`] to be used by the
     /// [`ExternalEstimator`](`crate::state_estimators::external_estimator::ExternalEstimator`).
@@ -70,11 +71,11 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the [`StateEstimator`] to use.
     fn get_state_estimator(
         &self,
-        _config: &serde_json::Value,
-        _global_config: &SimulatorConfig,
-        _va_factory: &Arc<DeterministRandomVariableFactory>,
-        _network: &SharedRwLock<Network>,
-        _initial_time: f32,
+        config: &serde_json::Value,
+        global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
+        initial_time: f32,
     ) -> Box<dyn StateEstimator> {
         panic!("The given PluginAPI does not provide a state estimator");
     }
@@ -93,11 +94,11 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the [`Controller`] to use.
     fn get_controller(
         &self,
-        _config: &serde_json::Value,
-        _global_config: &SimulatorConfig,
-        _va_factory: &Arc<DeterministRandomVariableFactory>,
-        _network: &SharedRwLock<Network>,
-        _initial_time: f32,
+        config: &serde_json::Value,
+        global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
+        initial_time: f32,
     ) -> Box<dyn Controller> {
         panic!("The given PluginAPI does not provide a controller");
     }
@@ -116,11 +117,11 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the [`Navigator`] to use.
     fn get_navigator(
         &self,
-        _config: &serde_json::Value,
-        _global_config: &SimulatorConfig,
-        _va_factory: &Arc<DeterministRandomVariableFactory>,
-        _network: &SharedRwLock<Network>,
-        _initial_time: f32,
+        config: &serde_json::Value,
+        global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
+        initial_time: f32,
     ) -> Box<dyn Navigator> {
         panic!("The given PluginAPI does not provide a navigator");
     }
@@ -139,11 +140,11 @@ pub trait PluginAPI: Send + Sync {
     /// Returns the [`Physics`] to use.
     fn get_physics(
         &self,
-        _config: &serde_json::Value,
-        _global_config: &SimulatorConfig,
-        _va_factory: &Arc<DeterministRandomVariableFactory>,
-        _network: &SharedRwLock<Network>,
-        _initial_time: f32,
+        config: &serde_json::Value,
+        global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
+        initial_time: f32,
     ) -> Box<dyn Physics> {
         panic!("The given PluginAPI does not provide physics");
     }
@@ -152,10 +153,10 @@ pub trait PluginAPI: Send + Sync {
 
     fn get_sensor(
         &self,
-        _config: &serde_json::Value,
-        _global_config: &SimulatorConfig,
-        _network: &SharedRwLock<Network>,
-        _initial_time: f32,
+        config: &serde_json::Value,
+        global_config: &SimulatorConfig,
+        network: &SharedRwLock<Network>,
+        initial_time: f32,
     ) -> Box<dyn Sensor> {
         panic!("The given PluginAPI does not provide a sensor");
     }
@@ -168,8 +169,32 @@ pub trait PluginAPI: Send + Sync {
     #[cfg(feature = "gui")]
     fn get_drawable(
         &self,
-        _global_config: &SimulatorConfig,
+        global_config: &SimulatorConfig,
     ) -> Option<Box<dyn crate::gui::Drawable>> {
         None
+    }
+
+    /// Return the [`SensorFilter`] to be used by the
+    /// [`ExternalSensorFilter`](`crate::sensors::sensor_filters::external_filter::ExternalSensorFilter`).
+    ///
+    /// # Arguments
+    /// * `config` - Config for the external sensor filter. The configuration
+    ///   is given using [`serde_json::Value`]. It should be converted by the
+    ///   external plugin to the specific configuration.
+    /// * `global_config` - Full configuration of the simulator.
+    /// * `va_factory` - Factory for Determinists random variables.
+    /// * `initial_time` - Initial time of the simulation.
+    ///
+    /// # Return
+    ///
+    /// Returns the [`SensorFilter`] to use.
+    fn get_sensor_filter(
+        &self,
+        config: &serde_json::Value,
+        global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
+    ) -> Box<dyn SensorFilter> {
+        panic!("The given PluginAPI does not provide a sensor filter");
     }
 }

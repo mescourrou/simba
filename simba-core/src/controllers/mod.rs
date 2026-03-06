@@ -24,9 +24,9 @@ use std::sync::{Arc, RwLock};
 
 use crate::{plugin_api::PluginAPI, simulator::SimulatorConfig};
 
+use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
-use config_checker::*;
 
 /// Errors used by the controllers: lateral, orientation and velocity.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -80,10 +80,7 @@ impl UIComponent for ControllerConfig {
             ui.label("Controller:");
             string_combobox(
                 ui,
-                &ControllerConfig::to_vec()
-                    .iter()
-                    .map(|x: &&str| String::from(*x))
-                    .collect(),
+                &ControllerConfig::to_vec(),
                 &mut current_str,
                 format!("controller-choice-{}", unique_id),
             );

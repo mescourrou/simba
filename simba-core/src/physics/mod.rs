@@ -21,9 +21,9 @@ pub mod fault_models;
 extern crate confy;
 use std::sync::{Arc, RwLock};
 
+use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
-use config_checker::*;
 
 /// Enumeration of the different physic implementations.
 #[config_derives]
@@ -52,10 +52,7 @@ impl UIComponent for PhysicsConfig {
             ui.label("Physics:");
             string_combobox(
                 ui,
-                &PhysicsConfig::to_vec()
-                    .iter()
-                    .map(|x: &&str| String::from(*x))
-                    .collect(),
+                &PhysicsConfig::to_vec(),
                 &mut current_str,
                 format!("physics-choice-{}", unique_id),
             );

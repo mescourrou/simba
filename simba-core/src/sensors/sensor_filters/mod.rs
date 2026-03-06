@@ -1,38 +1,52 @@
-use simba_macros::config_derives;
+use std::sync::Arc;
+
+use simba_macros::{EnumToString, config_derives};
 
 use crate::{
     errors::SimbaResult,
+    networking::network::Network,
+    plugin_api::PluginAPI,
     sensors::{
         SensorObservation,
         sensor_filters::{
-            id_filter::{IdFilter, IdFilterConfig},
+            external_filter::ExternalFilter,
             python_filter::{PythonFilter, PythonFilterConfig},
             range_filter::{RangeFilter, RangeFilterConfig},
+            string_filter::{StringFilter, StringFilterConfig},
         },
     },
     simulator::SimulatorConfig,
     state_estimators::State,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory, enum_tools::EnumVariables},
 };
 #[cfg(feature = "gui")]
-use crate::{gui::UIComponent, utils::enum_tools::ToVec};
+use crate::{
+    gui::UIComponent, sensors::sensor_filters::external_filter::ExternalFilterConfig,
+    utils::enum_tools::ToVec,
+};
 
-pub mod id_filter;
-pub mod label_filter;
+pub mod external_filter;
 pub mod python_filter;
 pub mod range_filter;
+pub mod string_filter;
 
 #[config_derives]
-pub enum SensorFilterConfig {
+pub enum SensorFilterConfig<SV: EnumVariables> {
     #[check]
-    RangeFilter(RangeFilterConfig),
+    Range(RangeFilterConfig<SV>),
     #[check]
-    IdFilter(IdFilterConfig),
+    Id(StringFilterConfig),
     #[check]
-    PythonFilter(PythonFilterConfig),
+    Label(StringFilterConfig),
+    #[check]
+    Python(PythonFilterConfig),
+    #[check]
+    External(ExternalFilterConfig),
 }
 
 pub trait SensorFilter: Send + Sync + std::fmt::Debug {
-    fn post_init(&mut self, _node: &mut crate::node::Node, _initial_time: f32) -> SimbaResult<()> {
+    #[allow(unused_variables)]
+    fn post_init(&mut self, node: &mut crate::node::Node, initial_time: f32) -> SimbaResult<()> {
         Ok(())
     }
     fn filter(
@@ -45,7 +59,7 @@ pub trait SensorFilter: Send + Sync + std::fmt::Debug {
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for SensorFilterConfig {
+impl<SV: EnumVariables> UIComponent for SensorFilterConfig<SV> {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
@@ -59,7 +73,7 @@ impl UIComponent for SensorFilterConfig {
         egui::CollapsingHeader::new(self_str)
             .id_salt(format!("sensor-filter-{}", unique_id))
             .show(ui, |ui| match self {
-                Self::RangeFilter(cfg) => cfg.show_mut(
+                Self::Range(cfg) => cfg.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
@@ -67,7 +81,7 @@ impl UIComponent for SensorFilterConfig {
                     current_node_name,
                     unique_id,
                 ),
-                Self::PythonFilter(cfg) => cfg.show_mut(
+                Self::Python(cfg) => cfg.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
@@ -75,7 +89,15 @@ impl UIComponent for SensorFilterConfig {
                     current_node_name,
                     unique_id,
                 ),
-                Self::IdFilter(cfg) => cfg.show_mut(
+                Self::Id(cfg) | Self::Label(cfg) => cfg.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                ),
+                Self::External(cfg) => cfg.show_mut(
                     ui,
                     ctx,
                     buffer_stack,
@@ -92,18 +114,19 @@ impl UIComponent for SensorFilterConfig {
             .id_salt(format!("sensor-filter-{}", unique_id))
             .show(ui, |ui| {
                 match self {
-                    Self::RangeFilter(cfg) => cfg.show(ui, ctx, unique_id),
-                    Self::PythonFilter(cfg) => cfg.show(ui, ctx, unique_id),
-                    Self::IdFilter(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::Range(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::Python(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::Id(cfg) | Self::Label(cfg) => cfg.show(ui, ctx, unique_id),
+                    Self::External(cfg) => cfg.show(ui, ctx, unique_id),
                 };
             });
     }
 }
 
 #[cfg(feature = "gui")]
-impl SensorFilterConfig {
+impl<SV: EnumVariables> SensorFilterConfig<SV> {
     pub fn show_filters_mut(
-        filters: &mut Vec<SensorFilterConfig>,
+        filters: &mut Vec<SensorFilterConfig<SV>>,
         ui: &mut egui::Ui,
         ctx: &egui::Context,
         buffer_stack: &mut std::collections::BTreeMap<String, String>,
@@ -139,28 +162,29 @@ impl SensorFilterConfig {
         ui.horizontal(|ui| {
             let buffer_key = format!("selected-new-filter-{unique_id}");
             if !buffer_stack.contains_key(&buffer_key) {
-                buffer_stack.insert(buffer_key.clone(), "RangeFilter".to_string());
+                buffer_stack.insert(buffer_key.clone(), "Range".to_string());
             }
             string_combobox(
                 ui,
-                &SensorFilterConfig::to_vec()
-                    .iter()
-                    .map(|x: &&str| String::from(*x))
-                    .collect(),
+                &SensorFilterConfig::<SV>::to_vec(),
                 buffer_stack.get_mut(&buffer_key).unwrap(),
                 format!("filter-choice-{}", unique_id),
             );
             if ui.button("Add").clicked() {
                 let selected_filter = buffer_stack.get(&buffer_key).unwrap();
                 match selected_filter.as_str() {
-                    "RangeFilter" => {
-                        filters.push(SensorFilterConfig::RangeFilter(RangeFilterConfig::default()))
+                    "Range" => {
+                        filters.push(SensorFilterConfig::Range(RangeFilterConfig::default()))
                     }
-                    "PythonFilter" => filters.push(SensorFilterConfig::PythonFilter(
-                        PythonFilterConfig::default(),
-                    )),
-                    "IdFilter" => {
-                        filters.push(SensorFilterConfig::IdFilter(IdFilterConfig::default()))
+                    "Python" => {
+                        filters.push(SensorFilterConfig::Python(PythonFilterConfig::default()))
+                    }
+                    "Id" => filters.push(SensorFilterConfig::Id(StringFilterConfig::default())),
+                    "Label" => {
+                        filters.push(SensorFilterConfig::Label(StringFilterConfig::default()))
+                    }
+                    "External" => {
+                        filters.push(SensorFilterConfig::External(ExternalFilterConfig::default()))
                     }
                     _ => panic!("Where did you find this fault?"),
                 };
@@ -169,7 +193,7 @@ impl SensorFilterConfig {
     }
 
     pub fn show_filters(
-        filters: &[SensorFilterConfig],
+        filters: &[SensorFilterConfig<SV>],
         ui: &mut egui::Ui,
         ctx: &egui::Context,
         unique_id: &str,
@@ -184,21 +208,38 @@ impl SensorFilterConfig {
     }
 }
 
-pub fn make_sensor_filter_from_config(
-    config: &SensorFilterConfig,
+#[derive(Debug, EnumToString)]
+pub enum SensorFilterType<SV: EnumVariables> {
+    RangeFilter(RangeFilter<SV>),
+    PythonFilter(PythonFilter),
+    IdFilter(StringFilter),
+    LabelFilter(StringFilter),
+    External(Box<dyn SensorFilter>),
+}
+
+pub fn make_sensor_filter_from_config<SV: EnumVariables>(
+    config: &SensorFilterConfig<SV>,
+    plugin_api: &Option<Arc<dyn PluginAPI>>,
     global_config: &SimulatorConfig,
+    va_factory: &Arc<DeterministRandomVariableFactory>,
     initial_time: f32,
-) -> Box<dyn SensorFilter> {
-    match &config {
-        SensorFilterConfig::RangeFilter(cfg) => {
-            Box::new(RangeFilter::from_config(cfg, initial_time)) as Box<dyn SensorFilter>
+) -> SimbaResult<SensorFilterType<SV>> {
+    Ok(match &config {
+        SensorFilterConfig::Range(cfg) => {
+            SensorFilterType::RangeFilter(RangeFilter::from_config(cfg, initial_time))
         }
-        SensorFilterConfig::PythonFilter(cfg) => {
-            Box::new(PythonFilter::from_config(cfg, global_config, initial_time).unwrap())
-                as Box<dyn SensorFilter>
+        SensorFilterConfig::Python(cfg) => SensorFilterType::PythonFilter(
+            PythonFilter::from_config(cfg, global_config, initial_time)?,
+        ),
+        SensorFilterConfig::Id(cfg) => {
+            SensorFilterType::IdFilter(StringFilter::from_config(cfg, initial_time))
         }
-        SensorFilterConfig::IdFilter(cfg) => {
-            Box::new(IdFilter::from_config(cfg, initial_time)) as Box<dyn SensorFilter>
+        SensorFilterConfig::Label(cfg) => {
+            SensorFilterType::LabelFilter(StringFilter::from_config(cfg, initial_time))
         }
-    }
+        SensorFilterConfig::External(cfg) => SensorFilterType::External(Box::new(
+            ExternalFilter::from_config(cfg, plugin_api, global_config, va_factory, initial_time)?,
+        )
+            as Box<dyn SensorFilter>),
+    })
 }

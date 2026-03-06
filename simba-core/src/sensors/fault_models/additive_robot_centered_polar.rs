@@ -99,10 +99,7 @@ impl UIComponent for AdditiveRobotCenteredPolarFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = ["r", "theta", "orientation", "width", "height"]
-                .iter()
-                .map(|x| String::from(*x))
-                .collect();
+            let possible_variables = ["r", "theta", "orientation", "width", "height"];
             ui.horizontal(|ui| {
                 ui.label("Variable order:");
                 for (i, var) in self.variable_order.iter_mut().enumerate() {
@@ -117,7 +114,7 @@ impl UIComponent for AdditiveRobotCenteredPolarFaultConfig {
                         possible_variables
                             .get(self.variable_order.len().min(possible_variables.len()))
                             .unwrap()
-                            .clone(),
+                            .to_string(),
                     );
                 }
             });
@@ -339,7 +336,9 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                     for i in 0..o.distances.len() {
                         let mut random_sample = Vec::new();
                         for d in self.distributions.lock().unwrap().iter() {
-                            random_sample.extend_from_slice(&d.generate(seed + 100. * i as f32 / o.distances.len() as f32));
+                            random_sample.extend_from_slice(
+                                &d.generate(seed + 100. * i as f32 / o.distances.len() as f32),
+                            );
                         }
                         if !self.variable_order.is_empty() {
                             for (j, variable) in self.variable_order.iter().enumerate() {
@@ -364,7 +363,9 @@ impl FaultModel for AdditiveRobotCenteredPolarFault {
                         }
                     }
                     o.applied_faults
-                        .push(FaultModelConfig::AdditiveRobotCenteredPolar(self.config.clone()));
+                        .push(FaultModelConfig::AdditiveRobotCenteredPolar(
+                            self.config.clone(),
+                        ));
                 }
                 SensorObservation::External(_) => {
                     panic!("AdditiveRobotCenteredPolarFault cannot fault ExternalObservation");

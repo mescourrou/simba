@@ -5,7 +5,10 @@ use simba_com::time_ordered_data::TimeOrderedData;
 use crate::{
     constants::TIME_ROUND,
     gui::{UIComponent, app::PainterInfo, drawables},
-    node::{NodeState, node_factory::{RobotConfig, RobotRecord}},
+    node::{
+        NodeState,
+        node_factory::{RobotConfig, RobotRecord},
+    },
     sensors::{SensorConfig, SensorObservationRecord},
     simulator::SimulatorConfig,
 };
@@ -31,21 +34,23 @@ impl Robot {
         let mut scan_obs = None;
         for sensor_conf in &config.sensor_manager.sensors {
             match &sensor_conf.config {
-                SensorConfig::GNSSSensor(c) => {
+                SensorConfig::GNSS(c) => {
                     gnss_obs = Some(drawables::observations::GNSSObservation::init(
                         c, sim_config,
                     ))
                 }
-                SensorConfig::SpeedSensor(_) => {}
-                SensorConfig::DisplacementSensor(_) => {}
-                SensorConfig::OrientedLandmarkSensor(c) => {
+                SensorConfig::Speed(_) => {}
+                SensorConfig::Displacement(_) => {}
+                SensorConfig::OrientedLandmark(c) => {
                     landmark_obs = Some(OrientedLandmarkObservation::init(c, sim_config))
                 }
-                SensorConfig::RobotSensor(c) => {
+                SensorConfig::Robot(c) => {
                     robot_obs = Some(OrientedRobotObservation::init(c, sim_config))
                 }
-                SensorConfig::ScanSensor(c) => {
-                    scan_obs = Some(drawables::observations::ScanObservation::init(c, sim_config))
+                SensorConfig::Scan(c) => {
+                    scan_obs = Some(drawables::observations::ScanObservation::init(
+                        c, sim_config,
+                    ))
                 }
                 SensorConfig::External(_) => {}
             }
@@ -77,7 +82,9 @@ impl Robot {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
 
-        if let Some((max_time, _)) = self.records.max_time() && time > max_time + TIME_ROUND {
+        if let Some((max_time, _)) = self.records.max_time()
+            && time > max_time + TIME_ROUND
+        {
             return Ok(shapes);
         }
         if let Some((_, record)) = self.records.get_data_beq_time(time) {

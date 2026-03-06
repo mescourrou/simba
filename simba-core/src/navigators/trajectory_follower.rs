@@ -19,9 +19,9 @@ extern crate nalgebra as na;
 use libm::atan2;
 use na::Vector3;
 
+use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
-use config_checker::*;
 
 use std::path::Path;
 
@@ -55,11 +55,7 @@ impl Check for TrajectoryFollowerConfig {
         if self.stop_ramp_coefficient < 0. {
             errs.push("Stop ramp coefficient should be positive".to_string());
         }
-        if errs.is_empty() {
-            Ok(())
-        } else {
-            Err(errs)
-        }
+        if errs.is_empty() { Ok(()) } else { Err(errs) }
     }
 }
 

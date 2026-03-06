@@ -6,11 +6,11 @@ use std::{
     sync::{Arc, RwLock},
 };
 
+use config_checker::*;
 use log::debug;
 use nalgebra::{Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
-use config_checker::*;
 
 use crate::{
     environment::oriented_landmark::OrientedLandmark,

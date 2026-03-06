@@ -10,17 +10,20 @@ use super::fault_models::fault_model::{
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+use crate::enum_variables;
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::sensor_filters::{
-    SensorFilter, SensorFilterConfig, make_sensor_filter_from_config,
+    SensorFilter, SensorFilterConfig, SensorFilterType, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::enum_tools::EnumVariables;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use log::debug;
 use nalgebra::{Vector2, Vector3};
@@ -28,6 +31,16 @@ use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 extern crate nalgebra as na;
+
+enum_variables!(
+    GNSSSensorVariables;
+    X, "x", "position_x";
+    Y, "y", "position_y";
+    Orientation, "orientation", "z";
+    VelocityX, "velocity_x", "vx";
+    VelocityY, "velocity_y", "vy";
+    SelfVelocity, "self_velocity";
+);
 
 /// Configuration of the [`GNSSSensor`].
 #[config_derives]
@@ -39,7 +52,7 @@ pub struct GNSSSensorConfig {
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
-    pub filters: Vec<SensorFilterConfig>,
+    pub filters: Vec<SensorFilterConfig<GNSSSensorVariables>>,
 }
 
 impl Default for GNSSSensorConfig {
@@ -196,31 +209,19 @@ pub struct GNSSSensor {
     last_time: Option<f32>,
     /// Fault models for x and y positions and on x and y velocities
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
-    filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
+    filters: Vec<SensorFilterType<GNSSSensorVariables>>,
 }
 
 impl GNSSSensor {
-    /// Makes a new [`GNSSSensor`].
-    pub fn new() -> Self {
-        GNSSSensor::from_config(
-            &GNSSSensorConfig::default(),
-            &None,
-            &SimulatorConfig::default(),
-            "NoName",
-            &DeterministRandomVariableFactory::default(),
-            0.0,
-        )
-    }
-
     /// Makes a new [`GNSSSensor`] from the given config.
     pub fn from_config(
         config: &GNSSSensorConfig,
-        _plugin_api: &Option<Arc<dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         robot_name: &str,
-        va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
-    ) -> Self {
+    ) -> SimbaResult<Self> {
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
         for fault_config in &config.faults {
@@ -234,33 +235,27 @@ impl GNSSSensor {
         }
         drop(unlock_fault_model);
 
-        let filters = Arc::new(Mutex::new(Vec::new()));
-        let mut unlock_filters = filters.lock().unwrap();
+        let mut filters = Vec::new();
         for filter_config in &config.filters {
-            unlock_filters.push(make_sensor_filter_from_config(
+            filters.push(make_sensor_filter_from_config(
                 filter_config,
+                plugin_api,
                 global_config,
+                va_factory,
                 initial_time,
-            ));
+            )?);
         }
-        drop(unlock_filters);
 
         let activation_time = config
             .activation_time
             .as_ref()
             .map(|p| Periodicity::from_config(p, va_factory, initial_time));
-        Self {
+        Ok(Self {
             activation_time,
             last_time: None,
             faults: fault_models,
             filters,
-        }
-    }
-}
-
-impl Default for GNSSSensor {
-    fn default() -> Self {
-        Self::new()
+        })
     }
 }
 
@@ -268,8 +263,12 @@ use crate::node::Node;
 
 impl Sensor for GNSSSensor {
     fn post_init(&mut self, node: &mut Node, initial_time: f32) -> crate::errors::SimbaResult<()> {
-        for filter in self.filters.lock().unwrap().iter_mut() {
-            filter.post_init(node, initial_time)?;
+        for filter in self.filters.iter_mut() {
+            match filter {
+                SensorFilterType::PythonFilter(f) => f.post_init(node, initial_time)?,
+                SensorFilterType::External(f) => f.post_init(node, initial_time)?,
+                _ => {}
+            }
         }
         for fault_model in self.faults.lock().unwrap().iter_mut() {
             fault_model.post_init(node, initial_time)?;
@@ -302,13 +301,47 @@ impl Sensor for GNSSSensor {
             velocity,
             applied_faults: Vec::new(),
         });
-        if let Some(observation) = self
-            .filters
-            .lock()
-            .unwrap()
-            .iter()
-            .try_fold(obs, |obs, filter| filter.filter(time, obs, &state, None))
-        {
+
+        let mut keep_observation = Some(obs);
+
+        for filter in self.filters.iter() {
+            if let Some(obs) = keep_observation {
+                keep_observation = match filter {
+                    SensorFilterType::PythonFilter(f) => f.filter(time, obs, &state, None),
+                    SensorFilterType::External(f) => f.filter(time, obs, &state, None),
+                    SensorFilterType::RangeFilter(f) => {
+                        if let SensorObservation::GNSS(obs) = obs {
+                            if f.match_exclusion(&GNSSSensorVariables::mapped_values(|variant| {
+                                match variant {
+                                    GNSSSensorVariables::X => obs.pose.x,
+                                    GNSSSensorVariables::Y => obs.pose.y,
+                                    GNSSSensorVariables::Orientation => obs.pose.z,
+                                    GNSSSensorVariables::VelocityX => obs.velocity.x,
+                                    GNSSSensorVariables::VelocityY => obs.velocity.y,
+                                    GNSSSensorVariables::SelfVelocity => {
+                                        state.velocity.fixed_rows::<2>(0).norm()
+                                    }
+                                }
+                            })) {
+                                None
+                            } else {
+                                Some(SensorObservation::GNSS(obs))
+                            }
+                        } else {
+                            unreachable!()
+                        }
+                    }
+                    _ => unimplemented!(
+                        "{} filter not implemented for GNSSSensor",
+                        filter.to_string()
+                    ),
+                };
+            } else {
+                break;
+            }
+        }
+
+        if let Some(observation) = keep_observation {
             observation_list.push(observation);
             for fault_model in self.faults.lock().unwrap().iter_mut() {
                 fault_model.add_faults(

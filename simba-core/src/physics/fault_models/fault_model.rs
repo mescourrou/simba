@@ -107,10 +107,7 @@ impl PhysicsFaultModelConfig {
             }
             string_combobox(
                 ui,
-                &PhysicsFaultModelConfig::to_vec()
-                    .iter()
-                    .map(|x: &&str| String::from(*x))
-                    .collect(),
+                &PhysicsFaultModelConfig::to_vec(),
                 buffer_stack.get_mut(&buffer_key).unwrap(),
                 format!("physics-fault-choice-{}", unique_id),
             );

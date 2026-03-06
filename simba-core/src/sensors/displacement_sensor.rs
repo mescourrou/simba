@@ -2,6 +2,9 @@
 Provides a [`Sensor`] which can provide the transformation since the last observation.
 */
 
+use std::collections::HashMap;
+use std::fmt::Display;
+use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
 use super::fault_models::fault_model::{
@@ -12,27 +15,38 @@ use super::{Sensor, SensorObservation, SensorRecord};
 use crate::config::NumberConfig;
 use crate::constants::TIME_ROUND;
 
-use crate::errors::SimbaResult;
+use crate::enum_variables;
+use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::sensor_filters::{
-    SensorFilter, SensorFilterConfig, make_sensor_filter_from_config,
+    SensorFilter, SensorFilterConfig, SensorFilterType, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::enum_tools::EnumVariables;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use log::debug;
 use nalgebra::{Matrix3, Vector2};
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::config_derives;
+use simba_macros::{EnumToString, ToVec, config_derives};
 
 extern crate nalgebra as na;
+
+enum_variables!(
+    DisplacementSensorVariables;
+    X, "x", "dx";
+    Y, "y", "dy";
+    Rotation, "rotation", "r";
+    Translation, "translation", "t";
+    SelfRotation, "self_rotation"
+);
 
 /// Configuration of the [`DisplacementSensor`].
 #[config_derives]
@@ -43,7 +57,7 @@ pub struct DisplacementSensorConfig {
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
-    pub filters: Vec<SensorFilterConfig>,
+    pub filters: Vec<SensorFilterConfig<DisplacementSensorVariables>>,
     pub lie_movement: bool,
 }
 
@@ -210,34 +224,21 @@ pub struct DisplacementSensor {
     /// Last observation time.
     last_time: Option<f32>,
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
-    filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
+    filters: Vec<SensorFilterType<DisplacementSensorVariables>>,
     lie_movement: bool,
 }
 
 impl DisplacementSensor {
-    /// Makes a new [`DisplacementSensor`].
-    pub fn new() -> Self {
-        DisplacementSensor::from_config(
-            &DisplacementSensorConfig::default(),
-            &None,
-            &SimulatorConfig::default(),
-            "NoName",
-            &DeterministRandomVariableFactory::default(),
-            0.0,
-            &State::default(),
-        )
-    }
-
     /// Makes a new [`DisplacementSensor`] from the given config.
     pub fn from_config(
         config: &DisplacementSensorConfig,
-        _plugin_api: &Option<Arc<dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         robot_name: &str,
-        va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
         initial_state: &State,
-    ) -> Self {
+    ) -> SimbaResult<Self> {
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
         for fault_config in &config.faults {
@@ -251,35 +252,29 @@ impl DisplacementSensor {
         }
         drop(unlock_fault_model);
 
-        let filters = Arc::new(Mutex::new(Vec::new()));
-        let mut unlock_filters = filters.lock().unwrap();
+        let mut filters = Vec::new();
         for filter_config in &config.filters {
-            unlock_filters.push(make_sensor_filter_from_config(
+            filters.push(make_sensor_filter_from_config(
                 filter_config,
+                plugin_api,
                 global_config,
+                va_factory,
                 initial_time,
-            ));
+            )?);
         }
-        drop(unlock_filters);
 
         let activation_time = config
             .activation_time
             .as_ref()
             .map(|p| Periodicity::from_config(p, va_factory, initial_time));
-        Self {
+        Ok(Self {
             last_state: initial_state.clone(),
             activation_time,
             last_time: None,
             faults: fault_models,
             filters,
             lie_movement: config.lie_movement,
-        }
-    }
-}
-
-impl Default for DisplacementSensor {
-    fn default() -> Self {
-        Self::new()
+        })
     }
 }
 
@@ -294,8 +289,12 @@ impl Sensor for DisplacementSensor {
             .unwrap()
             .state(initial_time)
             .clone();
-        for filter in self.filters.lock().unwrap().iter_mut() {
-            filter.post_init(node, initial_time)?;
+        for filter in self.filters.iter_mut() {
+            match filter {
+                SensorFilterType::External(f) => f.post_init(node, initial_time)?,
+                SensorFilterType::PythonFilter(f) => f.post_init(node, initial_time)?,
+                _ => (),
+            }
         }
         for fault_model in self.faults.lock().unwrap().iter_mut() {
             fault_model.post_init(node, initial_time)?;
@@ -349,13 +348,47 @@ impl Sensor for DisplacementSensor {
             applied_faults: Vec::new(),
         });
 
-        if let Some(obs) = self
-            .filters
-            .lock()
-            .unwrap()
-            .iter()
-            .try_fold(obs, |obs, filter| filter.filter(time, obs, &state, None))
-        {
+        let mut keep_observation = Some(obs);
+
+        for filter in self.filters.iter() {
+            if let Some(o) = keep_observation {
+                keep_observation = match filter {
+                    SensorFilterType::External(f) => f.filter(time, o, &state, None),
+                    SensorFilterType::PythonFilter(f) => f.filter(time, o, &state, None),
+                    SensorFilterType::RangeFilter(f) => {
+                        if let SensorObservation::Displacement(obs) = o {
+                            if f.match_exclusion(&DisplacementSensorVariables::mapped_values(
+                                |variant| match variant {
+                                    DisplacementSensorVariables::X => obs.translation.x,
+                                    DisplacementSensorVariables::Y => obs.translation.y,
+                                    DisplacementSensorVariables::Rotation => obs.rotation,
+                                    DisplacementSensorVariables::Translation => {
+                                        obs.translation.iter().map(|v| v * v).sum::<f32>().sqrt()
+                                    }
+                                    DisplacementSensorVariables::SelfRotation => {
+                                        state.velocity.fixed_rows::<2>(0).norm()
+                                    }
+                                },
+                            )) {
+                                None
+                            } else {
+                                Some(SensorObservation::Displacement(obs))
+                            }
+                        } else {
+                            unreachable!()
+                        }
+                    }
+                    _ => unimplemented!(
+                        "{} filter not implemented for DisplacementSensor",
+                        filter.to_string()
+                    ),
+                };
+            } else {
+                break;
+            }
+        }
+
+        if let Some(obs) = keep_observation {
             observation_list.push(obs);
             for fault_model in self.faults.lock().unwrap().iter_mut() {
                 fault_model.add_faults(

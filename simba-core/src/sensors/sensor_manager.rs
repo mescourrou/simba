@@ -55,7 +55,7 @@ impl Default for ManagedSensorConfig {
             name: "some_sensor".to_string(),
             send_to: Vec::new(),
             triggered: false,
-            config: SensorConfig::SpeedSensor(SpeedSensorConfig::default()),
+            config: SensorConfig::Speed(SpeedSensorConfig::default()),
         }
     }
 }
@@ -326,7 +326,7 @@ impl SensorManager {
                 name: sensor_config.name.clone(),
                 send_to: sensor_config.send_to.clone(),
                 sensor: Arc::new(RwLock::new(match &sensor_config.config {
-                    SensorConfig::OrientedLandmarkSensor(c) => {
+                    SensorConfig::OrientedLandmark(c) => {
                         Box::new(OrientedLandmarkSensor::from_config(
                             c,
                             from_config_args.plugin_api,
@@ -334,51 +334,49 @@ impl SensorManager {
                             from_config_args.node_name,
                             from_config_args.va_factory,
                             from_config_args.initial_time,
-                        )) as Box<dyn Sensor>
+                        )?) as Box<dyn Sensor>
                     }
-                    SensorConfig::SpeedSensor(c) => Box::new(SpeedSensor::from_config(
+                    SensorConfig::Speed(c) => Box::new(SpeedSensor::from_config(
                         c,
                         from_config_args.plugin_api,
                         from_config_args.global_config,
                         from_config_args.node_name,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
-                    )) as Box<dyn Sensor>,
-                    SensorConfig::DisplacementSensor(c) => {
-                        Box::new(DisplacementSensor::from_config(
-                            c,
-                            from_config_args.plugin_api,
-                            from_config_args.global_config,
-                            from_config_args.node_name,
-                            from_config_args.va_factory,
-                            from_config_args.initial_time,
-                            initial_state,
-                        )) as Box<dyn Sensor>
-                    }
-                    SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
+                    )?) as Box<dyn Sensor>,
+                    SensorConfig::Displacement(c) => Box::new(DisplacementSensor::from_config(
                         c,
                         from_config_args.plugin_api,
                         from_config_args.global_config,
                         from_config_args.node_name,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
-                    )) as Box<dyn Sensor>,
-                    SensorConfig::RobotSensor(c) => Box::new(RobotSensor::from_config(
+                        initial_state,
+                    )?) as Box<dyn Sensor>,
+                    SensorConfig::GNSS(c) => Box::new(GNSSSensor::from_config(
                         c,
                         from_config_args.plugin_api,
                         from_config_args.global_config,
                         from_config_args.node_name,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
-                    )) as Box<dyn Sensor>,
-                    SensorConfig::ScanSensor(c) => Box::new(ScanSensor::from_config(
+                    )?) as Box<dyn Sensor>,
+                    SensorConfig::Robot(c) => Box::new(RobotSensor::from_config(
                         c,
                         from_config_args.plugin_api,
                         from_config_args.global_config,
                         from_config_args.node_name,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
-                    )) as Box<dyn Sensor>,
+                    )?) as Box<dyn Sensor>,
+                    SensorConfig::Scan(c) => Box::new(ScanSensor::from_config(
+                        c,
+                        from_config_args.plugin_api,
+                        from_config_args.global_config,
+                        from_config_args.node_name,
+                        from_config_args.va_factory,
+                        from_config_args.initial_time,
+                    )?) as Box<dyn Sensor>,
                     SensorConfig::External(c) => Box::new(ExternalSensor::from_config(
                         c,
                         from_config_args.plugin_api,

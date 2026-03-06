@@ -4,13 +4,10 @@ log:
   included_nodes: []
   excluded_nodes: []
   log_level:
-    type: Internal
-    value:
-      - type: SensorManagerDetailed
-      - type: EnvironmentDetailed
+    type: Info
 results:
   result_path: result.json
-max_time: 20.0
+max_time: 2.0
 time_analysis:
   exporter:
     type: TraceEventExporter
@@ -69,7 +66,7 @@ robots:
     #   send_to:
     #   - Central Unit
     #   config:
-    #     type: RobotSensor
+    #     type: Robot
     #     detection_distance: 100.0
     #     activation_time:
     #       period: {type: Num, value: 0.1}
@@ -116,7 +113,7 @@ robots:
     #       - width
     - name: ScanSensor
       config:
-        type: ScanSensor
+        type: Scan
         detection_distance: 100
         activation_time: 
           period: {type: Num, value: 0.1}
@@ -140,10 +137,10 @@ robots:
             - r
             - theta
         filters:
-          - type: RangeFilter
+          - type: Range
             variables: [r, theta]
             max_range: [100, 1.57]
-            min_range: [3., -1.57]
+            min_range: [1., -1.57]
             inside: true
   network:
     range: 0.0
@@ -195,7 +192,7 @@ robots:
   #         period: {type: Num, value: 0.1}
   #       faults: []
   #       filters:
-  #         - type: RangeFilter
+  #         - type: Range
   #           variables: [x, y]
   #           min_range: [0, -1]
   #           max_range: [10, 1]

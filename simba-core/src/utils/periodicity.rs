@@ -42,7 +42,9 @@ impl Check for PeriodicityConfig {
             if table.iter().any(|v| *v < 0.) {
                 errors.push("Periodic table values should be positive or null".to_string());
             }
-            if let NumberConfig::Num(p) = &self.period && table.iter().any(|v| *v > *p) {
+            if let NumberConfig::Num(p) = &self.period
+                && table.iter().any(|v| *v > *p)
+            {
                 errors.push("Periodic table values should be within the period".to_string());
             }
         }

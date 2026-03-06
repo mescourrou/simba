@@ -8,13 +8,13 @@ use core::f32;
 use std::fmt;
 use std::str::FromStr;
 
+use config_checker::*;
 use log::debug;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 use simba_com::pub_sub::{BrokerTrait, BrokerTraitExtended, PathKey};
 use simba_macros::config_derives;
-use config_checker::*;
 
 use crate::logger::is_enabled;
 use crate::networking::channels;

@@ -21,9 +21,9 @@ use crate::{
     state_estimators::{State, StateConfig, StateRecord},
     utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory},
 };
+use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
-use config_checker::*;
 
 /// Config for the [`InternalPhysics`].
 #[config_derives]

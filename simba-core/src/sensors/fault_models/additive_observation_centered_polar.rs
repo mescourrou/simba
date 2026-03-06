@@ -101,10 +101,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = ["r", "theta", "orientation", "width", "height"]
-                .iter()
-                .map(|x| String::from(*x))
-                .collect();
+            let possible_variables = ["r", "theta", "orientation", "width", "height"];
             ui.horizontal(|ui| {
                 ui.label("Variable order:");
                 for (i, var) in self.variable_order.iter_mut().enumerate() {
@@ -119,15 +116,12 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                         possible_variables
                             .get(self.variable_order.len().min(possible_variables.len()))
                             .unwrap()
-                            .clone(),
+                            .to_string(),
                     );
                 }
             });
 
-            let possible_variables = ["t", "d", "time", "distance"]
-                .iter()
-                .map(|x| String::from(*x))
-                .collect();
+            let possible_variables = ["t", "d", "time", "distance"];
             ui.horizontal(|ui| {
                 ui.label("Proportional to:");
                 if let Some(variable) = &mut self.proportional_to {
@@ -137,7 +131,7 @@ impl UIComponent for AdditiveObservationCenteredPolarFaultConfig {
                         self.proportional_to = None;
                     }
                 } else if ui.button("+").clicked() {
-                    self.proportional_to = Some(possible_variables.first().unwrap().clone());
+                    self.proportional_to = Some(possible_variables.first().unwrap().to_string());
                 }
             });
         });

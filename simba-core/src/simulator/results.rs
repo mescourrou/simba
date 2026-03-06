@@ -94,10 +94,7 @@ impl UIComponent for ResultConfig {
                 ui.label("Save mode:");
                 string_combobox(
                     ui,
-                    &ResultSaveMode::to_vec()
-                        .iter()
-                        .map(|x: &&str| String::from(*x))
-                        .collect(),
+                    &ResultSaveMode::to_vec(),
                     &mut current_str,
                     format!("result-save-mode-choice-{}", unique_id),
                 );

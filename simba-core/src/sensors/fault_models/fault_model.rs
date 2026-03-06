@@ -185,10 +185,7 @@ impl FaultModelConfig {
             }
             string_combobox(
                 ui,
-                &FaultModelConfig::to_vec()
-                    .iter()
-                    .map(|x: &&str| String::from(*x))
-                    .collect(),
+                &FaultModelConfig::to_vec(),
                 buffer_stack.get_mut(&buffer_key).unwrap(),
                 format!("fault-choice-{}", unique_id),
             );

@@ -10,6 +10,10 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
 
     let struct_identifier = &input.ident;
+
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
     let mut field_enum_list = TokenStream2::new();
     let mut enum_impl = TokenStream2::new();
     let mut field_str_list = TokenStream2::new();
@@ -80,8 +84,8 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
             }
             enum_impl = quote! {
                 #[automatically_derived]
-                impl crate::utils::enum_tools::ToVec<#struct_identifier> for #struct_identifier {
-                    fn to_vec() -> Vec<#struct_identifier> {
+                impl #impl_generics crate::utils::enum_tools::ToVec<#struct_identifier #ty_generics> for #struct_identifier #ty_generics #where_clause {
+                    fn to_vec() -> Vec<#struct_identifier #ty_generics> {
                         vec![#field_enum_list]
                     }
                 }
@@ -96,7 +100,7 @@ pub fn derive_tovec(item: TokenStream) -> TokenStream {
 
     quote! {
         #[automatically_derived]
-        impl crate::utils::enum_tools::ToVec<&'static str> for #struct_identifier {
+        impl #impl_generics crate::utils::enum_tools::ToVec<&'static str> for #struct_identifier #ty_generics #where_clause {
             fn to_vec() -> Vec<&'static str> {
                 vec![#field_str_list]
             }
@@ -112,6 +116,8 @@ pub fn derive_enum_to_string(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
 
     let struct_identifier = &input.ident;
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let mut match_impl = TokenStream2::new();
     match &input.data {
@@ -213,7 +219,7 @@ pub fn derive_enum_to_string(item: TokenStream) -> TokenStream {
 
     quote! {
         #[automatically_derived]
-        impl std::fmt::Display for #struct_identifier {
+        impl #impl_generics std::fmt::Display for #struct_identifier #ty_generics #where_clause {
             #[allow(unreachable_patterns)]
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 write!(f, "{}", match self {

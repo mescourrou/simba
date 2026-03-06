@@ -26,6 +26,13 @@ pub mod sensor_filters;
 
 extern crate confy;
 
+use std::{
+    collections::HashMap,
+    fmt::{Debug, Display},
+    hash::Hash,
+    str::FromStr,
+};
+
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::{EnumToString, config_derives};
 
@@ -42,7 +49,8 @@ use crate::{
     recordable::Recordable,
     sensors::{
         displacement_sensor::{DisplacementObservation, DisplacementObservationRecord},
-        external_sensor::{ExternalObservation, ExternalObservationRecord}, scan_sensor::{ScanObservation, ScanObservationRecord},
+        external_sensor::{ExternalObservation, ExternalObservationRecord},
+        scan_sensor::{ScanObservation, ScanObservationRecord},
     },
 };
 #[cfg(feature = "gui")]
@@ -193,17 +201,17 @@ impl UIComponent for SensorObservationRecord {
 #[config_derives]
 pub enum SensorConfig {
     #[check]
-    OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorConfig),
+    OrientedLandmark(oriented_landmark_sensor::OrientedLandmarkSensorConfig),
     #[check]
-    SpeedSensor(speed_sensor::SpeedSensorConfig),
+    Speed(speed_sensor::SpeedSensorConfig),
     #[check]
-    DisplacementSensor(displacement_sensor::DisplacementSensorConfig),
+    Displacement(displacement_sensor::DisplacementSensorConfig),
     #[check]
-    GNSSSensor(gnss_sensor::GNSSSensorConfig),
+    GNSS(gnss_sensor::GNSSSensorConfig),
     #[check]
-    RobotSensor(robot_sensor::RobotSensorConfig),
+    Robot(robot_sensor::RobotSensorConfig),
     #[check]
-    ScanSensor(scan_sensor::ScanSensorConfig),
+    Scan(scan_sensor::ScanSensorConfig),
     #[check]
     External(external_sensor::ExternalSensorConfig),
 }
@@ -224,38 +232,27 @@ impl UIComponent for SensorConfig {
             ui.label("Sensor:");
             string_combobox(
                 ui,
-                &SensorConfig::to_vec()
-                    .iter()
-                    .map(|x: &&str| String::from(*x))
-                    .collect(),
+                &SensorConfig::to_vec(),
                 &mut current_str,
                 format!("sensor-choice-{}", unique_id),
             );
         });
         if current_str != self.to_string() {
             match current_str.as_str() {
-                "OrientedLandmarkSensor" => {
-                    *self = SensorConfig::OrientedLandmarkSensor(
+                "OrientedLandmark" => {
+                    *self = SensorConfig::OrientedLandmark(
                         oriented_landmark_sensor::OrientedLandmarkSensorConfig::default(),
                     )
                 }
-                "SpeedSensor" => {
-                    *self = SensorConfig::SpeedSensor(speed_sensor::SpeedSensorConfig::default())
-                }
-                "DisplacementSensor" => {
-                    *self = SensorConfig::DisplacementSensor(
+                "Speed" => *self = SensorConfig::Speed(speed_sensor::SpeedSensorConfig::default()),
+                "Displacement" => {
+                    *self = SensorConfig::Displacement(
                         displacement_sensor::DisplacementSensorConfig::default(),
                     )
                 }
-                "GNSSSensor" => {
-                    *self = SensorConfig::GNSSSensor(gnss_sensor::GNSSSensorConfig::default())
-                }
-                "RobotSensor" => {
-                    *self = SensorConfig::RobotSensor(robot_sensor::RobotSensorConfig::default())
-                }
-                "ScanSensor" => {
-                    *self = SensorConfig::ScanSensor(scan_sensor::ScanSensorConfig::default())
-                }
+                "GNSS" => *self = SensorConfig::GNSS(gnss_sensor::GNSSSensorConfig::default()),
+                "Robot" => *self = SensorConfig::Robot(robot_sensor::RobotSensorConfig::default()),
+                "Scan" => *self = SensorConfig::Scan(scan_sensor::ScanSensorConfig::default()),
                 "External" => {
                     *self = SensorConfig::External(external_sensor::ExternalSensorConfig::default())
                 }
@@ -263,7 +260,7 @@ impl UIComponent for SensorConfig {
             };
         }
         match self {
-            SensorConfig::OrientedLandmarkSensor(c) => c.show_mut(
+            SensorConfig::OrientedLandmark(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -271,7 +268,7 @@ impl UIComponent for SensorConfig {
                 current_node_name,
                 unique_id,
             ),
-            SensorConfig::SpeedSensor(c) => c.show_mut(
+            SensorConfig::Speed(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -279,7 +276,7 @@ impl UIComponent for SensorConfig {
                 current_node_name,
                 unique_id,
             ),
-            SensorConfig::DisplacementSensor(c) => c.show_mut(
+            SensorConfig::Displacement(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -287,7 +284,7 @@ impl UIComponent for SensorConfig {
                 current_node_name,
                 unique_id,
             ),
-            SensorConfig::GNSSSensor(c) => c.show_mut(
+            SensorConfig::GNSS(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -295,7 +292,7 @@ impl UIComponent for SensorConfig {
                 current_node_name,
                 unique_id,
             ),
-            SensorConfig::RobotSensor(c) => c.show_mut(
+            SensorConfig::Robot(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -303,7 +300,7 @@ impl UIComponent for SensorConfig {
                 current_node_name,
                 unique_id,
             ),
-            SensorConfig::ScanSensor(c) => c.show_mut(
+            SensorConfig::Scan(c) => c.show_mut(
                 ui,
                 ctx,
                 buffer_stack,
@@ -327,12 +324,12 @@ impl UIComponent for SensorConfig {
             ui.label(format!("Sensor: {}", self));
         });
         match self {
-            SensorConfig::OrientedLandmarkSensor(c) => c.show(ui, ctx, unique_id),
-            SensorConfig::SpeedSensor(c) => c.show(ui, ctx, unique_id),
-            SensorConfig::DisplacementSensor(c) => c.show(ui, ctx, unique_id),
-            SensorConfig::GNSSSensor(c) => c.show(ui, ctx, unique_id),
-            SensorConfig::RobotSensor(c) => c.show(ui, ctx, unique_id),
-            SensorConfig::ScanSensor(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::OrientedLandmark(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::Speed(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::Displacement(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::GNSS(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::Robot(c) => c.show(ui, ctx, unique_id),
+            SensorConfig::Scan(c) => c.show(ui, ctx, unique_id),
             SensorConfig::External(c) => c.show(ui, ctx, unique_id),
         }
     }
@@ -360,32 +357,32 @@ impl UIComponent for SensorRecord {
                 });
             }
             Self::SpeedSensor(r) => {
-                egui::CollapsingHeader::new("SpeedSensor").show(ui, |ui| {
+                egui::CollapsingHeader::new("Speed").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }
             Self::DisplacementSensor(r) => {
-                egui::CollapsingHeader::new("DisplacementSensor").show(ui, |ui| {
+                egui::CollapsingHeader::new("Displacement").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }
             Self::GNSSSensor(r) => {
-                egui::CollapsingHeader::new("GNSSSensor").show(ui, |ui| {
+                egui::CollapsingHeader::new("GNSS").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }
             Self::RobotSensor(r) => {
-                egui::CollapsingHeader::new("RobotSensor").show(ui, |ui| {
+                egui::CollapsingHeader::new("Robot").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }
             Self::ScanSensor(r) => {
-                egui::CollapsingHeader::new("ScanSensor").show(ui, |ui| {
+                egui::CollapsingHeader::new("Scan").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }
             Self::External(r) => {
-                egui::CollapsingHeader::new("ExternalSensor").show(ui, |ui| {
+                egui::CollapsingHeader::new("External").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }

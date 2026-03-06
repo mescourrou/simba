@@ -7,7 +7,8 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
-use crate::errors::SimbaErrorTypes;
+use crate::enum_variables;
+use crate::errors::{SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
@@ -16,12 +17,13 @@ use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::fault_models::fault_model::make_fault_model_from_config;
 use crate::sensors::sensor_filters::{
-    SensorFilter, SensorFilterConfig, make_sensor_filter_from_config,
+    SensorFilter, SensorFilterConfig, SensorFilterType, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
 use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
+use crate::utils::enum_tools::EnumVariables;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use serde_derive::{Deserialize, Serialize};
 
@@ -32,6 +34,17 @@ use simba_macros::config_derives;
 
 use std::fmt;
 use std::sync::{Arc, Mutex};
+
+enum_variables!(
+    RobotSensorVariables;
+    X, "x";
+    Y, "y";
+    Orientation, "orientation", "z";
+    R, "r";
+    Theta, "theta";
+    SelfVelocity, "self_velocity";
+    TargetVelocity, "target_velocity";
+);
 
 /// Configuration of the [`RobotSensor`].
 #[config_derives]
@@ -44,7 +57,7 @@ pub struct RobotSensorConfig {
     #[check]
     pub faults: Vec<FaultModelConfig>,
     #[check]
-    pub filters: Vec<SensorFilterConfig>,
+    pub filters: Vec<SensorFilterConfig<RobotSensorVariables>>,
     pub xray: bool,
 }
 
@@ -413,33 +426,21 @@ pub struct RobotSensor {
     last_time: Option<f32>,
     xray: bool,
     faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
-    filters: SharedMutex<Vec<Box<dyn SensorFilter>>>,
+    filters: Vec<SensorFilterType<RobotSensorVariables>>,
 }
 
 impl RobotSensor {
-    /// Makes a new [`RobotSensor`].
-    pub fn new() -> Self {
-        RobotSensor::from_config(
-            &RobotSensorConfig::default(),
-            &None,
-            &SimulatorConfig::default(),
-            "NoName",
-            &DeterministRandomVariableFactory::default(),
-            0.0,
-        )
-    }
-
     /// Makes a new [`RobotSensor`] from the given config.
     ///
     /// The map path is relative to the config path of the simulator.
     pub fn from_config(
         config: &RobotSensorConfig,
-        _plugin_api: &Option<Arc<dyn PluginAPI>>,
+        plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
         node_name: &str,
-        va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
-    ) -> Self {
+    ) -> SimbaResult<Self> {
         let fault_models = Arc::new(Mutex::new(Vec::new()));
         let mut unlock_fault_model = fault_models.lock().unwrap();
         for fault_config in &config.faults {
@@ -453,35 +454,29 @@ impl RobotSensor {
         }
         drop(unlock_fault_model);
 
-        let filters = Arc::new(Mutex::new(Vec::new()));
-        let mut unlock_filters = filters.lock().unwrap();
+        let mut filters = Vec::new();
         for filter_config in &config.filters {
-            unlock_filters.push(make_sensor_filter_from_config(
+            filters.push(make_sensor_filter_from_config(
                 filter_config,
+                plugin_api,
                 global_config,
+                va_factory,
                 initial_time,
-            ));
+            )?);
         }
-        drop(unlock_filters);
 
         let period = config
             .activation_time
             .as_ref()
             .map(|p| Periodicity::from_config(p, va_factory, initial_time));
-        Self {
+        Ok(Self {
             detection_distance: config.detection_distance,
             activation_time: period,
             last_time: None,
             faults: fault_models,
             xray: config.xray,
             filters,
-        }
-    }
-}
-
-impl Default for RobotSensor {
-    fn default() -> Self {
-        Self::new()
+        })
     }
 }
 
@@ -489,8 +484,12 @@ use crate::node::Node;
 
 impl Sensor for RobotSensor {
     fn post_init(&mut self, node: &mut Node, initial_time: f32) -> crate::errors::SimbaResult<()> {
-        for filter in self.filters.lock().unwrap().iter_mut() {
-            filter.post_init(node, initial_time)?;
+        for filter in self.filters.iter_mut() {
+            match filter {
+                SensorFilterType::PythonFilter(f) => f.post_init(node, initial_time)?,
+                SensorFilterType::External(f) => f.post_init(node, initial_time)?,
+                _ => (), // No post_init needed for other filters for now
+            }
         }
         for fault_model in self.faults.lock().unwrap().iter_mut() {
             fault_model.post_init(node, initial_time)?;
@@ -560,15 +559,82 @@ impl Sensor for RobotSensor {
                             applied_faults: Vec::new(),
                         });
 
-                        if let Some(observation) = self
-                            .filters
-                            .lock()
-                            .unwrap()
-                            .iter()
-                            .try_fold(obs, |obs, filter| {
-                                filter.filter(time, obs, &state, Some(&other_state))
-                            })
-                        {
+                        let mut keep_observation = Some(obs);
+
+                        for filter in self.filters.iter() {
+                            if let Some(obs) = keep_observation {
+                                keep_observation = match filter {
+                                    SensorFilterType::PythonFilter(f) => {
+                                        f.filter(time, obs, &state, Some(&other_state))
+                                    }
+                                    SensorFilterType::External(f) => {
+                                        f.filter(time, obs, &state, Some(&other_state))
+                                    }
+                                    SensorFilterType::IdFilter(f) => {
+                                        if let SensorObservation::OrientedRobot(obs) = obs {
+                                            if f.match_exclusion(&[obs.name.clone()]) {
+                                                Some(SensorObservation::OrientedRobot(obs))
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            unreachable!()
+                                        }
+                                    }
+                                    SensorFilterType::LabelFilter(f) => {
+                                        if let SensorObservation::OrientedRobot(obs) = obs {
+                                            if f.match_exclusion(&obs.labels) {
+                                                Some(SensorObservation::OrientedRobot(obs))
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            unreachable!()
+                                        }
+                                    }
+                                    SensorFilterType::RangeFilter(f) => {
+                                        if let SensorObservation::OrientedRobot(obs) = obs {
+                                            if f.match_exclusion(
+                                                &RobotSensorVariables::mapped_values(|variant| {
+                                                    match variant {
+                                                        RobotSensorVariables::X => obs.pose.x,
+                                                        RobotSensorVariables::Y => obs.pose.y,
+                                                        RobotSensorVariables::Orientation => {
+                                                            obs.pose.z
+                                                        }
+                                                        RobotSensorVariables::R => {
+                                                            obs.pose.fixed_rows::<2>(0).norm()
+                                                        }
+                                                        RobotSensorVariables::Theta => {
+                                                            obs.pose.y.atan2(obs.pose.x)
+                                                        }
+                                                        RobotSensorVariables::SelfVelocity => {
+                                                            state.velocity.fixed_rows::<2>(0).norm()
+                                                        }
+                                                        RobotSensorVariables::TargetVelocity => {
+                                                            other_state
+                                                                .velocity
+                                                                .fixed_rows::<2>(0)
+                                                                .norm()
+                                                        }
+                                                    }
+                                                }),
+                                            ) {
+                                                Some(SensorObservation::OrientedRobot(obs))
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            unreachable!()
+                                        }
+                                    }
+                                };
+                            } else {
+                                break;
+                            }
+                        }
+
+                        if let Some(observation) = keep_observation {
                             new_obs.push(observation); // Not adding directly to observation_list to apply faults only once
                             for fault_model in self.faults.lock().unwrap().iter_mut() {
                                 fault_model.add_faults(

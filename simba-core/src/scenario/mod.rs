@@ -219,11 +219,11 @@ impl Scenario {
                         name
                     );
                 } else {
-                    let tmp_client =
-                        self.broker
-                            .write()
-                            .unwrap()
-                            .subscribe_to(&command_key, "scenario".to_string(), 0.);
+                    let tmp_client = self.broker.write().unwrap().subscribe_to(
+                        &command_key,
+                        "scenario".to_string(),
+                        0.,
+                    );
                     tmp_client.unwrap().send(
                         Envelope {
                             from: "scenario".to_string(),

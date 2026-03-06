@@ -62,10 +62,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = ["x", "y", "orientation", "velocity_x", "velocity_y"]
-                .iter()
-                .map(|x| String::from(*x))
-                .collect();
+            let possible_variables = ["x", "y", "orientation", "velocity_x", "velocity_y"];
             ui.horizontal(|ui| {
                 ui.label("Variable order:");
                 for (i, var) in self.variable_order.iter_mut().enumerate() {
@@ -80,7 +77,7 @@ impl UIComponent for AdditiveRobotCenteredPhysicsFaultConfig {
                         possible_variables
                             .get(self.variable_order.len().min(possible_variables.len()))
                             .unwrap()
-                            .clone(),
+                            .to_string(),
                     );
                 }
             });

@@ -188,10 +188,7 @@ impl UIComponent for RandomVariableTypeConfig {
             "Normal",
             "Poisson",
             "Exponential",
-        ]
-        .iter()
-        .map(|x| String::from(*x))
-        .collect();
+        ];
         ui.horizontal(|ui| {
             ui.label("Type:");
 

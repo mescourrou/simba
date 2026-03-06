@@ -1,8 +1,8 @@
+use config_checker::*;
 use libm::atan2f;
 use nalgebra::SMatrix;
 use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
-use config_checker::*;
 
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
@@ -46,13 +46,22 @@ impl Check for HolonomicConfig {
     fn do_check(&self) -> Result<(), Vec<String>> {
         let mut errors = Vec::new();
         if self.max_longitudinal_velocity < 0. {
-            errors.push(format!("Max longitudinal velocity should be positive, got {}", self.max_longitudinal_velocity));
+            errors.push(format!(
+                "Max longitudinal velocity should be positive, got {}",
+                self.max_longitudinal_velocity
+            ));
         }
         if self.max_lateral_velocity < 0. {
-            errors.push(format!("Max lateral velocity should be positive, got {}", self.max_lateral_velocity));
+            errors.push(format!(
+                "Max lateral velocity should be positive, got {}",
+                self.max_lateral_velocity
+            ));
         }
         if self.max_angular_velocity < 0. {
-            errors.push(format!("Max angular velocity should be positive, got {}", self.max_angular_velocity));
+            errors.push(format!(
+                "Max angular velocity should be positive, got {}",
+                self.max_angular_velocity
+            ));
         }
         if errors.is_empty() {
             Ok(())

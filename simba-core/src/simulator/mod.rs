@@ -633,10 +633,31 @@ impl Simulator {
     /// Simply print the Simulator state, using the info channel and the debug print.
     pub fn show(&self) {
         println!("Config:");
+        self.show_config();
+        self.show_state(None);
+    }
+
+    /// Show the configuration loaded
+    pub fn show_config(&self) {
         println!("{:#?}", self.config);
-        println!("Simulator:");
-        for node in self.nodes.iter() {
-            println!("- {:?}", node);
+    }
+
+    /// Show simulator state
+    pub fn show_state(&self, node_name: Option<&str>) {
+        if let Some(node_name) = node_name {
+            if let Some(node) = self.nodes.iter().find(|n| n.name() == node_name) {
+                println!("State of node '{}':\n{:#?}", node_name, node);
+            } else {
+                println!("Node '{}' not found", node_name);
+            }
+        } else {
+            println!(
+                "Simulator at time {:.4}:",
+                *self.common_time.read().unwrap()
+            );
+            for node in self.nodes.iter() {
+                println!("- {:?}", node);
+            }
         }
     }
 

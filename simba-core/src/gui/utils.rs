@@ -22,7 +22,7 @@ where
 
 pub fn string_combobox(
     ui: &mut egui::Ui,
-    possible_values: &Vec<String>,
+    possible_values: &[&str],
     value: &mut String,
     id: impl std::hash::Hash,
 ) {
@@ -30,7 +30,7 @@ pub fn string_combobox(
         .selected_text(format!("{:?}", value))
         .show_ui(ui, |ui| {
             for s in possible_values {
-                ui.selectable_value(value, s.clone(), s);
+                ui.selectable_value(value, s.to_string(), *s);
             }
         });
 }

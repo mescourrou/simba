@@ -342,7 +342,7 @@ mod tests {
                 sensors: vec![ManagedSensorConfig {
                     name: "RobotSensor".to_string(),
                     send_to: Vec::new(),
-                    config: SensorConfig::RobotSensor(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other node poses.
+                    config: SensorConfig::Robot(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other node poses.
                     ..Default::default()
                 }],
             },
@@ -354,7 +354,7 @@ mod tests {
                 sensors: vec![ManagedSensorConfig {
                     name: "RobotSensor".to_string(),
                     send_to: Vec::new(),
-                    config: SensorConfig::RobotSensor(RobotSensorConfig::default()),
+                    config: SensorConfig::Robot(RobotSensorConfig::default()),
                     ..Default::default()
                 }],
             },

@@ -22,12 +22,12 @@ use crate::{
 extern crate nalgebra as na;
 use libm::atan2;
 
+use config_checker::*;
 use nalgebra::SVector;
 use pyo3::{pyclass, pymethods};
 use serde_derive::{Deserialize, Serialize};
 use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::config_derives;
-use config_checker::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all, set_all)]
@@ -67,11 +67,7 @@ impl Check for GoToConfig {
         if self.stop_ramp_coefficient < 0. {
             errs.push("Stop ramp coefficient should be positive".to_string());
         }
-        if errs.is_empty() {
-            Ok(())
-        } else {
-            Err(errs)
-        }
+        if errs.is_empty() { Ok(()) } else { Err(errs) }
     }
 }
 
@@ -104,10 +100,10 @@ impl UIComponent for GoToConfig {
                     use crate::gui::utils::string_combobox;
 
                     ui.label("Target point: ".to_string());
-                    let possible_values = vec!["None".to_string(), "Some".to_string()];
+                    let possible_values = vec!["None", "Some"];
                     let buffer_key = format!("go-to-target-point-option-{unique_id}");
                     if !buffer_key.contains(&buffer_key) {
-                        buffer_stack.insert(buffer_key.clone(), possible_values[0].clone());
+                        buffer_stack.insert(buffer_key.clone(), possible_values[0].to_string());
                     }
                     let value = buffer_stack.get_mut(&buffer_key).unwrap();
                     string_combobox(ui, &possible_values, value, format!("go-to-{}", unique_id));

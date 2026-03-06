@@ -135,7 +135,9 @@ impl FaultModel for MisdetectionFault {
                             }
                         }
                     } else {
-                        panic!("obs_type should be the same than the type of the observations in obs_list (MisdetectionFault)");
+                        panic!(
+                            "obs_type should be the same than the type of the observations in obs_list (MisdetectionFault)"
+                        );
                     }
                 }
             }

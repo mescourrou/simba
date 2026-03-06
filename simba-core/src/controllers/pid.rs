@@ -121,26 +121,35 @@ impl Check for PIDConfig {
     fn do_check(&self) -> Result<(), Vec<String>> {
         let mut errs = Vec::new();
         if self.robot_model.is_none() {
-            warn!(
-                "No model given to PID controller, will use physics' one or default"
-            );
+            warn!("No model given to PID controller, will use physics' one or default");
             return Ok(());
         }
         let canonical_config = Self::default_from_model(self.robot_model.as_ref().unwrap());
         if canonical_config.proportional_gains.len() != self.proportional_gains.len() {
-            errs.push(format!("Length of proportional gains mismatch ({} vs {} expected for {} model)", self.proportional_gains.len(), canonical_config.proportional_gains.len(), self.robot_model.as_ref().unwrap()));
+            errs.push(format!(
+                "Length of proportional gains mismatch ({} vs {} expected for {} model)",
+                self.proportional_gains.len(),
+                canonical_config.proportional_gains.len(),
+                self.robot_model.as_ref().unwrap()
+            ));
         }
         if canonical_config.integral_gains.len() != self.integral_gains.len() {
-            errs.push(format!("Length of integral gains mismatch ({} vs {} expected for {} model)", self.integral_gains.len(), canonical_config.integral_gains.len(), self.robot_model.as_ref().unwrap()));
+            errs.push(format!(
+                "Length of integral gains mismatch ({} vs {} expected for {} model)",
+                self.integral_gains.len(),
+                canonical_config.integral_gains.len(),
+                self.robot_model.as_ref().unwrap()
+            ));
         }
         if canonical_config.derivative_gains.len() != self.derivative_gains.len() {
-            errs.push(format!("Length of derivative gains mismatch ({} vs {} expected for {} model)", self.derivative_gains.len(), canonical_config.derivative_gains.len(), self.robot_model.as_ref().unwrap()));
+            errs.push(format!(
+                "Length of derivative gains mismatch ({} vs {} expected for {} model)",
+                self.derivative_gains.len(),
+                canonical_config.derivative_gains.len(),
+                self.robot_model.as_ref().unwrap()
+            ));
         }
-        if !errs.is_empty() {
-            Err(errs)
-        } else {
-            Ok(())
-        }
+        if !errs.is_empty() { Err(errs) } else { Ok(()) }
     }
 }
 

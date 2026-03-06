@@ -71,10 +71,7 @@ impl UIComponent for RobotModelConfig {
             ui.label("Robot model:");
             string_combobox(
                 ui,
-                &RobotModelConfig::to_vec()
-                    .iter()
-                    .map(|x: &&str| String::from(*x))
-                    .collect(),
+                &RobotModelConfig::to_vec(),
                 &mut current_str,
                 format!("robot-model-choice-{}", unique_id),
             );

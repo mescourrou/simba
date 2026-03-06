@@ -54,13 +54,13 @@ pub fn mod2pi(f: f32) -> f32 {
 }
 
 /// Check if an angle is inside an interval of angles, taking into account the circular nature of angles.
-/// 
+///
 /// `start` is considered to be on the right `end`: if `start` = 0 and `end` = PI/2, the interval is [0, PI/2], if `start` = PI/2 and `end` = 0, the interval is [PI/2, PI] U [-PI, 0].
 /// # Arguments
 /// * `angle` - The angle to check, in radians.
 /// * `start` - The start of the interval, in radians.
 /// * `end` - The end of the interval, in radians.
-/// 
+///
 pub fn is_angle_inside(angle: f32, start: f32, end: f32) -> bool {
     let angle = mod2pi(angle);
     let start = mod2pi(start);

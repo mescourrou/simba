@@ -8,7 +8,8 @@ use crate::{
         oriented_landmark_sensor::{
             OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,
         },
-        robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig}, scan_sensor::{ScanObservationRecord, ScanSensorConfig},
+        robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig},
+        scan_sensor::{ScanObservationRecord, ScanSensorConfig},
     },
     simulator::SimulatorConfig,
 };

@@ -59,10 +59,16 @@ impl Check for StateConfig {
     fn do_check(&self) -> Result<(), Vec<String>> {
         let mut errors = Vec::new();
         if self.pose.len() > 3 {
-            errors.push(format!("Pose should contain at most 3 elements, got {}", self.pose.len()));
+            errors.push(format!(
+                "Pose should contain at most 3 elements, got {}",
+                self.pose.len()
+            ));
         }
         if self.velocity.len() > 2 {
-            errors.push(format!("Velocity should contain at most 2 elements, got {}", self.velocity.len()));
+            errors.push(format!(
+                "Velocity should contain at most 2 elements, got {}",
+                self.velocity.len()
+            ));
         }
         if errors.is_empty() {
             Ok(())
@@ -137,10 +143,7 @@ impl UIComponent for StateConfig {
                     "vy",
                     "r",
                     "theta",
-                ]
-                .iter()
-                .map(|x| String::from(*x))
-                .collect();
+                ];
                 ui.horizontal(|ui| {
                     ui.label("Variable order:");
                     for (i, var) in self.variable_order.iter_mut().enumerate() {
@@ -155,7 +158,7 @@ impl UIComponent for StateConfig {
                             possible_variables
                                 .get(self.variable_order.len().min(possible_variables.len()))
                                 .unwrap()
-                                .clone(),
+                                .to_string(),
                         );
                     }
                 });
@@ -503,10 +506,7 @@ impl UIComponent for StateEstimatorConfig {
             ui.label("State Estimator:");
             string_combobox(
                 ui,
-                &StateEstimatorConfig::to_vec()
-                    .iter()
-                    .map(|x: &&str| String::from(*x))
-                    .collect(),
+                &StateEstimatorConfig::to_vec(),
                 &mut current_str,
                 format!("state-estimator-choice-{}", unique_id),
             );

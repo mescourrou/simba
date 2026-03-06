@@ -109,10 +109,7 @@ impl UIComponent for ClutterFaultConfig {
                 "velocity_y",
                 "w",
                 "v",
-            ]
-            .iter()
-            .map(|x| String::from(*x))
-            .collect();
+            ];
             ui.horizontal(|ui| {
                 ui.label("Variable order:");
                 for (i, var) in self.variable_order.iter_mut().enumerate() {
@@ -127,7 +124,7 @@ impl UIComponent for ClutterFaultConfig {
                         possible_variables
                             .get(self.variable_order.len().min(possible_variables.len()))
                             .unwrap()
-                            .clone(),
+                            .to_string(),
                     );
                 }
             });
@@ -410,7 +407,10 @@ impl FaultModel for ClutterFault {
                         new_theta = random_sample[1];
                         new_radial_velocity = random_sample[2];
                     }
-                    if let SensorObservation::Scan(o) = &mut obs_list.first_mut().expect("obs_list should not be empty (ClutterFault for Scan observations)") {
+                    if let SensorObservation::Scan(o) = &mut obs_list
+                        .first_mut()
+                        .expect("obs_list should not be empty (ClutterFault for Scan observations)")
+                    {
                         o.distances.push(new_r);
                         o.angles.push(new_theta);
                         o.radial_velocities.push(new_radial_velocity);

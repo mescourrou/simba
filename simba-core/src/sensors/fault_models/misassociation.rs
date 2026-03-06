@@ -138,7 +138,7 @@ impl UIComponent for MisassociationFaultConfig {
 
             ui.horizontal(|ui| {
                 ui.label("Source:");
-                let possible_values = vec!["Robots".to_string(), "Map".to_string()];
+                let possible_values = vec!["Robots", "Map"];
                 let mut current_source = self.source.to_string();
                 string_combobox(ui, &possible_values, &mut current_source, unique_id);
                 if current_source != self.source.to_string() {
@@ -291,7 +291,10 @@ impl FaultModel for MisassociationFault {
                         .push(FaultModelConfig::Misassociation(self.config.clone()));
                 }
                 _ => {
-                    unimplemented!("MisassociationFault cannot apply fault to {} observations", obs.to_string());
+                    unimplemented!(
+                        "MisassociationFault cannot apply fault to {} observations",
+                        obs.to_string()
+                    );
                 }
             }
         }

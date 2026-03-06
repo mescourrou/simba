@@ -110,10 +110,7 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                 "v",
                 "width",
                 "height",
-            ]
-            .iter()
-            .map(|x| String::from(*x))
-            .collect();
+            ];
             ui.horizontal(|ui| {
                 ui.label("Variable order:");
                 for (i, var) in self.variable_order.iter_mut().enumerate() {
@@ -128,14 +125,11 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                         possible_variables
                             .get(self.variable_order.len().min(possible_variables.len()))
                             .unwrap()
-                            .clone(),
+                            .to_string(),
                     );
                 }
             });
-            let possible_variables = ["t", "d", "time", "distance"]
-                .iter()
-                .map(|x| String::from(*x))
-                .collect();
+            let possible_variables = ["t", "d", "time", "distance"];
             ui.horizontal(|ui| {
                 ui.label("Proportional to:");
                 if let Some(variable) = &mut self.proportional_to {
@@ -145,7 +139,7 @@ impl UIComponent for AdditiveRobotCenteredFaultConfig {
                         self.proportional_to = None;
                     }
                 } else if ui.button("+").clicked() {
-                    self.proportional_to = Some(possible_variables.first().unwrap().clone());
+                    self.proportional_to = Some(possible_variables.first().unwrap().to_string());
                 }
             });
         });
@@ -440,7 +434,9 @@ impl FaultModel for AdditiveRobotCenteredFault {
                     for i in 0..o.distances.len() {
                         let mut random_sample = Vec::new();
                         for d in self.distributions.lock().unwrap().iter() {
-                            random_sample.extend_from_slice(&d.generate(seed + i as f32 / (100. * o.distances.len() as f32)));
+                            random_sample.extend_from_slice(
+                                &d.generate(seed + i as f32 / (100. * o.distances.len() as f32)),
+                            );
                         }
                         let mut adding_radial_velocity = 0.;
                         let mut adding_x = 0.;

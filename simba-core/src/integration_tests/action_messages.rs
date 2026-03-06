@@ -348,7 +348,7 @@ fn trigger_sensor() {
         sensor_manager: SensorManagerConfig {
             sensors: vec![ManagedSensorConfig {
                 name: "RobotSensor".to_string(),
-                config: SensorConfig::RobotSensor(RobotSensorConfig {
+                config: SensorConfig::Robot(RobotSensorConfig {
                     detection_distance: 100.,
                     activation_time: None,
                     ..Default::default()

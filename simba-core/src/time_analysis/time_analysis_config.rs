@@ -74,12 +74,7 @@ impl UIComponent for TimeAnalysisConfig {
                 ui.label("Analysis unit:");
                 string_combobox(
                     ui,
-                    &vec![
-                        "s".to_string(),
-                        "ms".to_string(),
-                        "us".to_string(),
-                        "ns".to_string(),
-                    ],
+                    &vec!["s", "ms", "us", "ns"],
                     &mut self.analysis_unit,
                     "time-analysis-unit",
                 );
