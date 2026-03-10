@@ -26,12 +26,7 @@ pub mod sensor_filters;
 
 extern crate confy;
 
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Display},
-    hash::Hash,
-    str::FromStr,
-};
+use std::fmt::Debug;
 
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::{EnumToString, config_derives};

@@ -1,3 +1,4 @@
+// #![warn(missing_docs)]
 /*!
 Multi robot simulator with multi-threading and without ticking time.
 
@@ -7,6 +8,8 @@ the possibility to run faster than time, but also to take more time if needed.
 
 All the simulator execution is based on the configuration file given. The configuration documentation is available below
 and more extensively [here](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/user).
+the root of the configuration is [`SimulatorConfig`](crate::simulator::simulator_config::SimulatorConfig) struct,
+which is used to load the configuration file and run the simulator.
 
 The simulator is modular and external modules can be used (through the [`plugin_api`]). There
 are three main components:

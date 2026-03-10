@@ -25,7 +25,6 @@ use crate::sensors::sensor_filters::{
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
-use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
@@ -36,7 +35,7 @@ extern crate nalgebra as na;
 use na::Vector3;
 use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::vec;
 
 enum_variables!(
@@ -377,7 +376,6 @@ impl OrientedLandmarkSensor {
         config: &OrientedLandmarkSensorConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        robot_name: &str,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
     ) -> SimbaResult<Self> {

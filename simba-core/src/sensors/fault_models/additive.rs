@@ -7,14 +7,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use libm::atan2f;
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{
-    UIComponent,
-    utils::{enum_combobox, string_combobox},
-};
+use crate::gui::{UIComponent, utils::enum_combobox};
 use crate::utils::{
     SharedMutex,
     determinist_random_variable::{
@@ -25,7 +21,6 @@ use crate::utils::{
         normal::NormalRandomVariableConfig,
     },
     enum_tools::EnumVariables,
-    geometry::mod2pi,
 };
 
 #[config_derives]
@@ -260,7 +255,6 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> AdditiveFault<SVO, SVProp> {
                     prop_var,
                     proportionnal_map
                         .keys()
-                        .into_iter()
                         .map(|v| v.to_string())
                         .collect::<Vec<_>>()
                         .join(", "),
@@ -278,7 +272,6 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> AdditiveFault<SVO, SVProp> {
                         var,
                         variable_map
                             .keys()
-                            .into_iter()
                             .map(|v| v.to_string())
                             .collect::<Vec<_>>()
                             .join(", "),

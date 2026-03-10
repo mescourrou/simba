@@ -2,7 +2,7 @@
 Provides a [`Sensor`] which can provide position and velocity in the global frame.
 */
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use super::fault_models::fault_model::FaultModel;
 use super::{Sensor, SensorObservation, SensorRecord};
@@ -23,7 +23,6 @@ use crate::sensors::sensor_filters::{
     SensorFilter, SensorFilterConfig, SensorFilterType, make_sensor_filter_from_config,
 };
 use crate::simulator::SimulatorConfig;
-use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
@@ -269,7 +268,6 @@ impl GNSSSensor {
         config: &GNSSSensorConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        robot_name: &str,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
     ) -> SimbaResult<Self> {

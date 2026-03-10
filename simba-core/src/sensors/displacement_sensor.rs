@@ -2,10 +2,7 @@
 Provides a [`Sensor`] which can provide the transformation since the last observation.
 */
 
-use std::collections::HashMap;
-use std::fmt::Display;
-use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use super::fault_models::fault_model::FaultModel;
 use super::{Sensor, SensorObservation, SensorRecord};
@@ -13,7 +10,7 @@ use super::{Sensor, SensorObservation, SensorRecord};
 use crate::config::NumberConfig;
 use crate::constants::TIME_ROUND;
 
-use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
@@ -27,7 +24,6 @@ use crate::sensors::sensor_filters::{
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
-use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
 use crate::utils::geometry::smallest_theta_diff;
@@ -35,7 +31,7 @@ use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use log::debug;
 use nalgebra::{Matrix3, Vector2};
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::{EnumToString, ToVec, UIComponent, config_derives, enum_variables};
+use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
 extern crate nalgebra as na;
 
@@ -281,7 +277,6 @@ impl DisplacementSensor {
         config: &DisplacementSensorConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        _robot_name: &str,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
         initial_state: &State,
@@ -403,7 +398,8 @@ impl Sensor for DisplacementSensor {
             (local_displacement.x, local_displacement.y, dtheta)
         };
 
-        let lie_distance = self.last_state.velocity.fixed_rows::<2>(0).norm() * (time - self.last_time.unwrap_or(time));
+        let lie_distance = self.last_state.velocity.fixed_rows::<2>(0).norm()
+            * (time - self.last_time.unwrap_or(time));
 
         let obs = SensorObservation::Displacement(DisplacementObservation {
             translation: Vector2::new(tx, ty),
@@ -496,7 +492,9 @@ impl Sensor for DisplacementSensor {
                                             DisplacementSensorVariablesProp::Translation => {
                                                 o.translation.fixed_rows::<2>(0).norm()
                                             }
-                                            DisplacementSensorVariablesProp::Distance => lie_distance,
+                                            DisplacementSensorVariablesProp::Distance => {
+                                                lie_distance
+                                            }
                                             DisplacementSensorVariablesProp::SelfVelocity => {
                                                 state.velocity.fixed_rows::<2>(0).norm()
                                             }
@@ -582,7 +580,9 @@ impl Sensor for DisplacementSensor {
                                             DisplacementSensorVariablesProp::Translation => {
                                                 o.translation.fixed_rows::<2>(0).norm()
                                             }
-                                            DisplacementSensorVariablesProp::Distance => lie_distance,
+                                            DisplacementSensorVariablesProp::Distance => {
+                                                lie_distance
+                                            }
                                             DisplacementSensorVariablesProp::SelfVelocity => {
                                                 state.velocity.fixed_rows::<2>(0).norm()
                                             }

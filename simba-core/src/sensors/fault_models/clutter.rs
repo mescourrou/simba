@@ -8,7 +8,7 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::gui::{
     UIComponent,
-    utils::{enum_combobox, string_combobox, text_singleline_with_apply},
+    utils::{enum_combobox, text_singleline_with_apply},
 };
 use crate::utils::{
     SharedMutex,
@@ -17,10 +17,7 @@ use crate::utils::{
     },
     distributions::{poisson::PoissonRandomVariableConfig, uniform::UniformRandomVariableConfig},
     enum_tools::EnumVariables,
-    geometry::mod2pi,
 };
-
-use super::fault_model::FaultModel;
 
 #[config_derives]
 pub struct ClutterFaultConfig<SV: EnumVariables> {
@@ -222,206 +219,6 @@ impl<SV: EnumVariables> ClutterFault<SV> {
                 }
             }
             new_obs.push((self.observation_id.clone(), o));
-            // let mut new_obs = obs_type.clone();
-            // match &mut new_obs {
-            //     SensorObservation::OrientedRobot(o) => {
-            //         if !self.variable_order.is_empty() {
-            //             for (i, variable) in self.variable_order.iter().enumerate() {
-            //                 match variable.as_str() {
-            //                     "x" => o.pose.x = random_sample[i],
-            //                     "y" => o.pose.y = random_sample[i],
-            //                     "z" | "orientation" => o.pose.z = random_sample[i],
-            //                     &_ => panic!(
-            //                         "Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]",
-            //                         variable
-            //                     ),
-            //                 }
-            //             }
-            //         } else {
-            //             assert!(
-            //                 random_sample.len() >= 3,
-            //                 "The distribution of an Clutter fault for OrientedRobot observation need to be of dimension 3."
-            //             );
-            //             o.pose.x = random_sample[0];
-            //             o.pose.y = random_sample[1];
-            //             o.pose.z = random_sample[2];
-            //         }
-            //         o.pose.z = mod2pi(o.pose.z);
-            //         o.name = self.observation_id.clone();
-            //         o.applied_faults
-            //             .push(FaultModelConfig::Clutter(self.config.clone()));
-            //     }
-            //     SensorObservation::GNSS(o) => {
-            //         if !self.variable_order.is_empty() {
-            //             for (i, variable) in self.variable_order.iter().enumerate() {
-            //                 match variable.as_str() {
-            //                     "position_x" | "x" => o.pose.x = random_sample[i],
-            //                     "position_y" | "y" => o.pose.y = random_sample[i],
-            //                     "orientation" | "z" => o.pose.z = random_sample[i],
-            //                     "velocity_x" => o.velocity.x = random_sample[i],
-            //                     "velocity_y" => o.velocity.y = random_sample[i],
-            //                     &_ => panic!(
-            //                         "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, orientation | z, velocity_x, velocity_y]",
-            //                         variable
-            //                     ),
-            //                 }
-            //             }
-            //         } else {
-            //             assert!(
-            //                 random_sample.len() >= 2,
-            //                 "The distribution of an Clutter fault for GNSS observation need to be at least of dimension 2 (to 5 for orientation and velocities)."
-            //             );
-            //             o.pose.x = random_sample[0];
-            //             o.pose.y = random_sample[1];
-            //             if random_sample.len() >= 3 {
-            //                 o.pose.z = random_sample[2];
-            //             }
-            //             if random_sample.len() >= 4 {
-            //                 o.velocity.x = random_sample[3];
-            //             }
-            //             if random_sample.len() >= 5 {
-            //                 o.velocity.y = random_sample[4];
-            //             }
-            //         }
-            //         o.applied_faults
-            //             .push(FaultModelConfig::Clutter(self.config.clone()));
-            //     }
-            //     SensorObservation::Speed(o) => {
-            //         if !self.variable_order.is_empty() {
-            //             for (i, variable) in self.variable_order.iter().enumerate() {
-            //                 match variable.as_str() {
-            //                     "w" | "angular" | "angular_velocity" => {
-            //                         o.angular_velocity = random_sample[i]
-            //                     }
-            //                     "v" | "linear" | "linear_velocity" => {
-            //                         o.linear_velocity = random_sample[i]
-            //                     }
-            //                     &_ => panic!(
-            //                         "Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]",
-            //                         variable
-            //                     ),
-            //                 }
-            //             }
-            //         } else {
-            //             assert!(
-            //                 random_sample.len() >= 2,
-            //                 "The distribution of an Clutter fault for Speed observation need to be of dimension 2."
-            //             );
-            //             o.angular_velocity = random_sample[0];
-            //             o.linear_velocity = random_sample[1];
-            //         }
-            //         o.applied_faults
-            //             .push(FaultModelConfig::Clutter(self.config.clone()));
-            //     }
-            //     SensorObservation::Displacement(o) => {
-            //         if !self.variable_order.is_empty() {
-            //             for (i, variable) in self.variable_order.iter().enumerate() {
-            //                 match variable.as_str() {
-            //                     "dx" | "x" => o.translation.x = random_sample[i],
-            //                     "dy" | "y" => o.translation.y = random_sample[i],
-            //                     "r" | "rotation" => o.rotation = random_sample[i],
-            //                     &_ => panic!(
-            //                         "Unknown variable name: '{}'. Available variable names: [dx | x, dy | y, r | rotation]",
-            //                         variable
-            //                     ),
-            //                 }
-            //             }
-            //         } else {
-            //             assert!(
-            //                 random_sample.len() >= 2,
-            //                 "The distribution of an Clutter fault for Displacement observation need to be at least of dimension 2 (to 3 for rotation)."
-            //             );
-            //             o.translation.x = random_sample[0];
-            //             o.translation.y = random_sample[1];
-            //             if random_sample.len() >= 3 {
-            //                 o.rotation = random_sample[2];
-            //             }
-            //         }
-            //         o.applied_faults
-            //             .push(FaultModelConfig::Clutter(self.config.clone()));
-            //     }
-            //     SensorObservation::OrientedLandmark(o) => {
-            //         if !self.variable_order.is_empty() {
-            //             for (i, variable) in self.variable_order.iter().enumerate() {
-            //                 match variable.as_str() {
-            //                     "x" => o.pose.x = random_sample[i],
-            //                     "y" => o.pose.y = random_sample[i],
-            //                     "z" | "orientation" => o.pose.z = random_sample[i],
-            //                     &_ => panic!(
-            //                         "Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]",
-            //                         variable
-            //                     ),
-            //                 }
-            //             }
-            //         } else {
-            //             assert!(
-            //                 random_sample.len() >= 3,
-            //                 "The distribution of an Clutter fault for OrientedLandmark observation need to be of dimension 3."
-            //             );
-            //             o.pose.x = random_sample[0];
-            //             o.pose.y = random_sample[1];
-            //             o.pose.z = random_sample[2];
-            //         }
-            //         o.pose.z = mod2pi(o.pose.z);
-            //         o.id = self.observation_id.parse().unwrap_or(-1);
-            //         o.applied_faults
-            //             .push(FaultModelConfig::Clutter(self.config.clone()));
-            //     }
-            //     SensorObservation::Scan(_) => {
-            //         // Add points directly to the observation list. Each point is not a different observation
-            //         let mut new_r = 0.;
-            //         let mut new_theta = 0.;
-            //         let mut new_radial_velocity = 0.;
-            //         if !self.variable_order.is_empty() {
-            //             let mut new_x = 0.;
-            //             let mut new_y = 0.;
-            //             for (i, variable) in self.variable_order.iter().enumerate() {
-            //                 match variable.as_str() {
-            //                     "x" => new_x = random_sample[i],
-            //                     "y" => new_y = random_sample[i],
-            //                     "r" => new_r = random_sample[i],
-            //                     "theta" => new_theta = random_sample[i],
-            //                     "v" => new_radial_velocity = random_sample[i],
-            //                     &_ => panic!(
-            //                         "Unknown variable name: '{}'. Available variable names: [x, y, r, theta, v]",
-            //                         variable
-            //                     ),
-            //                 }
-            //                 new_r += new_x.hypot(new_y);
-            //                 new_theta += new_y.atan2(new_x);
-            //             }
-            //         } else {
-            //             assert!(
-            //                 random_sample.len() >= 3,
-            //                 "The distribution of an Clutter fault for Scan observation need to be of dimension 3 (r, theta, radial_velocity)."
-            //             );
-            //             new_r = random_sample[0];
-            //             new_theta = random_sample[1];
-            //             new_radial_velocity = random_sample[2];
-            //         }
-            //         if let SensorObservation::Scan(o) = &mut obs_list
-            //             .first_mut()
-            //             .expect("obs_list should not be empty (ClutterFault for Scan observations)")
-            //         {
-            //             o.distances.push(new_r);
-            //             o.angles.push(new_theta);
-            //             o.radial_velocities.push(new_radial_velocity);
-            //             if clutter_number == 0 {
-            //                 o.applied_faults
-            //                     .push(FaultModelConfig::Clutter(self.config.clone()));
-            //             }
-            //         } else {
-            //             panic!("obs_list should contain Scan observations (ClutterFault)");
-            //         }
-            //     }
-            //     SensorObservation::External(_) => {
-            //         panic!("ClutterFault cannot fault ExternalObservation");
-            //     }
-            // }
-            // if matches!(new_obs, SensorObservation::Scan(_)) {
-            //     continue;
-            // }
-            // obs_list.push(new_obs);
         }
         new_obs
     }

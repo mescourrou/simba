@@ -5,10 +5,7 @@ use simba_com::time_ordered_data::TimeOrderedData;
 use crate::{
     constants::TIME_ROUND,
     gui::{UIComponent, app::PainterInfo, drawables},
-    node::{
-        NodeState,
-        node_factory::{RobotConfig, RobotRecord},
-    },
+    node::node_factory::{RobotConfig, RobotRecord},
     sensors::{SensorConfig, SensorObservationRecord},
     simulator::SimulatorConfig,
 };

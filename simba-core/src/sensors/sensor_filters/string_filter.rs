@@ -2,10 +2,6 @@ use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::{
-    sensors::{SensorObservation, sensor_filters::SensorFilter},
-    state_estimators::State,
-};
 
 #[config_derives]
 pub struct StringFilterConfig {

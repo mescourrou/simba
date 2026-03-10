@@ -44,21 +44,21 @@ macro_rules! __enum_variables_emit_subenum {
         }
 
         impl std::str::FromStr for $name {
-            type Err = crate::errors::SimbaError;
-            fn from_str(s: &str) -> crate::errors::SimbaResult<Self> {
+            type Err = $crate::errors::SimbaError;
+            fn from_str(s: &str) -> $crate::errors::SimbaResult<Self> {
                 match s.to_lowercase().as_str() {
                     $(
                         $value $(| $add_value)* => Ok(Self::$variant),
                     )+
-                    _ => Err(crate::errors::SimbaError::new(
-                        crate::errors::SimbaErrorTypes::ConfigError,
+                    _ => Err($crate::errors::SimbaError::new(
+                        $crate::errors::SimbaErrorTypes::ConfigError,
                         format!("Unknown variable name: '{}'", s),
                     )),
                 }
             }
         }
 
-        impl crate::utils::enum_tools::ToVec<&'static str> for $name {
+        impl $crate::utils::enum_tools::ToVec<&'static str> for $name {
             fn to_vec() -> Vec<&'static str> {
                 vec![$(
                     $value,
@@ -67,7 +67,7 @@ macro_rules! __enum_variables_emit_subenum {
             }
         }
 
-        impl crate::utils::enum_tools::ToVec<$name> for $name {
+        impl $crate::utils::enum_tools::ToVec<$name> for $name {
             fn to_vec() -> Vec<$name> {
                 vec![
                     $(
@@ -91,7 +91,7 @@ macro_rules! __enum_variables_emit_subenum {
             }
         }
 
-        impl crate::utils::enum_tools::EnumVariables for $name {}
+        impl $crate::utils::enum_tools::EnumVariables for $name {}
     };
 }
 

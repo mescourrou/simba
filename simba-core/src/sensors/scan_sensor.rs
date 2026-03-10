@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use log::debug;
-use nalgebra::{Rotation2, Rotation3, Vector2, Vector3};
+use nalgebra::{Rotation2, Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
@@ -20,7 +20,6 @@ use crate::{
             clutter::{ClutterFault, ClutterFaultConfig},
             external_fault::{ExternalFault, ExternalFaultConfig},
             fault_model::FaultModel,
-            misassociation::{MisassociationFault, MisassociationFaultConfig},
             misdetection::{MisdetectionFault, MisdetectionFaultConfig},
             python_fault_model::{PythonFaultModel, PythonFaultModelConfig},
         },
@@ -367,7 +366,7 @@ impl UIComponent for ScanSensorRecord {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ScanObservation {
     pub distances: Vec<f32>,
     pub angles: Vec<f32>,
@@ -388,17 +387,6 @@ impl Iterator for ScanObservation {
                 self.angles.remove(0),
                 self.radial_velocities.remove(0),
             ))
-        }
-    }
-}
-
-impl Default for ScanObservation {
-    fn default() -> Self {
-        Self {
-            distances: Vec::new(),
-            angles: Vec::new(),
-            radial_velocities: Vec::new(),
-            applied_faults: Vec::new(),
         }
     }
 }
@@ -458,7 +446,6 @@ impl ScanSensor {
         config: &ScanSensorConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        node_name: &str,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
     ) -> SimbaResult<Self> {
@@ -473,45 +460,45 @@ impl ScanSensor {
         let mut fault_models = Vec::new();
         for fault_config in &config.faults {
             fault_models.push(match &fault_config {
-                &ScanSensorFaultModelConfig::AdditiveRobotCentered(cfg) => {
+                ScanSensorFaultModelConfig::AdditiveRobotCentered(cfg) => {
                     FaultModelTypeScanSensor::AdditiveRobotCentered(AdditiveFault::from_config(
                         cfg,
                         va_factory,
                         initial_time,
                     ))
                 }
-                &ScanSensorFaultModelConfig::PointAdditiveRobotCentered(cfg) => {
+                ScanSensorFaultModelConfig::PointAdditiveRobotCentered(cfg) => {
                     FaultModelTypeScanSensor::PointAdditiveRobotCentered(
                         AdditiveFault::from_config(cfg, va_factory, initial_time),
                     )
                 }
-                &ScanSensorFaultModelConfig::PointAdditiveObservationCentered(cfg) => {
+                ScanSensorFaultModelConfig::PointAdditiveObservationCentered(cfg) => {
                     FaultModelTypeScanSensor::PointAdditiveObservationCentered(
                         AdditiveFault::from_config(cfg, va_factory, initial_time),
                     )
                 }
-                &ScanSensorFaultModelConfig::Clutter(cfg) => FaultModelTypeScanSensor::Clutter(
+                ScanSensorFaultModelConfig::Clutter(cfg) => FaultModelTypeScanSensor::Clutter(
                     ClutterFault::from_config(cfg, va_factory, initial_time),
                 ),
-                &ScanSensorFaultModelConfig::Misdetection(cfg) => {
+                ScanSensorFaultModelConfig::Misdetection(cfg) => {
                     FaultModelTypeScanSensor::Misdetection(MisdetectionFault::from_config(
                         cfg,
                         va_factory,
                         initial_time,
                     ))
                 }
-                &ScanSensorFaultModelConfig::PointMisdetection(cfg) => {
+                ScanSensorFaultModelConfig::PointMisdetection(cfg) => {
                     FaultModelTypeScanSensor::PointMisdetection(MisdetectionFault::from_config(
                         cfg,
                         va_factory,
                         initial_time,
                     ))
                 }
-                &ScanSensorFaultModelConfig::Python(cfg) => FaultModelTypeScanSensor::Python(
+                ScanSensorFaultModelConfig::Python(cfg) => FaultModelTypeScanSensor::Python(
                     PythonFaultModel::from_config(cfg, global_config, initial_time)
                         .expect("Failed to create Python Fault Model"),
                 ),
-                &ScanSensorFaultModelConfig::External(cfg) => FaultModelTypeScanSensor::External(
+                ScanSensorFaultModelConfig::External(cfg) => FaultModelTypeScanSensor::External(
                     ExternalFault::from_config(
                         cfg,
                         plugin_api,
@@ -585,8 +572,6 @@ impl Sensor for ScanSensor {
             State::new() // 0
         };
         let position = state.pose.fixed_rows::<2>(0).into_owned();
-
-        let rotation_matrix = Rotation2::new(state.pose.z);
 
         // List of observable landmarks with their angle ranges (in sensor frame) and extremities (in world frame)
         let observable_landmarks = environment
@@ -685,7 +670,9 @@ impl Sensor for ScanSensor {
         }
 
         let initial_observation = SensorObservation::Scan(observation);
-        self.activation_time.as_mut().map(|p| p.update(time));
+        if let Some(activation_time) = self.activation_time.as_mut() {
+            activation_time.update(time);
+        }
         self.last_time = Some(time);
 
         let mut keep_observation = Some(initial_observation);
@@ -808,11 +795,11 @@ impl Sensor for ScanSensor {
                                 addition_vector.z = *z;
                             }
                             let rotation = Rotation2::new(addition_vector.z);
-                            let mut obs_clone = obs.clone();
+                            let obs_clone = obs.clone();
                             obs.distances.clear();
                             obs.angles.clear();
                             obs.radial_velocities.clear();
-                            for (d, angle, v) in obs_clone.into_iter() {
+                            for (d, angle, v) in obs_clone {
                                 let point = Vector2::new(d * angle.cos(), d * angle.sin());
                                 let new_point =
                                     rotation * point + addition_vector.fixed_rows::<2>(0);
@@ -852,7 +839,7 @@ impl Sensor for ScanSensor {
                             for (j, (d, angle, v)) in obs_clone.into_iter().enumerate() {
                                 let point_seed = f32::powi(seed, j as i32 + 1);
                                 let new_values = f.add_faults(
-                                    seed,
+                                    point_seed,
                                     ScanSensorVariablesPointFaults::mapped_values(|variant| {
                                         match variant {
                                             ScanSensorVariablesPointFaults::X => d * angle.cos(),
@@ -944,7 +931,7 @@ impl Sensor for ScanSensor {
                             for (j, (d, angle, v)) in obs_clone.into_iter().enumerate() {
                                 let point_seed = f32::powi(seed, j as i32 + 1);
                                 let adding_values = f.add_faults(
-                                    seed,
+                                    point_seed,
                                     ScanSensorVariablesPointFaults::mapped_values(|variant| {
                                         match variant {
                                             ScanSensorVariablesPointFaults::X => 0.,

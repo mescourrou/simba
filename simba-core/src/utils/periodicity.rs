@@ -26,17 +26,16 @@ pub struct PeriodicityConfig {
 impl Check for PeriodicityConfig {
     fn do_check(&self) -> Result<(), Vec<String>> {
         let mut errors = Vec::new();
-        if let NumberConfig::Num(num) = &self.period {
-            if *num <= 0. {
-                errors.push("Periodicity period should be positive".to_string());
-            }
+        if let NumberConfig::Num(num) = &self.period
+            && *num <= 0.
+        {
+            errors.push("Periodicity period should be positive".to_string());
         }
-        if let Some(offset) = &self.offset {
-            if let NumberConfig::Num(num) = offset {
-                if *num < 0. {
-                    errors.push("Periodicity offset should be positive or null".to_string());
-                }
-            }
+        if let Some(offset) = &self.offset
+            && let NumberConfig::Num(num) = offset
+            && *num < 0.
+        {
+            errors.push("Periodicity offset should be positive or null".to_string());
         }
         if let Some(table) = &self.table {
             if table.iter().any(|v| *v < 0.) {

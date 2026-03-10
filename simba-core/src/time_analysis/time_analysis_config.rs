@@ -1,15 +1,23 @@
 #[cfg(feature = "gui")]
 use std::collections::BTreeMap;
 
-use simba_macros::config_derives;
+use simba_macros::{config_derives, enum_variables};
 
 #[cfg(feature = "gui")]
 use crate::gui::{
     UIComponent,
-    utils::{enum_radio, path_finder, string_combobox},
+    utils::{enum_combobox, enum_radio, path_finder},
 };
 
 use crate::time_analysis::ProfileExporterConfig;
+
+enum_variables!(
+    AnalysisUnit;
+    Seconds, "s", "seconds";
+    Milliseconds, "ms", "milliseconds";
+    Microseconds, "us", "µs", "microseconds";
+    Nanoseconds, "ns", "nanoseconds";
+);
 
 #[config_derives]
 pub struct TimeAnalysisConfig {
@@ -17,24 +25,7 @@ pub struct TimeAnalysisConfig {
     pub exporter: ProfileExporterConfig,
     pub keep_last: bool,
     pub output_path: String,
-    pub analysis_unit: String,
-}
-
-impl Check for TimeAnalysisConfig {
-    fn do_check(&self) -> Result<(), Vec<String>> {
-        let mut errors = Vec::new();
-        if !["s", "ms", "us", "µs", "ns"].contains(&self.analysis_unit.as_str()) {
-            errors.push(format!(
-                "Invalid analysis unit: {}. Must be one of s, ms, us, µs, ns.",
-                self.analysis_unit
-            ));
-        }
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
-        }
-    }
+    pub analysis_unit: AnalysisUnit,
 }
 
 impl Default for TimeAnalysisConfig {
@@ -43,7 +34,7 @@ impl Default for TimeAnalysisConfig {
             exporter: ProfileExporterConfig::TraceEventExporter,
             keep_last: true,
             output_path: "time_performance".to_string(),
-            analysis_unit: "s".to_string(),
+            analysis_unit: AnalysisUnit::Milliseconds,
         }
     }
 }
@@ -72,12 +63,7 @@ impl UIComponent for TimeAnalysisConfig {
 
             ui.horizontal(|ui| {
                 ui.label("Analysis unit:");
-                string_combobox(
-                    ui,
-                    &vec!["s", "ms", "us", "ns"],
-                    &mut self.analysis_unit,
-                    "time-analysis-unit",
-                );
+                enum_combobox(ui, &mut self.analysis_unit, "time-analysis-unit");
             });
         });
     }

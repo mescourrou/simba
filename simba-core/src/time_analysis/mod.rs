@@ -21,7 +21,9 @@ use log::info;
 use std::collections::BTreeMap;
 use std::time;
 
-use crate::{errors::SimbaResult, utils::SharedMutex};
+use crate::{
+    errors::SimbaResult, time_analysis::time_analysis_config::AnalysisUnit, utils::SharedMutex,
+};
 
 #[derive(Debug)]
 pub struct TimeAnalysisNode {
@@ -140,14 +142,13 @@ impl TimeAnalysisFactory {
 
         let mut stats = BTreeMap::<String, Vec<String>>::new();
         let mut node_headers = vec!["Unit:".to_string()];
-        let mut track_headers = vec![self.config.analysis_unit.clone()];
+        let mut track_headers = vec![self.config.analysis_unit.to_string()];
 
-        let unit_multiplier = match self.config.analysis_unit.as_str() {
-            "s" => 1.,
-            "ms" => 1000.,
-            "us" | "µs" => 1000000.,
-            "ns" => 1000000000.,
-            &_ => panic!("Unknown unit!"),
+        let unit_multiplier = match self.config.analysis_unit {
+            AnalysisUnit::Seconds => 1.,
+            AnalysisUnit::Milliseconds => 1000.,
+            AnalysisUnit::Microseconds => 1000000.,
+            AnalysisUnit::Nanoseconds => 1000000000.,
         };
 
         for (node_name, profiles) in self.iter_execution_profiles() {

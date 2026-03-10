@@ -17,10 +17,8 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
-use crate::networking::network::Network;
 use crate::sensors::sensor_filters::SensorFilter;
 use crate::simulator::SimulatorConfig;
-use crate::utils::SharedRwLock;
 use crate::utils::macros::external_config;
 use crate::{
     plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,

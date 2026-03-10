@@ -5,7 +5,10 @@ use std::sync::{Arc, Mutex};
 use simba_macros::{config_derives, enum_variables};
 
 #[cfg(feature = "gui")]
-use crate::{gui::{UIComponent, utils::{enum_combobox, string_combobox}}, utils::enum_tools::ToVec};
+use crate::{
+    gui::{UIComponent, utils::enum_combobox},
+    utils::enum_tools::ToVec,
+};
 use crate::{
     physics::{fault_models::fault_model::PhysicsFaultModel, robot_models::RobotModelConfig},
     state_estimators::State,
@@ -173,12 +176,8 @@ impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
                 PhysicsVariables::Y => factor * state.pose.y,
                 PhysicsVariables::Orientation => factor * state.pose.z,
                 PhysicsVariables::Velocity => factor * state.velocity.fixed_rows::<2>(0).norm(),
-                PhysicsVariables::VelocityX => {
-                    factor * state.velocity.x
-                }
-                PhysicsVariables::VelocityY => {
-                    factor * state.velocity.y
-                }
+                PhysicsVariables::VelocityX => factor * state.velocity.x,
+                PhysicsVariables::VelocityY => factor * state.velocity.y,
             };
             delta_time * factor
         } else {
@@ -201,7 +200,8 @@ impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
                         if let RobotModelConfig::Unicycle(_) = self.robot_model {
                             // Unicycle robot model does not have lateral velocity (velocity_y).
                         } else {
-                            state.velocity.y += random_sample[i] * delta_time * velocity_angle.sin();
+                            state.velocity.y +=
+                                random_sample[i] * delta_time * velocity_angle.sin();
                         }
                     }
                     PhysicsVariables::VelocityX => {

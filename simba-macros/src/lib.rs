@@ -1,17 +1,11 @@
 extern crate proc_macro;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote};
-use syn::{
-    Attribute, Data, DeriveInput, Ident, Token, Type, meta,
-    parse::{Parse, ParseStream},
-    parse_macro_input,
-    punctuated::Punctuated,
-    spanned::Spanned,
-};
+use syn::{Data, DeriveInput, parse::Parse, parse_macro_input, spanned::Spanned};
 
 #[proc_macro_derive(ToVec)]
 pub fn derive_tovec(item: TokenStream) -> TokenStream {
@@ -251,10 +245,10 @@ fn parse_ui_name(attrs: &[syn::Attribute]) -> syn::Result<Option<String>> {
         match &attr.meta {
             // #[ui_name = "MyName"]
             syn::Meta::NameValue(nv) => {
-                if let syn::Expr::Lit(expr_lit) = &nv.value {
-                    if let syn::Lit::Str(s) = &expr_lit.lit {
-                        return Ok(Some(s.value()));
-                    }
+                if let syn::Expr::Lit(expr_lit) = &nv.value
+                    && let syn::Lit::Str(s) = &expr_lit.lit
+                {
+                    return Ok(Some(s.value()));
                 }
                 return Err(syn::Error::new_spanned(
                     nv,
@@ -282,10 +276,10 @@ fn parse_ui_show_all(attrs: &[syn::Attribute]) -> syn::Result<Option<String>> {
         match &attr.meta {
             // #[show_all = "Elements"]
             syn::Meta::NameValue(nv) => {
-                if let syn::Expr::Lit(expr_lit) = &nv.value {
-                    if let syn::Lit::Str(s) = &expr_lit.lit {
-                        return Ok(Some(s.value()));
-                    }
+                if let syn::Expr::Lit(expr_lit) = &nv.value
+                    && let syn::Lit::Str(s) = &expr_lit.lit
+                {
+                    return Ok(Some(s.value()));
                 }
                 return Err(syn::Error::new_spanned(
                     nv,
@@ -307,18 +301,13 @@ fn parse_ui_show_all(attrs: &[syn::Attribute]) -> syn::Result<Option<String>> {
     Ok(None)
 }
 
-#[proc_macro_derive(UIComponent, attributes(ui_name, show_all))]
+#[proc_macro_derive(UIComponent, attributes(show_all))]
 pub fn derive_ui_component(item: TokenStream) -> TokenStream {
     let input = syn::parse_macro_input!(item as syn::DeriveInput);
 
     let struct_identifier = &input.ident;
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    let name = parse_ui_name(&input.attrs)
-        .expect("Failed to parse UI name")
-        .unwrap_or_else(|| struct_identifier.to_string());
-
     let do_show_all = parse_ui_show_all(&input.attrs).expect("Failed to parse show_all attribute");
 
     let mut show_mut_match_impl = TokenStream2::new();
@@ -610,6 +599,7 @@ enum ConfigDerivesType {
 /// - untagged: for enums, use #[serde(untagged)] instead of #[serde(tag = "type")]
 /// - skip_unknown_fields: do not use #[serde(deny_unknown_fields)] (for configs that want to allow unknown fields, such as fault models that can have custom parameters)
 /// - skip_jsonschema: do not derive JsonSchema (for configs that cannot be represented in JSON Schema, such as those containing trait objects)
+///
 /// Example: #[config_derives(skip_check, skip_deserialize, tag_content)]
 #[proc_macro_attribute]
 pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -785,20 +775,6 @@ impl Parse for EnumVariablesVariant {
 #[proc_macro]
 pub fn enum_variables(input: TokenStream) -> TokenStream {
     let parsed = parse_macro_input!(input as EnumVariablesInput);
-
-    // for e in &parsed.variants {
-    //     if e.variant_name.is_empty() {
-    //         return Error::new_spanned(&e.variant_name, "at least one name is required")
-    //             .to_compile_error()
-    //             .into();
-    //     }
-    // }
-
-    let enum_macros = quote! {
-        #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, std::hash::Hash)]
-        #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
-    };
-
     let mut sub_enums = HashMap::new();
     for variant in &parsed.variants {
         for sub_enum in &variant.sub_enums {

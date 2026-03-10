@@ -11,7 +11,6 @@ use nalgebra::Vector2;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
-use serde_json::from_str;
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
@@ -22,7 +21,6 @@ use crate::gui::{
 use crate::{
     environment::Environment,
     node::NodeState,
-    simulator::SimulatorConfig,
     utils::{
         SharedMutex,
         determinist_random_variable::{
@@ -34,8 +32,6 @@ use crate::{
         },
     },
 };
-
-use super::fault_model::FaultModel;
 
 #[config_derives]
 #[derive(Default)]
@@ -250,49 +246,13 @@ impl MisassociationFault {
         if let Sort::Distance = self.sort {
             id_list.sort_by_key(|i| ((i.1 - position).norm_squared() * 1000.) as usize);
         }
-        let new_id = id_list[(random_sample[0].abs().floor() as usize).rem(id_list.len())]
+        id_list[(random_sample[0].abs().floor() as usize).rem(id_list.len())]
             .0
-            .clone();
-        new_id
-        //     match obs {
-        //         SensorObservation::OrientedRobot(o) => {
-        //             if let Sort::Distance = self.sort {
-        //                 id_list.sort_by_key(|i| {
-        //                     ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
-        //                 });
-        //             }
-        //             let new_id = id_list
-        //                 [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
-        //             .0
-        //             .clone();
-        //             o.name = new_id;
-        //             o.applied_faults
-        //                 .push(FaultModelConfig::Misassociation(self.config.clone()));
-        //         }
-        //         SensorObservation::OrientedLandmark(o) => {
-        //             if let Sort::Distance = self.sort {
-        //                 id_list.sort_by_key(|i| {
-        //                     ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
-        //                 });
-        //             }
-        //             let new_id = id_list
-        //                 [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
-        //             .0
-        //             .clone();
-        //             o.id = from_str(&new_id).expect(
-        //                 "Unexpected error: id_list should only contain int represented as string",
-        //             );
-        //             o.applied_faults
-        //                 .push(FaultModelConfig::Misassociation(self.config.clone()));
-        //         }
-        //         _ => {
-        //             unimplemented!(
-        //                 "MisassociationFault cannot apply fault to {} observations",
-        //                 obs.to_string()
-        //             );
-        //         }
-        //     }
-        // }
+            .clone()
+    }
+
+    pub fn config(&self) -> &MisassociationFaultConfig {
+        &self.config
     }
 }
 

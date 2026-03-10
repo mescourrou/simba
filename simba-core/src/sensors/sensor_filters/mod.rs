@@ -4,7 +4,6 @@ use simba_macros::{EnumToString, config_derives};
 
 use crate::{
     errors::SimbaResult,
-    networking::network::Network,
     node::Node,
     plugin_api::PluginAPI,
     sensors::{
@@ -19,8 +18,7 @@ use crate::{
     simulator::SimulatorConfig,
     state_estimators::State,
     utils::{
-        SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory,
-        enum_tools::EnumVariables,
+        determinist_random_variable::DeterministRandomVariableFactory, enum_tools::EnumVariables,
     },
 };
 #[cfg(feature = "gui")]

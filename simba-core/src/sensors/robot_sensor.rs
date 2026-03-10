@@ -27,7 +27,6 @@ use crate::sensors::sensor_filters::{
 };
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
-use crate::utils::SharedMutex;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
@@ -36,10 +35,10 @@ use serde_derive::{Deserialize, Serialize};
 use log::debug;
 extern crate nalgebra as na;
 use na::Vector3;
-use simba_macros::{EnumToString, ToVec, UIComponent, config_derives, enum_variables};
+use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 enum_variables!(
     RobotSensorVariables;
@@ -499,45 +498,44 @@ impl RobotSensor {
         config: &RobotSensorConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        node_name: &str,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
     ) -> SimbaResult<Self> {
         let mut fault_models = Vec::new();
         for fault_config in &config.faults {
             fault_models.push(match &fault_config {
-                &RobotSensorFaultModelConfig::AdditiveRobotCentered(cfg) => {
+                RobotSensorFaultModelConfig::AdditiveRobotCentered(cfg) => {
                     RobotSensorFaultModelType::AdditiveRobotCentered(AdditiveFault::from_config(
                         cfg,
                         va_factory,
                         initial_time,
                     ))
                 }
-                &RobotSensorFaultModelConfig::AdditiveObservationCentered(cfg) => {
+                RobotSensorFaultModelConfig::AdditiveObservationCentered(cfg) => {
                     RobotSensorFaultModelType::AdditiveObservationCentered(
                         AdditiveFault::from_config(cfg, va_factory, initial_time),
                     )
                 }
-                &RobotSensorFaultModelConfig::Clutter(cfg) => RobotSensorFaultModelType::Clutter(
+                RobotSensorFaultModelConfig::Clutter(cfg) => RobotSensorFaultModelType::Clutter(
                     ClutterFault::from_config(cfg, va_factory, initial_time),
                 ),
-                &RobotSensorFaultModelConfig::Misdetection(cfg) => {
+                RobotSensorFaultModelConfig::Misdetection(cfg) => {
                     RobotSensorFaultModelType::Misdetection(MisdetectionFault::from_config(
                         cfg,
                         va_factory,
                         initial_time,
                     ))
                 }
-                &RobotSensorFaultModelConfig::Misassociation(cfg) => {
+                RobotSensorFaultModelConfig::Misassociation(cfg) => {
                     RobotSensorFaultModelType::Misassociation(MisassociationFault::from_config(
                         cfg, va_factory,
                     ))
                 }
-                &RobotSensorFaultModelConfig::Python(cfg) => RobotSensorFaultModelType::Python(
+                RobotSensorFaultModelConfig::Python(cfg) => RobotSensorFaultModelType::Python(
                     PythonFaultModel::from_config(cfg, global_config, initial_time)
                         .expect("Failed to create Python Fault Model"),
                 ),
-                &RobotSensorFaultModelConfig::External(cfg) => RobotSensorFaultModelType::External(
+                RobotSensorFaultModelConfig::External(cfg) => RobotSensorFaultModelType::External(
                     ExternalFault::from_config(
                         cfg,
                         plugin_api,
@@ -663,7 +661,7 @@ impl Sensor for RobotSensor {
                                     }
                                     SensorFilterType::IdFilter(f) => {
                                         if let SensorObservation::OrientedRobot(obs) = obs {
-                                            if f.match_exclusion(&[obs.name.clone()]) {
+                                            if f.match_exclusion(std::slice::from_ref(&obs.name)) {
                                                 Some(SensorObservation::OrientedRobot(obs))
                                             } else {
                                                 None

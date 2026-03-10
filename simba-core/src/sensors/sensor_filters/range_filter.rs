@@ -1,13 +1,9 @@
-use std::{collections::HashMap, usize};
+use std::collections::HashMap;
 
-use log::debug;
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{
-    UIComponent,
-    utils::{enum_combobox, string_combobox},
-};
+use crate::gui::{UIComponent, utils::enum_combobox};
 use crate::utils::enum_tools::EnumVariables;
 
 #[config_derives]
@@ -159,7 +155,6 @@ impl<SV: EnumVariables> RangeFilter<SV> {
                     var,
                     variable_map
                         .keys()
-                        .into_iter()
                         .map(|v| v.to_string())
                         .collect::<Vec<_>>()
                         .join(", "),
