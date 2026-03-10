@@ -5,6 +5,7 @@ use simba_macros::{EnumToString, config_derives};
 use crate::{
     errors::SimbaResult,
     networking::network::Network,
+    node::Node,
     plugin_api::PluginAPI,
     sensors::{
         SensorObservation,
@@ -17,7 +18,10 @@ use crate::{
     },
     simulator::SimulatorConfig,
     state_estimators::State,
-    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory, enum_tools::EnumVariables},
+    utils::{
+        SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory,
+        enum_tools::EnumVariables,
+    },
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -215,6 +219,16 @@ pub enum SensorFilterType<SV: EnumVariables> {
     IdFilter(StringFilter),
     LabelFilter(StringFilter),
     External(Box<dyn SensorFilter>),
+}
+
+impl<SV: EnumVariables> SensorFilterType<SV> {
+    pub fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
+        match self {
+            Self::PythonFilter(f) => f.post_init(node, initial_time),
+            Self::External(f) => f.post_init(node, initial_time),
+            Self::IdFilter(_) | Self::LabelFilter(_) | Self::RangeFilter(_) => Ok(()),
+        }
+    }
 }
 
 pub fn make_sensor_filter_from_config<SV: EnumVariables>(

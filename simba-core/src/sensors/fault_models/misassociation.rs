@@ -22,7 +22,6 @@ use crate::gui::{
 use crate::{
     environment::Environment,
     node::NodeState,
-    sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
     simulator::SimulatorConfig,
     utils::{
         SharedMutex,
@@ -187,10 +186,7 @@ pub struct MisassociationFault {
 impl MisassociationFault {
     pub fn from_config(
         config: &MisassociationFaultConfig,
-        _global_config: &SimulatorConfig,
-        _robot_name: &str,
         va_factory: &DeterministRandomVariableFactory,
-        _initial_time: f32,
     ) -> Self {
         let distribution = Arc::new(Mutex::new(
             va_factory.make_variable(config.distribution.clone()),
@@ -211,20 +207,14 @@ impl MisassociationFault {
             config: config.clone(),
         }
     }
-}
 
-impl FaultModel for MisassociationFault {
-    fn add_faults(
+    pub fn new_label(
         &mut self,
-        _time: f32,
         seed: f32,
-        obs_list: &mut Vec<SensorObservation>,
-        _obs_type: SensorObservation,
+        old_label: String,
+        position: Vector2<f32>,
         environment: &Arc<Environment>,
-    ) {
-        let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
-        let mut seed = seed;
-
+    ) -> String {
         let mut id_list: Vec<(String, Vector2<f32>)> = match &self.source {
             Source::Robots => environment
                 .get_meta_data()
@@ -253,51 +243,56 @@ impl FaultModel for MisassociationFault {
             let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + seed).to_bits() as u64);
             id_list.shuffle(&mut rng);
         }
-        for obs in obs_list {
-            seed += obs_seed_increment;
-            if self.apparition.generate(seed)[0] < 1. {
-                continue;
-            }
-            let random_sample = self.distribution.lock().unwrap().generate(seed);
-            match obs {
-                SensorObservation::OrientedRobot(o) => {
-                    if let Sort::Distance = self.sort {
-                        id_list.sort_by_key(|i| {
-                            ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
-                        });
-                    }
-                    let new_id = id_list
-                        [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
-                    .0
-                    .clone();
-                    o.name = new_id;
-                    o.applied_faults
-                        .push(FaultModelConfig::Misassociation(self.config.clone()));
-                }
-                SensorObservation::OrientedLandmark(o) => {
-                    if let Sort::Distance = self.sort {
-                        id_list.sort_by_key(|i| {
-                            ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
-                        });
-                    }
-                    let new_id = id_list
-                        [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
-                    .0
-                    .clone();
-                    o.id = from_str(&new_id).expect(
-                        "Unexpected error: id_list should only contain int represented as string",
-                    );
-                    o.applied_faults
-                        .push(FaultModelConfig::Misassociation(self.config.clone()));
-                }
-                _ => {
-                    unimplemented!(
-                        "MisassociationFault cannot apply fault to {} observations",
-                        obs.to_string()
-                    );
-                }
-            }
+        if self.apparition.generate(seed)[0] < 1. {
+            return old_label;
         }
+        let random_sample = self.distribution.lock().unwrap().generate(seed);
+        if let Sort::Distance = self.sort {
+            id_list.sort_by_key(|i| ((i.1 - position).norm_squared() * 1000.) as usize);
+        }
+        let new_id = id_list[(random_sample[0].abs().floor() as usize).rem(id_list.len())]
+            .0
+            .clone();
+        new_id
+        //     match obs {
+        //         SensorObservation::OrientedRobot(o) => {
+        //             if let Sort::Distance = self.sort {
+        //                 id_list.sort_by_key(|i| {
+        //                     ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
+        //                 });
+        //             }
+        //             let new_id = id_list
+        //                 [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
+        //             .0
+        //             .clone();
+        //             o.name = new_id;
+        //             o.applied_faults
+        //                 .push(FaultModelConfig::Misassociation(self.config.clone()));
+        //         }
+        //         SensorObservation::OrientedLandmark(o) => {
+        //             if let Sort::Distance = self.sort {
+        //                 id_list.sort_by_key(|i| {
+        //                     ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
+        //                 });
+        //             }
+        //             let new_id = id_list
+        //                 [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
+        //             .0
+        //             .clone();
+        //             o.id = from_str(&new_id).expect(
+        //                 "Unexpected error: id_list should only contain int represented as string",
+        //             );
+        //             o.applied_faults
+        //                 .push(FaultModelConfig::Misassociation(self.config.clone()));
+        //         }
+        //         _ => {
+        //             unimplemented!(
+        //                 "MisassociationFault cannot apply fault to {} observations",
+        //                 obs.to_string()
+        //             );
+        //         }
+        //     }
+        // }
     }
 }
 

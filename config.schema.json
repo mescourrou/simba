@@ -354,6 +354,191 @@
         }
       ]
     },
+    "DisplacementSensorFaultModelConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportional_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/DisplacementSensorVariablesProp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditivePreDisplacement"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/DisplacementSensorVariablesFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportional_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/DisplacementSensorVariablesProp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditivePostDisplacement"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/DisplacementSensorVariablesFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFaultModelConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFaultConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "DisplacementSensorVariablesFaults": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "rotation",
+        "translation"
+      ]
+    },
+    "DisplacementSensorVariablesFilter": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "rotation",
+        "translation",
+        "distance",
+        "self_velocity"
+      ]
+    },
+    "DisplacementSensorVariablesProp": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "rotation",
+        "translation",
+        "distance",
+        "self_velocity"
+      ]
+    },
     "EnvironmentConfig": {
       "type": "object",
       "properties": {
@@ -506,6 +691,14 @@
       "type": "object",
       "additionalProperties": true
     },
+    "ExternalFaultConfig": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "ExternalFilterConfig": {
+      "type": "object",
+      "additionalProperties": true
+    },
     "ExternalNavigatorConfig": {
       "type": "object",
       "additionalProperties": true
@@ -518,7 +711,7 @@
       "type": "object",
       "additionalProperties": true
     },
-    "FaultModelConfig": {
+    "GNSSSensorFaultModelConfig": {
       "oneOf": [
         {
           "type": "object",
@@ -548,12 +741,23 @@
                 "$ref": "#/$defs/RandomVariableTypeConfig"
               }
             },
-            "proportional_to": {
+            "proportional_factor": {
               "type": [
-                "string",
+                "number",
                 "null"
               ],
+              "format": "float",
               "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GNSSSensorVariables"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "type": {
               "type": "string",
@@ -561,9 +765,8 @@
             },
             "variable_order": {
               "type": "array",
-              "default": [],
               "items": {
-                "type": "string"
+                "$ref": "#/$defs/GNSSSensorVariablesFaults"
               }
             }
           },
@@ -600,67 +803,32 @@
                 "$ref": "#/$defs/RandomVariableTypeConfig"
               }
             },
-            "type": {
-              "type": "string",
-              "const": "AdditiveRobotCenteredPolar"
-            },
-            "variable_order": {
-              "type": "array",
-              "default": [],
-              "items": {
-                "type": "string"
-              }
-            }
-          },
-          "additionalProperties": false,
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "apparition": {
-              "$ref": "#/$defs/BernouilliRandomVariableConfig",
-              "default": {
-                "probability": [
-                  1.0
-                ]
-              }
-            },
-            "distributions": {
-              "type": "array",
-              "default": [
-                {
-                  "covariance": [
-                    1.0
-                  ],
-                  "mean": [
-                    0.0
-                  ],
-                  "type": "Normal"
-                }
-              ],
-              "items": {
-                "$ref": "#/$defs/RandomVariableTypeConfig"
-              }
-            },
-            "proportional_to": {
+            "proportional_factor": {
               "type": [
-                "string",
+                "number",
                 "null"
               ],
+              "format": "float",
               "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/GNSSSensorVariables"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "type": {
               "type": "string",
-              "const": "AdditiveObservationCenteredPolar"
+              "const": "AdditiveObservationCentered"
             },
             "variable_order": {
               "type": "array",
-              "default": [],
               "items": {
-                "type": "string"
+                "$ref": "#/$defs/GNSSSensorVariablesFaults"
               }
             }
           },
@@ -710,9 +878,8 @@
             },
             "variable_order": {
               "type": "array",
-              "default": [],
               "items": {
-                "type": "string"
+                "$ref": "#/$defs/GNSSSensorVariablesFaults"
               }
             }
           },
@@ -745,44 +912,12 @@
         {
           "type": "object",
           "properties": {
-            "apparition": {
-              "$ref": "#/$defs/BernouilliRandomVariableConfig",
-              "default": {
-                "probability": [
-                  0.10000000149011612
-                ]
-              }
-            },
-            "distribution": {
-              "$ref": "#/$defs/RandomVariableTypeConfig",
-              "default": {
-                "max": [
-                  10.0
-                ],
-                "min": [
-                  0.0
-                ],
-                "type": "Uniform"
-              }
-            },
-            "sort": {
-              "$ref": "#/$defs/Sort",
-              "default": {
-                "type": "Random"
-              }
-            },
-            "source": {
-              "$ref": "#/$defs/Source",
-              "default": {
-                "type": "Robots"
-              }
-            },
             "type": {
               "type": "string",
-              "const": "Misassociation"
+              "const": "External"
             }
           },
-          "additionalProperties": false,
+          "$ref": "#/$defs/ExternalFaultConfig",
           "required": [
             "type"
           ]
@@ -800,6 +935,44 @@
             "type"
           ]
         }
+      ]
+    },
+    "GNSSSensorVariables": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "r",
+        "theta",
+        "velocity_x",
+        "velocity_y",
+        "self_velocity"
+      ]
+    },
+    "GNSSSensorVariablesFaults": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "r",
+        "theta",
+        "velocity_x",
+        "velocity_y"
+      ]
+    },
+    "GNSSSensorVariablesFilter": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "r",
+        "theta",
+        "velocity_x",
+        "velocity_y",
+        "self_velocity"
       ]
     },
     "InternalLog": {
@@ -1145,7 +1318,7 @@
             },
             "faults": [],
             "filters": [],
-            "type": "SpeedSensor"
+            "type": "Speed"
           }
         },
         "name": {
@@ -1342,6 +1515,315 @@
         }
       ]
     },
+    "OrientedLandmarkSensorFaultModelConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportional_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/OrientedLandmarkSensorVariables"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditiveRobotCentered"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OrientedLandmarkSensorVariablesFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportional_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/OrientedLandmarkSensorVariables"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditiveObservationCentered"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OrientedLandmarkSensorVariablesFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/RandomVariableTypeConfig",
+              "default": {
+                "lambda": [
+                  10.0
+                ],
+                "type": "Poisson"
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "max": [
+                    10.0,
+                    10.0
+                  ],
+                  "min": [
+                    -10.0,
+                    -10.0
+                  ],
+                  "type": "Uniform"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "observation_id": {
+              "type": "string",
+              "default": "clutter"
+            },
+            "type": {
+              "type": "string",
+              "const": "Clutter"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/OrientedLandmarkSensorVariablesFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  0.10000000149011612
+                ]
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Misdetection"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  0.10000000149011612
+                ]
+              }
+            },
+            "distribution": {
+              "$ref": "#/$defs/RandomVariableTypeConfig",
+              "default": {
+                "max": [
+                  10.0
+                ],
+                "min": [
+                  0.0
+                ],
+                "type": "Uniform"
+              }
+            },
+            "sort": {
+              "$ref": "#/$defs/Sort",
+              "default": {
+                "type": "Random"
+              }
+            },
+            "source": {
+              "$ref": "#/$defs/Source",
+              "default": {
+                "type": "Robots"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Misassociation"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFaultConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFaultModelConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "OrientedLandmarkSensorVariables": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "r",
+        "theta",
+        "width",
+        "height",
+        "self_velocity"
+      ]
+    },
+    "OrientedLandmarkSensorVariablesFaults": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "r",
+        "theta",
+        "width",
+        "height"
+      ]
+    },
+    "OrientedLandmarkSensorVariablesFilter": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "r",
+        "theta",
+        "width",
+        "height",
+        "self_velocity"
+      ]
+    },
     "PeriodicityConfig": {
       "type": "object",
       "properties": {
@@ -1475,14 +1957,25 @@
                 "$ref": "#/$defs/RandomVariableTypeConfig"
               }
             },
-            "proportionnal_to_velocity": {
-              "description": "If some, the faults will be proportionnal to the robot velocity times this factor.\nIf none, the faults will be independant of the robot velocity.",
+            "proportional_factor": {
               "type": [
                 "number",
                 "null"
               ],
               "format": "float",
               "default": 1.0
+            },
+            "proportional_to": {
+              "description": "If some, the faults will be proportional to the robot velocity times this factor.\nIf none, the faults will be independant of the robot velocity.",
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/PhysicsVariables"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "velocity"
             },
             "type": {
               "type": "string",
@@ -1492,7 +1985,7 @@
               "type": "array",
               "default": [],
               "items": {
-                "type": "string"
+                "$ref": "#/$defs/PhysicsVariables"
               }
             }
           },
@@ -1501,6 +1994,17 @@
             "type"
           ]
         }
+      ]
+    },
+    "PhysicsVariables": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "velocity",
+        "velocity_x",
+        "velocity_y"
       ]
     },
     "ProfileExporterConfig": {
@@ -1772,16 +2276,21 @@
       "oneOf": [
         {
           "type": "object",
-          "format": "uint",
           "properties": {
             "type": {
               "type": "string",
               "const": "Regular"
+            },
+            "value": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
             }
           },
-          "minimum": 0,
+          "additionalProperties": false,
           "required": [
-            "type"
+            "type",
+            "value"
           ]
         },
         {
@@ -1790,14 +2299,19 @@
             "type": {
               "type": "string",
               "const": "DegreeTable"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
             }
           },
-          "items": {
-            "type": "number",
-            "format": "float"
-          },
+          "additionalProperties": false,
           "required": [
-            "type"
+            "type",
+            "value"
           ]
         },
         {
@@ -1806,14 +2320,19 @@
             "type": {
               "type": "string",
               "const": "RadianTable"
+            },
+            "value": {
+              "type": "array",
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
             }
           },
-          "items": {
-            "type": "number",
-            "format": "float"
-          },
+          "additionalProperties": false,
           "required": [
-            "type"
+            "type",
+            "value"
           ]
         }
       ]
@@ -2090,6 +2609,670 @@
         }
       ]
     },
+    "RobotSensorFaultModelConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportional_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RobotSensorVariables"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditiveRobotCentered"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RobotSensorVariablesFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportional_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/RobotSensorVariables"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditiveObservationCentered"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RobotSensorVariablesFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/RandomVariableTypeConfig",
+              "default": {
+                "lambda": [
+                  10.0
+                ],
+                "type": "Poisson"
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "max": [
+                    10.0,
+                    10.0
+                  ],
+                  "min": [
+                    -10.0,
+                    -10.0
+                  ],
+                  "type": "Uniform"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "observation_id": {
+              "type": "string",
+              "default": "clutter"
+            },
+            "type": {
+              "type": "string",
+              "const": "Clutter"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RobotSensorVariablesFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  0.10000000149011612
+                ]
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Misdetection"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  0.10000000149011612
+                ]
+              }
+            },
+            "distribution": {
+              "$ref": "#/$defs/RandomVariableTypeConfig",
+              "default": {
+                "max": [
+                  10.0
+                ],
+                "min": [
+                  0.0
+                ],
+                "type": "Uniform"
+              }
+            },
+            "sort": {
+              "$ref": "#/$defs/Sort",
+              "default": {
+                "type": "Random"
+              }
+            },
+            "source": {
+              "$ref": "#/$defs/Source",
+              "default": {
+                "type": "Robots"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Misassociation"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFaultModelConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFaultConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "RobotSensorVariables": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "r",
+        "theta",
+        "self_velocity",
+        "target_velocity"
+      ]
+    },
+    "RobotSensorVariablesFaults": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "r",
+        "theta"
+      ]
+    },
+    "RobotSensorVariablesFilter": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "r",
+        "theta",
+        "self_velocity",
+        "target_velocity"
+      ]
+    },
+    "ScanSensorFaultModelConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportional_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScanSensorVariablesGlobalProp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "AdditiveRobotCentered"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScanSensorVariablesGlobalFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportional_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScanSensorVariablesPointProp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "PointAdditiveRobotCentered"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScanSensorVariablesPointFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportional_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/ScanSensorVariablesPointProp"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "PointAdditiveObservationCentered"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScanSensorVariablesPointFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/RandomVariableTypeConfig",
+              "default": {
+                "lambda": [
+                  10.0
+                ],
+                "type": "Poisson"
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "max": [
+                    10.0,
+                    10.0
+                  ],
+                  "min": [
+                    -10.0,
+                    -10.0
+                  ],
+                  "type": "Uniform"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "observation_id": {
+              "type": "string",
+              "default": "clutter"
+            },
+            "type": {
+              "type": "string",
+              "const": "Clutter"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScanSensorVariablesPointFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  0.10000000149011612
+                ]
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Misdetection"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  0.10000000149011612
+                ]
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "PointMisdetection"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFaultModelConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFaultConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "ScanSensorVariablesFilter": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "r",
+        "theta",
+        "radial_velocity",
+        "self_velocity"
+      ]
+    },
+    "ScanSensorVariablesGlobalFaults": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "radial_velocity",
+        "orientation"
+      ]
+    },
+    "ScanSensorVariablesGlobalProp": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "orientation",
+        "self_velocity"
+      ]
+    },
+    "ScanSensorVariablesPointFaults": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "r",
+        "theta",
+        "radial_velocity"
+      ]
+    },
+    "ScanSensorVariablesPointProp": {
+      "type": "string",
+      "enum": [
+        "x",
+        "y",
+        "r",
+        "theta",
+        "radial_velocity",
+        "self_velocity"
+      ]
+    },
     "ScenarioConfig": {
       "type": "object",
       "properties": {
@@ -2139,7 +3322,7 @@
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/FaultModelConfig"
+                "$ref": "#/$defs/OrientedLandmarkSensorFaultModelConfig"
               }
             },
             "filters": {
@@ -2151,7 +3334,7 @@
             },
             "type": {
               "type": "string",
-              "const": "OrientedLandmarkSensor"
+              "const": "OrientedLandmark"
             },
             "xray": {
               "description": "If true, will detect all landmarks, even if they are behind obstacles (no raycasting).",
@@ -2191,19 +3374,19 @@
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/FaultModelConfig"
+                "$ref": "#/$defs/SpeedSensorFaultModelConfig"
               }
             },
             "filters": {
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/SensorFilterConfig"
+                "$ref": "#/$defs/SensorFilterConfig2"
               }
             },
             "type": {
               "type": "string",
-              "const": "SpeedSensor"
+              "const": "Speed"
             }
           },
           "additionalProperties": false,
@@ -2238,14 +3421,14 @@
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/FaultModelConfig"
+                "$ref": "#/$defs/DisplacementSensorFaultModelConfig"
               }
             },
             "filters": {
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/SensorFilterConfig"
+                "$ref": "#/$defs/SensorFilterConfig3"
               }
             },
             "lie_movement": {
@@ -2254,7 +3437,7 @@
             },
             "type": {
               "type": "string",
-              "const": "DisplacementSensor"
+              "const": "Displacement"
             }
           },
           "additionalProperties": false,
@@ -2290,19 +3473,19 @@
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/FaultModelConfig"
+                "$ref": "#/$defs/GNSSSensorFaultModelConfig"
               }
             },
             "filters": {
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/SensorFilterConfig"
+                "$ref": "#/$defs/SensorFilterConfig4"
               }
             },
             "type": {
               "type": "string",
-              "const": "GNSSSensor"
+              "const": "GNSS"
             }
           },
           "additionalProperties": false,
@@ -2343,19 +3526,19 @@
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/FaultModelConfig"
+                "$ref": "#/$defs/RobotSensorFaultModelConfig"
               }
             },
             "filters": {
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/SensorFilterConfig"
+                "$ref": "#/$defs/SensorFilterConfig5"
               }
             },
             "type": {
               "type": "string",
-              "const": "RobotSensor"
+              "const": "Robot"
             },
             "xray": {
               "type": "boolean",
@@ -2399,14 +3582,14 @@
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/FaultModelConfig"
+                "$ref": "#/$defs/ScanSensorFaultModelConfig"
               }
             },
             "filters": {
               "type": "array",
               "default": [],
               "items": {
-                "$ref": "#/$defs/SensorFilterConfig"
+                "$ref": "#/$defs/SensorFilterConfig6"
               }
             },
             "height": {
@@ -2416,11 +3599,15 @@
               "default": 0.0
             },
             "rays": {
-              "$ref": "#/$defs/RayConfig"
+              "$ref": "#/$defs/RayConfig",
+              "default": {
+                "type": "Regular",
+                "value": 360
+              }
             },
             "type": {
               "type": "string",
-              "const": "ScanSensor"
+              "const": "Scan"
             }
           },
           "additionalProperties": false,
@@ -2470,13 +3657,12 @@
             },
             "type": {
               "type": "string",
-              "const": "RangeFilter"
+              "const": "Range"
             },
             "variables": {
               "type": "array",
-              "default": [],
               "items": {
-                "type": "string"
+                "$ref": "#/$defs/OrientedLandmarkSensorVariablesFilter"
               }
             }
           },
@@ -2489,7 +3675,7 @@
           "type": "object",
           "properties": {
             "accepted": {
-              "description": "Identifiers (id for landmark, name for robots) to accept. Can be regexp patterns.",
+              "description": "Strings to accept. Can be regexp patterns.",
               "type": "array",
               "default": [],
               "items": {
@@ -2497,12 +3683,12 @@
               }
             },
             "priority_accept": {
-              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when an identifier is in the accepted and rejected sets, it is accepted.",
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
               "type": "boolean",
               "default": true
             },
             "rejected": {
-              "description": "Identifiers (id for landmark, name for robots) to reject. Can be regexp patterns.",
+              "description": "Strings to reject. Can be regexp patterns.",
               "type": "array",
               "default": [],
               "items": {
@@ -2511,7 +3697,41 @@
             },
             "type": {
               "type": "string",
-              "const": "IdFilter"
+              "const": "Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Label"
             }
           },
           "additionalProperties": false,
@@ -2524,10 +3744,708 @@
           "properties": {
             "type": {
               "type": "string",
-              "const": "PythonFilter"
+              "const": "Python"
             }
           },
           "$ref": "#/$defs/PythonFilterConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFilterConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "SensorFilterConfig2": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "inside": {
+              "type": "boolean",
+              "default": true
+            },
+            "max_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "min_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Range"
+            },
+            "variables": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SpeedSensorVariables"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Label"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFilterConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFilterConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "SensorFilterConfig3": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "inside": {
+              "type": "boolean",
+              "default": true
+            },
+            "max_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "min_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Range"
+            },
+            "variables": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/DisplacementSensorVariablesFilter"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Label"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFilterConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFilterConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "SensorFilterConfig4": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "inside": {
+              "type": "boolean",
+              "default": true
+            },
+            "max_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "min_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Range"
+            },
+            "variables": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/GNSSSensorVariablesFilter"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Label"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFilterConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFilterConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "SensorFilterConfig5": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "inside": {
+              "type": "boolean",
+              "default": true
+            },
+            "max_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "min_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Range"
+            },
+            "variables": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/RobotSensorVariablesFilter"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Label"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFilterConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFilterConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "SensorFilterConfig6": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "inside": {
+              "type": "boolean",
+              "default": true
+            },
+            "max_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "min_range": {
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "number",
+                "format": "float"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Range"
+            },
+            "variables": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/ScanSensorVariablesFilter"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Id"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "accepted": {
+              "description": "Strings to accept. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "priority_accept": {
+              "description": "How to manage intersection between accepted and rejected sets.\nIf true, when a string is in the accepted and rejected sets, it is accepted.",
+              "type": "boolean",
+              "default": true
+            },
+            "rejected": {
+              "description": "Strings to reject. Can be regexp patterns.",
+              "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "Label"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFilterConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFilterConfig",
           "required": [
             "type"
           ]
@@ -2634,6 +4552,113 @@
         }
       },
       "additionalProperties": false
+    },
+    "SpeedSensorFaultModelConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "apparition": {
+              "$ref": "#/$defs/BernouilliRandomVariableConfig",
+              "default": {
+                "probability": [
+                  1.0
+                ]
+              }
+            },
+            "distributions": {
+              "type": "array",
+              "default": [
+                {
+                  "covariance": [
+                    1.0
+                  ],
+                  "mean": [
+                    0.0
+                  ],
+                  "type": "Normal"
+                }
+              ],
+              "items": {
+                "$ref": "#/$defs/RandomVariableTypeConfig"
+              }
+            },
+            "proportional_factor": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "format": "float",
+              "default": null
+            },
+            "proportional_to": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/SpeedSensorVariables"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "Additive"
+            },
+            "variable_order": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/SpeedSensorVariablesFaults"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Python"
+            }
+          },
+          "$ref": "#/$defs/PythonFaultModelConfig",
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "External"
+            }
+          },
+          "$ref": "#/$defs/ExternalFaultConfig",
+          "required": [
+            "type"
+          ]
+        }
+      ]
+    },
+    "SpeedSensorVariables": {
+      "type": "string",
+      "enum": [
+        "w",
+        "v",
+        "self_velocity"
+      ]
+    },
+    "SpeedSensorVariablesFaults": {
+      "type": "string",
+      "enum": [
+        "w",
+        "v"
+      ]
     },
     "StateConfig": {
       "description": "Configuration for [`State`] in order to load a state from the configuration.\n\nThe pose should contain 3 elements.\nTODO: Make a config validation scheme.",

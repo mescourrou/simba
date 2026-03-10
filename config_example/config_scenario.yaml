@@ -64,14 +64,14 @@ robots:
     sensors:
     - name: RobotSensor
       config:
-        type: RobotSensor
+        type: Robot
         detection_distance: 100.0
         activation_time:
           period: {type: Num, value: 0.1}
         faults: []
     - name: LandmarkSensor
       config: 
-        type: OrientedLandmarkSensor
+        type: OrientedLandmark
         detection_distance: 100.0
         activation_time:
           period: {type: Num, value: 0.1}
@@ -151,7 +151,7 @@ robots:
     sensors:
     - name: RobotSensor
       config: 
-        type: RobotSensor
+        type: Robot
         detection_distance: 100.0
         activation_time:
           period: {type: Num, value: 0.1}

@@ -109,52 +109,44 @@ impl MisdetectionFault {
             ),
         }
     }
-}
 
-impl FaultModel for MisdetectionFault {
-    fn add_faults(
-        &mut self,
-        _time: f32,
-        seed: f32,
-        obs_list: &mut Vec<SensorObservation>,
-        obs_type: SensorObservation,
-        _environment: &Arc<Environment>,
-    ) {
-        match obs_type {
-            SensorObservation::Scan(_) => {
-                for obs in obs_list.iter_mut() {
-                    if let SensorObservation::Scan(o) = obs {
-                        let obs_seed_increment = 1. / (100. * o.distances.len() as f32);
-                        let mut seed = seed;
-                        for i in (0..o.distances.len()).rev() {
-                            seed += obs_seed_increment;
-                            if self.apparition.generate(seed)[0] > 0. {
-                                o.distances.remove(i);
-                                o.angles.remove(i);
-                                o.radial_velocities.remove(i);
-                            }
-                        }
-                    } else {
-                        panic!(
-                            "obs_type should be the same than the type of the observations in obs_list (MisdetectionFault)"
-                        );
-                    }
-                }
-            }
-            _ => {
-                let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
-                let mut seed = seed;
-                for i in (0..obs_list.len()).rev() {
-                    seed += obs_seed_increment;
-                    if self.apparition.generate(seed)[0] > 0. {
-                        if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-                            debug!("Remove observation {i}");
-                        }
-                        obs_list.remove(i);
-                    }
-                }
-            }
-        }
+    pub fn detected(&mut self, seed: f32) -> bool {
+        self.apparition.generate(seed)[0] > 0. // = 1
+        // match obs_type {
+        //     SensorObservation::Scan(_) => {
+        //         for obs in obs_list.iter_mut() {
+        //             if let SensorObservation::Scan(o) = obs {
+        //                 let obs_seed_increment = 1. / (100. * o.distances.len() as f32);
+        //                 let mut seed = seed;
+        //                 for i in (0..o.distances.len()).rev() {
+        //                     seed += obs_seed_increment;
+        //                     if self.apparition.generate(seed)[0] > 0. {
+        //                         o.distances.remove(i);
+        //                         o.angles.remove(i);
+        //                         o.radial_velocities.remove(i);
+        //                     }
+        //                 }
+        //             } else {
+        //                 panic!(
+        //                     "obs_type should be the same than the type of the observations in obs_list (MisdetectionFault)"
+        //                 );
+        //             }
+        //         }
+        //     }
+        //     _ => {
+        //         let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
+        //         let mut seed = seed;
+        //         for i in (0..obs_list.len()).rev() {
+        //             seed += obs_seed_increment;
+        //             if self.apparition.generate(seed)[0] > 0. {
+        //                 if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+        //                     debug!("Remove observation {i}");
+        //                 }
+        //                 obs_list.remove(i);
+        //             }
+        //         }
+        //     }
+        // }
     }
 }
 

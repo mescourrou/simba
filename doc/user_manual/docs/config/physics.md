@@ -110,7 +110,8 @@ faults:
         mean: [0.0, 0.0]
         covariance: [0.01, 0.0, 0.0, 0.01]
         variable_order: [x, y]
-    proportionnal_to_velocity: 0.5  # Fault scales with speed
+    proportional_to: velocity  # Fault magnitude scales with speed
+    proportional_factor: 0.5  # Fault scales at 50% of velocity
 ```
 
 **Use cases**:
@@ -220,7 +221,8 @@ physics:
           mean: [0.0, 0.0]
           covariance: [0.001, 0.0, 0.0, 0.001]
           variable_order: [x, y]
-      proportionnal_to_velocity: 0.05  # 5% velocity-dependent noise
+      proportional_to: velocity  # Fault magnitude scales with speed
+      proportional_factor: 0.05  # 5% velocity-dependent noise
 ```
 
 ### Robot with environment disturbances
@@ -241,7 +243,7 @@ physics:
           mean: [0.0, 0.0]
           covariance: [0.001, 0.0, 0.0, 0.001]
           variable_order: [x, y]
-      proportionnal_to_velocity: 0. # Not dependent on velocity, distrurbance apply event in stationary mode
+      proportional_to: null  # Not dependent on velocity, distrurbance apply event in stationary mode=
 ```
 
 ---

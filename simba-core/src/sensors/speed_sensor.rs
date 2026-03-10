@@ -4,20 +4,20 @@ Provides a [`Sensor`] which can provide linear velocity and angular velocity.
 
 use std::sync::{Arc, Mutex};
 
-use super::fault_models::fault_model::{
-    FaultModel, FaultModelConfig, make_fault_model_from_config,
-};
+use super::fault_models::fault_model::FaultModel;
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
-use crate::enum_variables;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
+use crate::sensors::fault_models::additive::{AdditiveFault, AdditiveFaultConfig};
+use crate::sensors::fault_models::external_fault::{ExternalFault, ExternalFaultConfig};
+use crate::sensors::fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig};
 use crate::sensors::sensor_filters::{
     SensorFilter, SensorFilterConfig, SensorFilterType, make_sensor_filter_from_config,
 };
@@ -29,15 +29,38 @@ use crate::utils::enum_tools::EnumVariables;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use log::debug;
 use serde_derive::{Deserialize, Serialize};
-use simba_macros::config_derives;
+use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
 extern crate nalgebra as na;
 
 enum_variables!(
     SpeedSensorVariables;
-    W, "w", "angular_velocity", "angular";
-    V, "v", "linear_velocity", "linear";
+    Faults: W, "w", "angular_velocity", "angular";
+    Faults: V, "v", "linear_velocity", "linear";
+    SelfVelocity, "self_velocity";
 );
+
+#[config_derives]
+#[derive(UIComponent)]
+#[show_all = "Faults"]
+pub enum SpeedSensorFaultModelConfig {
+    Additive(AdditiveFaultConfig<SpeedSensorVariablesFaults, SpeedSensorVariables>),
+    Python(PythonFaultModelConfig),
+    External(ExternalFaultConfig),
+}
+
+impl Default for SpeedSensorFaultModelConfig {
+    fn default() -> Self {
+        Self::Additive(AdditiveFaultConfig::default())
+    }
+}
+
+#[derive(Debug, EnumToString)]
+pub enum SpeedSensorFaultModelType {
+    Additive(AdditiveFault<SpeedSensorVariablesFaults, SpeedSensorVariables>),
+    Python(PythonFaultModel),
+    External(ExternalFault),
+}
 
 /// Configuration of the [`SpeedSensor`].
 #[config_derives]
@@ -46,7 +69,7 @@ pub struct SpeedSensorConfig {
     #[check]
     pub activation_time: Option<PeriodicityConfig>,
     #[check]
-    pub faults: Vec<FaultModelConfig>,
+    pub faults: Vec<SpeedSensorFaultModelConfig>,
     #[check]
     pub filters: Vec<SensorFilterConfig<SpeedSensorVariables>>,
 }
@@ -107,7 +130,7 @@ impl UIComponent for SpeedSensorConfig {
                     unique_id,
                 );
 
-                FaultModelConfig::show_faults_mut(
+                SpeedSensorFaultModelConfig::show_all_mut(
                     &mut self.faults,
                     ui,
                     ctx,
@@ -132,7 +155,7 @@ impl UIComponent for SpeedSensorConfig {
                 });
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
 
-                FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
+                SpeedSensorFaultModelConfig::show_all(&self.faults, ui, ctx, unique_id);
             });
     }
 }
@@ -165,7 +188,7 @@ pub struct SpeedObservation {
     pub linear_velocity: f32,
     pub lateral_velocity: f32,
     pub angular_velocity: f32,
-    pub applied_faults: Vec<FaultModelConfig>,
+    pub applied_faults: Vec<SpeedSensorFaultModelConfig>,
 }
 
 impl Recordable<SpeedObservationRecord> for SpeedObservation {
@@ -205,7 +228,7 @@ pub struct SpeedSensor {
     activation_time: Option<Periodicity>,
     /// Last observation time.
     last_time: Option<f32>,
-    faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
+    faults: Vec<SpeedSensorFaultModelType>,
     filters: Vec<SensorFilterType<SpeedSensorVariables>>,
 }
 
@@ -219,18 +242,26 @@ impl SpeedSensor {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
     ) -> SimbaResult<Self> {
-        let fault_models = Arc::new(Mutex::new(Vec::new()));
-        let mut unlock_fault_model = fault_models.lock().unwrap();
+        let mut fault_models = Vec::new();
         for fault_config in &config.faults {
-            unlock_fault_model.push(make_fault_model_from_config(
-                fault_config,
-                global_config,
-                robot_name,
-                va_factory,
-                initial_time,
-            ));
+            fault_models.push(match &fault_config {
+                SpeedSensorFaultModelConfig::Additive(c) => SpeedSensorFaultModelType::Additive(
+                    AdditiveFault::from_config(c, va_factory, initial_time),
+                ),
+                SpeedSensorFaultModelConfig::Python(c) => SpeedSensorFaultModelType::Python(
+                    PythonFaultModel::from_config(c, global_config, initial_time)?,
+                ),
+                SpeedSensorFaultModelConfig::External(c) => {
+                    SpeedSensorFaultModelType::External(ExternalFault::from_config(
+                        c,
+                        plugin_api,
+                        global_config,
+                        va_factory,
+                        initial_time,
+                    )?)
+                }
+            });
         }
-        drop(unlock_fault_model);
 
         let mut filters = Vec::new();
         for filter_config in &config.filters {
@@ -269,24 +300,23 @@ impl Sensor for SpeedSensor {
             .state(initial_time)
             .clone();
         for filter in self.filters.iter_mut() {
-            match filter {
-                SensorFilterType::PythonFilter(f) => f.post_init(node, initial_time)?,
-                SensorFilterType::External(f) => f.post_init(node, initial_time)?,
-                _ => {}
-            }
+            filter.post_init(node, initial_time)?;
         }
-        for fault_model in self.faults.lock().unwrap().iter_mut() {
-            fault_model.post_init(node, initial_time)?;
+        for fault_model in self.faults.iter_mut() {
+            match fault_model {
+                SpeedSensorFaultModelType::Python(f) => f.post_init(node, initial_time)?,
+                SpeedSensorFaultModelType::External(f) => f.post_init(node, initial_time)?,
+                SpeedSensorFaultModelType::Additive(_) => (),
+            }
         }
         Ok(())
     }
 
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
-        let mut observation_list = Vec::<SensorObservation>::new();
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
         {
-            return observation_list;
+            return Vec::new();
         }
         let arc_physic = node
             .physics()
@@ -314,6 +344,9 @@ impl Sensor for SpeedSensor {
                                 match variant {
                                     SpeedSensorVariables::W => obs.angular_velocity,
                                     SpeedSensorVariables::V => obs.linear_velocity,
+                                    SpeedSensorVariables::SelfVelocity => {
+                                        state.velocity.fixed_rows::<2>(0).norm()
+                                    }
                                 }
                             })) {
                                 None
@@ -334,16 +367,63 @@ impl Sensor for SpeedSensor {
             }
         }
 
+        let mut observation_list = Vec::<SensorObservation>::new();
         if let Some(obs) = keep_observation {
             observation_list.push(obs);
-            for fault_model in self.faults.lock().unwrap().iter_mut() {
-                fault_model.add_faults(
-                    time,
-                    time,
-                    &mut observation_list,
-                    SensorObservation::Speed(SpeedObservation::default()),
-                    node.environment(),
-                );
+            for fault_model in self.faults.iter_mut() {
+                match fault_model {
+                    SpeedSensorFaultModelType::Python(f) => f.add_faults(
+                        time,
+                        time,
+                        &mut observation_list,
+                        SensorObservation::Speed(SpeedObservation::default()),
+                        node.environment(),
+                    ),
+                    SpeedSensorFaultModelType::External(f) => f.add_faults(
+                        time,
+                        time,
+                        &mut observation_list,
+                        SensorObservation::Speed(SpeedObservation::default()),
+                        node.environment(),
+                    ),
+                    SpeedSensorFaultModelType::Additive(f) => {
+                        let obs_list_len = observation_list.len();
+                        for (i, obs) in observation_list
+                            .iter_mut()
+                            .map(|o| {
+                                if let SensorObservation::Speed(observation) = o {
+                                    observation
+                                } else {
+                                    unreachable!()
+                                }
+                            })
+                            .enumerate()
+                        {
+                            let seed = time + i as f32 / (100. * obs_list_len as f32);
+                            f.add_faults(
+                                seed,
+                                SpeedSensorVariablesFaults::mapped_values(
+                                    |variant| match variant {
+                                        SpeedSensorVariablesFaults::W => obs.angular_velocity,
+                                        SpeedSensorVariablesFaults::V => obs.linear_velocity,
+                                    },
+                                ),
+                                &SpeedSensorVariables::mapped_values(|variant| match variant {
+                                    SpeedSensorVariables::W => obs.angular_velocity,
+                                    SpeedSensorVariables::V => obs.linear_velocity,
+                                    SpeedSensorVariables::SelfVelocity => {
+                                        state.velocity.fixed_rows::<2>(0).norm()
+                                    }
+                                }),
+                            )
+                            .into_iter()
+                            .for_each(|(variant, value)| match variant {
+                                SpeedSensorVariablesFaults::W => obs.angular_velocity += value,
+                                SpeedSensorVariablesFaults::V => obs.linear_velocity += value,
+                            });
+                        }
+                    }
+                }
             }
         } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
             debug!("Speed observation was filtered out");

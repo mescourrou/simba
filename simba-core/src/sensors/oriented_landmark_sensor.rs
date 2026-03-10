@@ -2,19 +2,24 @@
 Provides a [`Sensor`] which can observe oriented landmarks in the frame of the robot.
 */
 
-use super::fault_models::fault_model::{
-    FaultModel, FaultModelConfig, make_fault_model_from_config,
-};
+use super::fault_models::fault_model::FaultModel;
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
-use crate::enum_variables;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
+use crate::sensors::fault_models::additive::{AdditiveFault, AdditiveFaultConfig};
+use crate::sensors::fault_models::clutter::{ClutterFault, ClutterFaultConfig};
+use crate::sensors::fault_models::external_fault::{ExternalFault, ExternalFaultConfig};
+use crate::sensors::fault_models::misassociation::{
+    MisassociationFault, MisassociationFaultConfig,
+};
+use crate::sensors::fault_models::misdetection::{MisdetectionFault, MisdetectionFaultConfig};
+use crate::sensors::fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig};
 use crate::sensors::sensor_filters::{
     SensorFilter, SensorFilterConfig, SensorFilterType, make_sensor_filter_from_config,
 };
@@ -29,22 +34,78 @@ use serde_derive::{Deserialize, Serialize};
 use log::debug;
 extern crate nalgebra as na;
 use na::Vector3;
-use simba_macros::config_derives;
+use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
 use std::sync::{Arc, Mutex};
 use std::vec;
 
 enum_variables!(
     OrientedLandmarkSensorVariables;
-    X, "x";
-    Y, "y";
-    Orientation, "orientation";
-    R, "r";
-    Theta, "theta";
-    SelfVelocity, "self_velocity";
-    Width, "width";
-    Height, "height";
+    Filter, Faults: X, "x";
+    Filter, Faults: Y, "y";
+    Filter, Faults: Orientation, "orientation";
+    Filter, Faults: R, "r";
+    Filter, Faults: Theta, "theta";
+    Filter, Faults: Width, "width";
+    Filter, Faults: Height, "height" ;
+    Filter: SelfVelocity, "self_velocity";
 );
+
+#[config_derives]
+#[derive(UIComponent)]
+#[show_all = "Faults"]
+pub enum OrientedLandmarkSensorFaultModelConfig {
+    AdditiveRobotCentered(
+        AdditiveFaultConfig<OrientedLandmarkSensorVariablesFaults, OrientedLandmarkSensorVariables>,
+    ),
+    AdditiveObservationCentered(
+        AdditiveFaultConfig<OrientedLandmarkSensorVariablesFaults, OrientedLandmarkSensorVariables>,
+    ),
+    Clutter(ClutterFaultConfig<OrientedLandmarkSensorVariablesFaults>),
+    Misdetection(MisdetectionFaultConfig),
+    Misassociation(MisassociationFaultConfig),
+    External(ExternalFaultConfig),
+    Python(PythonFaultModelConfig),
+}
+
+impl Default for OrientedLandmarkSensorFaultModelConfig {
+    fn default() -> Self {
+        Self::AdditiveRobotCentered(AdditiveFaultConfig::default())
+    }
+}
+
+#[derive(Debug, EnumToString)]
+pub enum OrientedLandmarkSensorFaultModelType {
+    AdditiveRobotCentered(
+        AdditiveFault<OrientedLandmarkSensorVariablesFaults, OrientedLandmarkSensorVariables>,
+    ),
+    AdditiveObservationCentered(
+        AdditiveFault<OrientedLandmarkSensorVariablesFaults, OrientedLandmarkSensorVariables>,
+    ),
+    Clutter(ClutterFault<OrientedLandmarkSensorVariablesFaults>),
+    Misdetection(MisdetectionFault),
+    Misassociation(MisassociationFault),
+    External(ExternalFault),
+    Python(PythonFaultModel),
+}
+
+impl OrientedLandmarkSensorFaultModelType {
+    pub fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+    ) -> crate::errors::SimbaResult<()> {
+        match self {
+            Self::Python(f) => f.post_init(node, initial_time),
+            Self::External(f) => f.post_init(node, initial_time),
+            Self::AdditiveRobotCentered(_)
+            | Self::AdditiveObservationCentered(_)
+            | Self::Clutter(_)
+            | Self::Misdetection(_)
+            | Self::Misassociation(_) => Ok(()),
+        }
+    }
+}
 
 /// Configuration of the [`OrientedLandmarkSensor`].
 #[config_derives]
@@ -55,9 +116,9 @@ pub struct OrientedLandmarkSensorConfig {
     #[check]
     pub activation_time: Option<PeriodicityConfig>,
     #[check]
-    pub faults: Vec<FaultModelConfig>,
+    pub faults: Vec<OrientedLandmarkSensorFaultModelConfig>,
     #[check]
-    pub filters: Vec<SensorFilterConfig<OrientedLandmarkSensorVariables>>,
+    pub filters: Vec<SensorFilterConfig<OrientedLandmarkSensorVariablesFilter>>,
     /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
     pub xray: bool,
 }
@@ -150,7 +211,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     unique_id,
                 );
 
-                FaultModelConfig::show_faults_mut(
+                OrientedLandmarkSensorFaultModelConfig::show_all_mut(
                     &mut self.faults,
                     ui,
                     ctx,
@@ -184,7 +245,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
 
                 SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
 
-                FaultModelConfig::show_faults(&self.faults, ui, ctx, unique_id);
+                OrientedLandmarkSensorFaultModelConfig::show_all(&self.faults, ui, ctx, unique_id);
             });
     }
 }
@@ -221,7 +282,7 @@ pub struct OrientedLandmarkObservation {
     pub height: f32,
     /// Can be 0 for ponctual landmarks
     pub width: f32,
-    pub applied_faults: Vec<FaultModelConfig>,
+    pub applied_faults: Vec<OrientedLandmarkSensorFaultModelConfig>,
 }
 
 impl Default for OrientedLandmarkObservation {
@@ -259,7 +320,7 @@ pub struct OrientedLandmarkObservationRecord {
     pub pose: [f32; 3],
     pub height: f32,
     pub width: f32,
-    pub applied_faults: Vec<FaultModelConfig>,
+    pub applied_faults: Vec<OrientedLandmarkSensorFaultModelConfig>,
 }
 
 #[cfg(feature = "gui")]
@@ -302,8 +363,8 @@ pub struct OrientedLandmarkSensor {
     activation_time: Option<Periodicity>,
     /// Last observation time.
     last_time: Option<f32>,
-    faults: SharedMutex<Vec<Box<dyn FaultModel>>>,
-    filters: Vec<SensorFilterType<OrientedLandmarkSensorVariables>>,
+    faults: Vec<OrientedLandmarkSensorFaultModelType>,
+    filters: Vec<SensorFilterType<OrientedLandmarkSensorVariablesFilter>>,
     /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
     xray: bool,
 }
@@ -320,18 +381,54 @@ impl OrientedLandmarkSensor {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
     ) -> SimbaResult<Self> {
-        let fault_models = Arc::new(Mutex::new(Vec::new()));
-        let mut unlock_fault_model = fault_models.lock().unwrap();
+        let mut fault_models = Vec::new();
         for fault_config in &config.faults {
-            unlock_fault_model.push(make_fault_model_from_config(
-                fault_config,
-                global_config,
-                robot_name,
-                va_factory,
-                initial_time,
-            ));
+            fault_models.push(match &fault_config {
+                OrientedLandmarkSensorFaultModelConfig::AdditiveRobotCentered(c) => {
+                    OrientedLandmarkSensorFaultModelType::AdditiveRobotCentered(
+                        AdditiveFault::from_config(c, va_factory, initial_time),
+                    )
+                }
+                OrientedLandmarkSensorFaultModelConfig::AdditiveObservationCentered(c) => {
+                    OrientedLandmarkSensorFaultModelType::AdditiveObservationCentered(
+                        AdditiveFault::from_config(c, va_factory, initial_time),
+                    )
+                }
+                OrientedLandmarkSensorFaultModelConfig::Clutter(c) => {
+                    OrientedLandmarkSensorFaultModelType::Clutter(ClutterFault::from_config(
+                        c,
+                        va_factory,
+                        initial_time,
+                    ))
+                }
+                OrientedLandmarkSensorFaultModelConfig::Misdetection(c) => {
+                    OrientedLandmarkSensorFaultModelType::Misdetection(
+                        MisdetectionFault::from_config(c, va_factory, initial_time),
+                    )
+                }
+                OrientedLandmarkSensorFaultModelConfig::Misassociation(c) => {
+                    OrientedLandmarkSensorFaultModelType::Misassociation(
+                        MisassociationFault::from_config(c, va_factory),
+                    )
+                }
+                OrientedLandmarkSensorFaultModelConfig::External(c) => {
+                    OrientedLandmarkSensorFaultModelType::External(ExternalFault::from_config(
+                        c,
+                        plugin_api,
+                        global_config,
+                        va_factory,
+                        initial_time,
+                    )?)
+                }
+                OrientedLandmarkSensorFaultModelConfig::Python(c) => {
+                    OrientedLandmarkSensorFaultModelType::Python(PythonFaultModel::from_config(
+                        c,
+                        global_config,
+                        initial_time,
+                    )?)
+                }
+            });
         }
-        drop(unlock_fault_model);
 
         let mut filters = Vec::new();
         for filter_config in &config.filters {
@@ -365,13 +462,9 @@ use crate::node::Node;
 impl Sensor for OrientedLandmarkSensor {
     fn post_init(&mut self, node: &mut Node, initial_time: f32) -> crate::errors::SimbaResult<()> {
         for filter in self.filters.iter_mut() {
-            match filter {
-                SensorFilterType::PythonFilter(f) => f.post_init(node, initial_time)?,
-                SensorFilterType::External(f) => f.post_init(node, initial_time)?,
-                _ => (), // No post_init needed for other filters for now
-            }
+            filter.post_init(node, initial_time)?;
         }
-        for fault_model in self.faults.lock().unwrap().iter_mut() {
+        for fault_model in self.faults.iter_mut() {
             fault_model.post_init(node, initial_time)?;
         }
         Ok(())
@@ -413,7 +506,6 @@ impl Sensor for OrientedLandmarkSensor {
                 height: landmark.height,
                 width: landmark.width,
             });
-            let mut new_obs = Vec::new();
 
             let mut keep_observation = Some(obs);
 
@@ -425,26 +517,30 @@ impl Sensor for OrientedLandmarkSensor {
                         SensorFilterType::RangeFilter(f) => {
                             if let SensorObservation::OrientedLandmark(obs) = obs {
                                 if f.match_exclusion(
-                                    &OrientedLandmarkSensorVariables::mapped_values(|variant| {
-                                        match variant {
-                                            OrientedLandmarkSensorVariables::X => obs.pose.x,
-                                            OrientedLandmarkSensorVariables::Y => obs.pose.y,
-                                            OrientedLandmarkSensorVariables::Orientation => {
+                                    &OrientedLandmarkSensorVariablesFilter::mapped_values(
+                                        |variant| match variant {
+                                            OrientedLandmarkSensorVariablesFilter::X => obs.pose.x,
+                                            OrientedLandmarkSensorVariablesFilter::Y => obs.pose.y,
+                                            OrientedLandmarkSensorVariablesFilter::Orientation => {
                                                 obs.pose.z
                                             }
-                                            OrientedLandmarkSensorVariables::R => {
+                                            OrientedLandmarkSensorVariablesFilter::R => {
                                                 obs.pose.fixed_rows::<2>(0).norm()
                                             }
-                                            OrientedLandmarkSensorVariables::Theta => {
+                                            OrientedLandmarkSensorVariablesFilter::Theta => {
                                                 obs.pose.y.atan2(obs.pose.x)
                                             }
-                                            OrientedLandmarkSensorVariables::SelfVelocity => {
+                                            OrientedLandmarkSensorVariablesFilter::SelfVelocity => {
                                                 state.velocity.fixed_rows::<2>(0).norm()
                                             }
-                                            OrientedLandmarkSensorVariables::Width => obs.width,
-                                            OrientedLandmarkSensorVariables::Height => obs.height,
-                                        }
-                                    }),
+                                            OrientedLandmarkSensorVariablesFilter::Width => {
+                                                obs.width
+                                            }
+                                            OrientedLandmarkSensorVariablesFilter::Height => {
+                                                obs.height
+                                            }
+                                        },
+                                    ),
                                 ) {
                                     None
                                 } else {
@@ -482,24 +578,321 @@ impl Sensor for OrientedLandmarkSensor {
                 }
             }
 
+            let mut new_obs = Vec::new();
             if let Some(observation) = keep_observation {
                 new_obs.push(observation); // Not adding directly to observation_list to apply faults only once
-                for fault_model in self.faults.lock().unwrap().iter_mut() {
-                    fault_model.add_faults(
-                        time,
-                        time + landmark_seed,
-                        &mut new_obs,
-                        SensorObservation::OrientedLandmark(OrientedLandmarkObservation::default()),
-                        node.environment(),
-                    );
+                for fault_model in self.faults.iter_mut() {
+                    match fault_model {
+                        OrientedLandmarkSensorFaultModelType::Python(f) => f.add_faults(
+                            time,
+                            time + landmark_seed,
+                            &mut new_obs,
+                            SensorObservation::OrientedLandmark(
+                                OrientedLandmarkObservation::default(),
+                            ),
+                            node.environment(),
+                        ),
+                        OrientedLandmarkSensorFaultModelType::External(f) => f.add_faults(
+                            time,
+                            time + landmark_seed,
+                            &mut new_obs,
+                            SensorObservation::OrientedLandmark(
+                                OrientedLandmarkObservation::default(),
+                            ),
+                            node.environment(),
+                        ),
+                        OrientedLandmarkSensorFaultModelType::AdditiveObservationCentered(f) => {
+                            let obs_list_len = new_obs.len();
+                            for (i, obs) in new_obs
+                                .iter_mut()
+                                .map(|o| {
+                                    if let SensorObservation::OrientedLandmark(observation) = o {
+                                        observation
+                                    } else {
+                                        unreachable!()
+                                    }
+                                })
+                                .enumerate()
+                            {
+                                let seed = time + i as f32 / (100. * obs_list_len as f32);
+                                let new_values = f.add_faults(
+                                    seed,
+                                    OrientedLandmarkSensorVariablesFaults::mapped_values(
+                                        |variant| match variant {
+                                            OrientedLandmarkSensorVariablesFaults::X => obs.pose.x,
+                                            OrientedLandmarkSensorVariablesFaults::Y => obs.pose.y,
+                                            OrientedLandmarkSensorVariablesFaults::Orientation => {
+                                                obs.pose.z
+                                            }
+                                            OrientedLandmarkSensorVariablesFaults::R => 0.,
+                                            OrientedLandmarkSensorVariablesFaults::Theta => {
+                                                obs.pose.z
+                                            }
+                                            OrientedLandmarkSensorVariablesFaults::Height => {
+                                                obs.height
+                                            }
+                                            OrientedLandmarkSensorVariablesFaults::Width => {
+                                                obs.width
+                                            }
+                                        },
+                                    ),
+                                    &OrientedLandmarkSensorVariables::mapped_values(|variant| {
+                                        match variant {
+                                            OrientedLandmarkSensorVariables::Orientation => {
+                                                obs.pose.z
+                                            }
+                                            OrientedLandmarkSensorVariables::R => {
+                                                obs.pose.fixed_rows::<2>(0).norm()
+                                            }
+                                            OrientedLandmarkSensorVariables::Theta => obs.pose.z,
+                                            OrientedLandmarkSensorVariables::X => obs.pose.x,
+                                            OrientedLandmarkSensorVariables::Y => obs.pose.y,
+                                            OrientedLandmarkSensorVariables::SelfVelocity => {
+                                                state.velocity.fixed_rows::<2>(0).norm()
+                                            }
+                                            OrientedLandmarkSensorVariables::Height => obs.height,
+                                            OrientedLandmarkSensorVariables::Width => obs.width,
+                                        }
+                                    }),
+                                );
+                                if let Some(new_x) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::X)
+                                {
+                                    obs.pose.x = *new_x;
+                                }
+                                if let Some(new_y) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::Y)
+                                {
+                                    obs.pose.y = *new_y;
+                                }
+                                let new_r = if let Some(new_r) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::R)
+                                {
+                                    *new_r
+                                } else {
+                                    0.
+                                };
+                                let new_theta = if let Some(new_theta) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::Theta)
+                                {
+                                    *new_theta
+                                } else {
+                                    obs.pose.z
+                                };
+                                obs.pose.x += new_r * new_theta.cos();
+                                obs.pose.y += new_r * new_theta.sin();
+                                if let Some(new_orientation) = new_values
+                                    .get(&OrientedLandmarkSensorVariablesFaults::Orientation)
+                                {
+                                    obs.pose.z = *new_orientation;
+                                }
+                                if let Some(new_height) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::Height)
+                                {
+                                    obs.height = *new_height;
+                                }
+                                if let Some(new_width) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::Width)
+                                {
+                                    obs.width = *new_width;
+                                }
+                            }
+                        }
+                        OrientedLandmarkSensorFaultModelType::AdditiveRobotCentered(f) => {
+                            let obs_list_len = new_obs.len();
+                            for (i, obs) in new_obs
+                                .iter_mut()
+                                .map(|o| {
+                                    if let SensorObservation::OrientedLandmark(observation) = o {
+                                        observation
+                                    } else {
+                                        unreachable!()
+                                    }
+                                })
+                                .enumerate()
+                            {
+                                let seed = time + i as f32 / (100. * obs_list_len as f32);
+                                let new_values = f.add_faults(
+                                    seed,
+                                    OrientedLandmarkSensorVariablesFaults::mapped_values(
+                                        |variant| match variant {
+                                            OrientedLandmarkSensorVariablesFaults::X => obs.pose.x,
+                                            OrientedLandmarkSensorVariablesFaults::Y => obs.pose.y,
+                                            OrientedLandmarkSensorVariablesFaults::Orientation => {
+                                                obs.pose.z
+                                            }
+                                            OrientedLandmarkSensorVariablesFaults::R => {
+                                                obs.pose.fixed_rows::<2>(0).norm()
+                                            }
+                                            OrientedLandmarkSensorVariablesFaults::Theta => {
+                                                obs.pose.y.atan2(obs.pose.x)
+                                            }
+                                            OrientedLandmarkSensorVariablesFaults::Height => {
+                                                obs.height
+                                            }
+                                            OrientedLandmarkSensorVariablesFaults::Width => {
+                                                obs.width
+                                            }
+                                        },
+                                    ),
+                                    &OrientedLandmarkSensorVariables::mapped_values(|variant| {
+                                        match variant {
+                                            OrientedLandmarkSensorVariables::Orientation => {
+                                                obs.pose.z
+                                            }
+                                            OrientedLandmarkSensorVariables::R => {
+                                                obs.pose.fixed_rows::<2>(0).norm()
+                                            }
+                                            OrientedLandmarkSensorVariables::Theta => {
+                                                obs.pose.y.atan2(obs.pose.x)
+                                            }
+                                            OrientedLandmarkSensorVariables::X => obs.pose.x,
+                                            OrientedLandmarkSensorVariables::Y => obs.pose.y,
+                                            OrientedLandmarkSensorVariables::SelfVelocity => {
+                                                state.velocity.fixed_rows::<2>(0).norm()
+                                            }
+                                            OrientedLandmarkSensorVariables::Height => obs.height,
+                                            OrientedLandmarkSensorVariables::Width => obs.width,
+                                        }
+                                    }),
+                                );
+                                if let Some(new_x) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::X)
+                                {
+                                    obs.pose.x = *new_x;
+                                }
+                                if let Some(new_y) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::Y)
+                                {
+                                    obs.pose.y = *new_y;
+                                }
+                                let new_r = if let Some(new_r) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::R)
+                                {
+                                    *new_r
+                                } else {
+                                    obs.pose.fixed_rows::<2>(0).norm()
+                                };
+                                let new_theta = if let Some(new_theta) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::Theta)
+                                {
+                                    *new_theta
+                                } else {
+                                    obs.pose.y.atan2(obs.pose.x)
+                                };
+                                obs.pose.x = new_r * new_theta.cos();
+                                obs.pose.y = new_r * new_theta.sin();
+                                if let Some(new_orientation) = new_values
+                                    .get(&OrientedLandmarkSensorVariablesFaults::Orientation)
+                                {
+                                    obs.pose.z = *new_orientation;
+                                }
+                                if let Some(new_height) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::Height)
+                                {
+                                    obs.height = *new_height;
+                                }
+                                if let Some(new_width) =
+                                    new_values.get(&OrientedLandmarkSensorVariablesFaults::Width)
+                                {
+                                    obs.width = *new_width;
+                                }
+                            }
+                        }
+                        OrientedLandmarkSensorFaultModelType::Clutter(f) => {
+                            let new_obs_from_clutter =
+                                f.add_faults(time + landmark_seed, landmark_seed / 100.);
+                            for (obs_id, obs_params) in new_obs_from_clutter {
+                                let mut x = obs_params
+                                    .get(&OrientedLandmarkSensorVariablesFaults::X)
+                                    .cloned()
+                                    .unwrap_or(0.);
+                                let mut y = obs_params
+                                    .get(&OrientedLandmarkSensorVariablesFaults::Y)
+                                    .cloned()
+                                    .unwrap_or(0.);
+                                let orientation = obs_params
+                                    .get(&OrientedLandmarkSensorVariablesFaults::Orientation)
+                                    .cloned()
+                                    .unwrap_or(0.);
+
+                                let r = obs_params
+                                    .get(&OrientedLandmarkSensorVariablesFaults::R)
+                                    .cloned()
+                                    .unwrap_or(0.);
+                                let theta = obs_params
+                                    .get(&OrientedLandmarkSensorVariablesFaults::Theta)
+                                    .cloned()
+                                    .unwrap_or(0.);
+                                x += r * theta.cos();
+                                y += r * theta.sin();
+
+                                let obs = SensorObservation::OrientedLandmark(
+                                    OrientedLandmarkObservation {
+                                        id: obs_id.parse().unwrap_or(0),
+                                        height: obs_params
+                                            .get(&OrientedLandmarkSensorVariablesFaults::Height)
+                                            .cloned()
+                                            .unwrap_or(0.),
+                                        width: obs_params
+                                            .get(&OrientedLandmarkSensorVariablesFaults::Width)
+                                            .cloned()
+                                            .unwrap_or(0.),
+                                        labels: Vec::new(),
+                                        pose: Vector3::new(x, y, orientation),
+                                        applied_faults: vec![
+                                            OrientedLandmarkSensorFaultModelConfig::Clutter(
+                                                f.config().clone(),
+                                            ),
+                                        ],
+                                    },
+                                );
+                                new_obs.push(obs);
+                            }
+                        }
+                        OrientedLandmarkSensorFaultModelType::Misassociation(f) => {
+                            for (i, obs) in new_obs.iter_mut().enumerate() {
+                                if let SensorObservation::OrientedLandmark(observation) = obs {
+                                    let new_label = f.new_label(
+                                        time + landmark_seed + (i as f32) / 1000.,
+                                        observation.id.to_string(),
+                                        observation.pose.fixed_rows::<2>(0).clone_owned(),
+                                        node.environment(),
+                                    );
+                                    observation.id = new_label.parse().unwrap_or(observation.id);
+                                } else {
+                                    unreachable!()
+                                }
+                            }
+                        }
+                        OrientedLandmarkSensorFaultModelType::Misdetection(f) => {
+                            new_obs = new_obs
+                                .iter()
+                                .enumerate()
+                                .filter_map(|(i, obs)| {
+                                    if let SensorObservation::OrientedLandmark(observation) = obs {
+                                        if f.detected(time + landmark_seed + (i as f32) / 1000.) {
+                                            Some(SensorObservation::OrientedLandmark(
+                                                observation.clone(),
+                                            ))
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        unreachable!()
+                                    }
+                                })
+                                .collect();
+                        }
+                    }
                 }
-                observation_list.extend(new_obs);
             } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
                 debug!(
                     "Observation {i} of landmark {} was filtered out",
                     landmark.id
                 );
             }
+            observation_list.extend(new_obs);
         }
         if let Some(p) = self.activation_time.as_mut() {
             p.update(time);

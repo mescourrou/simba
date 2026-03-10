@@ -155,7 +155,7 @@ impl<SV: EnumVariables> RangeFilter<SV> {
                 }
             } else {
                 panic!(
-                    "Variable '{}' not found in observation variables ([{}])! Variables that should be availables: [{}]",
+                    "Variable '{}' not accepted in this situation. Accepted variables: [{}]",
                     var,
                     variable_map
                         .keys()
@@ -163,7 +163,6 @@ impl<SV: EnumVariables> RangeFilter<SV> {
                         .map(|v| v.to_string())
                         .collect::<Vec<_>>()
                         .join(", "),
-                    (SV::to_vec() as Vec<&str>).join(", ")
                 );
             }
         }

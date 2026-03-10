@@ -1,7 +1,6 @@
-pub mod additive_observation_centered_polar;
-pub mod additive_robot_centered;
-pub mod additive_robot_centered_polar;
+pub mod additive;
 pub mod clutter;
+pub mod external_fault;
 pub mod misassociation;
 pub mod misdetection;
 pub mod python_fault_model;

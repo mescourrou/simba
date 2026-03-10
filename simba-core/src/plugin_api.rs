@@ -48,7 +48,7 @@ use crate::{
     navigators::Navigator,
     networking::network::Network,
     physics::Physics,
-    sensors::{Sensor, sensor_filters::SensorFilter},
+    sensors::{Sensor, fault_models::fault_model::FaultModel, sensor_filters::SensorFilter},
     simulator::SimulatorConfig,
     state_estimators::StateEstimator,
     utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
@@ -196,5 +196,28 @@ pub trait PluginAPI: Send + Sync {
         initial_time: f32,
     ) -> Box<dyn SensorFilter> {
         panic!("The given PluginAPI does not provide a sensor filter");
+    }
+
+    /// Return the [`FaultModel`] to be used by the
+    /// [`ExternalFault`](`crate::sensors::fault_models::external_fault::ExternalFault`).
+    ///
+    /// # Arguments
+    /// * `config` - Config for the external sensor fault. The configuration
+    ///   is given using [`serde_json::Value`]. It should be converted by the
+    ///   external plugin to the specific configuration.
+    /// * `global_config` - Full configuration of the simulator.
+    /// * `va_factory` - Factory for Determinists random variables.
+    /// * `initial_time` - Initial time of the simulation.
+    /// # Return
+    ///
+    /// Returns the [`FaultModel`] to use.
+    fn get_sensor_fault(
+        &self,
+        config: &serde_json::Value,
+        global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+        initial_time: f32,
+    ) -> Box<dyn FaultModel> {
+        panic!("The given PluginAPI does not provide a sensor fault model");
     }
 }

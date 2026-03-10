@@ -106,7 +106,14 @@ impl SimulatorConfig {
         let mut config: SimulatorConfig = match serde_yaml::from_value(config) {
             Ok(c) => c,
             Err(e) => {
-                let what = format!("Error from SerdeYAML while loading SimulatorConfig : {}", e);
+                let what = format!(
+                    "Error from SerdeYAML while loading SimulatorConfig{}: {}",
+                    match e.location() {
+                        Some(loc) => format!(" (line {}, column {})", loc.line(), loc.column()),
+                        None => String::new(),
+                    },
+                    e
+                );
                 println!("ERROR: {what}");
                 return Err(SimbaError::new(SimbaErrorTypes::ConfigError, what));
             }

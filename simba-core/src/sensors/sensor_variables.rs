@@ -1,25 +1,11 @@
-pub trait ToVec<T> {
-    fn to_vec() -> Vec<T>;
-}
+use std::{collections::HashMap, fmt::{Debug, Display}, hash::Hash, str::FromStr};
 
-pub trait FromString
-where
-    Self: Sized,
-{
-    fn from_string(str: &str) -> Option<Self>;
-}
+use crate::utils::enum_tools::ToVec;
 
-use std::{
-    collections::HashMap,
-    fmt::{Debug, Display},
-    hash::Hash,
-    str::FromStr,
-};
 
-pub trait EnumVariables:
-    Clone + Eq + Debug + ToString + ToVec<&'static str> + ToVec<Self> + Display + FromStr + Hash
-{
-    fn mapped_values<T>(mut map_fn: impl FnMut(&Self) -> T) -> HashMap<Self, T> {
+pub trait EnumVariables: Clone + Eq + Debug + ToString + ToVec<&'static str> + ToVec<Self> + Display + FromStr + Hash
+ {
+    fn mapped_values(mut map_fn: impl FnMut(&Self) -> f32) -> HashMap::<Self, f32> {
         let mut map = HashMap::new();
         for variant in Self::to_vec() {
             let value = map_fn(&variant);
@@ -29,18 +15,19 @@ pub trait EnumVariables:
     }
 }
 
+
 #[macro_export]
-macro_rules! __enum_variables_emit_subenum {
+macro_rules! enum_variables {
     ($name:ident;
-        $($variant:ident, $value:literal $(, $add_value:literal)*);+ $(;)?
+        $($variant:ident, $value:expr $(, $add_value:expr)*);* $(;)?
     ) => {
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, std::hash::Hash)]
         #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         pub enum $name {
             $(
                 #[serde(rename = $value$(, alias = $add_value)*)]
-                $variant,
-            )+
+                $variant
+            ),*
         }
 
         impl std::str::FromStr for $name {
@@ -49,7 +36,7 @@ macro_rules! __enum_variables_emit_subenum {
                 match s.to_lowercase().as_str() {
                     $(
                         $value $(| $add_value)* => Ok(Self::$variant),
-                    )+
+                    )*
                     _ => Err(crate::errors::SimbaError::new(
                         crate::errors::SimbaErrorTypes::ConfigError,
                         format!("Unknown variable name: '{}'", s),
@@ -60,10 +47,7 @@ macro_rules! __enum_variables_emit_subenum {
 
         impl crate::utils::enum_tools::ToVec<&'static str> for $name {
             fn to_vec() -> Vec<&'static str> {
-                vec![$(
-                    $value,
-                )+
-                ]
+                vec![$($value),*]
             }
         }
 
@@ -71,8 +55,8 @@ macro_rules! __enum_variables_emit_subenum {
             fn to_vec() -> Vec<$name> {
                 vec![
                     $(
-                        $name::$variant,
-                    )+
+                        $name::$variant
+                    ),*
                 ]
             }
         }
@@ -85,35 +69,15 @@ macro_rules! __enum_variables_emit_subenum {
                     match self {
                         $(
                              Self::$variant => $value,
-                        )+
+                        )*
                     }
                 )
-            }
+            }   
         }
 
-        impl crate::utils::enum_tools::EnumVariables for $name {}
+        impl crate::sensors::sensor_variables::EnumVariables for $name {}
     };
 }
 
-pub use __enum_variables_emit_subenum;
+pub use enum_variables;
 
-// #[macro_export]
-// macro_rules! enum_variables {
-//     ($name:ident;
-//         $($($(sub_enum:ident),* :)? $variant:ident, $value:literal $(, $add_value:literal)*);+
-//     ) => {
-//         pub enum paste::paste! [<$name Meta>] {
-//             $(
-//                 #[serde(rename = $value$(, alias = $add_value)*)]
-//                 $variant,
-//             )+
-//         }
-
-//         crate::__enum_variables_emit_restricted!(
-//             $name;
-//             $( $variant, $value $(, $add_value)* );+
-//         );
-//     };
-// }
-
-// pub use enum_variables;

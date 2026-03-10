@@ -1,14 +1,13 @@
-use std::{iter::Scan, sync::Arc};
+use std::sync::Arc;
 
 use log::debug;
-use nalgebra::{Rotation2, Rotation3, Vector2};
+use nalgebra::{Rotation2, Rotation3, Vector2, Vector3};
 use serde::{Deserialize, Serialize};
-use simba_macros::config_derives;
+use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
 use crate::{
     config::NumberConfig,
     constants::TIME_ROUND,
-    enum_variables,
     errors::SimbaResult,
     logger::is_enabled,
     node::Node,
@@ -16,13 +15,24 @@ use crate::{
     recordable::Recordable,
     sensors::{
         Sensor, SensorObservation, SensorRecord,
-        fault_models::fault_model::{self, FaultModel, FaultModelConfig},
+        fault_models::{
+            additive::{AdditiveFault, AdditiveFaultConfig},
+            clutter::{ClutterFault, ClutterFaultConfig},
+            external_fault::{ExternalFault, ExternalFaultConfig},
+            fault_model::FaultModel,
+            misassociation::{MisassociationFault, MisassociationFaultConfig},
+            misdetection::{MisdetectionFault, MisdetectionFaultConfig},
+            python_fault_model::{PythonFaultModel, PythonFaultModelConfig},
+        },
         sensor_filters::{self, SensorFilter, SensorFilterConfig, SensorFilterType},
     },
     simulator::SimulatorConfig,
     state_estimators::State,
     utils::{
-        determinist_random_variable::DeterministRandomVariableFactory, enum_tools::EnumVariables, geometry::{is_angle_inside, segments_intersection}, periodicity::{Periodicity, PeriodicityConfig}
+        determinist_random_variable::DeterministRandomVariableFactory,
+        enum_tools::EnumVariables,
+        geometry::{is_angle_inside, segments_intersection},
+        periodicity::{Periodicity, PeriodicityConfig},
     },
 };
 #[cfg(feature = "gui")]
@@ -33,13 +43,85 @@ use crate::{
 
 enum_variables!(
     ScanSensorVariables;
-    R, "r";
-    Theta, "theta";
-    RadialVelocity, "radial_velocity", "v";
-    SelfVelocity, "self_velocity";
-    X, "x";
-    Y, "y";
+    Filter, PointFaults, GlobalFaults, GlobalProp, PointProp: X, "x";
+    Filter, PointFaults, GlobalFaults, GlobalProp, PointProp: Y, "y" ;
+    Filter, PointFaults, PointProp: R, "r";
+    Filter, PointFaults, PointProp: Theta, "theta";
+    Filter, PointFaults, GlobalFaults, PointProp: RadialVelocity, "radial_velocity", "v";
+    GlobalFaults, GlobalProp: Orientation, "orientation", "z";
+    Filter, GlobalProp, PointProp: SelfVelocity, "self_velocity";
 );
+
+#[config_derives]
+#[derive(UIComponent)]
+#[show_all = "Faults"]
+pub enum ScanSensorFaultModelConfig {
+    #[check]
+    AdditiveRobotCentered(
+        AdditiveFaultConfig<ScanSensorVariablesGlobalFaults, ScanSensorVariablesGlobalProp>,
+    ),
+    #[check]
+    PointAdditiveRobotCentered(
+        AdditiveFaultConfig<ScanSensorVariablesPointFaults, ScanSensorVariablesPointProp>,
+    ),
+    #[check]
+    PointAdditiveObservationCentered(
+        AdditiveFaultConfig<ScanSensorVariablesPointFaults, ScanSensorVariablesPointProp>,
+    ),
+    #[check]
+    Clutter(ClutterFaultConfig<ScanSensorVariablesPointFaults>),
+    #[check]
+    Misdetection(MisdetectionFaultConfig),
+    #[check]
+    PointMisdetection(MisdetectionFaultConfig),
+    #[check]
+    Python(PythonFaultModelConfig),
+    #[check]
+    External(ExternalFaultConfig),
+}
+
+impl Default for ScanSensorFaultModelConfig {
+    fn default() -> Self {
+        Self::AdditiveRobotCentered(AdditiveFaultConfig::default())
+    }
+}
+
+#[derive(Debug, EnumToString)]
+pub enum FaultModelTypeScanSensor {
+    AdditiveRobotCentered(
+        AdditiveFault<ScanSensorVariablesGlobalFaults, ScanSensorVariablesGlobalProp>,
+    ),
+    PointAdditiveRobotCentered(
+        AdditiveFault<ScanSensorVariablesPointFaults, ScanSensorVariablesPointProp>,
+    ),
+    PointAdditiveObservationCentered(
+        AdditiveFault<ScanSensorVariablesPointFaults, ScanSensorVariablesPointProp>,
+    ),
+    Clutter(ClutterFault<ScanSensorVariablesPointFaults>),
+    Misdetection(MisdetectionFault),
+    PointMisdetection(MisdetectionFault),
+    Python(PythonFaultModel),
+    External(ExternalFault),
+}
+
+impl FaultModelTypeScanSensor {
+    pub fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+    ) -> crate::errors::SimbaResult<()> {
+        match self {
+            Self::Python(f) => f.post_init(node, initial_time),
+            Self::External(f) => f.post_init(node, initial_time),
+            Self::AdditiveRobotCentered(_)
+            | Self::PointAdditiveRobotCentered(_)
+            | Self::PointAdditiveObservationCentered(_)
+            | Self::Clutter(_)
+            | Self::Misdetection(_)
+            | Self::PointMisdetection(_) => Ok(()),
+        }
+    }
+}
 
 #[config_derives(tag_content)]
 pub enum RayConfig {
@@ -60,9 +142,9 @@ pub struct ScanSensorConfig {
     #[check]
     pub activation_time: Option<PeriodicityConfig>,
     #[check]
-    pub faults: Vec<FaultModelConfig>,
+    pub faults: Vec<ScanSensorFaultModelConfig>,
     #[check]
-    pub filters: Vec<SensorFilterConfig<ScanSensorVariables>>,
+    pub filters: Vec<SensorFilterConfig<ScanSensorVariablesFilter>>,
 }
 
 impl Check for ScanSensorConfig {
@@ -212,7 +294,7 @@ impl UIComponent for ScanSensorConfig {
                     unique_id,
                 );
 
-                FaultModelConfig::show_faults_mut(
+                ScanSensorFaultModelConfig::show_all_mut(
                     &mut self.faults,
                     ui,
                     ctx,
@@ -254,7 +336,7 @@ impl UIComponent for ScanSensorConfig {
                         ui.label(format!("Number of rays: {}", n));
                     }
                     RayConfig::DegreeTable(table) | RayConfig::RadianTable(table) => {
-                        for (i, angle) in table.iter().enumerate() {
+                        for angle in table.iter() {
                             ui.label(format!("- {}", angle));
                         }
                     }
@@ -262,7 +344,7 @@ impl UIComponent for ScanSensorConfig {
 
                 SensorFilterConfig::show_filters(&self.filters, ui, _ctx, unique_id);
 
-                FaultModelConfig::show_faults(&self.faults, ui, _ctx, unique_id);
+                ScanSensorFaultModelConfig::show_all(&self.faults, ui, _ctx, unique_id);
             });
     }
 }
@@ -290,7 +372,24 @@ pub struct ScanObservation {
     pub distances: Vec<f32>,
     pub angles: Vec<f32>,
     pub radial_velocities: Vec<f32>,
-    pub applied_faults: Vec<FaultModelConfig>,
+    pub applied_faults: Vec<ScanSensorFaultModelConfig>,
+}
+
+impl Iterator for ScanObservation {
+    type Item = (f32, f32, f32); // distance, angle, radial velocity
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.distances.is_empty() || self.angles.is_empty() || self.radial_velocities.is_empty()
+        {
+            None
+        } else {
+            Some((
+                self.distances.remove(0),
+                self.angles.remove(0),
+                self.radial_velocities.remove(0),
+            ))
+        }
+    }
 }
 
 impl Default for ScanObservation {
@@ -320,7 +419,7 @@ pub struct ScanObservationRecord {
     pub distances: Vec<f32>,
     pub angles: Vec<f32>,
     pub radial_velocities: Vec<f32>,
-    pub applied_faults: Vec<FaultModelConfig>,
+    pub applied_faults: Vec<ScanSensorFaultModelConfig>,
 }
 
 #[cfg(feature = "gui")]
@@ -349,8 +448,8 @@ pub struct ScanSensor {
     rays: Vec<f32>,
     height: f32,
     activation_time: Option<Periodicity>,
-    faults: Vec<Box<dyn FaultModel>>,
-    filters: Vec<SensorFilterType<ScanSensorVariables>>,
+    faults: Vec<FaultModelTypeScanSensor>,
+    filters: Vec<SensorFilterType<ScanSensorVariablesFilter>>,
     last_time: Option<f32>,
 }
 
@@ -370,6 +469,61 @@ impl ScanSensor {
             RayConfig::DegreeTable(table) => table.iter().map(|d| d.to_radians()).collect(),
             RayConfig::RadianTable(table) => table.clone(),
         };
+
+        let mut fault_models = Vec::new();
+        for fault_config in &config.faults {
+            fault_models.push(match &fault_config {
+                &ScanSensorFaultModelConfig::AdditiveRobotCentered(cfg) => {
+                    FaultModelTypeScanSensor::AdditiveRobotCentered(AdditiveFault::from_config(
+                        cfg,
+                        va_factory,
+                        initial_time,
+                    ))
+                }
+                &ScanSensorFaultModelConfig::PointAdditiveRobotCentered(cfg) => {
+                    FaultModelTypeScanSensor::PointAdditiveRobotCentered(
+                        AdditiveFault::from_config(cfg, va_factory, initial_time),
+                    )
+                }
+                &ScanSensorFaultModelConfig::PointAdditiveObservationCentered(cfg) => {
+                    FaultModelTypeScanSensor::PointAdditiveObservationCentered(
+                        AdditiveFault::from_config(cfg, va_factory, initial_time),
+                    )
+                }
+                &ScanSensorFaultModelConfig::Clutter(cfg) => FaultModelTypeScanSensor::Clutter(
+                    ClutterFault::from_config(cfg, va_factory, initial_time),
+                ),
+                &ScanSensorFaultModelConfig::Misdetection(cfg) => {
+                    FaultModelTypeScanSensor::Misdetection(MisdetectionFault::from_config(
+                        cfg,
+                        va_factory,
+                        initial_time,
+                    ))
+                }
+                &ScanSensorFaultModelConfig::PointMisdetection(cfg) => {
+                    FaultModelTypeScanSensor::PointMisdetection(MisdetectionFault::from_config(
+                        cfg,
+                        va_factory,
+                        initial_time,
+                    ))
+                }
+                &ScanSensorFaultModelConfig::Python(cfg) => FaultModelTypeScanSensor::Python(
+                    PythonFaultModel::from_config(cfg, global_config, initial_time)
+                        .expect("Failed to create Python Fault Model"),
+                ),
+                &ScanSensorFaultModelConfig::External(cfg) => FaultModelTypeScanSensor::External(
+                    ExternalFault::from_config(
+                        cfg,
+                        plugin_api,
+                        global_config,
+                        va_factory,
+                        initial_time,
+                    )
+                    .expect("Failed to create External Fault Model"),
+                ),
+            });
+        }
+
         Ok(Self {
             detection_distance: config.detection_distance,
             rays,
@@ -378,19 +532,7 @@ impl ScanSensor {
                 .activation_time
                 .as_ref()
                 .map(|p| Periodicity::from_config(p, va_factory, initial_time)),
-            faults: config
-                .faults
-                .iter()
-                .map(|f| {
-                    fault_model::make_fault_model_from_config(
-                        f,
-                        global_config,
-                        node_name,
-                        va_factory,
-                        initial_time,
-                    )
-                })
-                .collect(),
+            faults: fault_models,
             filters: config.filters.iter().try_fold(Vec::new(), |mut acc, f| {
                 sensor_filters::make_sensor_filter_from_config(
                     f,
@@ -563,16 +705,16 @@ impl Sensor for ScanSensor {
                                 .map(|(r, (theta, v))| (r, theta, v))
                                 .enumerate()
                             {
-                                if f.match_exclusion(&ScanSensorVariables::mapped_values(
+                                if f.match_exclusion(&ScanSensorVariablesFilter::mapped_values(
                                     |variant| match variant {
-                                        ScanSensorVariables::R => *r,
-                                        ScanSensorVariables::Theta => *theta,
-                                        ScanSensorVariables::RadialVelocity => *v,
-                                        ScanSensorVariables::SelfVelocity => {
+                                        ScanSensorVariablesFilter::R => *r,
+                                        ScanSensorVariablesFilter::Theta => *theta,
+                                        ScanSensorVariablesFilter::RadialVelocity => *v,
+                                        ScanSensorVariablesFilter::SelfVelocity => {
                                             state.velocity.fixed_rows::<2>(0).norm()
                                         }
-                                        ScanSensorVariables::X => *r * theta.cos(),
-                                        ScanSensorVariables::Y => *r * theta.sin(),
+                                        ScanSensorVariablesFilter::X => *r * theta.cos(),
+                                        ScanSensorVariablesFilter::Y => *r * theta.sin(),
                                     },
                                 )) {
                                     to_remove.push(i);
@@ -601,13 +743,377 @@ impl Sensor for ScanSensor {
         if let Some(filtered_observation) = keep_observation {
             let mut observations = vec![filtered_observation];
             for fault_model in self.faults.iter_mut() {
-                fault_model.add_faults(
-                    time,
-                    time,
-                    &mut observations,
-                    SensorObservation::Scan(ScanObservation::default()),
-                    node.environment(),
-                );
+                match fault_model {
+                    FaultModelTypeScanSensor::Python(f) => f.add_faults(
+                        time,
+                        time,
+                        &mut observations,
+                        SensorObservation::Scan(ScanObservation::default()),
+                        node.environment(),
+                    ),
+                    FaultModelTypeScanSensor::External(f) => f.add_faults(
+                        time,
+                        time,
+                        &mut observations,
+                        SensorObservation::Scan(ScanObservation::default()),
+                        node.environment(),
+                    ),
+                    FaultModelTypeScanSensor::AdditiveRobotCentered(f) => {
+                        let obs_list_len = observations.len();
+                        for (i, obs) in observations
+                            .iter_mut()
+                            .map(|o| {
+                                if let SensorObservation::Scan(observation) = o {
+                                    observation
+                                } else {
+                                    unreachable!()
+                                }
+                            })
+                            .enumerate()
+                        {
+                            let seed = time + i as f32 / (100. * obs_list_len as f32);
+                            let adding_values = f.add_faults(
+                                seed,
+                                ScanSensorVariablesGlobalFaults::mapped_values(|variant| {
+                                    match variant {
+                                        ScanSensorVariablesGlobalFaults::X => 0.,
+                                        ScanSensorVariablesGlobalFaults::Y => 0.,
+                                        ScanSensorVariablesGlobalFaults::RadialVelocity => 0.,
+                                        ScanSensorVariablesGlobalFaults::Orientation => 0.,
+                                    }
+                                }),
+                                &ScanSensorVariablesGlobalProp::mapped_values(|variant| {
+                                    match variant {
+                                        ScanSensorVariablesGlobalProp::Orientation => state.pose.z,
+                                        ScanSensorVariablesGlobalProp::X => state.pose.x,
+                                        ScanSensorVariablesGlobalProp::Y => state.pose.y,
+                                        ScanSensorVariablesGlobalProp::SelfVelocity => {
+                                            state.velocity.fixed_rows::<2>(0).norm()
+                                        }
+                                    }
+                                }),
+                            );
+                            let mut addition_vector = Vector3::zeros();
+                            if let Some(x) = adding_values.get(&ScanSensorVariablesGlobalFaults::X)
+                            {
+                                addition_vector.x = *x;
+                            }
+                            if let Some(y) = adding_values.get(&ScanSensorVariablesGlobalFaults::Y)
+                            {
+                                addition_vector.y = *y;
+                            }
+                            if let Some(z) =
+                                adding_values.get(&ScanSensorVariablesGlobalFaults::Orientation)
+                            {
+                                addition_vector.z = *z;
+                            }
+                            let rotation = Rotation2::new(addition_vector.z);
+                            let mut obs_clone = obs.clone();
+                            obs.distances.clear();
+                            obs.angles.clear();
+                            obs.radial_velocities.clear();
+                            for (d, angle, v) in obs_clone.into_iter() {
+                                let point = Vector2::new(d * angle.cos(), d * angle.sin());
+                                let new_point =
+                                    rotation * point + addition_vector.fixed_rows::<2>(0);
+                                let d = new_point.norm();
+                                let angle = new_point.y.atan2(new_point.x);
+                                let v = if let Some(radial_velocity) = adding_values
+                                    .get(&ScanSensorVariablesGlobalFaults::RadialVelocity)
+                                {
+                                    v + radial_velocity
+                                } else {
+                                    v
+                                };
+                                obs.distances.push(d);
+                                obs.angles.push(angle);
+                                obs.radial_velocities.push(v);
+                            }
+                        }
+                    }
+                    FaultModelTypeScanSensor::PointAdditiveRobotCentered(f) => {
+                        let obs_list_len = observations.len();
+                        for (i, obs) in observations
+                            .iter_mut()
+                            .map(|o| {
+                                if let SensorObservation::Scan(observation) = o {
+                                    observation
+                                } else {
+                                    unreachable!()
+                                }
+                            })
+                            .enumerate()
+                        {
+                            let seed = time + i as f32 / (100. * obs_list_len as f32);
+                            let obs_clone = obs.clone();
+                            obs.distances.clear();
+                            obs.angles.clear();
+                            obs.radial_velocities.clear();
+                            for (j, (d, angle, v)) in obs_clone.into_iter().enumerate() {
+                                let point_seed = f32::powi(seed, j as i32 + 1);
+                                let new_values = f.add_faults(
+                                    seed,
+                                    ScanSensorVariablesPointFaults::mapped_values(|variant| {
+                                        match variant {
+                                            ScanSensorVariablesPointFaults::X => d * angle.cos(),
+                                            ScanSensorVariablesPointFaults::Y => d * angle.sin(),
+                                            ScanSensorVariablesPointFaults::R => d,
+                                            ScanSensorVariablesPointFaults::Theta => angle,
+                                            ScanSensorVariablesPointFaults::RadialVelocity => v,
+                                        }
+                                    }),
+                                    &ScanSensorVariablesPointProp::mapped_values(|variant| {
+                                        match variant {
+                                            ScanSensorVariablesPointProp::R => d,
+                                            ScanSensorVariablesPointProp::Theta => angle,
+                                            ScanSensorVariablesPointProp::X => d * angle.cos(),
+                                            ScanSensorVariablesPointProp::Y => d * angle.sin(),
+                                            ScanSensorVariablesPointProp::RadialVelocity => v,
+                                            ScanSensorVariablesPointProp::SelfVelocity => {
+                                                state.velocity.fixed_rows::<2>(0).norm()
+                                            }
+                                        }
+                                    }),
+                                );
+                                let mut d = if let Some(new_r) =
+                                    new_values.get(&ScanSensorVariablesPointFaults::R)
+                                {
+                                    *new_r
+                                } else {
+                                    d
+                                };
+                                let mut angle = if let Some(new_angle) =
+                                    new_values.get(&ScanSensorVariablesPointFaults::Theta)
+                                {
+                                    *new_angle
+                                } else {
+                                    angle
+                                };
+                                let new_x = if let Some(new_x) =
+                                    new_values.get(&ScanSensorVariablesPointFaults::X)
+                                {
+                                    *new_x
+                                } else {
+                                    d * angle.cos()
+                                };
+                                let new_y = if let Some(new_y) =
+                                    new_values.get(&ScanSensorVariablesPointFaults::Y)
+                                {
+                                    *new_y
+                                } else {
+                                    d * angle.sin()
+                                };
+                                d = (new_x.powi(2) + new_y.powi(2)).sqrt();
+                                angle = new_y.atan2(new_x);
+                                let v = if let Some(radial_velocity) =
+                                    new_values.get(&ScanSensorVariablesPointFaults::RadialVelocity)
+                                {
+                                    *radial_velocity
+                                } else {
+                                    v
+                                };
+                                obs.distances.push(d);
+                                obs.angles.push(angle);
+                                obs.radial_velocities.push(v);
+                            }
+                            obs.applied_faults.push(
+                                ScanSensorFaultModelConfig::PointAdditiveRobotCentered(
+                                    f.config().clone(),
+                                ),
+                            );
+                        }
+                    }
+                    FaultModelTypeScanSensor::PointAdditiveObservationCentered(f) => {
+                        let obs_list_len = observations.len();
+                        for (i, obs) in observations
+                            .iter_mut()
+                            .map(|o| {
+                                if let SensorObservation::Scan(observation) = o {
+                                    observation
+                                } else {
+                                    unreachable!()
+                                }
+                            })
+                            .enumerate()
+                        {
+                            let seed = time + i as f32 / (100. * obs_list_len as f32);
+                            let obs_clone = obs.clone();
+                            obs.distances.clear();
+                            obs.angles.clear();
+                            obs.radial_velocities.clear();
+                            for (j, (d, angle, v)) in obs_clone.into_iter().enumerate() {
+                                let point_seed = f32::powi(seed, j as i32 + 1);
+                                let adding_values = f.add_faults(
+                                    seed,
+                                    ScanSensorVariablesPointFaults::mapped_values(|variant| {
+                                        match variant {
+                                            ScanSensorVariablesPointFaults::X => 0.,
+                                            ScanSensorVariablesPointFaults::Y => 0.,
+                                            ScanSensorVariablesPointFaults::R => 0.,
+                                            ScanSensorVariablesPointFaults::Theta => 0.,
+                                            ScanSensorVariablesPointFaults::RadialVelocity => 0.,
+                                        }
+                                    }),
+                                    &ScanSensorVariablesPointProp::mapped_values(|variant| {
+                                        match variant {
+                                            ScanSensorVariablesPointProp::R => d,
+                                            ScanSensorVariablesPointProp::Theta => angle,
+                                            ScanSensorVariablesPointProp::X => d * angle.cos(),
+                                            ScanSensorVariablesPointProp::Y => d * angle.sin(),
+                                            ScanSensorVariablesPointProp::RadialVelocity => v,
+                                            ScanSensorVariablesPointProp::SelfVelocity => {
+                                                state.velocity.fixed_rows::<2>(0).norm()
+                                            }
+                                        }
+                                    }),
+                                );
+                                let add_x = if let Some(x) =
+                                    adding_values.get(&ScanSensorVariablesPointFaults::X)
+                                {
+                                    *x
+                                } else {
+                                    0.
+                                };
+                                let add_y = if let Some(y) =
+                                    adding_values.get(&ScanSensorVariablesPointFaults::Y)
+                                {
+                                    *y
+                                } else {
+                                    0.
+                                };
+                                let add_r = if let Some(r) =
+                                    adding_values.get(&ScanSensorVariablesPointFaults::R)
+                                {
+                                    *r
+                                } else {
+                                    0.
+                                };
+                                let add_angle = if let Some(angle) =
+                                    adding_values.get(&ScanSensorVariablesPointFaults::Theta)
+                                {
+                                    *angle
+                                } else {
+                                    0.
+                                };
+
+                                let add_x = add_x + add_r * (angle + add_angle).cos();
+                                let add_y = add_y + add_r * (angle + add_angle).sin();
+                                let new_x = d * angle.cos() + add_x;
+                                let new_y = d * angle.sin() + add_y;
+                                let d = (new_x.powi(2) + new_y.powi(2)).sqrt();
+                                let angle = new_y.atan2(new_x);
+                                let v = if let Some(radial_velocity) = adding_values
+                                    .get(&ScanSensorVariablesPointFaults::RadialVelocity)
+                                {
+                                    v + *radial_velocity
+                                } else {
+                                    v
+                                };
+                                obs.distances.push(d);
+                                obs.angles.push(angle);
+                                obs.radial_velocities.push(v);
+                            }
+                            obs.applied_faults.push(
+                                ScanSensorFaultModelConfig::PointAdditiveObservationCentered(
+                                    f.config().clone(),
+                                ),
+                            );
+                        }
+                    }
+                    FaultModelTypeScanSensor::Clutter(f) => {
+                        let obs_list_len = observations.len();
+                        for (i, obs) in observations
+                            .iter_mut()
+                            .map(|o| {
+                                if let SensorObservation::Scan(observation) = o {
+                                    observation
+                                } else {
+                                    unreachable!()
+                                }
+                            })
+                            .enumerate()
+                        {
+                            let new_obs_from_clutter =
+                                f.add_faults(time, i as f32 / (1000. * obs_list_len as f32));
+                            for (_, obs_params) in new_obs_from_clutter {
+                                let mut x = obs_params
+                                    .get(&ScanSensorVariablesPointFaults::X)
+                                    .cloned()
+                                    .unwrap_or(0.);
+                                let mut y = obs_params
+                                    .get(&ScanSensorVariablesPointFaults::Y)
+                                    .cloned()
+                                    .unwrap_or(0.);
+
+                                let r = obs_params
+                                    .get(&ScanSensorVariablesPointFaults::R)
+                                    .cloned()
+                                    .unwrap_or(0.);
+                                let theta = obs_params
+                                    .get(&ScanSensorVariablesPointFaults::Theta)
+                                    .cloned()
+                                    .unwrap_or(0.);
+                                let v = obs_params
+                                    .get(&ScanSensorVariablesPointFaults::RadialVelocity)
+                                    .cloned()
+                                    .unwrap_or(0.);
+                                x += r * theta.cos();
+                                y += r * theta.sin();
+                                let r = (x.powi(2) + y.powi(2)).sqrt();
+                                let theta = y.atan2(x);
+                                obs.distances.push(r);
+                                obs.angles.push(theta);
+                                obs.radial_velocities.push(v);
+                            }
+                            obs.applied_faults
+                                .push(ScanSensorFaultModelConfig::Clutter(f.config().clone()));
+                        }
+                    }
+                    FaultModelTypeScanSensor::Misdetection(f) => {
+                        observations = observations
+                            .into_iter()
+                            .enumerate()
+                            .filter_map(|(i, obs)| {
+                                if let SensorObservation::Scan(observation) = obs {
+                                    if f.detected(time + (i as f32) / 1000.) {
+                                        Some(SensorObservation::Scan(observation))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    unreachable!()
+                                }
+                            })
+                            .collect();
+                    }
+                    FaultModelTypeScanSensor::PointMisdetection(f) => {
+                        let obs_list_len = observations.len();
+                        for (i, obs) in observations
+                            .iter_mut()
+                            .map(|o| {
+                                if let SensorObservation::Scan(observation) = o {
+                                    observation
+                                } else {
+                                    unreachable!()
+                                }
+                            })
+                            .enumerate()
+                        {
+                            let seed = time + i as f32 / (100. * obs_list_len as f32);
+                            let obs_clone = obs.clone();
+                            obs.distances.clear();
+                            obs.angles.clear();
+                            obs.radial_velocities.clear();
+                            for (j, (d, angle, v)) in obs_clone.into_iter().enumerate() {
+                                if f.detected(seed + (j as f32) / 1000.) {
+                                    obs.distances.push(d);
+                                    obs.angles.push(angle);
+                                    obs.radial_velocities.push(v);
+                                }
+                            }
+                        }
+                    }
+                }
             }
             observations
         } else {
