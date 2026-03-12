@@ -151,6 +151,7 @@ where
             key.clone(),
             Box::new(Channel::<MessageType, NodeIdType, ConditionArgType>::new(
                 self.time_round,
+                &key.to_string(),
             )),
         );
         #[cfg(feature = "debug_mode")]
@@ -203,6 +204,7 @@ where
             key.clone(),
             Box::new(Channel::<MessageType, NodeIdType, ConditionArgType>::new(
                 self.time_round,
+                &key.to_string(),
             )),
         );
         let parent_node_id = self
@@ -379,6 +381,7 @@ where
                 Channel::<MessageType, NodeIdType, ConditionArgType>::new_conditionnal(
                     condition,
                     self.time_round,
+                    &key.to_string(),
                 ),
             ),
         );
@@ -405,6 +408,7 @@ where
                 Channel::<MessageType, NodeIdType, ConditionArgType>::new_conditionnal(
                     condition,
                     self.time_round,
+                    &key.to_string(),
                 ),
             ),
         );
