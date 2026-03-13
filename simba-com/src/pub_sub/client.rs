@@ -1,3 +1,8 @@
+//! Subscriber client for the publish/subscribe subsystem.
+//!
+//! [`Client`] is the endpoint returned by channels to send and receive typed messages with a
+//! configurable reception delay and time-ordered buffering.
+
 use std::{
     fmt::Debug,
     sync::{
@@ -8,6 +13,7 @@ use std::{
 
 use crate::time_ordered_data::TimeOrderedData;
 
+/// Bidirectional pub/sub client with delayed, time-ordered reception.
 pub struct Client<MessageType: Clone + Default> {
     sender: Sender<(MessageType, f32)>,
     receiver: Arc<Mutex<Receiver<(MessageType, f32)>>>,
@@ -32,6 +38,9 @@ impl<MessageType: Clone + Default> Client<MessageType> {
         }
     }
 
+    /// Sends a message stamped with simulation `time`.
+    ///
+    /// Panics if the underlying sender channel is closed.
     pub fn send(&self, message: MessageType, time: f32) {
         if let Err(e) = self.sender.send((message, time)) {
             panic!("Failed to send message: {:?}", e.to_string());
@@ -48,6 +57,9 @@ impl<MessageType: Clone + Default> Client<MessageType> {
         }
     }
 
+    /// Tries to receive one message available at simulation `time` without blocking.
+    ///
+    /// Returns `None` if no buffered message is currently due.
     pub fn try_receive(&self, time: f32) -> Option<MessageType> {
         self.refresh_buffer();
         let mut message_buffer = self.message_buffer.lock().unwrap();
@@ -62,6 +74,7 @@ impl<MessageType: Clone + Default> Client<MessageType> {
         None
     }
 
+    /// Blocks until a message due at simulation `time` becomes available.
     pub fn receive(&self, time: f32) -> MessageType {
         let mut message_buffer = self.message_buffer.lock().unwrap();
         let min_time_buffer = message_buffer.min_time().map(|(t, _)| t);
@@ -86,6 +99,7 @@ impl<MessageType: Clone + Default> Client<MessageType> {
         }
     }
 
+    /// Returns the timestamp of the next buffered message, if any.
     pub fn next_message_time(&self) -> Option<f32> {
         self.refresh_buffer();
         let message_buffer = self.message_buffer.lock().unwrap();

@@ -1,3 +1,14 @@
+//! Sensor observation filtering framework.
+//!
+//! This module provides a flexible filtering system for sensor observations based on multiple criteria.
+//! Filters can be configured to accept or reject observations based on numeric ranges (for enumerated variables), string patterns (for sensor IDs or labels), or custom logic via Python or external plugins.
+//! Multiple filters can be chained together (the order is important); all custom filters must accept an observation for it to pass through.
+//!
+//! The module provides two key types:
+//! - [`SensorFilterConfig`]: Configuration enum for different filter strategies (declarative)
+//! - [`SensorFilterType`]: Runtime enum containing instantiated filter implementations (operational)
+//! - [`SensorFilter`]: Base trait for all custom filter implementations
+
 use std::sync::Arc;
 
 use simba_macros::{EnumToString, config_derives};
@@ -32,25 +43,60 @@ pub mod python_filter;
 pub mod range_filter;
 pub mod string_filter;
 
+/// Configuration enum selecting among multiple sensor observation filtering strategies.
+///
+/// This enum provides a unified interface for declaring sensor filters with different decision logic.
+/// Each variant wraps the configuration for a specific filter type.
+/// When multiple filters are applied to a sensor, all must agree to keep the observation.
+/// Configuration is typically loaded from YAML and later instantiated into runtime [`SensorFilterType`] instances.
+/// 
+/// WARNING: all filter are not available for all sensors. This will be changed in the future.
+/// 
+/// # Config example:
+/// ```yaml
+/// filters:
+///   - type: Range
+///     variables: [r, theta]  # Variables names must match the sensor specific variables
+///     max_range: [100, 1.57]
+///     min_range: [1., -1.57]
+///     inside: true
+/// ```
 #[config_derives]
 pub enum SensorFilterConfig<SV: EnumVariables> {
+    /// Range-based filtering on enumerated variables: excludes observations where numeric values fall outside specified bounds.
     #[check]
     Range(RangeFilterConfig<SV>),
+    /// String pattern filtering on observed object unique id (name for nodes, id for landmarks): excludes observations matching configured regexp patterns.
     #[check]
     Id(StringFilterConfig),
+    /// String pattern filtering on observed object labels: excludes observations matching configured regexp patterns.
     #[check]
     Label(StringFilterConfig),
+    /// Python-based custom filtering: delegates exclusion logic to user-defined Python methods.
     #[check]
     Python(PythonFilterConfig),
+    /// Plugin-based custom filtering: delegates exclusion logic to external compiled or scripted plugins.
     #[check]
     External(ExternalFilterConfig),
 }
 
+/// Trait defining the sensor observations filter interface for custom implementation.
+///
+/// All custom filter implementations must satisfy this trait to integrate with the observation filtering system.
+/// A filter's decision is binary: it returns `Some(observation)` to keep the observation (can be modified) or `None` to exclude it.
 pub trait SensorFilter: Send + Sync + std::fmt::Debug {
+    /// Initializes the filter with node context and current simulation time.
+    ///
+    /// Called once at simulation before starting the simulation loop to allow filters to set up internal state, validate configurations,
+    /// or perform any needed interactions with the node. This is optional; default implementation does nothing.
     #[allow(unused_variables)]
     fn post_init(&mut self, node: &mut crate::node::Node, initial_time: f32) -> SimbaResult<()> {
         Ok(())
     }
+    /// Applies the filter to an observation and decides whether to keep or exclude it. The observation can be modified.
+    ///
+    /// Returns `Some(observation)` to keep, or `None` to exclude from further processing.
+    /// The filter has access to observer and observee states for context-aware decisions.
     fn filter(
         &self,
         time: f32,
@@ -127,6 +173,10 @@ impl<SV: EnumVariables> UIComponent for SensorFilterConfig<SV> {
 
 #[cfg(feature = "gui")]
 impl<SV: EnumVariables> SensorFilterConfig<SV> {
+    /// Renders mutable GUI controls for managing a list of sensor filters.
+    ///
+    /// Displays each filter with edit controls and remove buttons, plus an interactive dropdown
+    /// to select and add new filters of different types to the list.
     pub fn show_filters_mut(
         filters: &mut Vec<SensorFilterConfig<SV>>,
         ui: &mut egui::Ui,
@@ -194,6 +244,10 @@ impl<SV: EnumVariables> SensorFilterConfig<SV> {
         });
     }
 
+    /// Renders read-only GUI display for a list of sensor filters.
+    ///
+    /// Shows each filter with its current configuration in collapsed sections,
+    /// but does not allow modifications (no edit controls or remove buttons).
     pub fn show_filters(
         filters: &[SensorFilterConfig<SV>],
         ui: &mut egui::Ui,
@@ -210,16 +264,30 @@ impl<SV: EnumVariables> SensorFilterConfig<SV> {
     }
 }
 
+/// Enum containing instantiated sensor filter implementations.
+///
+/// This is the runtime counterpart to [`SensorFilterConfig`]: once a config is loaded,
+/// it is constructed into the appropriate variant of this enum.
+/// Each variant holds the fully initialized filter instance ready for observation processing.
 #[derive(Debug, EnumToString)]
 pub enum SensorFilterType<SV: EnumVariables> {
+    /// Instantiated range-based variable filter.
     RangeFilter(RangeFilter<SV>),
+    /// Instantiated Python-based custom filter.
     PythonFilter(PythonFilter),
+    /// Instantiated string pattern filter for sensor IDs.
     IdFilter(StringFilter),
+    /// Instantiated string pattern filter for sensor labels.
     LabelFilter(StringFilter),
+    /// Instantiated external plugin-based filter.
     External(Box<dyn SensorFilter>),
 }
 
 impl<SV: EnumVariables> SensorFilterType<SV> {
+    /// Initializes the filter with node context and current simulation time.
+    ///
+    /// Delegates to the underlying filter's [`SensorFilter::post_init`] implementation.
+    /// Some filters (e.g., range and string filters) are stateless and skip initialization.
     pub fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
         match self {
             Self::PythonFilter(f) => f.post_init(node, initial_time),
@@ -229,6 +297,11 @@ impl<SV: EnumVariables> SensorFilterType<SV> {
     }
 }
 
+/// Factory function that constructs a runtime filter from its configuration.
+///
+/// Takes a [`SensorFilterConfig`] and instantiates the appropriate filter variant,
+/// handling initialization and dependency injection (e.g., plugins, factories).
+/// This function bridges configuration-time and runtime-time filter implementations.
 pub fn make_sensor_filter_from_config<SV: EnumVariables>(
     config: &SensorFilterConfig<SV>,
     plugin_api: &Option<Arc<dyn PluginAPI>>,

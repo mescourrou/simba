@@ -6,11 +6,6 @@ be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external navigator strategy is made using the
 [`PluginAPI::get_navigator`] function.
-
-For the [`Stateful`] trait, the generic type is [`NavigatorRecord`],
-and your implementation should return a [`NavigatorRecord::External`]
-type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
-and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use log::debug;
@@ -47,8 +42,9 @@ external_config!(
 /// In the yaml file, the config could be:
 /// ```YAML
 /// navigator:
-///     External:
-///         parameter_of_my_own_navigator: true
+///   type: External:
+///   config:
+///     parameter_of_my_own_navigator: true
 /// ```
     ExternalNavigatorConfig,
     "External Navigator",
@@ -60,9 +56,6 @@ external_record_python_methods!(
 ///
 /// Like [`ExternalNavigatorConfig`], [`ExternalNavigator`] uses a [`serde_json::Value`]
 /// to take every record.
-///
-/// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::record`] implementations.
     ExternalNavigatorRecord,
 );
 
@@ -83,7 +76,9 @@ impl ExternalNavigator {
     /// * `config` -- Scenario config of the External navigator.
     /// * `plugin_api` -- Required [`PluginAPI`] implementation.
     /// * `global_config` -- Simulator config.
-    /// * `_va_factory` -- Factory for Determinists random variables
+    /// * `va_factory` -- Factory for Determinists random variables
+    /// * `network` -- Shared reference to the network, for navigators using messages.
+    /// * `initial_time` -- Initial node time.
     pub fn from_config(
         config: &ExternalNavigatorConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,

@@ -1,3 +1,12 @@
+//! Environment map handling and visibility queries.
+//!
+//! This module provides:
+//! - [`EnvironmentConfig`] to load environment map data,
+//! - [`Environment`] to query observable landmarks and line-of-sight,
+//! - [`Map`] as the in-memory map representation.
+//!
+//! Landmark geometry is represented by [`OrientedLandmark`].
+
 #[cfg(feature = "gui")]
 use std::collections::BTreeMap;
 use std::{
@@ -30,9 +39,17 @@ use crate::{gui::utils::path_finder, simulator::SimulatorConfig};
 
 pub mod oriented_landmark;
 
+/// Configuration for building an [`Environment`].
+/// 
+/// The map contains the map geometry. It is loaded from a file when `map_path` is provided, or initialized as empty otherwise. The map file should be parsable by the [`Map`] struct, which currently supports a simple custom format (see its documentation for details).
+/// 
+/// The map path is relative to the simulator config path.
 #[config_derives]
 #[derive(Default)]
 pub struct EnvironmentConfig {
+    /// Optional map file path.
+    ///
+    /// If `None` (default), an empty [`Map`] is used.
     pub map_path: Option<String>,
 }
 
@@ -80,6 +97,7 @@ type CacheValue = (
 );
 
 #[derive(Debug, Clone, Default)]
+/// Runtime environment state containing map geometry and per-node metadata.
 pub struct Environment {
     map: Map,
     meta_data_list: SharedRwLock<HashMap<String, SharedRoLock<NodeMetaData>>>,
@@ -88,6 +106,9 @@ pub struct Environment {
 }
 
 impl Environment {
+    /// Creates an [`Environment`] from [`EnvironmentConfig`].
+    ///
+    /// Loads the configured map path when provided; otherwise initializes an empty [`Map`].
     pub fn from_config(
         config: &EnvironmentConfig,
         global_config: &SimulatorConfig,
@@ -104,6 +125,7 @@ impl Environment {
         })
     }
 
+    /// Returns an immutable reference to the loaded map.
     pub fn map(&self) -> &Map {
         &self.map
     }
@@ -487,6 +509,11 @@ impl Environment {
         observed_landmarks
     }
 
+    /// Returns whether a target point is observable from an observer position.
+    ///
+    /// Visibility is constrained by `max_distance` and by occlusions from landmarks with
+    /// sufficient height. If either `target_height` or `observer_height` is `None`, obstruction
+    /// checks are skipped (x-ray behavior).
     pub fn is_target_observable(
         &self,
         target_position: &Vector2<f32>,
@@ -553,14 +580,17 @@ impl Environment {
         true
     }
 
+    /// Clears all stored node metadata.
     pub fn clear_meta_data(&self) {
         self.meta_data_list.write().unwrap().clear();
     }
 
+    /// Returns shared access to node metadata indexed by node name.
     pub fn get_meta_data(&self) -> &SharedRwLock<HashMap<String, SharedRoLock<NodeMetaData>>> {
         &self.meta_data_list
     }
 
+    /// Inserts or replaces metadata for a node.
     pub fn insert_meta_data(&self, node_name: String, meta_data: SharedRoLock<NodeMetaData>) {
         self.meta_data_list
             .write()
@@ -570,12 +600,33 @@ impl Environment {
 }
 
 /// Map, containing multiple [`OrientedLandmark`], used for the map file.
+/// 
+/// The map file should be parsable by this struct, which currently supports a simple custom format (see its documentation for details).
+/// 
+/// # File example
+/// ```yaml
+/// landmarks:
+///  - id: 1
+///    x: 3
+///    y: 2
+///    theta: 0.7854
+///    width: 2.8284
+///    height: 0
+///  - id: 2
+///    x: 5.5
+///    y: 7
+///    theta: 1.5708
+///    width: 3
+///    height: 1
+/// ```
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Map {
+    /// Landmarks contained in the map.
     pub landmarks: Vec<OrientedLandmark>,
 }
 
 impl Map {
+    /// Creates an empty map.
     pub fn new() -> Self {
         Self {
             landmarks: Vec::new(),

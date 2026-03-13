@@ -1,3 +1,14 @@
+//! Range-based sensor filter over named numeric variables.
+//!
+//! This module provides a generic filter that evaluates one or more numeric
+//! variables against configured inclusive ranges. The variable identifiers are
+//! generic and constrained by [`EnumVariables`], which allows each sensor type
+//! to define its own valid set of filterable variables.
+//!
+//! Filtering behavior depends on the `inside` flag:
+//! - if `inside` is `true`, every configured variable must stay inside its range,
+//! - if `inside` is `false`, configured variables must stay outside the ranges.
+
 use std::collections::HashMap;
 
 use simba_macros::config_derives;
@@ -7,10 +18,22 @@ use crate::gui::{UIComponent, utils::enum_combobox};
 use crate::utils::enum_tools::EnumVariables;
 
 #[config_derives]
+/// Configuration for a range-based filter over sensor variables.
+///
+/// Each entry in `variables` is paired with the corresponding entries in
+/// `min_range` and `max_range`. These vectors must therefore have identical
+/// lengths. Range checks are inclusive.
+///
+/// The generic parameter `SV` defines the allowed variable identifiers and is
+/// typically a sensor-specific enum generated through Simba macros.
 pub struct RangeFilterConfig<SV: EnumVariables> {
+    /// Ordered list of variables to test.
     pub variables: Vec<SV>,
+    /// Inclusive lower bounds associated with `variables`.
     pub min_range: Vec<f32>,
+    /// Inclusive upper bounds associated with `variables`.
     pub max_range: Vec<f32>,
+    /// Whether matching values should stay inside (`true`) or outside (`false`) ranges.
     pub inside: bool,
 }
 
@@ -123,17 +146,23 @@ impl<SV: EnumVariables> UIComponent for RangeFilterConfig<SV> {
 }
 
 #[derive(Debug, Clone)]
+/// Runtime range filter built from [`RangeFilterConfig`].
 pub struct RangeFilter<SV: EnumVariables> {
     config: RangeFilterConfig<SV>,
 }
 
 impl<SV: EnumVariables> RangeFilter<SV> {
+    /// Build a range filter from its configuration.
     pub fn from_config(config: &RangeFilterConfig<SV>, _initial_time: f32) -> Self {
         Self {
             config: config.clone(),
         }
     }
 
+    /// Return whether the provided variable map passes the exclusion filter.
+    ///
+    /// The method evaluates every configured variable and returns `true` when the
+    /// input should be kept according to the configured range policy.
     pub fn match_exclusion(&self, variable_map: &HashMap<SV, f32>) -> bool {
         let mut keep = true;
         for (i, var) in self.config.variables.iter().enumerate() {

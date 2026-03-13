@@ -1,6 +1,8 @@
-/*!
-Provides a [`Sensor`] which can observe the other nodes in the frame of the ego node.
-*/
+//! Robot sensor implementation.
+//!
+//! This module provides a [`Sensor`] that observes other robots relative to the ego robot frame.
+//! It supports configurable filters through
+//! [`SensorFilterConfig`] and fault pipelines configured by [`RobotSensorFaultModelConfig`].
 
 use super::fault_models::fault_model::FaultModel;
 use super::{Sensor, SensorObservation, SensorRecord};
@@ -37,37 +39,65 @@ extern crate nalgebra as na;
 use na::Vector3;
 use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
-use std::fmt;
 use std::sync::Arc;
 
 enum_variables!(
+    "Variables used by robot observations, filters, and fault models."
     RobotSensorVariables;
-    Filter, Faults: X, "x";
-    Filter, Faults: Y, "y";
-    Filter, Faults: Orientation, "orientation", "z";
-    Filter, Faults: R, "r";
-    Filter, Faults: Theta, "theta" ;
-    Filter: SelfVelocity, "self_velocity";
-    Filter: TargetVelocity, "target_velocity";
+    "Variables used by sensor filters."
+    Filter,
+    "Variables used by fault models."
+    Faults:
+    "Relative X coordinate."
+    X, "x";
+    Filter, Faults: 
+    "Relative Y coordinate."
+    Y, "y";
+    Filter, Faults:
+    "Relative orientation (angle) of the observed robot compared to the ego robot."
+    Orientation, "orientation", "z";
+    Filter, Faults: 
+    "Relative distance to the observed robot."
+    R, "r", "d", "distance";
+    Filter, Faults:
+    "Relative bearing angle to the observed robot."
+    Theta, "theta" ;
+    Filter:
+    "Velocity of the observator."
+    SelfVelocity, "self_velocity";
+    Filter:
+    "Absolute velocity of the observed robot."
+    TargetVelocity, "target_velocity";
 );
 
+/// Configuration enum selecting robot sensor fault model strategies.
+///
+/// Default value: [`RobotSensorFaultModelConfig::AdditiveRobotCentered`] with
+/// [`AdditiveFaultConfig::default`].
 #[config_derives]
 #[derive(UIComponent)]
 #[show_all = "Faults"]
 pub enum RobotSensorFaultModelConfig {
+    /// Additive fault model in robot-centered coordinates.
     #[check]
     AdditiveRobotCentered(AdditiveFaultConfig<RobotSensorVariablesFaults, RobotSensorVariables>),
+    /// Additive fault model in observation-centered coordinates.
     AdditiveObservationCentered(
         AdditiveFaultConfig<RobotSensorVariablesFaults, RobotSensorVariables>,
     ),
+    /// Clutter fault model.
     #[check]
     Clutter(ClutterFaultConfig<RobotSensorVariablesFaults>),
+    /// Misdetection fault model.
     #[check]
     Misdetection(MisdetectionFaultConfig),
+    /// Misassociation fault model.
     #[check]
     Misassociation(MisassociationFaultConfig),
+    /// Python-implemented fault model.
     #[check]
     Python(PythonFaultModelConfig),
+    /// Plugin-provided external fault model.
     #[check]
     External(ExternalFaultConfig),
 }
@@ -78,18 +108,27 @@ impl Default for RobotSensorFaultModelConfig {
     }
 }
 
+/// Runtime enum containing instantiated robot sensor fault models.
 #[derive(Debug, EnumToString)]
 pub enum RobotSensorFaultModelType {
+    /// Instantiated additive robot-centered fault model.
     AdditiveRobotCentered(AdditiveFault<RobotSensorVariablesFaults, RobotSensorVariables>),
+    /// Instantiated additive observation-centered fault model.
     AdditiveObservationCentered(AdditiveFault<RobotSensorVariablesFaults, RobotSensorVariables>),
+    /// Instantiated clutter fault model.
     Clutter(ClutterFault<RobotSensorVariablesFaults>),
+    /// Instantiated misdetection fault model.
     Misdetection(MisdetectionFault),
+    /// Instantiated misassociation fault model.
     Misassociation(MisassociationFault),
+    /// Instantiated Python fault model.
     Python(PythonFaultModel),
+    /// Instantiated external fault model.
     External(ExternalFault),
 }
 
 impl RobotSensorFaultModelType {
+    /// Initializes fault models that require runtime node context.
     pub fn post_init(
         &mut self,
         node: &mut crate::node::Node,
@@ -108,6 +147,18 @@ impl RobotSensorFaultModelType {
 }
 
 /// Configuration of the [`RobotSensor`].
+/// 
+/// The robot sensor observes other robots relative to the ego robot frame.
+///
+/// Occlusions are handled by default, but can be bypassed by setting `xray` to `true`. In this case, the sensor will detect all robots within the `detection_distance` regardless of occlusions.
+/// The height of the sensor is considered at 0., so all landmarks can occlude robots.
+/// 
+/// Default values:
+/// - `detection_distance`: `5.0`
+/// - `activation_time`: `Some(PeriodicityConfig { period: 0.1, offset: None, table: None })`
+/// - `faults`: empty vector
+/// - `filters`: empty vector
+/// - `xray`: `false`
 #[config_derives]
 pub struct RobotSensorConfig {
     /// Max distance of detection.
@@ -115,10 +166,13 @@ pub struct RobotSensorConfig {
     /// Observation period of the sensor.
     #[check]
     pub activation_time: Option<PeriodicityConfig>,
+    /// Fault model configurations applied after filtering.
     #[check]
     pub faults: Vec<RobotSensorFaultModelConfig>,
+    /// Filter configurations applied before fault injection.
     #[check]
     pub filters: Vec<SensorFilterConfig<RobotSensorVariablesFilter>>,
+    /// If `true`, line-of-sight occlusion checks are bypassed.
     pub xray: bool,
 }
 
@@ -268,175 +322,16 @@ impl UIComponent for RobotSensorRecord {
     }
 }
 
-/// Landmark struct, with an `id` and a `pose`, used to read the map file.
-#[derive(Debug)]
-pub struct OrientedRobot {
-    pub name: String,
-    pub pose: Vector3<f32>,
-}
-
-use serde::ser::{Serialize, SerializeStruct, Serializer};
-
-impl Serialize for OrientedRobot {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        // 3 is the number of fields in the struct.
-        let mut state = serializer.serialize_struct("OrientedRobot", 4)?;
-        state.serialize_field("name", self.name.as_str())?;
-        state.serialize_field("x", &self.pose.x)?;
-        state.serialize_field("y", &self.pose.y)?;
-        state.serialize_field("theta", &self.pose.z)?;
-        state.end()
-    }
-}
-
-use serde::de::{self, Deserialize, Deserializer, MapAccess, SeqAccess, Visitor};
-
-impl<'de> Deserialize<'de> for OrientedRobot {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        enum Field {
-            Name,
-            X,
-            Y,
-            Theta,
-            Unknown,
-        }
-
-        // This part could also be generated independently by:
-        //
-        //    #[derive(Deserialize)]
-        //    #[serde(field_identifier, rename_all = "lowercase")]
-        //    enum Field { Secs, Nanos }
-        impl<'de> Deserialize<'de> for Field {
-            fn deserialize<D>(deserializer: D) -> Result<Field, D::Error>
-            where
-                D: Deserializer<'de>,
-            {
-                struct FieldVisitor;
-
-                impl<'de> Visitor<'de> for FieldVisitor {
-                    type Value = Field;
-
-                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                        formatter.write_str("`name` or `x` or `y` or `theta`")
-                    }
-
-                    fn visit_str<E>(self, value: &str) -> Result<Field, E>
-                    where
-                        E: de::Error,
-                    {
-                        match value {
-                            "name" => Ok(Field::Name),
-                            "x" => Ok(Field::X),
-                            "y" => Ok(Field::Y),
-                            "theta" => Ok(Field::Theta),
-                            _ => Ok(Field::Unknown),
-                        }
-                    }
-                }
-
-                deserializer.deserialize_identifier(FieldVisitor)
-            }
-        }
-
-        struct OrientedRobotVisitor;
-
-        impl<'de> Visitor<'de> for OrientedRobotVisitor {
-            type Value = OrientedRobot;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                formatter.write_str("struct OrientedRobot")
-            }
-
-            fn visit_seq<V>(self, mut seq: V) -> Result<OrientedRobot, V::Error>
-            where
-                V: SeqAccess<'de>,
-            {
-                let name: &str = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(0, &self))?;
-                let x: f32 = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(1, &self))?;
-                let y: f32 = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(2, &self))?;
-                let theta: f32 = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::invalid_length(3, &self))?;
-                Ok(OrientedRobot {
-                    name: name.to_string(),
-                    pose: Vector3::from_vec(vec![x, y, theta]),
-                })
-            }
-
-            fn visit_map<V>(self, mut map: V) -> Result<OrientedRobot, V::Error>
-            where
-                V: MapAccess<'de>,
-            {
-                let mut name = None;
-                let mut x = None;
-                let mut y = None;
-                let mut theta = None;
-
-                while let Some(key) = map.next_key()? {
-                    match key {
-                        Field::Name => {
-                            if name.is_some() {
-                                return Err(de::Error::duplicate_field("name"));
-                            }
-                            name = Some(map.next_value()?);
-                        }
-                        Field::X => {
-                            if x.is_some() {
-                                return Err(de::Error::duplicate_field("x"));
-                            }
-                            x = Some(map.next_value()?);
-                        }
-                        Field::Y => {
-                            if y.is_some() {
-                                return Err(de::Error::duplicate_field("y"));
-                            }
-                            y = Some(map.next_value()?);
-                        }
-                        Field::Theta => {
-                            if theta.is_some() {
-                                return Err(de::Error::duplicate_field("theta"));
-                            }
-                            theta = Some(map.next_value()?);
-                        }
-                        Field::Unknown => {}
-                    }
-                }
-                let name = name.ok_or_else(|| de::Error::missing_field("name"))?;
-                let x = x.ok_or_else(|| de::Error::missing_field("x"))?;
-                let y = y.ok_or_else(|| de::Error::missing_field("y"))?;
-                let theta = theta.ok_or_else(|| de::Error::missing_field("theta"))?;
-                Ok(OrientedRobot {
-                    name,
-                    pose: Vector3::from_vec(vec![x, y, theta]),
-                })
-            }
-        }
-
-        const FIELDS: &[&str] = &["name", "x", "y", "theta"];
-        deserializer.deserialize_struct("OrientedRobot", FIELDS, OrientedRobotVisitor)
-    }
-}
-
-/// Observation of an [`OrientedRobot`].
+/// Observation of an Oriented Robot.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct OrientedRobotObservation {
     /// Name of the Robot
     pub name: String,
+    /// Labels associated with the observed robot.
     pub labels: Vec<String>,
     /// Pose of the Robot
     pub pose: Vector3<f32>,
+    /// Fault models applied to this observation.
     pub applied_faults: Vec<RobotSensorFaultModelConfig>,
 }
 
@@ -450,10 +345,12 @@ impl Recordable<OrientedRobotObservationRecord> for OrientedRobotObservation {
     }
 }
 
+/// Serializable record representation of an [`OrientedRobotObservation`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OrientedRobotObservationRecord {
     /// Name of the Robot
     pub name: String,
+    /// Labels associated with the observed robot.
     pub labels: Vec<String>,
     /// Pose of the Robot
     pub pose: [f32; 3],

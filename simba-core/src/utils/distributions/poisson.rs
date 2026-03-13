@@ -1,3 +1,8 @@
+//! Poisson distribution random-variable utilities.
+//!
+//! This module defines configuration and deterministic generation logic for
+//! Poisson random variables used by the simulator.
+
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use simba_macros::config_derives;
@@ -6,10 +11,10 @@ use statrs::distribution::Poisson;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 
-/// Configuration for a uniform random variable.
+/// Configuration for a Poisson random variable.
 #[config_derives]
 pub struct PoissonRandomVariableConfig {
-    /// Probabilities of the random variable
+    /// Lambda parameter(s) of the Poisson distribution. Must be non-negative.
     pub lambda: Vec<f64>,
 }
 
@@ -83,14 +88,21 @@ impl UIComponent for PoissonRandomVariableConfig {
 }
 
 #[derive(Debug, Clone)]
+/// Deterministic Poisson random variable generator.
+///
+/// Sampling is reproducible for the same seed and time input.
 pub struct DeterministPoissonRandomVariable {
     /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
     my_seed: f32,
-    /// Probability of the Poisson distribution.
+    /// Lambda parameter(s) of the Poisson distribution.
     poisson: Vec<Poisson>,
 }
 
 impl DeterministPoissonRandomVariable {
+    /// Build a deterministic Poisson random variable from configuration.
+    ///
+    /// `my_seed` should be a deterministic seed component unique to this
+    /// variable instance.
     pub fn from_config(my_seed: f32, config: PoissonRandomVariableConfig) -> Self {
         assert!(config.lambda.iter().all(|x| *x >= 0.));
         Self {
@@ -103,6 +115,9 @@ impl DeterministPoissonRandomVariable {
         }
     }
 
+    /// Generate one sample vector at a given simulation `time`.
+    ///
+    /// The produced values are reproducible for the same `(my_seed, time)` pair.
     pub fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
@@ -112,6 +127,7 @@ impl DeterministPoissonRandomVariable {
         v
     }
 
+    /// Return the output dimension of the random variable.
     pub fn dim(&self) -> usize {
         self.poisson.len()
     }

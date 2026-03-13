@@ -1,3 +1,9 @@
+//! Scenario runtime engine.
+//!
+//! This module evaluates scenario events configured through
+//! [`ScenarioConfig`], including time-based and
+//! state-based triggers, and executes corresponding actions during simulation.
+
 use std::{
     collections::{BTreeSet, HashMap},
     str::FromStr,
@@ -30,6 +36,7 @@ use crate::networking::network::MessageFlag;
 
 pub mod config;
 
+/// Runtime scenario manager handling trigger evaluation and event execution.
 pub struct Scenario {
     time_events: TimeOrderedData<(usize, Event)>,
     other_events: Mutex<Vec<Event>>,
@@ -41,6 +48,7 @@ pub struct Scenario {
 impl Scenario {
     const CHANNEL_NAME: &'static str = "scenario";
 
+    /// Builds a runtime [`Scenario`] from [`ScenarioConfig`].
     pub fn from_config(
         config: &ScenarioConfig,
         global_config: &SimulatorConfig,
@@ -286,6 +294,7 @@ impl Scenario {
         Ok(())
     }
 
+    /// Returns the next scheduled time-triggered event, if any.
     pub fn next_event_time(&self) -> Option<f32> {
         self.time_events.min_time().map(|(a, _)| a)
     }
@@ -401,14 +410,19 @@ impl Scenario {
     }
 }
 
+/// Runtime event representation with compiled trigger filters.
 #[derive(Debug, Clone)]
 pub struct Event {
+    /// Compiled regex filters for nodes allowed to trigger this event.
     pub triggering_nodes: Vec<Regex>,
+    /// Trigger condition definition.
     pub trigger: EventTriggerConfig,
+    /// Action executed when the trigger is satisfied.
     pub event_type: EventTypeConfig,
 }
 
 impl Event {
+    /// Builds a runtime [`Event`] from [`EventConfig`].
     pub fn from_config(config: &EventConfig) -> Self {
         let triggering_nodes = config
             .triggering_nodes

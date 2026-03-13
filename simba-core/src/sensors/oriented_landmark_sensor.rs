@@ -1,6 +1,9 @@
-/*!
-Provides a [`Sensor`] which can observe oriented landmarks in the frame of the robot.
-*/
+//! Oriented landmark sensor implementation.
+//!
+//! This module provides a [`Sensor`] that observes oriented landmarks
+//! in the robot frame.
+//! It supports configurable filters through
+//! [`SensorFilterConfig`] and fault model pipelines configured by [`OrientedLandmarkSensorFaultModelConfig`].
 
 use super::fault_models::fault_model::FaultModel;
 use super::{Sensor, SensorObservation, SensorRecord};
@@ -39,31 +42,62 @@ use std::sync::Arc;
 use std::vec;
 
 enum_variables!(
+    "Variables used by oriented-landmark observations, filters, and fault models."
     OrientedLandmarkSensorVariables;
-    Filter, Faults: X, "x";
-    Filter, Faults: Y, "y";
-    Filter, Faults: Orientation, "orientation";
-    Filter, Faults: R, "r";
-    Filter, Faults: Theta, "theta";
-    Filter, Faults: Width, "width";
-    Filter, Faults: Height, "height" ;
-    Filter: SelfVelocity, "self_velocity";
+    "Variables accepted by sensor filters."
+    Filter,
+    "Variables modified by fault models."
+    Faults:
+    "Relative X coordinate."
+    X, "x";
+    Filter, Faults:
+    "Relative Y coordinate."
+    Y, "y";
+    Filter, Faults: 
+    "Relative orientation of the landmark with respect to the robot."
+    Orientation, "orientation";
+    Filter, Faults:
+    "Relative distance to the landmark."
+    R, "r", "range", "d", "distance";
+    Filter, Faults:
+    "Relative bearing of the landmark."
+    Theta, "theta";
+    Filter, Faults:
+    "Width of the landmark."
+    Width, "width";
+    Filter, Faults: 
+    "Absolute height of the landmark."
+    Height, "height" ;
+    Filter:
+    "Absolute observer linear velocity"
+    SelfVelocity, "self_velocity";
 );
 
+/// Configuration enum selecting oriented-landmark fault model strategies.
+///
+/// Default value: [`OrientedLandmarkSensorFaultModelConfig::AdditiveRobotCentered`] with
+/// [`AdditiveFaultConfig::default`].
 #[config_derives]
 #[derive(UIComponent)]
 #[show_all = "Faults"]
 pub enum OrientedLandmarkSensorFaultModelConfig {
+    /// Additive fault model in robot-centered coordinates.
     AdditiveRobotCentered(
         AdditiveFaultConfig<OrientedLandmarkSensorVariablesFaults, OrientedLandmarkSensorVariables>,
     ),
+    /// Additive fault model in observation-centered coordinates.
     AdditiveObservationCentered(
         AdditiveFaultConfig<OrientedLandmarkSensorVariablesFaults, OrientedLandmarkSensorVariables>,
     ),
+    /// Clutter fault model.
     Clutter(ClutterFaultConfig<OrientedLandmarkSensorVariablesFaults>),
+    /// Misdetection fault model.
     Misdetection(MisdetectionFaultConfig),
+    /// Misassociation fault model.
     Misassociation(MisassociationFaultConfig),
+    /// Plugin-provided external fault model.
     External(ExternalFaultConfig),
+    /// Python-implemented fault model.
     Python(PythonFaultModelConfig),
 }
 
@@ -73,22 +107,31 @@ impl Default for OrientedLandmarkSensorFaultModelConfig {
     }
 }
 
+/// Runtime enum containing instantiated oriented-landmark fault models.
 #[derive(Debug, EnumToString)]
 pub enum OrientedLandmarkSensorFaultModelType {
+    /// Instantiated additive robot-centered fault model.
     AdditiveRobotCentered(
         AdditiveFault<OrientedLandmarkSensorVariablesFaults, OrientedLandmarkSensorVariables>,
     ),
+    /// Instantiated additive observation-centered fault model.
     AdditiveObservationCentered(
         AdditiveFault<OrientedLandmarkSensorVariablesFaults, OrientedLandmarkSensorVariables>,
     ),
+    /// Instantiated clutter fault model.
     Clutter(ClutterFault<OrientedLandmarkSensorVariablesFaults>),
+    /// Instantiated misdetection fault model.
     Misdetection(MisdetectionFault),
+    /// Instantiated misassociation fault model.
     Misassociation(MisassociationFault),
+    /// Instantiated external fault model.
     External(ExternalFault),
+    /// Instantiated Python fault model.
     Python(PythonFaultModel),
 }
 
 impl OrientedLandmarkSensorFaultModelType {
+    /// Initializes fault models that require runtime node context.
     pub fn post_init(
         &mut self,
         node: &mut crate::node::Node,
@@ -107,15 +150,28 @@ impl OrientedLandmarkSensorFaultModelType {
 }
 
 /// Configuration of the [`OrientedLandmarkSensor`].
+/// 
+/// The occlusions are defined geometrically using all the landmarks and their height. If occlusion occurs on a
+/// widthed landmark, the landmark is not observed at all and the observed width is reduced to the observable part.
+///
+/// Default values:
+/// - `detection_distance`: `5.0`
+/// - `activation_time`: `Some(PeriodicityConfig { period: 0.1, offset: None, table: None })`
+/// - `faults`: empty vector
+/// - `filters`: empty vector
+/// - `xray`: `false`
 #[config_derives]
 pub struct OrientedLandmarkSensorConfig {
     /// Max distance of detection.
     pub detection_distance: f32,
-    /// Observation period of the sensor.
+    /// Periodicity configuration of the sensor.
     #[check]
     pub activation_time: Option<PeriodicityConfig>,
     #[check]
+    /// Fault model configurations applied after filtering.
+    #[check]
     pub faults: Vec<OrientedLandmarkSensorFaultModelConfig>,
+    /// Filter configurations applied before fault injection.
     #[check]
     pub filters: Vec<SensorFilterConfig<OrientedLandmarkSensorVariablesFilter>>,
     /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
@@ -268,19 +324,20 @@ impl UIComponent for OrientedLandmarkSensorRecord {
     }
 }
 
-/// Observation of an [`OrientedLandmark`].
+/// Observation of an [`OrientedLandmark`](crate::environment::oriented_landmark::OrientedLandmark).
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OrientedLandmarkObservation {
     /// Id of the landmark
     pub id: i32,
+    /// Labels associated with the observed landmark.
     pub labels: Vec<String>,
     /// Pose of the landmark
     pub pose: Vector3<f32>,
     /// Height of the landmark, used for obstruction checks
-    /// Use 0 for fully transparent landmarks
     pub height: f32,
     /// Can be 0 for ponctual landmarks
     pub width: f32,
+    /// Fault models applied to this observation.
     pub applied_faults: Vec<OrientedLandmarkSensorFaultModelConfig>,
 }
 
@@ -310,15 +367,20 @@ impl Recordable<OrientedLandmarkObservationRecord> for OrientedLandmarkObservati
     }
 }
 
+/// Serializable record representation of [`OrientedLandmarkObservation`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct OrientedLandmarkObservationRecord {
     /// Id of the landmark
     pub id: i32,
+    /// Labels associated with the observed landmark.
     pub labels: Vec<String>,
     /// Pose of the landmark
     pub pose: [f32; 3],
+    /// Landmark height.
     pub height: f32,
+    /// Landmark width.
     pub width: f32,
+    /// Fault models applied at observation generation time.
     pub applied_faults: Vec<OrientedLandmarkSensorFaultModelConfig>,
 }
 

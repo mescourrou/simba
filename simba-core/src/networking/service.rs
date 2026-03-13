@@ -1,15 +1,14 @@
-/*!
-Provides a service system to handle two-way communication between nodes, with the
-client node beeing blocked until the server node sends a response.
-
-The server node should create a [`Service`] and handle the requests in
-[`run_time_step`](crate::node::Node::run_time_step). The client node should get a
-[`ServiceClient`] instance to be able to make a request.
-
-To operate a service, two messages types should be defined:
-- The request message type, which is sent by the client to the server.
-- The response message type, which is sent by the server to the client.
-*/
+//! Request/response service primitives for node-to-node communication.
+//!
+//! This module implements two-way communication where a client node sends a request and later
+//! receives a response from a server node. A server exposes a [`Service`], while clients use a
+//! [`ServiceClient`] created by that service.
+//!
+//! This design keeps message ordering consistent with simulation time.
+//!
+//! A service is parameterized by two payload types:
+//! - a request type sent by the client;
+//! - a response type produced by the server.
 
 use core::f32;
 use std::{
@@ -32,9 +31,17 @@ use crate::{
 
 use super::network::MessageFlag;
 
+/// Common runtime interface for service implementations.
 pub trait ServiceInterface: Debug + Send + Sync {
+    /// Pulls newly received requests from channels into the time-ordered request buffer.
+    ///
+    /// Returns the number of buffered requests remaining after ingestion.
     fn process_requests(&self) -> usize;
+    /// Handles all requests that are due at `time`.
     fn handle_requests(&self, time: f32);
+    /// Returns the next timestamp at which a request is waiting.
+    ///
+    /// Returns [`f32::INFINITY`] if no request is currently buffered.
     fn next_time(&self) -> f32;
 }
 
@@ -44,13 +51,14 @@ pub trait ServiceInterface: Debug + Send + Sync {
 /// server sends a response.
 #[derive(Debug, Clone)]
 pub struct ServiceClient<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> {
-    // Channel to send the request to the server (given by the server).
+    /// Channel to send the request to the server (given by the server).
     response_channel: SharedMutex<mpsc::Receiver<ServiceResponse<ResponseMsg>>>,
-    // Channel to receive the response from the server (given by the server).
+    /// Channel to receive the response from the server (given by the server).
     request_channel: SharedMutex<mpsc::Sender<(String, RequestMsg, f32)>>,
-    // Simulator condition variable needed so that all nodes wait the end of other,
-    // and continue to treat messages.
+    /// Simulator condition variable needed so that all nodes wait the end of other,
+    /// and continue to treat messages.
     time_cv: Arc<TimeCv>,
+    /// Flag to indicate if the service is still active. If false, the client should not send new requests.
     living: SharedRwLock<bool>,
 }
 
@@ -117,6 +125,11 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         Ok(())
     }
 
+        /// Tries to receive a response from the server without blocking.
+        ///
+        /// On success, this decrements the global count of circulating service messages.
+        /// If an unsubscribe flag is received, the client is marked as closed and a
+        /// [`ServiceError::Closed`] error is returned.
     pub fn try_recv(&self) -> Result<ResponseMsg, SimbaError> {
         let result = match self.response_channel.lock().unwrap().try_recv() {
             Ok(result) => result,
@@ -148,8 +161,7 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
 
 /// Service to handle requests from clients.
 ///
-/// Handles requests from clients, and send responses to them. The server should handle
-/// the requests in [`run_time_step`](crate::node::Node::run_time_step).
+/// Handles requests from clients, and send responses to them.
 #[derive(Debug)]
 pub struct Service<
     RequestMsg: Debug + Clone,
@@ -167,7 +179,9 @@ pub struct Service<
     /// Simulator condition variable needed so that all nodes wait the end of others,
     /// and continue to treat messages.
     time_cv: Arc<TimeCv>,
+    /// Target struct which handles the service requests.
     target: SharedRwLock<Box<T>>,
+    /// Flag to indicate if the service is still active. If false, the server should not process new requests.
     living: SharedRwLock<bool>,
 }
 
@@ -181,7 +195,8 @@ impl<
     ///
     /// ## Arguments
     /// * `time_cv` - Condition variable of the simulator, to wait the end of the nodes.
-    pub fn new(time_cv: Arc<TimeCv>, target: SharedRwLock<Box<T>>) -> Self {
+    /// * `target` - Target struct which handles the service requests.
+    pub(crate) fn new(time_cv: Arc<TimeCv>, target: SharedRwLock<Box<T>>) -> Self {
         let (tx, rx) = mpsc::channel::<(String, RequestMsg, f32)>();
         Self {
             request_channel_give: Arc::new(Mutex::new(tx)),
@@ -210,6 +225,7 @@ impl<
         }
     }
 
+    /// Closes the service and notifies all registered clients to unsubscribe.
     pub fn delete(&mut self) {
         *self.living.write().unwrap() = false;
         for client in self.clients.values() {
@@ -234,7 +250,7 @@ impl<
     /// Process the requests received from the clients.
     ///
     /// The requests are added to the buffer, to be treated later by
-    /// [`handle_requests`](Service::handle_requests).
+    /// [`handle_requests`](Self::handle_requests).
     ///
     /// ## Returns
     /// The number of requests remaining in the buffer.
@@ -309,31 +325,27 @@ impl<
     }
 }
 
+/// Response packet sent by a [`Service`] to a [`ServiceClient`].
 pub struct ServiceResponse<ResponseMsg> {
+    /// Service response payload, or an error raised while handling the request.
     pub response: Result<ResponseMsg, SimbaError>,
+    /// Transport-level flags that alter client behavior (for example unsubscribe).
     pub flags: Vec<MessageFlag>,
 }
 
 /// Trait for specific service handlers, which can be different from
 /// the struct which own the service (e.g. in case of strategy pattern).
 pub trait ServiceHandler<RequestMsg, ResponseMsg>: Sync + Send + Debug {
+    /// Handles one request received at simulation `time` and returns the response.
     fn treat_request(&self, req: RequestMsg, time: f32) -> Result<ResponseMsg, String>;
 }
 
 /// Common interface for all struct which manages a service.
 pub trait HasService<RequestMsg, ResponseMsg>: Debug + Sync + Send {
-    // /// Create the service: should be called only once, at the beginning.
-    // fn make_service(&mut self, node: SharedRwLock<Robot>>);
-    // /// Create a new client to the service, should be called by client nodes.
-    // fn new_client(&mut self, client_name: &str) -> ServiceClient<RequestMsg, ResponseMsg>;
     /// Handle the requests received from the clients at the given `time`.
     fn handle_service_requests(
         &mut self,
         req: RequestMsg,
         time: f32,
     ) -> Result<ResponseMsg, String>;
-    // /// Process the requests received from the clients.
-    // fn process_service_requests(&self) -> usize;
-    // /// Get the minimal time among all waiting requests. BOol is for read only (no change in state, which does not requires a new computation)
-    // fn service_next_time(&self) -> (f32, bool);
 }

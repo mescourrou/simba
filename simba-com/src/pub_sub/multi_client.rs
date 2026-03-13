@@ -1,3 +1,10 @@
+//! Multi-channel client abstractions for the publish/subscribe subsystem.
+//!
+//! This module defines:
+//! - [`MultiClientTrait`], a common interface for clients handling multiple subscribed channels,
+//! - [`MultiClient`], a generic key-based implementation,
+//! - [`PathMultiClient`], a [`PathKey`]-aware implementation with relative key transformation.
+
 use std::{
     collections::HashMap,
     fmt::{Debug, Display},
@@ -10,29 +17,42 @@ use log::warn;
 
 use crate::pub_sub::{BrokerTrait, Client, PathKey};
 
+/// Interface for clients that manage subscriptions over multiple keys.
 pub trait MultiClientTrait<KeyType, MessageType, NodeIdType>: Send + Sync + Debug
 where
     KeyType: std::cmp::Eq + std::hash::Hash + Clone + Default + Send + Sync,
     MessageType: Clone + Send + 'static + Default,
     NodeIdType: std::hash::Hash + Eq + Clone + Send + Sync + 'static,
 {
+    /// Registers an already-created per-key [`Client`].
     fn add_client(&mut self, key: &KeyType, client: Client<MessageType>);
+    /// Subscribes to `key` using the instance reception delay.
     fn subscribe(&mut self, key: &KeyType);
+    /// Subscribes to `key` with zero reception delay.
     fn subscribe_instantaneous(&mut self, key: &KeyType);
 
+    /// Sends `message` on `key` at simulation `time`.
     fn send(&self, key: &KeyType, message: MessageType, time: f32);
+    /// Tries to receive one `(key, message)` pair due at `time`.
     fn try_receive(&self, time: f32) -> Option<(KeyType, MessageType)>;
+    /// Returns the earliest pending message time across subscribed clients.
     fn next_message_time(&self) -> Option<f32>;
 
+    /// Returns currently subscribed keys.
     fn subscribed_keys(&self) -> Vec<KeyType>;
+    /// Returns the owner node identifier of this multi-client.
     fn node_id(&self) -> &NodeIdType;
 
+    /// Transforms a key before subscription/sending.
+    ///
+    /// Default behavior returns the key unchanged.
     fn transform_key(&self, key: &KeyType) -> KeyType {
         key.clone()
     }
 }
 
 #[derive(Debug)]
+/// Generic multi-channel client keyed by `KeyType`.
 pub struct MultiClient<KeyType, MessageType, NodeIdType>
 where
     KeyType: std::cmp::Eq + std::hash::Hash + Clone + Default + Send + Sync,
@@ -51,6 +71,7 @@ where
     MessageType: Clone + Send + 'static + Default + Debug + Sync,
     NodeIdType: std::hash::Hash + Eq + Clone + Send + Sync + 'static + Debug,
 {
+    /// Creates an empty [`MultiClient`].
     pub fn new(
         broker: Arc<RwLock<dyn BrokerTrait<KeyType, MessageType, NodeIdType>>>,
         node_id: NodeIdType,
@@ -154,6 +175,7 @@ where
 }
 
 #[derive(Debug)]
+/// Path-based multi-channel client using [`PathKey`] hierarchy rules.
 pub struct PathMultiClient<MessageType, NodeIdType>
 where
     MessageType: Clone + Send + 'static + Default + Debug + Sync,
@@ -168,6 +190,9 @@ where
     MessageType: Clone + Send + 'static + Default + Debug + Sync,
     NodeIdType: std::hash::Hash + Eq + Clone + Send + Sync + 'static + Debug,
 {
+    /// Creates a new [`PathMultiClient`].
+    ///
+    /// `client_path` must be absolute and is used to resolve relative keys.
     pub fn new(
         broker: Arc<RwLock<dyn BrokerTrait<PathKey, MessageType, NodeIdType>>>,
         node_id: NodeIdType,

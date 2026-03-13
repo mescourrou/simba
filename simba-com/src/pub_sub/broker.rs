@@ -1,3 +1,14 @@
+//! Generic publish/subscribe broker abstractions and path-based broker utilities.
+//!
+//! This module exposes three broker traits:
+//! - [`BrokerTrait`] for channel lifecycle and subscriptions,
+//! - [`BrokerTraitExtended`] for conditional delivery channels,
+//! - [`BrokerTraitProcessing`] for runtime message processing.
+//!
+//! It also provides concrete implementations:
+//! - [`Broker`] keyed by generic key types,
+//! - [`PathBroker`] keyed by hierarchical [`PathKey`] values.
+
 pub use std::str::FromStr;
 use std::{
     collections::HashMap,
@@ -13,18 +24,27 @@ use crate::pub_sub::{
     channel::{Channel, ChannelProcessing},
 };
 
+/// Core broker interface for channel registration and subscription management.
 pub trait BrokerTrait<KeyType, MessageType, NodeIdType>: Debug + Send + Sync
 where
     KeyType: std::cmp::Eq + std::hash::Hash + Clone + Default + Send + Sync,
     MessageType: Clone + Send + 'static + Default,
     NodeIdType: std::hash::Hash + Eq + Clone + Send + Sync + 'static,
 {
+    /// Adds a root-level channel for `key` if it does not already exist.
     fn add_channel(&mut self, key: KeyType);
 
+    /// Adds a metachannel node under `parent_key`.
+    ///
+    /// Metachannels are hierarchy nodes that can group subchannels for bulk subscription.
     fn add_metachannel(&mut self, key: KeyType, parent_key: Option<&KeyType>);
 
+    /// Adds a channel for `key` under an existing metachannel `parent_key`.
     fn add_subchannel(&mut self, key: KeyType, parent_key: &KeyType);
 
+    /// Subscribes `node_id` to one channel with a reception delay.
+    ///
+    /// Returns `None` if the channel does not exist or is not subscribable.
     fn subscribe_to(
         &mut self,
         key: &KeyType,
@@ -32,6 +52,7 @@ where
         reception_delay: f32,
     ) -> Option<Client<MessageType>>;
 
+    /// Subscribes a multi-client to all leaf channels under a metachannel.
     fn subscribe_to_meta(
         &mut self,
         key: &KeyType,
@@ -39,16 +60,22 @@ where
         multi_client: &mut dyn MultiClientTrait<KeyType, MessageType, NodeIdType>,
     ) -> Result<(), String>;
 
+    /// Removes one concrete channel.
     fn remove_channel(&mut self, key: &KeyType);
 
+    /// Clears all channels and hierarchy metadata.
     fn clear_channels(&mut self);
 
+    /// Returns whether a concrete channel exists for `key`.
     fn channel_exists(&self, key: &KeyType) -> bool;
 
+    /// Returns whether a hierarchy node exists for `key`.
     fn meta_exists(&self, key: &KeyType) -> bool;
 
+    /// Lists all concrete channel keys.
     fn channel_list(&self) -> Vec<KeyType>;
 
+    /// Returns hierarchy edges as `(node, parent)` pairs.
     fn meta_tree(&self) -> Vec<(KeyType, KeyType)>;
 
     /// Subscribe to multiple channels at once. If one of the channels does not exist, return None and do not subscribe to any channel.
@@ -60,6 +87,7 @@ where
     ) -> Result<(), String>;
 }
 
+/// Extended broker interface supporting conditional delivery channels.
 pub trait BrokerTraitExtended<KeyType, MessageType, NodeIdType, ConditionArgType>:
     BrokerTrait<KeyType, MessageType, NodeIdType>
 where
@@ -68,15 +96,18 @@ where
     NodeIdType: std::hash::Hash + Eq + Clone + Send + Sync + 'static,
     ConditionArgType: Clone + Send + 'static + Default,
 {
+    /// Adds a root-level channel with a per-client delivery condition.
     fn add_channel_conditionnal<F>(&mut self, key: KeyType, condition: F)
     where
         F: Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static + Clone;
 
+    /// Adds a subchannel with a per-client delivery condition.
     fn add_subchannel_conditionnal<F>(&mut self, key: KeyType, parent_key: &KeyType, condition: F)
     where
         F: Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static + Clone;
 }
 
+/// Runtime processing interface for brokers.
 pub trait BrokerTraitProcessing<KeyType, MessageType, NodeIdType, ConditionArgType>:
     BrokerTrait<KeyType, MessageType, NodeIdType>
 where
@@ -85,11 +116,13 @@ where
     NodeIdType: std::hash::Hash + Eq + Clone + Send + Sync + 'static,
     ConditionArgType: Clone + Send + 'static + Default,
 {
+    /// Processes pending messages in all channels.
     fn process_messages(
         &self,
         client_condition_args: Option<&HashMap<NodeIdType, ConditionArgType>>,
     );
 
+    /// Retrieves a concrete channel by key.
     fn get_channel(
         &mut self,
         key: &KeyType,
@@ -97,6 +130,7 @@ where
 }
 
 #[derive(Debug)]
+/// Generic broker implementation using arbitrary key and node-id types.
 pub struct Broker<KeyType, MessageType, NodeIdType, ConditionArgType>
 where
     KeyType: std::cmp::Eq + std::hash::Hash + Clone + Default + Send + Sync,
@@ -119,6 +153,7 @@ where
     NodeIdType: std::hash::Hash + Eq + Clone + Send + Sync + 'static + Debug,
     ConditionArgType: Clone + Send + 'static + Default + Debug,
 {
+    /// Creates an empty broker with the provided time rounding precision.
     pub fn new(time_round: f32) -> Self {
         let mut key_tree = Tree::new(None);
         let root = key_tree.add_node(Node::new_with_auto_id(Some(KeyType::default())), None);
@@ -463,6 +498,7 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// Hierarchical key used by [`PathBroker`] channels and metachannels.
 pub struct PathKey {
     path: Vec<String>,
     absolute: bool,
@@ -478,6 +514,7 @@ impl Default for PathKey {
 }
 
 impl PathKey {
+    /// Creates a new path key from path segments and an absolute/relative flag.
     pub fn new(path: Vec<String>, absolute: bool) -> Self {
         Self { path, absolute }
     }
@@ -494,6 +531,7 @@ impl PathKey {
             .collect()
     }
 
+    /// Returns the parent key, or `None` if there is no parent segment.
     pub fn parent(&self) -> Option<Self> {
         if self.path.len() <= 1 {
             None
@@ -505,22 +543,27 @@ impl PathKey {
         }
     }
 
+    /// Returns `true` if this key is absolute.
     pub fn absolute(&self) -> bool {
         self.absolute
     }
 
+    /// Returns the key segments as a vector.
     pub fn to_vec(&self) -> Vec<String> {
         self.path.clone()
     }
 
+    /// Returns the number of path segments.
     pub fn len(&self) -> usize {
         self.path.len()
     }
 
+    /// Returns `true` when the key has no path segment.
     pub fn is_empty(&self) -> bool {
         self.path.is_empty()
     }
 
+    /// Returns a new key formed by appending `other` to `self`.
     pub fn join(&self, other: &PathKey) -> Self {
         let mut new_path = self.path.clone();
         new_path.extend(other.path.clone());
@@ -530,6 +573,7 @@ impl PathKey {
         }
     }
 
+    /// Returns a new key formed by appending `other` string segments to `self`.
     pub fn join_str(&self, other: &str) -> Self {
         let mut new_path = self.path.clone();
         new_path.extend(Self::str_split(other));
@@ -539,6 +583,7 @@ impl PathKey {
         }
     }
 
+    /// Returns a new key formed by prepending `other` to `self`.
     pub fn prepend(&self, other: &PathKey) -> Self {
         let mut new_path = other.path.clone();
         new_path.extend(self.path.clone());
@@ -548,6 +593,7 @@ impl PathKey {
         }
     }
 
+    /// Returns a new key formed by prepending `other` string segments to `self`.
     pub fn prepend_str(&self, other: &str) -> Self {
         let mut new_path = Self::str_split(other);
         new_path.extend(self.path.clone());
@@ -580,6 +626,7 @@ impl FromStr for PathKey {
 }
 
 #[derive(Debug)]
+/// Path-oriented broker wrapper around [`Broker`] using [`PathKey`].
 pub struct PathBroker<MessageType, NodeIdType, ConditionArgType>
 where
     MessageType: Clone + Send + 'static + Default + Debug,
@@ -596,6 +643,7 @@ where
     NodeIdType: std::hash::Hash + Eq + Clone + Send + Sync + 'static + Debug,
     ConditionArgType: Clone + Send + 'static + Default + Debug,
 {
+    /// Creates an empty path broker with the provided time rounding precision.
     pub fn new(time_round: f32) -> Self {
         Self {
             broker: Broker::new(time_round),

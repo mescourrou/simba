@@ -1,7 +1,16 @@
-/*!
-Provide the [`Network`] struct, allowing communication between robots, and
-the configuration struct [`NetworkConfig`].
-*/
+//! Network transport primitives used by nodes to exchange messages.
+//!
+//! This module defines [`Network`], which wraps broker-based publish/subscribe communication,
+//! plus [`NetworkConfig`] for node-level communication settings.
+//!
+//! A [`Network`] can:
+//! - create channels,
+//! - subscribe multi-clients to channels,
+//! - send targeted or node-local messages.
+//!
+//! [`NetworkConfig`] defaults are:
+//! - `range = 0.0`: no distance filtering;
+//! - `reception_delay = 0.0`: no additional reception delay.
 
 extern crate confy;
 use core::f32;
@@ -27,9 +36,13 @@ use crate::{constants::TIME_ROUND, gui::UIComponent};
 /// Configuration for the [`Network`].
 #[config_derives]
 pub struct NetworkConfig {
-    /// Limit range communication, 0 for no limit.
+    /// Maximum communication range in meters.
+    ///
+    /// Use `0.0` to disable range filtering (default: `0.0`).
     pub range: f32,
-    /// Communication delay (fixed). 0 for no delay (not stable).
+    /// Fixed additional delay applied when receiving messages.
+    ///
+    /// Use `0.0` for no additional delay (default: `0.0`).
     pub reception_delay: f32,
 }
 
@@ -112,42 +125,42 @@ impl UIComponent for NetworkConfig {
 #[derive(Serialize, Deserialize, Clone, PartialEq, Debug)]
 #[pyclass(get_all, set_all, eq, eq_int)]
 pub enum MessageFlag {
-    /// God mode, messages are instaneous.
+    /// Bypass regular timing and treat the message as instantaneous.
     God,
-    /// Ask to unsubscribe
+    /// Ask the receiver to unsubscribe from the associated channel.
     Unsubscribe,
-    /// Ask to kill the receiving node
+    /// Ask to terminate the receiving node.
     Kill,
 }
 
+/// Transport envelope sent through broker channels.
+///
+/// This structure carries payload, metadata, and control flags used by the networking layer.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct Envelope {
+    /// Sender node name.
     pub from: String,
+    /// Serialized message payload.
     pub message: Value,
+    /// Simulation timestamp associated with this message.
     pub timestamp: f32,
+    /// Optional transport flags that alter handling behavior.
     pub message_flags: Vec<MessageFlag>,
 }
 
-/// Network interface for [`Node`].
+/// Network interface for [`Node`](crate::node::Node).
 ///
-/// Each [`Node`] should have a [`Network`] instance. Through this interface,
+/// Each [`Node`](crate::node::Node) should have a [`Network`] instance. Through this interface,
 /// the nodes can send messages to other nodes using pair-to-pair communication,
 /// or broadcast diffusion.
 pub struct Network {
     /// Name of the robot (will be in the 'from' field of the sent messages).
     from: String,
-    /// Range limitation (not implemented yet).
+    /// Range limitation.
     range: f32,
-    /// Added delay to the messages.
+    /// Added delay to the messages at reception.
     reception_delay: f32,
-    // /// List of subscribed letter boxes.
-    // letter_boxes: Vec<Sender<Envelope>>,
-    // to_network_manager: Option<Sender<NetworkMessage>>,
-    // from_network_manager: Option<SharedMutex<Receiver<NetworkMessage>>>,
-    // /// Message list
-    // messages_buffer: TimeOrderedData<(String, Value, Vec<MessageFlag>)>,
-
-    // time_cv: Arc<TimeCv>,
+    /// Shared broker reference for channel management and message routing.
     broker: SharedRwLock<SimbaBroker>,
 }
 
@@ -187,15 +200,14 @@ impl Network {
             from,
             range: config.range,
             reception_delay: config.reception_delay,
-            // letter_boxes: Vec::new(),
-            // messages_buffer: TimeOrderedData::new(TIME_ROUND),
-            // time_cv,
-            // to_network_manager: None,
-            // from_network_manager: None,
             broker: broker.clone(),
         }
     }
 
+    /// Creates an internal channel and returns its absolute key.
+    ///
+    /// Relative paths are namespaced under the current node internal prefix
+    /// [`channels::internal::NODE`].
     pub fn make_channel_internal(&self, key: PathKey) -> PathKey {
         let key = if key.absolute() {
             key
@@ -210,6 +222,11 @@ impl Network {
         key
     }
 
+    /// Creates a channel and returns its absolute key.
+    ///
+    /// Relative paths are namespaced under the current node internal prefix
+    /// [`channels::internal::NODE`]. When `self.range > 0.0`, message delivery is filtered by
+    /// Euclidean distance.
     pub fn make_channel(&self, key: PathKey) -> PathKey {
         let key = if key.absolute() {
             key
@@ -238,6 +255,9 @@ impl Network {
         key
     }
 
+    /// Subscribes a multi-client to the provided channels using the configured reception delay.
+    ///
+    /// If `multi_client` is `None`, a new [`SimbaBrokerMultiClient`] is created and returned.
     pub fn subscribe_to(
         &self,
         keys: &[PathKey],
@@ -275,6 +295,10 @@ impl Network {
         multi_client
     }
 
+    /// Subscribes a multi-client to channels with zero reception delay.
+    ///
+    /// This is useful for control paths that must be handled immediately. If `multi_client` is
+    /// `None`, a new [`SimbaBrokerMultiClient`] is created first.
     pub fn subscribe_to_instantaneous(
         &self,
         keys: &[PathKey],
@@ -308,6 +332,9 @@ impl Network {
         multi_client
     }
 
+    /// Sends `message` to a specific recipient node on `channel` at simulation `time`.
+    ///
+    /// If `channel` is relative, it is prefixed with the recipient node internal namespace.
     pub fn send_to_node(&self, recipient: String, channel: PathKey, message: Envelope, time: f32) {
         let key = if channel.absolute() {
             channel
@@ -329,6 +356,9 @@ impl Network {
         }
     }
 
+    /// Sends `message` to this node-scoped `channel` at simulation `time`.
+    ///
+    /// If `channel` is relative, it is prefixed with this node internal namespace.
     pub fn send_to(&self, channel: PathKey, message: Envelope, time: f32) {
         let key = if channel.absolute() {
             channel
@@ -349,214 +379,4 @@ impl Network {
             tmp_client.send(message, time);
         }
     }
-
-    // /// Set the `network_manager` reference.
-    // pub fn set_network_manager_link(
-    //     &mut self,
-    //     to_network_manager: Sender<NetworkMessage>,
-    //     from_network_manager: Receiver<NetworkMessage>,
-    // ) {
-    //     self.to_network_manager = Some(to_network_manager);
-    //     self.from_network_manager = Some(Arc::new(Mutex::new(from_network_manager)));
-    // }
-
-    // /// Send a `message` to the given `recipient`. `time` is the send message time, before delays.
-    // /// The message is sent if in range.
-    // pub fn send_to(
-    //     &mut self,
-    //     recipient: String,
-    //     channel: PathKey,
-    //     message: Value,
-    //     time: f32,
-    //     message_flags: Vec<MessageFlag>,
-    // ) -> SimbaResult<()> {
-    //     // if self.to_network_manager.is_none() {
-    //     //     return Err(SimbaError::new(
-    //     //         SimbaErrorTypes::ImplementationError,
-    //     //         "Network is not properly setup: `set_network_manager_link` should be called."
-    //     //             .to_string(),
-    //     //     ));
-    //     // }
-    //     // {
-    //     //     let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
-    //     //     *circulating_messages += 1;
-    //     // }
-    //     // self.to_network_manager
-    //     //     .as_ref()
-    //     //     .unwrap()
-    //     //     .send(NetworkMessage {
-    //     //         from: self.from.clone(),
-    //     //         range: self.range,
-    //     //         time,
-    //     //         to: MessageSendMethod::Recipient(recipient),
-    //     //         value: message,
-    //     //         message_flags,
-    //     //     })
-    //     //     .unwrap();
-    //     // Ok(())
-
-    // }
-
-    // /// Send a `message` to all available robots. `time` is the send message time, before delays.
-    // pub fn broadcast(
-    //     &mut self,
-    //     message: Value,
-    //     time: f32,
-    //     message_flags: Vec<MessageFlag>,
-    // ) -> SimbaResult<()> {
-    //     if self.to_network_manager.is_none() {
-    //         return Err(SimbaError::new(
-    //             SimbaErrorTypes::ImplementationError,
-    //             "Network is not properly setup: `set_network_manager_link` should be called."
-    //                 .to_string(),
-    //         ));
-    //     }
-    //     {
-    //         let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
-    //         *circulating_messages += 1;
-    //     }
-    //     self.to_network_manager
-    //         .as_ref()
-    //         .unwrap()
-    //         .send(NetworkMessage {
-    //             from: self.from.clone(),
-    //             range: self.range,
-    //             time,
-    //             to: MessageSendMethod::Broadcast,
-    //             value: message,
-    //             message_flags,
-    //         })
-    //         .unwrap();
-    //     Ok(())
-    // }
-
-    // /// Unstack the waiting messages in the asynchronous receiver and put them in the buffer.
-    // /// Adds the delay.
-    // pub fn process_messages(&mut self) -> SimbaResult<usize> {
-    //     if self.from_network_manager.is_none() {
-    //         return Err(SimbaError::new(
-    //             SimbaErrorTypes::ImplementationError,
-    //             "Network is not properly setup: `set_network_manager_link` should be called."
-    //                 .to_string(),
-    //         ));
-    //     }
-    //     let mut new_msgs = 0;
-    //     for msg in self
-    //         .from_network_manager
-    //         .as_ref()
-    //         .unwrap()
-    //         .lock()
-    //         .unwrap()
-    //         .try_iter()
-    //     {
-    //         {
-    //             let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
-    //             *circulating_messages -= 1;
-    //         }
-    //         let time = if msg.message_flags.contains(&MessageFlag::God) {
-    //             msg.time
-    //         } else {
-    //             msg.time + self.reception_delay
-    //         };
-    //         if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-    //             debug!("Add new message from {} at time {time}", msg.from);
-    //         }
-    //         self.messages_buffer
-    //             .insert(time, (msg.from, msg.value, msg.message_flags), false);
-    //         new_msgs += 1;
-    //     }
-    //     Ok(new_msgs)
-    // }
-
-    // /// Get the minimal time among all waiting messages. Bool is true if the message is read only.
-    // pub fn next_message_time(&self) -> Option<f32> {
-    //     self.messages_buffer.min_time().map(|tpl| tpl.0)
-    // }
-
-    // /// Handle the messages which are received at the given `time`.
-    // ///
-    // /// ## Arguments
-    // /// * `robot` - Reference to the robot to give to the handlers.
-    // /// * `time` - Time of the messages to handle.
-    // pub fn handle_message_at_time(&mut self, node: &mut Node, time: f32) {
-    //     if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-    //         debug!("Handling messages at time {time}");
-    //     }
-    //     while let Some((msg_time, (from, message, message_flags))) =
-    //         self.messages_buffer.remove(time)
-    //     {
-    //         if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-    //             debug!("Receive message from {from}: {:?}", message);
-    //             debug!("Letter box list size: {}", self.letter_boxes.len());
-    //         }
-    //         let mut throw_message = false;
-    //         for flag in &message_flags {
-    //             if let MessageFlag::Kill = flag {
-    //                 if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-    //                     debug!("Receive message from {from} to be killed");
-    //                 }
-    //                 node.pre_kill();
-    //                 throw_message = true;
-    //             }
-    //         }
-    //         if throw_message {
-    //             continue;
-    //         }
-    //         for letter_box in &self.letter_boxes {
-    //             letter_box
-    //                 .send(Envelope {
-    //                     from: from.clone(),
-    //                     message: message.clone(),
-    //                     timestamp: msg_time,
-    //                 })
-    //                 .unwrap();
-    //         }
-    //     }
-
-    //     if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-    //         debug!(
-    //             "New next_message_time: {}",
-    //             match self.messages_buffer.min_time() {
-    //                 Some((time, _)) => time,
-    //                 None => -1.,
-    //             }
-    //         );
-
-    //         debug!("Messages remaining: {}", self.messages_buffer.len());
-    //     }
-    // }
-
-    // /// Add a new handler to the [`Network`].
-    // pub fn subscribe(&mut self, letter_box: Option<Sender<Envelope>>) {
-    //     if let Some(letter_box) = letter_box {
-    //         self.letter_boxes.push(letter_box);
-    //     }
-    // }
-
-    // pub fn unsubscribe_node(&self) -> SimbaResult<()> {
-    //     if self.to_network_manager.is_none() {
-    //         return Err(SimbaError::new(
-    //             SimbaErrorTypes::ImplementationError,
-    //             "Network is not properly setup: `set_network_manager_link` should be called."
-    //                 .to_string(),
-    //         ));
-    //     }
-    //     {
-    //         let mut circulating_messages = self.time_cv.circulating_messages.lock().unwrap();
-    //         *circulating_messages += 1;
-    //     }
-    //     self.to_network_manager
-    //         .as_ref()
-    //         .unwrap()
-    //         .send(NetworkMessage {
-    //             from: self.from.clone(),
-    //             range: f32::INFINITY,
-    //             time: 0.,
-    //             to: MessageSendMethod::Manager,
-    //             value: Value::Null,
-    //             message_flags: vec![MessageFlag::Unsubscribe],
-    //         })
-    //         .unwrap();
-    //     Ok(())
-    // }
 }

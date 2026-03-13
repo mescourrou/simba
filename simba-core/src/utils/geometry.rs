@@ -1,6 +1,7 @@
-/*!
-Provide geometry tools.
-*/
+//! Geometry utilities for 2D simulation computations.
+//!
+//! This module provides helpers for projections, angle normalization, and
+//! intersection tests between segments and simple shapes.
 
 extern crate nalgebra as na;
 use std::f32::consts::PI;
@@ -42,6 +43,7 @@ pub fn project_point(
     )
 }
 
+/// Normalize an angle to the interval `]-PI, PI]`.
 pub fn mod2pi(f: f32) -> f32 {
     let mut f = f;
     while f > PI {
@@ -86,6 +88,10 @@ pub fn smallest_theta_diff(a: f32, b: f32) -> f32 {
     diff
 }
 
+/// Compute the intersection of a segment and a circle.
+///
+/// Returns the two clipped intersection points along the segment when an
+/// intersection exists, otherwise `None`.
 pub fn segment_circle_intersection<S1, S2, S3>(
     p1: &Matrix<f32, Const<2>, Const<1>, S1>,
     p2: &Matrix<f32, Const<2>, Const<1>, S2>,
@@ -166,6 +172,9 @@ where
     Some((intersect1, intersect2))
 }
 
+/// Compute the intersection point of two finite segments.
+///
+/// Returns `None` if segments are parallel or do not intersect.
 pub fn segments_intersection<S>(
     a1: &Matrix<f32, Const<2>, Const<1>, S>,
     a2: &Matrix<f32, Const<2>, Const<1>, S>,
@@ -207,6 +216,9 @@ where
     Some(SVector::<f32, 2>::new(a1[0] + ua * ax, a1[1] + ua * ay))
 }
 
+/// Compute the intersection point between a finite segment and an infinite line.
+///
+/// Returns `None` if the segment direction and line direction are parallel.
 pub fn segment_to_line_intersection<S>(
     a1: &Matrix<f32, Const<2>, Const<1>, S>,
     a2: &Matrix<f32, Const<2>, Const<1>, S>,
@@ -237,6 +249,10 @@ where
     Some(SVector::<f32, 2>::new(a1[0] + ua * ax, a1[1] + ua * ay))
 }
 
+/// Compute the part of a segment that lies inside a triangle.
+///
+/// Returns the clipped entry and exit points when an intersection exists,
+/// otherwise `None`.
 pub fn segment_triangle_intersection<S>(
     p1: &Matrix<f32, Const<2>, Const<1>, S>,
     p2: &Matrix<f32, Const<2>, Const<1>, S>,
@@ -339,6 +355,7 @@ where
     None
 }
 
+/// Check whether three points are aligned within a geometric tolerance (maximum area of the triangle they form).
 pub fn aligned_points<S1, S2, S3>(
     p1: &Matrix<f32, Const<2>, Const<1>, S1>,
     p2: &Matrix<f32, Const<2>, Const<1>, S2>,

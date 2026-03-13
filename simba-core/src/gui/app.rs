@@ -276,10 +276,10 @@ impl SimbaApp {
                     log::error!("Error loading config: {}", e.detailed_error());
                 }
             }
-        }
-        if load_results {
-            n.p.api.lock().unwrap().load_results.async_call(None);
-            n.p.simulation_run = true;
+            if load_results {
+                n.p.api.lock().unwrap().load_results.async_call(None);
+                n.p.simulation_run = true;
+            }
         }
         n.p.broker_panel = Some(BrokerPanel::new(
             n.p.server
@@ -324,10 +324,10 @@ impl SimbaApp {
                     log::error!("Error loading config: {}", e.detailed_error());
                 }
             }
-        }
-        if load_results {
-            self.p.api.lock().unwrap().load_results.async_call(None);
-            self.p.simulation_run = true;
+            if load_results {
+                self.p.api.lock().unwrap().load_results.async_call(None);
+                self.p.simulation_run = true;
+            }
         }
         self.p.broker_panel = Some(BrokerPanel::new(
             self.p

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote};
-use syn::{Data, DeriveInput, parse::Parse, parse_macro_input, spanned::Spanned};
+use syn::{Data, DeriveInput, LitStr, parse::Parse, parse_macro_input, spanned::Spanned};
 
 #[proc_macro_derive(ToVec)]
 pub fn derive_tovec(item: TokenStream) -> TokenStream {
@@ -466,6 +466,10 @@ pub fn derive_ui_component(item: TokenStream) -> TokenStream {
         quote! {
             #[cfg(feature = "gui")]
             impl #impl_generics #struct_identifier #ty_generics #where_clause {
+                /// Renders mutable GUI controls for a list of enum configurations.
+                ///
+                /// This helper displays each element with edit controls, remove buttons,
+                /// and an "Add" selector based on available enum variants.
                 pub fn show_all_mut(
                     config_list: &mut Vec<Self>,
                     ui: &mut egui::Ui,
@@ -521,6 +525,9 @@ pub fn derive_ui_component(item: TokenStream) -> TokenStream {
                     });
                 }
 
+                /// Renders a read-only GUI view for a list of enum configurations.
+                ///
+                /// This helper displays each element without mutation controls.
                 pub fn show_all(
                     config_list: &[Self],
                     ui: &mut egui::Ui,
@@ -697,12 +704,20 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
 }
 
 struct EnumVariablesInput {
+    doc_string: Option<LitStr>,
     enum_name: syn::Ident,
     variants: Vec<EnumVariablesVariant>,
 }
 
 impl Parse for EnumVariablesInput {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let doc_string = if input.peek(syn::LitStr) {
+            let lit_str: LitStr = input.parse()?;
+            Some(lit_str)
+        } else {
+            None
+        };
+
         let enum_name: syn::Ident = input.parse()?;
         input.parse::<syn::Token![;]>()?;
 
@@ -715,15 +730,42 @@ impl Parse for EnumVariablesInput {
         }
 
         Ok(EnumVariablesInput {
+            doc_string,
             enum_name,
             variants,
         })
     }
 }
 
-struct EnumVariablesVariant {
-    sub_enums: Vec<syn::Ident>,
+struct DocumentedEnumVariant {
+    doc_string: Option<LitStr>,
     variant_name: syn::Ident,
+}
+
+impl Parse for DocumentedEnumVariant {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let doc_string = if input.peek(syn::LitStr) {
+            let lit_str: LitStr = input.parse()?;
+            Some(lit_str)
+        } else {
+            None
+        };
+        if input.peek(syn::Ident) {
+            let variant_name: syn::Ident = input.parse()?;
+            Ok(DocumentedEnumVariant {
+                doc_string,
+                variant_name,
+            })
+        } else {
+            Err(syn::Error::new(input.span(), "Expected an identifier for the variant name"))
+        }
+
+    }
+}
+
+struct EnumVariablesVariant {
+    sub_enums: Vec<DocumentedEnumVariant>,
+    variant_name: DocumentedEnumVariant,
     value: String,
     additional_values: Vec<String>,
 }
@@ -731,9 +773,15 @@ struct EnumVariablesVariant {
 impl Parse for EnumVariablesVariant {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let mut sub_enums = Vec::new();
-        while input.peek(syn::Ident) && !input.peek(syn::Token![:]) {
-            sub_enums.push(input.parse()?);
-            if input.peek(syn::Token![,]) {
+        while !input.peek(syn::Token![:]) {
+            if input.fork().parse::<DocumentedEnumVariant>().is_ok() {
+                let variant = input.parse::<DocumentedEnumVariant>()?;
+                sub_enums.push(variant);
+            } else {
+                // Did not find a documented variant, maybe there are no sub enums
+                break;
+            }
+            if !input.peek(syn::Token![:]) {
                 input.parse::<syn::Token![,]>()?;
             }
         }
@@ -741,7 +789,7 @@ impl Parse for EnumVariablesVariant {
         let variant_name = if input.peek(syn::Token![:]) {
             // There were sub enums
             input.parse::<syn::Token![:]>()?;
-            let name = input.parse()?;
+            let name: DocumentedEnumVariant = input.parse()?;
             input.parse::<syn::Token![,]>()?;
             name
         } else {
@@ -775,39 +823,40 @@ impl Parse for EnumVariablesVariant {
 #[proc_macro]
 pub fn enum_variables(input: TokenStream) -> TokenStream {
     let parsed = parse_macro_input!(input as EnumVariablesInput);
+    let enum_name = parsed.enum_name;
     let mut sub_enums = HashMap::new();
     for variant in &parsed.variants {
         for sub_enum in &variant.sub_enums {
-            if !sub_enums.contains_key(sub_enum) {
-                sub_enums.insert(sub_enum.clone(), Vec::new());
+            if !sub_enums.contains_key(&sub_enum.variant_name) {
+                sub_enums.insert(sub_enum.variant_name.clone(), (sub_enum.doc_string.clone(), Vec::new()));
             }
-            sub_enums.get_mut(sub_enum).unwrap().push(variant);
+            sub_enums.get_mut(&sub_enum.variant_name).unwrap().1.push(variant);
         }
     }
 
     let mut meta_enum = TokenStream2::new();
     let mut generated_sub_enums = TokenStream2::new();
     if !sub_enums.is_empty() {
-        // meta_enum.extend(quote! {
-        //     #enum_macros
-        //     pub enum parse::parse! [<#enum_name Meta>] {
-        // });
-        for (meta_variant, sub_enum_variants) in sub_enums.iter() {
-            let sub_enum_name = format_ident!("{}{}", parsed.enum_name, *meta_variant);
+        for (meta_variant, (doc, sub_enum_variants)) in sub_enums.iter() {
+            let sub_enum_name = format_ident!("{}{}", enum_name, meta_variant);
+            let doc_comment = doc.as_ref().map(|s| quote! {#[doc = #s]}).unwrap_or_default();
             meta_enum.extend(quote! {
+                #doc_comment
                 #meta_variant (#sub_enum_name),
             });
 
             let mut sub_enum_variants_tokens = TokenStream2::new();
             for variant in sub_enum_variants {
-                let variant_name = &variant.variant_name;
+                let doc = &variant.variant_name.doc_string;
+                let variant_name = &variant.variant_name.variant_name;
                 let value = &variant.value;
                 let additional_values = &variant.additional_values;
                 sub_enum_variants_tokens
-                    .extend(quote! {#variant_name, #value #(, #additional_values)*;});
+                    .extend(quote! {#doc #variant_name, #value #(, #additional_values)*;});
             }
             generated_sub_enums.extend(quote! {
                 crate::utils::enum_tools::__enum_variables_emit_subenum!(
+                    #doc_comment
                     #sub_enum_name;
                     #sub_enum_variants_tokens
                 );
@@ -816,27 +865,29 @@ pub fn enum_variables(input: TokenStream) -> TokenStream {
         }
         let meta_enum_name = format_ident!(
             "{}{}",
-            parsed.enum_name,
+            enum_name,
             syn::Ident::new("Meta", proc_macro2::Span::call_site())
         );
         meta_enum = quote! {
-            // #enum_macros
+            #[doc = concat!("Meta enum for [`", stringify!(#enum_name), "`].")]
             pub enum #meta_enum_name {
                 #meta_enum
             }
         };
     }
 
-    let enum_name = parsed.enum_name;
+    let doc_string = parsed.doc_string.map(|s| quote! {#[doc = #s]});
     let mut enum_variants_tokens = TokenStream2::new();
     for variant in parsed.variants {
-        let variant_name = &variant.variant_name;
+        let variant_name = &variant.variant_name.variant_name;
+        let doc = &variant.variant_name.doc_string;
         let value = &variant.value;
         let additional_values = &variant.additional_values;
-        enum_variants_tokens.extend(quote! {#variant_name, #value #(, #additional_values)*;});
+        enum_variants_tokens.extend(quote! {#doc #variant_name, #value #(, #additional_values)*;});
     }
     generated_sub_enums.extend(quote! {
         crate::utils::enum_tools::__enum_variables_emit_subenum!(
+            #doc_string
             #enum_name;
             #enum_variants_tokens
         );

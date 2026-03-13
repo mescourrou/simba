@@ -1,3 +1,8 @@
+//! Multivariate normal distribution random-variable utilities.
+//!
+//! This module provides configuration and deterministic sampling utilities for
+//! (multivariate) normal random variables used by the simulator.
+
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use simba_macros::config_derives;
@@ -6,12 +11,12 @@ use statrs::{distribution::MultivariateNormal, statistics::MeanN};
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 
-/// Configuration for a normal random variable.
+/// Configuration for a multivariate normal random variable.
 #[config_derives]
 pub struct NormalRandomVariableConfig {
-    /// Mean of the normal distribution.
+    /// Mean of the multivariate normal distribution.
     pub mean: Vec<f64>,
-    /// Variance of the normal distribution.
+    /// Flattened covariance matrix of the multivariate normal distribution.
     pub covariance: Vec<f64>,
 }
 
@@ -156,7 +161,7 @@ impl UIComponent for NormalRandomVariableConfig {
     }
 }
 
-/// Random variable which return a random value following a normal distribution.
+/// Random variable that returns values sampled from a normal distribution.
 #[derive(Debug, Clone)]
 pub struct DeterministNormalRandomVariable {
     /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
@@ -166,6 +171,10 @@ pub struct DeterministNormalRandomVariable {
 }
 
 impl DeterministNormalRandomVariable {
+    /// Build a deterministic normal random variable from configuration.
+    ///
+    /// `my_seed` should be a deterministic seed component unique to this
+    /// variable instance.
     pub fn from_config(my_seed: f32, config: NormalRandomVariableConfig) -> Self {
         assert!(
             config.mean.len().pow(2) == config.covariance.len(),
@@ -178,11 +187,15 @@ impl DeterministNormalRandomVariable {
         }
     }
 
+    /// Generate one sample vector at a given simulation `time`.
+    ///
+    /// The produced values are reproducible for the same `(my_seed, time)` pair.
     pub fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         self.nd.sample(&mut rng).iter().map(|x| *x as f32).collect()
     }
 
+    /// Return the output dimension of the random variable.
     pub fn dim(&self) -> usize {
         self.nd.mean().unwrap().len()
     }

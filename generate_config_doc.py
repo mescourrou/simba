@@ -160,7 +160,7 @@ def type_from_node(type_node, comments, configs) -> Tuple[List[str], str | None]
     if type_node.type == "array_type":
         element_type = type_node.children[1].text.decode('utf-8')
         length = type_node.children[3].text.decode('utf-8')
-        return (comments + [f"Array[{length}]"], element_type)
+        return (comments + [f"Array\\[{length}\\]"], element_type)
     if len(type_node.children) > 0:
         type = type_node.children[-1].text.decode("utf-8")
     else:

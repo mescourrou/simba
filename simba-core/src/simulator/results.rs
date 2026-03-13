@@ -1,3 +1,8 @@
+//! Simulation result configuration and persisted result payloads.
+//!
+//! This module defines how results are saved (mode and paths) and the
+//! structures used to serialize complete simulation outputs.
+
 #[cfg(feature = "gui")]
 use egui::{CollapsingHeader, DragValue};
 use simba_macros::config_derives;
@@ -19,10 +24,15 @@ use crate::{
 use crate::simulator::{Record, SimulatorConfig};
 
 #[config_derives(tag_content)]
+/// Strategy used to save simulation results on disk.
 pub enum ResultSaveMode {
+    /// Save once when the simulation ends.
     AtTheEnd,
+    /// Save continuously as records are produced.
     Continuous,
+    /// Save every `N` records.
     Batch(usize),
+    /// Save every `period` seconds of simulated time.
     Periodic(f32),
 }
 
@@ -33,19 +43,27 @@ impl Default for ResultSaveMode {
 }
 
 #[config_derives]
+/// Configuration controlling result persistence and post-processing.
 pub struct ResultConfig {
     /// Filename to save the results, in JSON format. The directory of this
     /// file is used to save the figures if results are computed.
+    /// 
+    /// Path from config location.
+    /// 
+    /// If `None`, results are not saved on disk but can still be forwarded to the analysis script.
     pub result_path: Option<String>,
-    /// Show the matplotlib figures
+    /// Show the matplotlib figures (call `plt.show()`)
     pub show_figures: bool,
-    /// Path to the python analyse scrit.
+    /// Path to the Python analysis script (path from config location).
     /// This script should have the following entry point:
-    /// ```def analyse(result_data: Record, figure_path: str, figure_type: str)```
-    /// If the option is none, the script is not run
+    /// ```def analyse(records: list, config: dict, figure_path: str, figure_type: str, additional_param: dict|None)```
+    /// If this option is `None`, the script is not executed.
     pub analyse_script: Option<String>,
+    /// Optional output directory for generated figures (path from config location).
     pub figures_path: Option<String>,
+    /// Arbitrary parameters forwarded to the analysis script (additional_param in the script entry point). This can be used to forward any custom configuration to the analysis script without having to add it to the simulator configuration.
     pub python_params: serde_json::Value,
+    /// Result save mode.
     pub save_mode: ResultSaveMode,
 }
 
@@ -215,8 +233,11 @@ impl UIComponent for ResultConfig {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+/// Persisted simulation output containing config and produced records.
 pub struct Results {
+    /// Simulator configuration used to produce these results.
     pub config: SimulatorConfig,
+    /// Recorded events and states generated during simulation.
     pub records: Vec<Record>,
 }
 

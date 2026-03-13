@@ -1,13 +1,10 @@
-/*!
-This module proposes the [`Physics`](physics::Physics) trait and the perfect physics (no command noise).
-
-Provide the [`Physics`] trait and the utilitary structs ([`PhysicsRecord`] and [`PhysicsConfig`]).
-
-It also defines the [`Command`] that it can take.
-
-The [`Physics`] implementation should take a command, apply it to the internal state, and it can add noise to it.
-However, the [`Physics::state`] should provide the real [`State`].
-*/
+//! Physics module.
+//!
+//! This module defines the [`Physics`] trait, physics configuration/record enums,
+//! service request/response types, and factory helpers used to instantiate runtime physics
+//! implementations.
+//! Implementations may include perfect/internal physics, external plugin-backed physics,
+//! or Python-backed physics.
 
 pub mod external_physics;
 pub mod internal_physics;
@@ -28,10 +25,13 @@ use simba_macros::config_derives;
 /// Enumeration of the different physic implementations.
 #[config_derives]
 pub enum PhysicsConfig {
+    /// Built-in Rust internal physics implementation.
     #[check]
     Internal(internal_physics::InternalPhysicConfig),
+    /// External plugin-provided physics implementation.
     #[check]
     External(external_physics::ExternalPhysicsConfig),
+    /// Python-backed physics implementation.
     #[check]
     Python(python_physics::PythonPhysicsConfig),
 }
@@ -116,12 +116,18 @@ impl UIComponent for PhysicsConfig {
 /// Enumeration of the records by physics implementations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum PhysicsRecord {
+    /// Record emitted by internal physics.
     Internal(internal_physics::InternalPhysicsRecord),
+    /// Record emitted by external physics.
     External(external_physics::ExternalPhysicsRecord),
+    /// Record emitted by Python physics.
     Python(python_physics::PythonPhysicsRecord),
 }
 
 impl PhysicsRecord {
+    /// Returns the pose encoded in this record when available.
+    ///
+    /// For external and Python records, this currently returns `[0.0, 0.0, 0.0]`.
     pub fn pose(&self) -> [f32; 3] {
         match self {
             Self::External(_) => [0., 0., 0.], // TODO: Find a way to get info from external record
@@ -172,16 +178,17 @@ use crate::{
 
 // Services
 #[derive(Debug, Clone)]
+/// Service request for retrieving the real (ground-truth) state.
 pub struct GetRealStateReq {}
 
 #[derive(Debug, Clone)]
+/// Service response containing the real (ground-truth) state.
 pub struct GetRealStateResp {
+    /// Ground-truth state.
     pub state: State,
 }
 
 /// Physics simulation trait.
-///
-/// Different implementation can either use real robots, add noise to command, etc.
 pub trait Physics:
     std::fmt::Debug
     + std::marker::Send
@@ -189,7 +196,9 @@ pub trait Physics:
     + Recordable<PhysicsRecord>
     + HasService<GetRealStateReq, GetRealStateResp>
 {
-    fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
+    /// Optional initialization hook called once after node setup.
+    #[allow(unused_variables)]
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -217,10 +226,7 @@ pub trait Physics:
 ///
 /// ## Arguments
 /// - `config`: The configuration of the physics.
-/// - `plugin_api`: The plugin API, to be used by the physics (if needed).
-/// - `meta_config`: The meta configuration of the simulator.
-/// - `va_factory`: Random variables factory for determinist behavior.
-/// - `time_cv`: Simulator time condition variable, used by services.
+/// - `from_config_args`: Additional arguments needed to create the physics, such as the robot name, random variable factory, initial time, plugin API, global config and network.
 pub fn make_physics_from_config(
     config: &PhysicsConfig,
     from_config_args: &FromConfigArguments,

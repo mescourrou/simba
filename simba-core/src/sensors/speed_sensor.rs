@@ -1,6 +1,9 @@
-/*!
-Provides a [`Sensor`] which can provide linear velocity and angular velocity.
-*/
+//! Speed sensor implementation.
+//!
+//! This module provides a [`Sensor`] that reports linear and angular
+//! robot velocities.
+//! It supports periodic activation, configurable filter chains through
+//! [`SensorFilterConfig`], and optional fault injection through [`SpeedSensorFaultModelConfig`].
 
 use std::sync::Arc;
 
@@ -33,18 +36,32 @@ use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 extern crate nalgebra as na;
 
 enum_variables!(
+    "Variables used by speed sensors and related fault models."
     SpeedSensorVariables;
-    Faults: W, "w", "angular_velocity", "angular";
-    Faults: V, "v", "linear_velocity", "linear";
+    "Variables that additive speed faults can modify." 
+    Faults: 
+    "Linear velocity component."
+    V, "v", "linear_velocity", "linear";
+    Faults: 
+    "Angular velocity component."
+    W, "w", "angular_velocity", "angular";
+    "Norm of the linear robot velocity."
     SelfVelocity, "self_velocity";
 );
 
+/// Configuration enum selecting fault models applied to speed observations.
+///
+/// Default value: [`SpeedSensorFaultModelConfig::Additive`] with
+/// [`AdditiveFaultConfig::default`].
 #[config_derives]
 #[derive(UIComponent)]
 #[show_all = "Faults"]
 pub enum SpeedSensorFaultModelConfig {
+    /// Additive perturbation fault model.
     Additive(AdditiveFaultConfig<SpeedSensorVariablesFaults, SpeedSensorVariables>),
+    /// Python-implemented custom fault model.
     Python(PythonFaultModelConfig),
+    /// Plugin-provided external fault model.
     External(ExternalFaultConfig),
 }
 
@@ -54,21 +71,36 @@ impl Default for SpeedSensorFaultModelConfig {
     }
 }
 
+/// Enum of instantiated fault models applied to speed observations.
+/// 
+/// The variants correspond to the ones of [`SpeedSensorFaultModelConfig`] but contain instantiated fault models instead of their config.
 #[derive(Debug, EnumToString)]
 pub enum SpeedSensorFaultModelType {
+    /// Instantiated additive fault model.
     Additive(AdditiveFault<SpeedSensorVariablesFaults, SpeedSensorVariables>),
+    /// Instantiated Python fault model.
     Python(PythonFaultModel),
+    /// Instantiated external fault model.
     External(ExternalFault),
 }
 
 /// Configuration of the [`SpeedSensor`].
+/// 
+/// The [`SpeedSensor`] observes the robot's linear and angular velocity, which can be filtered and perturbed by faults.
+///
+/// Default values:
+/// - `activation_time`: `Some(PeriodicityConfig { period: 0.1, offset: None, table: None })`
+/// - `faults`: empty vector
+/// - `filters`: empty vector
 #[config_derives]
 pub struct SpeedSensorConfig {
-    /// Observation period of the sensor.
+    /// Periodicity of the sensor.
     #[check]
     pub activation_time: Option<PeriodicityConfig>,
+    /// Fault models applied after filtering.
     #[check]
     pub faults: Vec<SpeedSensorFaultModelConfig>,
+    /// Filter chain applied before fault injection.
     #[check]
     pub filters: Vec<SensorFilterConfig<SpeedSensorVariables>>,
 }
@@ -184,9 +216,13 @@ impl UIComponent for SpeedSensorRecord {
 /// Observation of the speed.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct SpeedObservation {
+    /// Forward linear velocity component.
     pub linear_velocity: f32,
+    /// Lateral linear velocity component.
     pub lateral_velocity: f32,
+    /// Angular velocity component.
     pub angular_velocity: f32,
+    /// Fault models that were applied to produce this observation.
     pub applied_faults: Vec<SpeedSensorFaultModelConfig>,
 }
 
@@ -200,10 +236,14 @@ impl Recordable<SpeedObservationRecord> for SpeedObservation {
     }
 }
 
+/// Serializable record for a [`SpeedObservation`].
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct SpeedObservationRecord {
+    /// Recorded forward linear velocity component.
     pub linear_velocity: f32,
+    /// Recorded lateral linear velocity component.
     pub lateral_velocity: f32,
+    /// Recorded angular velocity component.
     pub angular_velocity: f32,
 }
 

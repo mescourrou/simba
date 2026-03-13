@@ -1,3 +1,12 @@
+//! Clutter fault model.
+//!
+//! This module defines a fault model that injects synthetic observations (clutter)
+//! into sensor outputs.
+//! The behavior is configured through [`ClutterFaultConfig`], then executed at runtime
+//! by [`ClutterFault`].
+//! Clutter generation first samples how many synthetic observations must be created,
+//! then samples observation values from configured random distributions.
+
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -19,13 +28,30 @@ use crate::utils::{
     enum_tools::EnumVariables,
 };
 
+/// Configuration of the clutter fault model.
+///
+/// This configuration controls how many clutter observations are generated and how
+/// their variables are sampled.
+/// `apparition` defines the number of generated clutter observations per call,
+/// `distributions` define sampled values, and `variable_order` maps sampled dimensions
+/// to concrete observation variables.
+///
+/// Default values:
+/// - `apparition`: [`RandomVariableTypeConfig::Poisson`] with `lambda = [10.0]`
+/// - `distributions`: one [`RandomVariableTypeConfig::Uniform`] with `min = [-10.0, -10.0]` and `max = [10.0, 10.0]`
+/// - `variable_order`: empty vector (implicit variable order)
+/// - `observation_id`: `"clutter"`
 #[config_derives]
 pub struct ClutterFaultConfig<SV: EnumVariables> {
+    /// Random variable used to sample the number of clutter observations. Should be one-dimensional and return non-negative integer values.
     #[check]
     pub apparition: RandomVariableTypeConfig,
+    /// Random-variable list used to sample clutter observation values.
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
+    /// Optional explicit mapping order from sampled dimensions to variables.
     pub variable_order: Vec<SV>,
+    /// Identifier assigned to generated clutter observations.
     pub observation_id: String,
 }
 
@@ -36,6 +62,12 @@ impl<SV: EnumVariables> Check for ClutterFaultConfig<SV> {
             errors.push(format!(
                 "Apparition probability should be of length 1, got {}",
                 self.apparition.dim()
+            ));
+        }
+        if !self.variable_order.is_empty() && self.distributions.iter().map(|d| d.dim()).sum::<usize>() != self.variable_order.len() {
+            errors.push(format!("If variable order is given, its length should match the total distribution dimension. Got total distribution dimension {} and variable order length {}.",
+                self.distributions.iter().map(|d| d.dim()).sum::<usize>(),
+                self.variable_order.len()
             ));
         }
         if errors.is_empty() {
@@ -145,6 +177,10 @@ impl<SV: EnumVariables> UIComponent for ClutterFaultConfig<SV> {
     }
 }
 
+/// Runtime clutter fault model.
+///
+/// This type uses deterministic random variables to generate additional synthetic
+/// observations represented as `(id, variable_map)` pairs.
 #[derive(Debug)]
 pub struct ClutterFault<SV: EnumVariables> {
     apparition: SharedMutex<DeterministRandomVariable>,
@@ -155,6 +191,10 @@ pub struct ClutterFault<SV: EnumVariables> {
 }
 
 impl<SV: EnumVariables> ClutterFault<SV> {
+    /// Builds a runtime clutter fault model from [`ClutterFaultConfig`].
+    ///
+    /// Validates distribution dimensions and prepares deterministic random variables
+    /// using the provided [`DeterministRandomVariableFactory`].
     pub fn from_config(
         config: &ClutterFaultConfig<SV>,
         va_factory: &DeterministRandomVariableFactory,
@@ -167,7 +207,7 @@ impl<SV: EnumVariables> ClutterFault<SV> {
                 .map(|conf| va_factory.make_variable(conf.clone()))
                 .collect::<Vec<DeterministRandomVariable>>(),
         ));
-        if !config.variable_order.is_empty() {
+        let variable_order = if !config.variable_order.is_empty() {
             assert!(
                 config.variable_order.len()
                     == distributions
@@ -178,7 +218,10 @@ impl<SV: EnumVariables> ClutterFault<SV> {
                         .sum::<usize>(),
                 "If variable order is given, its length must match the distribution dimension."
             );
-        }
+            config.variable_order.clone()
+        } else {
+            SV::to_vec()
+        };
         let apparition_distrib = Arc::new(Mutex::new(
             va_factory.make_variable(config.apparition.clone()),
         ));
@@ -189,12 +232,16 @@ impl<SV: EnumVariables> ClutterFault<SV> {
         Self {
             apparition: apparition_distrib,
             distributions,
-            variable_order: config.variable_order.clone(),
+            variable_order,
             observation_id: config.observation_id.clone(),
             config: config.clone(),
         }
     }
 
+    /// Generates clutter observations for one sampling step.
+    ///
+    /// Returns a list of generated observations, each represented by its observation id
+    /// and a variable-value map.
     pub fn add_faults(
         &mut self,
         seed: f32,
@@ -217,12 +264,20 @@ impl<SV: EnumVariables> ClutterFault<SV> {
                 for (i, variable) in self.variable_order.iter().enumerate() {
                     o.insert(variable.clone(), random_sample[i]);
                 }
+            } else {
+                for (i, variable) in SV::to_vec().into_iter().enumerate() {
+                    if i >= random_sample.len() {
+                        break;
+                    }
+                    o.insert(variable, random_sample[i]);
+                }
             }
             new_obs.push((self.observation_id.clone(), o));
         }
         new_obs
     }
 
+    /// Returns the configuration used to build this clutter fault model.
     pub fn config(&self) -> &ClutterFaultConfig<SV> {
         &self.config
     }

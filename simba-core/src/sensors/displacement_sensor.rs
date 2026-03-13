@@ -1,6 +1,10 @@
-/*!
-Provides a [`Sensor`] which can provide the transformation since the last observation.
-*/
+//! Displacement sensor implementation.
+//!
+//! This module provides a [`Sensor`] that reports robot displacement
+//! between consecutive observations as translation and rotation.
+//! It supports filtering through
+//! [`SensorFilterConfig`]
+//! and configurable fault pipelines through [`DisplacementSensorFaultModelConfig`].
 
 use std::sync::Arc;
 
@@ -36,26 +40,52 @@ use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 extern crate nalgebra as na;
 
 enum_variables!(
+    "Variables of the [`DisplacementSensor`]."
     DisplacementSensorVariables;
-    Filter, Prop, Faults: X, "x", "dx";
-    Filter, Prop, Faults: Y, "y", "dy";
-    Filter, Prop, Faults: Rotation, "rotation", "r";
-    Filter, Prop, Faults: Translation, "translation", "t";
-    Filter, Prop: Distance, "distance", "d";
-    Filter, Prop: SelfVelocity, "self_velocity";
+    "Authorized viaribles in filters"
+    Filter, 
+    "Authorized variables for additive fault proportional scaling"
+    Prop, 
+    "Authorized variables in faults"
+    Faults: 
+    "Displacement following X axis in the frame of the robot before displacement"
+    X, "x", "dx";
+    Filter, Prop, Faults:
+    "Displacement following Y axis in the frame of the robot before displacement"
+    Y, "y", "dy";
+    Filter, Prop, Faults:
+    "Rotation of the robot during the displacement"
+    Rotation, "rotation", "r";
+    Filter, Prop, Faults: 
+    "Euclidean norm of the displacement (sqrt(x^2 + y^2))"
+    Translation, "translation", "t";
+    Filter, Prop: 
+    "Lie distance during the displacement (velocity * time)"
+    Distance, "distance", "d";
+    Filter, Prop:
+    "Euclidean norm of the robot linear velocity during the displacement"
+    SelfVelocity, "self_velocity";
 );
 
+/// Configuration enum selecting displacement fault model strategies.
+///
+/// Default value: [`DisplacementSensorFaultModelConfig::AdditivePreDisplacement`] with
+/// [`AdditiveFaultConfig::default`].
 #[config_derives]
 #[derive(UIComponent)]
 #[show_all = "Faults"]
 pub enum DisplacementSensorFaultModelConfig {
+    /// Additive fault applied in the frame of the robot before displacement.
     AdditivePreDisplacement(
         AdditiveFaultConfig<DisplacementSensorVariablesFaults, DisplacementSensorVariablesProp>,
     ),
+    /// Additive fault applied in the frame of the robot after displacement.
     AdditivePostDisplacement(
         AdditiveFaultConfig<DisplacementSensorVariablesFaults, DisplacementSensorVariablesProp>,
     ),
+    /// Python-implemented custom fault model.
     Python(PythonFaultModelConfig),
+    /// Plugin-provided external fault model.
     External(ExternalFaultConfig),
 }
 
@@ -65,19 +95,25 @@ impl Default for DisplacementSensorFaultModelConfig {
     }
 }
 
+/// Runtime enum containing instantiated displacement fault models.
 #[derive(Debug, EnumToString)]
 pub enum DisplacementSensorFaultModelType {
+    /// Instantiated pre-displacement additive fault model.
     AdditivePreDisplacement(
         AdditiveFault<DisplacementSensorVariablesFaults, DisplacementSensorVariablesProp>,
     ),
+    /// Instantiated post-displacement additive fault model.
     AdditivePostDisplacement(
         AdditiveFault<DisplacementSensorVariablesFaults, DisplacementSensorVariablesProp>,
     ),
+    /// Instantiated Python fault model.
     Python(PythonFaultModel),
+    /// Instantiated external fault model.
     External(ExternalFault),
 }
 
 impl DisplacementSensorFaultModelType {
+    /// Initializes fault models that require runtime node context.
     pub fn post_init(
         &mut self,
         node: &mut crate::node::Node,
@@ -92,15 +128,27 @@ impl DisplacementSensorFaultModelType {
 }
 
 /// Configuration of the [`DisplacementSensor`].
+/// 
+/// The DisplacementSensor observes the robot displacement between two observations, and reports it as a translation along the X and Y axis of the robot, and a rotation.
+/// The displacement is expressed in the frame of the robot before displacement, meaning that a positive translation along X means that the robot moved forward, and a positive rotation means that the robot rotated counterclockwise.
+///
+/// Default values:
+/// - `activation_time`: `Some(PeriodicityConfig { period: 0.1, ..Default::default() })`
+/// - `faults`: empty vector
+/// - `filters`: empty vector
+/// - `lie_movement`: `false` (not implemented yet)
 #[config_derives]
 pub struct DisplacementSensorConfig {
     /// Observation period of the sensor.
     #[check]
     pub activation_time: Option<PeriodicityConfig>,
+    /// Fault model configurations applied after filtering.
     #[check]
     pub faults: Vec<DisplacementSensorFaultModelConfig>,
+    /// Filter configurations applied before fault injection.
     #[check]
     pub filters: Vec<SensorFilterConfig<DisplacementSensorVariablesFilter>>,
+    /// If `true`, use Lie-movement mode (currently not implemented).
     pub lie_movement: bool,
 }
 
@@ -198,7 +246,7 @@ impl UIComponent for DisplacementSensorConfig {
     }
 }
 
-/// Record of the [`DisplacementSensor`], which contains nothing for now.
+/// Record of the [`DisplacementSensor`],
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DisplacementSensorRecord {
     last_time: Option<f32>,
@@ -225,8 +273,11 @@ impl UIComponent for DisplacementSensorRecord {
 /// Observation of the displacement.
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct DisplacementObservation {
+    /// Planar translation in the sensor frame.
     pub translation: Vector2<f32>,
+    /// Rotation during displacement.
     pub rotation: f32,
+    /// Fault models applied to this observation.
     pub applied_faults: Vec<DisplacementSensorFaultModelConfig>,
 }
 
@@ -240,10 +291,14 @@ impl Recordable<DisplacementObservationRecord> for DisplacementObservation {
     }
 }
 
+/// Serializable record representation of [`DisplacementObservation`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DisplacementObservationRecord {
+    /// Recorded planar translation in the sensor frame.
     pub translation: Vector2<f32>,
+    /// Recorded rotation during displacement.
     pub rotation: f32,
+    /// Fault models applied at observation generation time.
     pub applied_faults: Vec<DisplacementSensorFaultModelConfig>,
 }
 
@@ -625,6 +680,7 @@ impl Sensor for DisplacementSensor {
                             }
                         }
                     }
+                    
                 }
             }
         } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {

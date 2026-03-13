@@ -1,3 +1,6 @@
+//! Python utilities for embedding and interacting with Python code in Simba.
+//! 
+//! This module provides helper functions and traits for loading Python scripts, executing Python code, and bridging Python implementations of Simba plugin components.
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
 use std::fs;
@@ -88,6 +91,11 @@ pub fn ensure_venv_pyo3(py: Python<'_>) -> PyResult<()> {
     Ok(())
 }
 
+/// Embedded Python helper script used to convert JSON objects into dictionaries
+/// that return `None` for missing keys.
+///
+/// This is used to pass configuration from Rust to Python while tolerating absent
+/// keys in Python plugin code.
 pub const CONVERT_TO_DICT: &CStr = cr#"
 import json
 class NoneDict(dict):
@@ -106,27 +114,43 @@ def convert(records):
     return json.loads(records, object_hook=converter)
 "#;
 
+
+/// Configuration contract for loading a Python class from a script file.
 pub trait PythonClassConfig: Serialize + for<'a> Deserialize<'a> {
+    /// Return the Python script file path (relative to the simulator base path).
     fn file(&self) -> &String;
+
+    /// Return the Python class name to instantiate from the script.
     fn class_name(&self) -> &String;
 }
 
+/// Configuration contract for loading a Python function from a script file.
 pub trait PythonFunctionConfig: Serialize + for<'a> Deserialize<'a> {
+    /// Return the Python script file path (relative to the simulator base path).
     fn file(&self) -> &String;
+
+    /// Return the Python function name to call from the script.
     fn function_name(&self) -> &String;
 }
 
+/// Holds the source code of a Python script as a C-compatible string.
 pub struct PythonScriptConfig(pub CString);
 
 impl PythonScriptConfig {
+    /// Build a script wrapper from raw Python source code.
     pub fn new(script: String) -> Self {
         PythonScriptConfig(CString::new(script).unwrap())
     }
 
+    /// Get the underlying C-compatible script content.
     pub fn script(&self) -> &CString {
         &self.0
     }
 
+    /// Execute the `main` function of the embedded Python script.
+    ///
+    /// The call runs in an attached Python context, ensures virtual-environment
+    /// paths are available, and converts Python errors to [`SimbaError`].
     pub fn call<ReturnType, Args>(&mut self, args: Args) -> SimbaResult<ReturnType>
     where
         ReturnType: PyClass + for<'a, 'py> FromPyObject<'a, 'py> + Debug,
@@ -150,6 +174,16 @@ impl PythonScriptConfig {
     }
 }
 
+/// Load and instantiate a Python class from a script file.
+///
+/// The class constructor is called with `(config_dict, initial_time)`, where
+/// `config_dict` is generated from the serialized Rust config.
+///
+/// # Arguments
+/// * `config` - Plugin-specific configuration providing file and class names.
+/// * `global_config` - Simulator configuration used to resolve the script path.
+/// * `initial_time` - Initial simulation time passed to the Python constructor.
+/// * `log_info` - Component label used in logs and error messages.
 pub fn load_class_from_python_script<T: PythonClassConfig>(
     config: &T,
     global_config: &SimulatorConfig,

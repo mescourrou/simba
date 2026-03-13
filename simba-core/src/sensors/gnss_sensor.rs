@@ -1,6 +1,11 @@
-/*!
-Provides a [`Sensor`] which can provide position and velocity in the global frame.
-*/
+//! GNSS-like sensor implementation.
+//! 
+//! This sensor observes the global pose and planar velocity of the node, with optional filtering and fault injection.
+//!
+//! This module provides a [`Sensor`] that reports global pose and planar
+//! velocity, with optional filtering and fault injection.
+//! Filtering is configured through [`SensorFilterConfig`], and fault behavior
+//! is configured through [`GNSSSensorFaultModelConfig`].
 
 use std::sync::Arc;
 
@@ -34,48 +39,80 @@ use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 extern crate nalgebra as na;
 
 enum_variables!(
+    "Variables used by GNSS observations, filters, and fault models."
     GNSSSensorVariables;
-    Filter, Faults: X, "x", "position_x";
-    Filter, Faults: Y, "y", "position_y";
-    Filter, Faults: Orientation, "orientation", "z";
-    Filter, Faults: R, "r", "distance";
-    Filter, Faults: Theta, "theta", "angle";
-    Filter, Faults: VelocityX, "velocity_x", "vx";
-    Filter, Faults: VelocityY, "velocity_y", "vy";
-    Filter: SelfVelocity, "self_velocity";
+    "Variables accepted by GNSS filters."
+    Filter,
+    "Variables modified by GNSS fault models."
+    Faults:
+    "Global X position."
+    X, "x", "position_x";
+    Filter, Faults:
+    "Global Y position."
+    Y, "y", "position_y";
+    Filter, Faults:
+    "Global orientation (yaw angle)."
+    Orientation, "orientation", "z";
+    Filter, Faults:
+    "Distance to the origin (sqrt(x^2 + y^2))."
+    R, "r", "distance";
+    Filter, Faults:
+    "Angle to the x-axis (atan2(y, x))."
+    Theta, "theta", "angle";
+    Filter, Faults:
+    "Global velocity in the x direction (in the global frame)."
+    VelocityX, "velocity_x", "vx";
+    Filter, Faults:
+    "Global velocity in the y direction (in the global frame)."
+    VelocityY, "velocity_y", "vy";
+    Filter:
+    "Self-velocity norm."
+    SelfVelocity, "self_velocity";
 );
 
+/// Configuration enum selecting GNSS fault model strategies.
+///
+/// Default value: [`GNSSSensorFaultModelConfig::Additive`] with
+/// [`AdditiveFaultConfig::default`].
 #[config_derives]
 #[derive(UIComponent)]
 #[show_all = "Faults"]
 pub enum GNSSSensorFaultModelConfig {
-    AdditiveRobotCentered(AdditiveFaultConfig<GNSSSensorVariablesFaults, GNSSSensorVariables>),
-    AdditiveObservationCentered(
-        AdditiveFaultConfig<GNSSSensorVariablesFaults, GNSSSensorVariables>,
-    ),
+    /// Additive fault model in robot-centered coordinates.
+    Additive(AdditiveFaultConfig<GNSSSensorVariablesFaults, GNSSSensorVariables>),
+    /// Clutter fault model.
     Clutter(ClutterFaultConfig<GNSSSensorVariablesFaults>),
+    /// Misdetection fault model.
     Misdetection(MisdetectionFaultConfig),
+    /// Plugin-provided external fault model.
     External(ExternalFaultConfig),
+    /// Python-implemented fault model.
     Python(PythonFaultModelConfig),
 }
 
 impl Default for GNSSSensorFaultModelConfig {
     fn default() -> Self {
-        Self::AdditiveRobotCentered(AdditiveFaultConfig::default())
+        Self::Additive(AdditiveFaultConfig::default())
     }
 }
 
+/// Runtime enum containing instantiated GNSS fault models.
 #[derive(Debug, EnumToString)]
 pub enum GNSSSensorFaultModelType {
-    AdditiveRobotCentered(AdditiveFault<GNSSSensorVariablesFaults, GNSSSensorVariables>),
-    AdditiveObservationCentered(AdditiveFault<GNSSSensorVariablesFaults, GNSSSensorVariables>),
+    /// Instantiated additive robot-centered fault model.
+    Additive(AdditiveFault<GNSSSensorVariablesFaults, GNSSSensorVariables>),
+    /// Instantiated clutter fault model.
     Clutter(ClutterFault<GNSSSensorVariablesFaults>),
+    /// Instantiated misdetection fault model.
     Misdetection(MisdetectionFault),
+    /// Instantiated external fault model.
     External(ExternalFault),
+    /// Instantiated Python fault model.
     Python(PythonFaultModel),
 }
 
 impl GNSSSensorFaultModelType {
+    /// Initializes fault models that require runtime node context.
     pub fn post_init(
         &mut self,
         node: &mut crate::node::Node,
@@ -84,8 +121,7 @@ impl GNSSSensorFaultModelType {
         match self {
             Self::Python(f) => f.post_init(node, initial_time),
             Self::External(f) => f.post_init(node, initial_time),
-            Self::AdditiveRobotCentered(_)
-            | Self::AdditiveObservationCentered(_)
+            Self::Additive(_)
             | Self::Clutter(_)
             | Self::Misdetection(_) => Ok(()),
         }
@@ -93,6 +129,11 @@ impl GNSSSensorFaultModelType {
 }
 
 /// Configuration of the [`GNSSSensor`].
+///
+/// Default values:
+/// - `activation_time`: `Some(PeriodicityConfig { period: 1.0, offset: None, table: None })`
+/// - `faults`: empty vector
+/// - `filters`: empty vector
 #[config_derives]
 pub struct GNSSSensorConfig {
     /// Observation period of the sensor.
@@ -101,6 +142,7 @@ pub struct GNSSSensorConfig {
     /// Fault on the x, y positions, and on the x and y velocities
     #[check]
     pub faults: Vec<GNSSSensorFaultModelConfig>,
+    /// Filter configurations applied before fault injection.
     #[check]
     pub filters: Vec<SensorFilterConfig<GNSSSensorVariablesFilter>>,
 }
@@ -214,14 +256,20 @@ impl UIComponent for GNSSSensorRecord {
 /// Observation of the pose of the node and its speed.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct GNSSObservation {
+    /// Global pose represented as `[x, y, theta]`.
     pub pose: Vector3<f32>,
+    /// Global planar velocity represented as `[vx, vy]`.
     pub velocity: Vector2<f32>,
+    /// Fault models applied to this observation.
     pub applied_faults: Vec<GNSSSensorFaultModelConfig>,
 }
 
+/// Serializable record representation of [`GNSSObservation`].
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct GNSSObservationRecord {
+    /// Recorded global pose represented as `[x, y, theta]`.
     pub pose: [f32; 3],
+    /// Recorded global planar velocity represented as `[vx, vy]`.
     pub velocity: [f32; 2],
 }
 
@@ -274,17 +322,12 @@ impl GNSSSensor {
         let mut fault_models = Vec::new();
         for fault_config in &config.faults {
             fault_models.push(match &fault_config {
-                GNSSSensorFaultModelConfig::AdditiveRobotCentered(config) => {
-                    GNSSSensorFaultModelType::AdditiveRobotCentered(AdditiveFault::from_config(
+                GNSSSensorFaultModelConfig::Additive(config) => {
+                    GNSSSensorFaultModelType::Additive(AdditiveFault::from_config(
                         config,
                         va_factory,
                         initial_time,
                     ))
-                }
-                GNSSSensorFaultModelConfig::AdditiveObservationCentered(config) => {
-                    GNSSSensorFaultModelType::AdditiveObservationCentered(
-                        AdditiveFault::from_config(config, va_factory, initial_time),
-                    )
                 }
                 GNSSSensorFaultModelConfig::Clutter(config) => GNSSSensorFaultModelType::Clutter(
                     ClutterFault::from_config(config, va_factory, initial_time),
@@ -430,7 +473,14 @@ impl Sensor for GNSSSensor {
                         SensorObservation::GNSS(GNSSObservation::default()),
                         node.environment(),
                     ),
-                    GNSSSensorFaultModelType::AdditiveRobotCentered(f) => {
+                    GNSSSensorFaultModelType::External(f) => f.add_faults(
+                        time,
+                        time,
+                        &mut observation_list,
+                        SensorObservation::GNSS(GNSSObservation::default()),
+                        node.environment(),
+                    ),
+                    GNSSSensorFaultModelType::Additive(f) => {
                         let obs_list_len = observation_list.len();
                         for (i, obs) in observation_list
                             .iter_mut()
@@ -511,22 +561,89 @@ impl Sensor for GNSSSensor {
                                 obs.velocity.y = *value;
                             }
                             obs.applied_faults.push(
-                                GNSSSensorFaultModelConfig::AdditiveRobotCentered(
+                                GNSSSensorFaultModelConfig::Additive(
                                     f.config().clone(),
                                 ),
                             );
                         }
                     }
-                    _ => todo!(),
-                }
+                    GNSSSensorFaultModelType::Clutter(f) => {
+                        let new_obs_from_clutter =
+                            f.add_faults(time, 1. / 100.);
+                        for (_, obs_params) in new_obs_from_clutter {
+                            let mut x = obs_params
+                                .get(&GNSSSensorVariablesFaults::X)
+                                .cloned()
+                                .unwrap_or(0.);
+                            let mut y = obs_params
+                                .get(&GNSSSensorVariablesFaults::Y)
+                                .cloned()
+                                .unwrap_or(0.);
+                            let orientation = obs_params
+                                .get(&GNSSSensorVariablesFaults::Orientation)
+                                .cloned()
+                                .unwrap_or(0.);
 
-                // fault_model.add_faults(
-                //     time,
-                //     time,
-                //     &mut observation_list,
-                //     SensorObservation::GNSS(GNSSObservation::default()),
-                //     node.environment(),
-                // );
+                            let r = obs_params
+                                .get(&GNSSSensorVariablesFaults::R)
+                                .cloned()
+                                .unwrap_or(0.);
+                            let theta = obs_params
+                                .get(&GNSSSensorVariablesFaults::Theta)
+                                .cloned()
+                                .unwrap_or(0.);
+                            x += r * theta.cos();
+                            y += r * theta.sin();
+
+                            let v_x = obs_params
+                                .get(&GNSSSensorVariablesFaults::VelocityX)
+                                .cloned()
+                                .unwrap_or(0.);
+                            let v_y = obs_params
+                                .get(&GNSSSensorVariablesFaults::VelocityY)
+                                .cloned()
+                                .unwrap_or(0.);
+
+
+                            let obs = SensorObservation::GNSS(
+                                GNSSObservation {
+                                    pose: Vector3::new(x, y, orientation),
+                                    velocity: Vector2::new(v_x, v_y),
+                                    applied_faults: vec![
+                                        GNSSSensorFaultModelConfig::Clutter(
+                                            f.config().clone(),
+                                        ),
+                                    ],
+                                },
+                            );
+                            observation_list.push(obs);
+                        }
+                    }
+                    GNSSSensorFaultModelType::Misdetection(f) => {
+                        observation_list = observation_list
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(i, obs)| {
+                                if let SensorObservation::GNSS(
+                                    observation,
+                                ) = obs
+                                {
+                                    if f.detected(
+                                        time + (i as f32) / 1000.,
+                                    ) {
+                                        Some(SensorObservation::GNSS(
+                                            observation.clone(),
+                                        ))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    unreachable!()
+                                }
+                            })
+                            .collect();
+                    }
+                }
             }
         } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
             debug!("GNSS Observation was filtered out");

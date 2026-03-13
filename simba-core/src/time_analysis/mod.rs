@@ -1,3 +1,5 @@
+//! Tools to analyze simulation time and performance traces.
+
 mod time_analysis_config;
 pub use time_analysis_config::TimeAnalysisConfig;
 
@@ -25,6 +27,8 @@ use crate::{
     errors::SimbaResult, time_analysis::time_analysis_config::AnalysisUnit, utils::SharedMutex,
 };
 
+/// Node for the time analysis. It represents a block of code to analyse,
+/// and can contain other nodes to analyse nested blocks of code.
 #[derive(Debug)]
 pub struct TimeAnalysisNode {
     name: String,
@@ -34,6 +38,7 @@ pub struct TimeAnalysisNode {
 }
 
 impl TimeAnalysisNode {
+    /// Start a time analysis block with the given name and simulated time. It returns a [`TimeAnalysis`] struct that contains the starting time of the block, and the parameters of the block. When the block is finished, call [`TimeAnalysisNode::finished_time_analysis`] to get the finished time.
     pub fn time_analysis(&mut self, time: f32, name: String) -> TimeAnalysis {
         let time_int = Duration::from_secs_f32(time).as_micros() as i64;
         if self.current_coordinates.0 != time_int {
@@ -59,6 +64,7 @@ impl TimeAnalysisNode {
         ta
     }
 
+    /// Finish a time analysis block, and compute the elapsed time. It takes the [`TimeAnalysis`] struct returned by the [`Self::time_analysis`] function, and updates the execution tree with the finished time of the block.
     pub fn finished_time_analysis(&mut self, ta: TimeAnalysis) {
         let elapsed = ta.begin.elapsed();
         self.depth -= 1;
@@ -79,6 +85,7 @@ impl TimeAnalysisNode {
     }
 }
 
+/// Factory to manage time analysis nodes (elements to instrument) and export results.
 #[derive(Debug)]
 pub struct TimeAnalysisFactory {
     nodes: Vec<SharedMutex<TimeAnalysisNode>>,
@@ -87,6 +94,7 @@ pub struct TimeAnalysisFactory {
 }
 
 impl TimeAnalysisFactory {
+    /// Creates a new time analysis factory from the given config.
     pub fn init_from_config(config: &TimeAnalysisConfig) -> SimbaResult<Self> {
         let s = Self {
             config: config.clone(),
@@ -98,6 +106,9 @@ impl TimeAnalysisFactory {
         Ok(s)
     }
 
+    /// Creates a new time analysis scope with the given name, and returns a shared mutex to it.
+    /// The node is added to the factory's list of nodes.
+    /// When the function to analyse is finished, call [`TimeAnalysisNode::finished_time_analysis`] to get the finished time.
     pub fn new_node(&mut self, name: String) -> SharedMutex<TimeAnalysisNode> {
         let node = TimeAnalysisNode {
             current_coordinates: (0, Vec::new()),
@@ -130,6 +141,8 @@ impl TimeAnalysisFactory {
         })
     }
 
+    /// Save the time results analysis to the file specified in the config.
+    /// Execute the real time analysis to save a more readable report of the results, with statistics such as mean, median, etc. for each profile. The report is saved in the same path as the results, with the extension `.report.csv`.
     pub fn save_results(&self) {
         let path = Path::new(self.config.output_path.as_str());
         info!("Saving Time Analysis results to {}", path.to_str().unwrap());

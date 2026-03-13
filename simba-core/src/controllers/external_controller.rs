@@ -6,11 +6,6 @@ be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external controller strategy is made using the
 [`PluginAPI::get_controller`] function.
-
-For the [`Stateful`] trait, the generic type is [`ControllerRecord`],
-and your implementation should return a [`ControllerRecord::External`]
-type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
-and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use std::sync::Arc;
@@ -60,9 +55,6 @@ external_record_python_methods!(
 ///
 /// Like [`ExternalControllerConfig`], [`ExternalController`] uses a [`serde_json::Value`]
 /// to take every record.
-///
-/// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::record`] implementations.
     ExternalControllerRecord,
 );
 

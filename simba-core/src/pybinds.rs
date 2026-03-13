@@ -1,3 +1,4 @@
+//! Python bindings for Simba components, including a plugin API bridge backed and the root Python module.
 use std::sync::{Arc, Mutex};
 
 use log::debug;
@@ -42,6 +43,7 @@ use crate::{
     },
 };
 
+/// Create Python bindings for Simba components and add them to the provided Python module.
 pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SimulatorWrapper>()?;
     m.add_class::<PluginAPIWrapper>()?;
@@ -74,6 +76,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
+/// Plugin API bridge backed by a Python object. Holds references to Python component instances.
 #[derive(Debug)]
 pub struct PythonAPI {
     api: Py<PyAny>,
@@ -84,6 +87,13 @@ pub struct PythonAPI {
 }
 
 impl PythonAPI {
+    /// Create a new Python API bridge from a Python plugin object.
+    ///
+    /// The provided object is expected to implement the Simba plugin methods called
+    /// through [`PluginAPI`].
+    ///
+    /// # Arguments
+    /// * `m` - Python plugin instance implementing Simba plugin methods.
     pub fn new(m: Py<PyAny>) -> PythonAPI {
         PythonAPI {
             api: m,

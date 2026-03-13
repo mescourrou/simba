@@ -1,12 +1,9 @@
-/*!
-Module providing the interface to use external [`SensorFilter`].
-
-To make your own external sensor filter strategy, the simulator should
-be used as a library (see [dedicated page](crate::plugin_api)).
-
-Your own external sensor filter strategy is made using the
-[`PluginAPI::get_sensor_filter`] function.
-*/
+//! External sensor fault integration.
+//!
+//! This module provides the adapter used to load a fault model from an external
+//! plugin implementing [`PluginAPI`].
+//! It wraps the plugin-provided implementation behind [`FaultModel`]
+//! so it can be used transparently by the simulator.
 
 use std::sync::Arc;
 
@@ -35,7 +32,8 @@ external_config!(
 /// In the yaml file, the config could be:
 /// ```YAML
 /// faults:
-///     - type: External
+///   - type: External
+///     config:
 ///       parameter_of_my_own_estimator: true
 /// ```
     ExternalFaultConfig,
@@ -43,6 +41,7 @@ external_config!(
     "external-fault"
 );
 
+/// Runtime wrapper around a plugin-provided [`FaultModel`].
 pub struct ExternalFault {
     fault: Box<dyn FaultModel>,
 }
@@ -56,7 +55,8 @@ impl ExternalFault {
     /// * `config` -- Scenario config of the External fault.
     /// * `plugin_api` -- Required [`PluginAPI`] implementation.
     /// * `global_config` -- Simulator config.
-    /// * `_va_factory` -- Factory for Determinists random variables.
+    /// * `va_factory` -- Factory for Determinists random variables.
+    /// * `initial_time` -- Time at which the node using this fault is initialized (can be different from 0 if the node is initialized later in the scenario).
     pub fn from_config(
         config: &ExternalFaultConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,

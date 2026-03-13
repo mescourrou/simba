@@ -149,19 +149,35 @@ pub trait PluginAPI: Send + Sync {
         panic!("The given PluginAPI does not provide physics");
     }
 
+    /// Allow the plugin to check for requests from the simulator and react to them.
+    /// This is used at the configuration loading step to allow asynchronous plugins to check for requests, especially [`PythonAPI`](crate::pybinds::PythonAPI).
     fn check_requests(&self) {}
 
+    /// Return the [`Sensor`] to be used by the
+    /// [`ExternalSensor`](`crate::sensors::external_sensor::ExternalSensor`).
+    /// 
+    /// # Arguments
+    /// * `config` - Config for the external sensor. The configuration
+    ///   is given using [`serde_json::Value`]. It should be converted by the
+    ///   external plugin to the specific configuration.
+    /// * `global_config` - Full configuration of the simulator.
+    /// * `_va_factory` - Factory for Determinists random variables to create random variables if needed.
+    /// * `network` - Reference to the network, to allow the sensor to send messages if needed.
+    /// * `initial_time` - Initial time of the simulation, to allow the sensor to initialize itself with the correct time.
+    /// # Return
+    /// Returns the [`Sensor`] to use.
     fn get_sensor(
         &self,
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Sensor> {
         panic!("The given PluginAPI does not provide a sensor");
     }
 
-    /// Return the [`Drawable`] to be used by the GUI.
+    /// Return the [`Drawable`](crate::gui::Drawable) to be used by the GUI.
     ///
     /// The GUI will call this function at startup to load an instance of the [`Drawable`](crate::gui::Drawable) to be used for the visualization.
     /// The GUI will then call the [`Drawable::add_record`](crate::gui::Drawable::add_record) function at each step of the simulation to update the drawable with the new record.
@@ -175,7 +191,7 @@ pub trait PluginAPI: Send + Sync {
     }
 
     /// Return the [`SensorFilter`] to be used by the
-    /// [`ExternalSensorFilter`](`crate::sensors::sensor_filters::external_filter::ExternalSensorFilter`).
+    /// [`ExternalFilter`](`crate::sensors::sensor_filters::external_filter::ExternalFilter`).
     ///
     /// # Arguments
     /// * `config` - Config for the external sensor filter. The configuration

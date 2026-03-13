@@ -1,3 +1,8 @@
+//! Uniform distribution random-variable utilities.
+//!
+//! This module defines configuration and deterministic generation logic for
+//! uniform random variables used by the simulator.
+
 use std::iter::zip;
 
 use rand::prelude::*;
@@ -122,6 +127,10 @@ pub struct DeterministUniformRandomVariable {
 }
 
 impl DeterministUniformRandomVariable {
+    /// Build a deterministic uniform random variable from its configuration.
+    ///
+    /// `my_seed` should be a unique seed for this random variable instance.
+    /// variable instance.
     pub fn from_config(my_seed: f32, config: UniformRandomVariableConfig) -> Self {
         assert!(config.max.len() == config.min.len());
         for (min, max) in zip(&config.min, &config.max) {
@@ -134,6 +143,9 @@ impl DeterministUniformRandomVariable {
         }
     }
 
+    /// Generate one sample vector at a given simulation `time`.
+    ///
+    /// The produced values are reproducible for the same `(my_seed, time)` pair.
     pub fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
@@ -143,6 +155,7 @@ impl DeterministUniformRandomVariable {
         v
     }
 
+    /// Return the output dimension of the random variable.
     pub fn dim(&self) -> usize {
         self.max.len()
     }

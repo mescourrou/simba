@@ -1,6 +1,9 @@
-//! Misassociation faults
+//! Misassociation fault model.
 //!
-//! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
+//! This module defines a fault model that can replace an observation label with another one,
+//! according to a configurable random process.
+//! Behavior is controlled by [`MisassociationFaultConfig`], and runtime decisions are executed by
+//! [`MisassociationFault`].
 
 use std::{
     ops::Rem,
@@ -33,28 +36,48 @@ use crate::{
     },
 };
 
+/// Ordering strategy used to pick replacement labels.
+///
+/// This controls how candidate labels are arranged before indexing with a sampled value.
 #[config_derives]
 #[derive(Default)]
 pub enum Sort {
+    /// Keep the source-provided order of candidates (alphabetically).
     None,
+    /// Shuffle candidates using a deterministic random generator seeded from simulation state.
     Random,
+    /// Sort candidates by increasing squared distance to the observer position.
     #[default]
     Distance,
 }
 
+/// Source used to build the candidate label list for misassociation.
 #[config_derives]
 pub enum Source {
+    /// Use landmark identifiers from the current map.
     Map,
+    /// Use identifiers of running robots from environment metadata.
     Robots,
 }
 
+/// Configuration for the misassociation fault model.
+///
+/// This configuration defines when misassociation happens and how the replacement label
+/// is selected from candidates.
+/// The `apparition` variable decides if misassociation is applied for a sample,
+/// while `distribution` provides the sampled index used to pick a candidate label.
+/// The `sort` and `source` options define how the candidate list is built and ordered.
 #[config_derives]
 pub struct MisassociationFaultConfig {
+    /// Bernoulli variable controlling whether misassociation is triggered.
     #[check]
     pub apparition: BernouilliRandomVariableConfig,
+    /// Random variable used to sample the candidate index.
     #[check]
     pub distribution: RandomVariableTypeConfig,
+    /// Strategy used to order candidate labels before sampling.
     pub sort: Sort,
+    /// Source from which candidate labels are collected.
     pub source: Source,
 }
 
@@ -169,6 +192,10 @@ impl UIComponent for MisassociationFaultConfig {
     }
 }
 
+/// Runtime implementation of label misassociation faults.
+///
+/// This type samples configured random variables and maps an input label to another label
+/// selected from map landmarks or robot names.
 #[derive(Debug)]
 pub struct MisassociationFault {
     apparition: DeterministBernouilliRandomVariable,
@@ -180,6 +207,7 @@ pub struct MisassociationFault {
 }
 
 impl MisassociationFault {
+    /// Builds a runtime fault model from [`MisassociationFaultConfig`].
     pub fn from_config(
         config: &MisassociationFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
@@ -204,6 +232,10 @@ impl MisassociationFault {
         }
     }
 
+    /// Returns the label after applying one misassociation decision.
+    ///
+    /// If misassociation is not triggered for `seed`, this returns `old_label` unchanged.
+    /// Otherwise, it selects a new label from candidates extracted from [`Environment`].
     pub fn new_label(
         &mut self,
         seed: f32,
@@ -251,9 +283,11 @@ impl MisassociationFault {
             .clone()
     }
 
+    /// Returns the configuration used to build this fault model.
     pub fn config(&self) -> &MisassociationFaultConfig {
         &self.config
     }
 }
 
+/// Record type for misassociation faults.
 pub struct MisassociationRecord {}

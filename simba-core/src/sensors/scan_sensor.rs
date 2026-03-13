@@ -1,3 +1,10 @@
+//! Scan sensor implementation.
+//!
+//! This module implements a radar/lidar-like scan sensor that emits distance/angle/radial-velocity
+//! observations against map landmarks and dynamic entities.
+//! It supports configurable ray layouts through [`RayConfig`], filtering with
+//! [`SensorFilterConfig`], and fault injection pipelines configured via [`ScanSensorFaultModelConfig`].
+
 use std::sync::Arc;
 
 use log::debug;
@@ -41,40 +48,75 @@ use crate::{
 };
 
 enum_variables!(
+    "Variables used by scan observations, scan filters, and scan fault models."
     ScanSensorVariables;
-    Filter, PointFaults, GlobalFaults, GlobalProp, PointProp: X, "x";
-    Filter, PointFaults, GlobalFaults, GlobalProp, PointProp: Y, "y" ;
-    Filter, PointFaults, PointProp: R, "r";
-    Filter, PointFaults, PointProp: Theta, "theta";
-    Filter, PointFaults, GlobalFaults, PointProp: RadialVelocity, "radial_velocity", "v";
-    GlobalFaults, GlobalProp: Orientation, "orientation", "z";
-    Filter, GlobalProp, PointProp: SelfVelocity, "self_velocity";
+    "Variables accepted by scan filters."
+    Filter,
+    "Variables modified by per-point fault models."
+    PointFaults,
+    "Variables modified by global fault models (fault applied to all points)."
+    GlobalFaults,
+    "Variables used as proportional factor in global fault models."
+    GlobalProp,
+    "Variables used as proportional factor in per-point fault models." 
+    PointProp:
+    "X position component."
+    X, "x";
+    Filter, PointFaults, GlobalFaults, GlobalProp, PointProp:
+    "Y position component." Y, "y" ;
+    Filter, PointFaults, PointProp: 
+    "Range (radius) in polar coordinates."
+    R, "r", "radius", "d", "distance";
+    Filter, PointFaults, PointProp:
+    "Bearing angle in polar coordinates."
+    Theta, "theta", "bearing", "angle";
+    Filter, PointFaults, GlobalFaults, PointProp:
+    "Relative radial velocity component."
+    RadialVelocity, "radial_velocity", "v";
+    GlobalFaults, GlobalProp:
+    "Sensor orientation, to rotate the full point cloud."
+    Orientation, "orientation", "z";
+    Filter, GlobalProp, PointProp:
+    "Observer planar speed norm."
+    SelfVelocity, "self_velocity";
 );
 
+/// Configuration enum selecting scan-sensor fault model strategies.
+///
+/// Default value: [`ScanSensorFaultModelConfig::AdditiveRobotCentered`] with
+/// [`AdditiveFaultConfig::default`].
 #[config_derives]
 #[derive(UIComponent)]
 #[show_all = "Faults"]
 pub enum ScanSensorFaultModelConfig {
+    /// Additive fault applied to all point uniformally.
     #[check]
     AdditiveRobotCentered(
         AdditiveFaultConfig<ScanSensorVariablesGlobalFaults, ScanSensorVariablesGlobalProp>,
     ),
+    /// Per-point additive fault applied in robot-centered frame.
     #[check]
     PointAdditiveRobotCentered(
         AdditiveFaultConfig<ScanSensorVariablesPointFaults, ScanSensorVariablesPointProp>,
     ),
+    /// Per-point additive fault applied in observation-centered frame. Orientation is defined by the angle of the point in the observation, and the additive is rotated accordingly.
     #[check]
     PointAdditiveObservationCentered(
         AdditiveFaultConfig<ScanSensorVariablesPointFaults, ScanSensorVariablesPointProp>,
     ),
+    /// Clutter generation fault model.
     #[check]
     Clutter(ClutterFaultConfig<ScanSensorVariablesPointFaults>),
+    /// Global misdetection fault model.
     #[check]
     Misdetection(MisdetectionFaultConfig),
+    /// Per-point misdetection fault model.
     #[check]
     PointMisdetection(MisdetectionFaultConfig),
+    /// Python-implemented custom fault model.
     #[check]
     Python(PythonFaultModelConfig),
+    /// Plugin-provided external fault model.
     #[check]
     External(ExternalFaultConfig),
 }
@@ -85,25 +127,35 @@ impl Default for ScanSensorFaultModelConfig {
     }
 }
 
+/// Runtime enum holding instantiated scan fault models.
 #[derive(Debug, EnumToString)]
 pub enum FaultModelTypeScanSensor {
+    /// Instantiated robot-centered additive fault model.
     AdditiveRobotCentered(
         AdditiveFault<ScanSensorVariablesGlobalFaults, ScanSensorVariablesGlobalProp>,
     ),
+    /// Instantiated per-point robot-centered additive fault model.
     PointAdditiveRobotCentered(
         AdditiveFault<ScanSensorVariablesPointFaults, ScanSensorVariablesPointProp>,
     ),
+    /// Instantiated per-point observation-centered additive fault model.
     PointAdditiveObservationCentered(
         AdditiveFault<ScanSensorVariablesPointFaults, ScanSensorVariablesPointProp>,
     ),
+    /// Instantiated clutter fault model.
     Clutter(ClutterFault<ScanSensorVariablesPointFaults>),
+    /// Instantiated global misdetection fault model.
     Misdetection(MisdetectionFault),
+    /// Instantiated per-point misdetection fault model.
     PointMisdetection(MisdetectionFault),
+    /// Instantiated Python fault model.
     Python(PythonFaultModel),
+    /// Instantiated external fault model.
     External(ExternalFault),
 }
 
 impl FaultModelTypeScanSensor {
+    /// Initializes fault models that require runtime node context.
     pub fn post_init(
         &mut self,
         node: &mut crate::node::Node,
@@ -122,17 +174,31 @@ impl FaultModelTypeScanSensor {
     }
 }
 
+/// Configuration of scan ray definitions.
 #[config_derives(tag_content)]
 pub enum RayConfig {
+    /// Uniform angular distribution over `2*pi` with the given number of rays.
     Regular(usize),
+    /// Explicit list of ray angles in degrees.
     DegreeTable(Vec<f32>),
+    /// Explicit list of ray angles in radians.
     RadianTable(Vec<f32>),
 }
 
+/// Configuration of the [`ScanSensor`].
+///
+/// Default values:
+/// - `detection_distance`: `0.0`
+/// - `rays`: [`RayConfig::Regular`]`(360)`
+/// - `height`: `0.0`
+/// - `activation_time`: `Some(PeriodicityConfig { period: 0.1, ..Default::default() })`
+/// - `faults`: empty vector
+/// - `filters`: empty vector
 #[config_derives]
 pub struct ScanSensorConfig {
     /// Max distance of detection.
     pub detection_distance: f32,
+    /// Ray layout used to define observation directions.
     #[check]
     pub rays: RayConfig,
     /// Height of the sensor: will only detect objects at this height or higher.
@@ -140,8 +206,10 @@ pub struct ScanSensorConfig {
     /// Observation period of the sensor.
     #[check]
     pub activation_time: Option<PeriodicityConfig>,
+    /// Fault model configuration list applied after filtering.
     #[check]
     pub faults: Vec<ScanSensorFaultModelConfig>,
+    /// Filter configuration list applied before fault injection.
     #[check]
     pub filters: Vec<SensorFilterConfig<ScanSensorVariablesFilter>>,
 }
@@ -348,6 +416,7 @@ impl UIComponent for ScanSensorConfig {
     }
 }
 
+/// Record of the scan sensor internal state.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ScanSensorRecord {
     last_time: Option<f32>,
@@ -366,11 +435,16 @@ impl UIComponent for ScanSensorRecord {
     }
 }
 
+/// Runtime scan observation payload.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ScanObservation {
+    /// Distance values associated with scan rays.
     pub distances: Vec<f32>,
+    /// Angle values associated with scan rays.
     pub angles: Vec<f32>,
+    /// Radial velocity values associated with scan rays.
     pub radial_velocities: Vec<f32>,
+    /// Fault configurations applied to produce this observation.
     pub applied_faults: Vec<ScanSensorFaultModelConfig>,
 }
 
@@ -402,11 +476,16 @@ impl Recordable<ScanObservationRecord> for ScanObservation {
     }
 }
 
+/// Serializable record representation of [`ScanObservation`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ScanObservationRecord {
+    /// Recorded distance values.
     pub distances: Vec<f32>,
+    /// Recorded angle values.
     pub angles: Vec<f32>,
+    /// Recorded radial velocity values.
     pub radial_velocities: Vec<f32>,
+    /// Fault configurations applied at observation generation time.
     pub applied_faults: Vec<ScanSensorFaultModelConfig>,
 }
 
@@ -429,6 +508,7 @@ impl UIComponent for ScanObservationRecord {
     }
 }
 
+/// Sensor that emits scan observations from configured rays.
 #[derive(Debug)]
 pub struct ScanSensor {
     detection_distance: f32,
@@ -442,6 +522,7 @@ pub struct ScanSensor {
 }
 
 impl ScanSensor {
+    /// Builds a new [`ScanSensor`] from [`ScanSensorConfig`].
     pub fn from_config(
         config: &ScanSensorConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,

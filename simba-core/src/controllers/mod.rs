@@ -1,7 +1,11 @@
-/*!
-Module providing the [`Controller`](controller::Controller) strategy, which computes the
-[`Command`](crate::physics::physics::Command) sent to the [`Physics`](crate::physics::physics::Physics).
-*/
+//! Controller strategies and shared controller interfaces.
+//!
+//! This module defines the [`Controller`] trait used to convert navigation errors into robot
+//! [`Command`] values consumed by [`Physics`](crate::physics::Physics).
+//!
+//! It also exposes strategy-specific configuration and runtime record enums:
+//! [`ControllerConfig`] and [`ControllerRecord`].
+
 pub mod external_controller;
 pub mod pid;
 pub mod python_controller;
@@ -57,10 +61,13 @@ impl UIComponent for ControllerError {
 #[config_derives]
 pub enum ControllerConfig {
     #[check]
+    /// Configuration for [`PID`](pid::PIDConfig).
     PID(pid::PIDConfig),
     #[check]
+    /// Configuration for [`ExternalController`](external_controller::ExternalControllerConfig).
     External(external_controller::ExternalControllerConfig),
     #[check]
+    /// Configuration for [`PythonController`](python_controller::PythonControllerConfig).
     Python(python_controller::PythonControllerConfig),
 }
 
@@ -144,8 +151,11 @@ impl UIComponent for ControllerConfig {
 /// Enumerates the strategies records.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ControllerRecord {
+    /// Runtime record for [`pid::PID`].
     PID(pid::PIDRecord),
+    /// Runtime record for [`external_controller::ExternalController`].
     External(external_controller::ExternalControllerRecord),
+    /// Runtime record for [`python_controller::PythonController`].
     Python(python_controller::PythonControllerRecord),
 }
 
@@ -174,12 +184,13 @@ impl UIComponent for ControllerRecord {
 
 use crate::node::Node;
 
-/// Controller strategy, which compute the [`Command`] to be sent to the
-/// [`Physics`](crate::physics::physics::Physics) module, from the given `error`.
+/// Controller strategy that computes [`Command`] values from control errors.
 pub trait Controller:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<ControllerRecord>
 {
-    fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
+    /// Performs optional one-time initialization when the node starts, before entering simulation loop.
+    #[allow(unused_variables)]
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -191,9 +202,10 @@ pub trait Controller:
     /// * `time` - Current time.
     ///
     /// ## Return
-    /// Command to apply to the [`Physics`](crate::physics::physics::Physics).
+    /// Command to apply to the [`Physics`](crate::physics::Physics).
     fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command;
 
+    /// Executes per-step side effects before command computation.
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
 
     /// Optional: return the time of the next time step. Needed if using messages
@@ -207,8 +219,11 @@ pub trait Controller:
 /// ## Arguments
 /// * `config` - Configuration to use to make the controller.
 /// * `plugin_api` - Optional PluginAPI to transmit to the controller.
-/// * `meta_config` - Meta configuration of the simulator.
+/// * `global_config` - Global simulator configuration to transmit to the controller.
 /// * `va_factory` - Random variables factory for determinist behavior.
+/// * `physics_config` - Physics configuration to transmit to the controller and infer the robot model from.
+/// * `network` - Shared reference to the network, for controllers using messages.
+/// * `initial_time` - Initial node time.
 pub fn make_controller_from_config(
     config: &ControllerConfig,
     plugin_api: &Option<Arc<dyn PluginAPI>>,

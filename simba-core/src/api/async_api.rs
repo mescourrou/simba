@@ -1,3 +1,6 @@
+//! Asynchronous API for the simulator, to allow running the simulator in a separate thread and communicate with it through channels.
+//! This is used by the GUI and the Python API to communicate with the simulator without blocking the main thread.
+
 use std::{
     os::unix::thread::JoinHandleExt,
     sync::{Arc, Mutex, RwLock, mpsc},
@@ -21,21 +24,31 @@ use crate::{
     },
 };
 
-// Run by client
+/// Asynchronous API for [`Simulator`] in order to allow running the simulator in a separate thread, and communicate with it through channels. This is a client of [`AsyncApiServer`].
+/// 
+/// It is used by the GUI, or when using a Python API as the simulator should not block the main thread.
 #[derive(Clone)]
 pub struct AsyncApi {
+    /// Very limited API to the simulator to get the current time and records.
     pub simulator_api: Arc<SimulatorAsyncApi>,
     // Channels
+    /// Trigger the loading of a configuration in the simulator, with the given configuration and a flag to force sending results to [`Self::simulator_api`] (function [`Simulator::load_config`]).
     pub load_config:
         rfc::RemoteFunctionCall<AsyncApiLoadConfigRequest, SimbaResult<SimulatorConfig>>,
+    /// Trigger the loading of results in the simulator, with the given path to the results file (function [`Simulator::load_results`]). The path is optional, if not given, it will load the results from the last simulation run. It returns the last result time.
     pub load_results: rfc::RemoteFunctionCall<Option<String>, SimbaResult<f32>>,
+    /// Trigger the running of the simulator, with the given parameters to reset the simulator and set a maximum time (combination of [`Simulator::set_max_time`], [`Simulator::reset`] and [`Simulator::run`]). If reset is true, the simulator will be reset before running. If max_time is given, the simulator will run until the simulated time reaches max_time. Otherwise, it will run until the end of the simulation.
     pub run: rfc::RemoteFunctionCall<AsyncApiRunRequest, SimbaResult<()>>,
+    /// Ask for the simulator records (function [`Simulator::get_records`]). The call argument is for sorting the records by time, if true, or not sorted if false. Sorting requires more time, so it can be set to false if the order of the records is not important.
     pub get_records: rfc::RemoteFunctionCall<bool, SimbaResult<Vec<Record>>>,
+    /// Trigger the computation of results in the simulator (function [`Simulator::compute_results`]). It will call the python script if it is defined in the configuration file.
     pub compute_results: rfc::RemoteFunctionCall<(), SimbaResult<()>>,
 }
 
 // Run by the simulator
+/// Asynchronous API server for the simulator, to receive requests from the [`AsyncApi`] and execute them on the simulator. It is owned by the simulator and runs in a separate thread. See [`AsyncApi`] for details.
 #[derive(Clone)]
+#[allow(missing_docs)]
 pub struct AsyncApiServer {
     pub load_config:
         Arc<rfc::RemoteFunctionCallHost<AsyncApiLoadConfigRequest, SimbaResult<SimulatorConfig>>>,
@@ -46,6 +59,38 @@ pub struct AsyncApiServer {
 }
 
 // #[derive(Clone)]
+/// Runner for the asynchronous API, to run the simulator in a separate thread and listen to API calls.
+/// It owns the simulator and the API server, and runs the server in a separate thread.
+/// It also provides a public API to send requests to the simulator, and a method to stop the runner and the threads.
+/// 
+/// # Example:
+/// ```rust
+/// // Create a new runner with a new simulator
+/// let runner = Arc::new(Mutex::new(AsyncApiRunner::new()));
+/// // Get the public API to send requests to the simulator
+/// let api = Arc::new(Mutex::new(runner.lock().unwrap().get_api()));
+/// // Start the runner (not the simulator)
+/// runner.lock().unwrap().run(None);
+/// 
+/// api.lock().unwrap().load_config.async_call(AsyncApiLoadConfigRequest {
+///     config: SimulatorConfig::default(),
+///     force_send_results: false,
+/// });
+/// 
+/// if let Ok(config) = api.lock().unwrap().load_config.wait_result() {
+///     println!("Config loaded: {:?}", config);
+///     // Run the simulator for 10 seconds, without resetting it (it will run from the current state)
+///     api.lock().unwrap().run.call(AsyncApiRunRequest {
+///         max_time: None, // Use the max_time defined in the simulator config
+///         reset: false,  // Do not reset the simulator, run from the current state
+///     }).unwrap();
+/// 
+///    api.lock().unwrap().compute_results.wait_result(()).unwrap();
+/// }
+/// 
+/// // Stop the runner
+/// runner.lock().unwrap().stop();
+/// ```
 pub struct AsyncApiRunner {
     public_api: AsyncApi,
     private_api: AsyncApiServer,
@@ -57,11 +102,17 @@ pub struct AsyncApiRunner {
 }
 
 impl AsyncApiRunner {
+    /// Create a new [`AsyncApiRunner`] with a new simulator default simulator.
+    /// The configuration of the simulator can be changed by calling the `load_config` function of the public API.
+    /// The runner is not started by default, call the `run` function to start it and listen to API calls.
     pub fn new() -> Self {
         let simulator = Arc::new(Mutex::new(Simulator::new()));
         AsyncApiRunner::new_with_simulator(simulator)
     }
 
+    /// Create a new [`AsyncApiRunner`] with the given simulator.
+    /// The configuration of the simulator can be changed by calling the `load_config` function of the public API.
+    /// The runner is not started by default, call the `run` function to start it and listen to API calls.
     pub fn new_with_simulator(simulator: SharedMutex<Simulator>) -> Self {
         let (load_config_call, load_config_host) = rfc::make_pair();
         let (run_call, run_host) = rfc::make_pair();
@@ -94,14 +145,22 @@ impl AsyncApiRunner {
         }
     }
 
+    /// Get the public API to send requests to the simulator (loading configuration, running, etc.).
+    /// It is used by the GUI and the Python API to communicate with the simulator.
     pub fn get_api(&self) -> AsyncApi {
         self.public_api.clone()
     }
 
+    /// Get the inner simulator.
+    /// WARNING: for advanced use only
     pub fn get_simulator(&self) -> SharedMutex<Simulator> {
         self.simulator.clone()
     }
 
+    /// Stop the runner and the threads waiting for API calls.
+    /// 
+    /// This method is automatically called when the runner is dropped, but can be called manually to stop the threads before dropping the runner.
+    /// If threads are blocked, they will be force stopped after a short delay using `pthread_cancel`.
     pub fn stop(&mut self) {
         if !self.running {
             return;
@@ -124,6 +183,13 @@ impl AsyncApiRunner {
         self.running = false;
     }
 
+    /// Start the runner.
+    /// 
+    /// It will spawn a thread to listen to the API calls and execute them on the simulator.
+    /// It will also spawn threads for each API call to execute them in parallel and not block the main thread. The threads will be stopped when the runner is stopped.
+    /// 
+    /// # Arguments
+    /// * `plugin_api` - Optional plugin API to use when loading the configuration. It can be None if the plugin API is not needed but required if the configuration use Externals.
     pub fn run(&mut self, plugin_api: Option<Arc<dyn PluginAPI>>) {
         let private_api = self.private_api.clone();
         let keep_alive_rx = self.keep_alive_rx.clone();
@@ -241,6 +307,8 @@ impl Drop for AsyncApiRunner {
     }
 }
 
+/// Plugin API implementation using the asynchronous API. It is used to call the plugin API from the simulator, and get the state estimator, controller, navigator and physics engine from the plugin.
+/// It is owned by the simulator and passed to the plugin when loading the configuration.
 #[derive(Clone)]
 pub struct PluginAsyncAPI {
     client: PluginAsyncAPIClient,
@@ -253,6 +321,7 @@ pub struct PluginAsyncAPI {
 }
 
 impl PluginAsyncAPI {
+    /// Create a new plugin API: creation of the remote function calls and their hosts.
     pub fn new() -> PluginAsyncAPI {
         let (get_state_estimator_client, get_state_estimator_host) = rfc::make_pair();
         let (get_controller_client, get_controller_host) = rfc::make_pair();
@@ -273,6 +342,7 @@ impl PluginAsyncAPI {
         }
     }
 
+    /// Get a client to the API.
     pub fn get_client(&self) -> PluginAsyncAPIClient {
         self.client.clone()
     }
@@ -362,38 +432,64 @@ impl PluginAPI for PluginAsyncAPI {
     }
 }
 
+/// Client of the plugin API, to be used by the simulator to call the plugin API and get the state estimator, controller, navigator and physics engine from the plugin. It is owned by the simulator and passed to the plugin when loading the configuration.
 #[derive(Clone)]
 pub struct PluginAsyncAPIClient {
+    /// Get a state estimator from the plugin API, with the given configuration, global configuration, random variable factory, network and initial time. It returns a state estimator to use in the simulator.
     pub get_state_estimator: Arc<
         RemoteFunctionCallHost<PluginAsyncAPIGetStateEstimatorRequest, Box<dyn StateEstimator>>,
     >,
+    /// Get a controller from the plugin API, with the given configuration, global configuration, random variable factory, network and initial time. It returns a controller to use in the simulator.
     pub get_controller:
         Arc<RemoteFunctionCallHost<PluginAsyncAPIGetControllerRequest, Box<dyn Controller>>>,
+    /// Get a navigator from the plugin API, with the given configuration, global configuration, random variable factory, network and initial time. It returns a navigator to use in the simulator.
     pub get_navigator:
         Arc<RemoteFunctionCallHost<PluginAsyncAPIGetNavigatorRequest, Box<dyn Navigator>>>,
+    /// Get a physics engine from the plugin API, with the given configuration, global configuration, random variable factory, network and initial time. It returns a physics engine to use in the simulator.
     pub get_physics: Arc<RemoteFunctionCallHost<PluginAsyncAPIGetPhysicsRequest, Box<dyn Physics>>>,
 }
 
+/// Request to get a state estimator from the plugin API.
+/// It contains the configuration for the state estimator to get, the global configuration of the simulator, a factory for random variables, a reference to the network and the initial time of the simulation.
 pub struct PluginAsyncAPIGetStateEstimatorRequest {
+    /// User custom configuration as a serialized JSON value. It is up to the plugin to parse it and use it as needed.
     pub config: serde_json::Value,
+    /// Global configuration of the simulator, as defined in the configuration file. It can be used by the plugin to get information about the simulation and configure itself accordingly.
     pub global_config: SimulatorConfig,
+    /// Factory for random variables, to create random variables with the same seed as the simulator and ensure reproducibility. It can be used by the plugin to create random variables for its internal use.
     pub va_factory: Arc<DeterministRandomVariableFactory>,
+    /// Reference to the network, to subscribe to channels and create new ones.
     pub network: SharedRwLock<Network>,
+    /// Initial time of the node, can be not 0 if the node is spawned during the simulation. It can be used by the plugin to initialize its state accordingly.
     pub initial_time: f32,
 }
 
+/// Request to get a controller from the plugin API.
+/// It contains the configuration for the controller to get, the global configuration of the simulator, a factory for random variables, a reference to the network and the initial time of the simulation.
 pub type PluginAsyncAPIGetControllerRequest = PluginAsyncAPIGetStateEstimatorRequest;
+
+/// Request to get a navigator from the plugin API.
+/// It contains the configuration for the navigator to get, the global configuration of the simulator, a factory for random variables, a reference to the network and the initial time of the simulation.
 pub type PluginAsyncAPIGetNavigatorRequest = PluginAsyncAPIGetStateEstimatorRequest;
+
+/// Request to get a physics engine from the plugin API.
+/// It contains the configuration for the physics engine to get, the global configuration of the simulator, a factory for random variables, a reference to the network and the initial time of the simulation.
 pub type PluginAsyncAPIGetPhysicsRequest = PluginAsyncAPIGetStateEstimatorRequest;
 
+/// Request to call [`Simulator::load_config`] with the given configuration, a flag to force sending results to the API and an optional plugin API to use when loading the configuration.
 #[derive(Clone, Debug, Default)]
 pub struct AsyncApiLoadConfigRequest {
+    /// Configuration to load in the simulator.
     pub config: SimulatorConfig,
+    /// If true, the simulator will send results to the API even if results are disabled in the configuration. Needed for GUI.
     pub force_send_results: bool,
 }
 
+/// Request to call [`Simulator::run`] with the given parameters.
 #[derive(Clone, Debug, Default)]
 pub struct AsyncApiRunRequest {
+    /// Maximum time to run the simulator, if None, it will use the max_time defined in the simulator config.
     pub max_time: Option<f32>,
+    /// If true, the simulator will be reset before running, loosing its state. If false, the simulator will keep its state and run from it. This can be useful to run multiple steps.
     pub reset: bool,
 }

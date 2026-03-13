@@ -1,3 +1,7 @@
+//! Utilities for working with numbers in Simba, including ordered floating-point types and periodicity configurations.
+
+/// Wrapper around `f32` that implements `Ord` and `Eq` by treating NaN values as equal and ordering them in a consistent way.
+/// Useful for using floating-point numbers in ordered collections like `BTreeSet` or as keys in `BTreeMap`.
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct OrderedF32(pub f32);
 

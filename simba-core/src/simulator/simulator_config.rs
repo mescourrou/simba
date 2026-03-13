@@ -1,3 +1,9 @@
+//! Simulator root configuration model and loading utilities.
+//!
+//! This module defines [`SimulatorConfig`], the top-level configuration object
+//! used to initialize scenarios, environment, logging, outputs, and runtime
+//! options.
+
 #[cfg(feature = "gui")]
 use egui::CollapsingHeader;
 use simba_macros::config_derives;
@@ -25,43 +31,93 @@ use crate::{
 /// Scenario configuration for the simulator.
 /// The Simulator configuration is the root of the scenario configuration.
 ///
-/// This config contains an item, `robots`, which list the robot nodes [`RobotConfig`]
-/// and a list of `computation_units`: [`ComputationUnitConfig`].
-///
-/// ## Example in yaml:
-/// ```ignore
+/// # Example
+/// 
+/// ```yaml
+/// version: 1.6.0
+/// max_time: 10.0
+/// log:
+///   log_level: 
+///     type: Info
+/// results: null
+/// time_analysis:
+///   exporter:
+///     type: TraceEventExporter
+///   output_path: time_performance # .json or .csv will be appended
+///   analysis_unit: s
+/// random_seed: null # Different seed each run
+/// environment:
+///   map_path: null
 /// robots:
-///     - RobotConfig 1
-///     - RobotConfig 2
-/// computation_units:
-///     - ComputationUnitConfig 1
-///     - ComputationUnitConfig 2
+///   - name: robot1
+///     navigator:
+///       type: GoTo
+///       target_point: null
+///       target_speed: 0.5
+///       stop_distance: 0.2
+///       stop_ramp_coefficient: 0.5
+///     controller:
+///       type: PID
+///       robot_model:
+///         type: Unicycle
+///         wheel_distance: 0.25
+///       proportional_gains: [1.0, 1.0]
+///       derivative_gains: [0.0, 0.1]
+///       integral_gains: [0.0, 0.0]
+///     physics:
+///       type: Internal
+///       model:
+///         type: Unicycle
+///         wheel_distance: 0.25
+///       initial_state:
+///         pose: [0.0, 0.0, 0.0]
+///         velocity: [0.0, 0.0]
+///     state_estimator:
+///       type: Perfect
+///       prediction_activation:
+///         perdiod: {type: Num, value: 0.1}
+///       targets:
+///         - self
+///     sensor_manager:
+///       sensors: []
+///     network:
+///       range: 0.0 # unlimited range
+///       reception_delay: 0.0
+/// computation_units: []
+/// scenario:
+///   events: []
 /// ```
-///
-///
 #[config_derives]
 pub struct SimulatorConfig {
+    /// Version of the simulator used by the configuration. Produces a warning the the major version (second number)
+    /// is different from the current one.
     pub version: String,
     #[check]
+    /// Logging configuration.
     pub log: LoggerConfig,
     #[check]
+    /// Result-export configuration.
     pub results: Option<ResultConfig>,
-
+    /// Auto-computed base directory used to resolve relative paths in the configuration.
     pub base_path: Box<Path>,
-
+    /// Maximum simulated time before stopping the run.
     pub max_time: f32,
-
     #[check]
+    /// Time-analysis/profiling configuration.
     pub time_analysis: Option<TimeAnalysisConfig>,
+    /// Optional deterministic random seed for the simulation. If not provided, a different seed will be used at each run.
     #[serde(serialize_with = "format_option_f32")]
     pub random_seed: Option<f32>,
     /// List of the robots to run, with their specific configuration.
     #[check]
     pub robots: Vec<RobotConfig>,
+    /// List of computation units to run, with their specific configuration.
     #[check]
     pub computation_units: Vec<ComputationUnitConfig>,
+    /// Scenario settings (occuring events).
     #[check]
     pub scenario: ScenarioConfig,
+    /// Global environment settings (maps).
     #[check]
     pub environment: EnvironmentConfig,
 }
@@ -86,6 +142,10 @@ impl Default for SimulatorConfig {
 }
 
 impl SimulatorConfig {
+    /// Load a simulator configuration from a YAML file path.
+    ///
+    /// This method also resolves `base_path` from the parent directory of the
+    /// input path and expands time-analysis output paths accordingly.
     pub fn load_from_path(path: &Path) -> SimbaResult<Self> {
         let mut config: serde_yaml::Value = match confy::load_path(path) {
             Ok(config) => config,

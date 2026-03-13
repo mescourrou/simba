@@ -1,9 +1,11 @@
-/*!
-Module providing the [`Navigator`](navigator::Navigator) strategy, which
-compute the error from the desired position.
-
-This module also propose a implemented strategy, [`trajectory_follower`].
-*/
+//! Navigation strategies and shared navigation interfaces.
+//!
+//! This module defines the [`Navigator`] trait used by nodes to compute control errors from a
+//! target behavior. It also exposes strategy-specific configuration and record enums:
+//! [`NavigatorConfig`] and [`NavigatorRecord`].
+//!
+//! Built-in strategies include trajectory following, point-target navigation, and external/Python
+//! implementations.
 
 pub mod go_to;
 pub mod trajectory;
@@ -31,14 +33,20 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
 
 /// Enumerate the configuration of the different strategies.
+/// 
+/// The navigator computes control errors from a target behavior.
 #[config_derives]
 pub enum NavigatorConfig {
+    /// Configuration for [`trajectory_follower::TrajectoryFollower`].
     #[check]
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerConfig),
+    /// Configuration for [`external_navigator::ExternalNavigator`].
     #[check]
     External(external_navigator::ExternalNavigatorConfig),
+    /// Configuration for [`python_navigator::PythonNavigator`].
     #[check]
     Python(python_navigator::PythonNavigatorConfig),
+    /// Configuration for [`go_to::GoTo`].
     #[check]
     GoTo(go_to::GoToConfig),
 }
@@ -137,9 +145,13 @@ impl UIComponent for NavigatorConfig {
 /// Enumeration of the record of the different strategies.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum NavigatorRecord {
+    /// Runtime record for [`TrajectoryFollower`](trajectory_follower::TrajectoryFollower).
     TrajectoryFollower(trajectory_follower::TrajectoryFollowerRecord),
+    /// Runtime record for [`ExternalNavigator`](external_navigator::ExternalNavigator).
     External(external_navigator::ExternalNavigatorRecord),
+    /// Runtime record for [`PythonNavigator`](python_navigator::PythonNavigator).
     Python(python_navigator::PythonNavigatorRecord),
+    /// Runtime record for [`GoTo`](go_to::GoTo).
     GoTo(go_to::GoToRecord),
 }
 
@@ -158,7 +170,7 @@ impl UIComponent for NavigatorRecord {
                 });
             }
             Self::Python(r) => {
-                egui::CollapsingHeader::new("ExternalPythonNavigator").show(ui, |ui| {
+                egui::CollapsingHeader::new("PythonNavigator").show(ui, |ui| {
                     r.show(ui, ctx, unique_id);
                 });
             }
@@ -178,17 +190,20 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 
-/// Trait managing the path planning, and providing the error to the planned path.
+/// Trait managing the planning, and providing the error to the planned behavior.
 pub trait Navigator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<NavigatorRecord>
 {
-    fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
+    /// Performs optional one-time initialization when the node starts.
+    #[allow(unused_variables)]
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
         Ok(())
     }
 
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
     fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError;
 
+    /// Executes per-step side effects before controller computation.
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
 
     /// Optional: return the time of the next time step. Needed if using messages
@@ -202,8 +217,10 @@ pub trait Navigator:
 /// ## Arguments
 /// - `config`: The configuration of the navigator.
 /// - `plugin_api`: The plugin API, to be used by the navigator.
-/// - `meta_config`: The meta configuration of the simulator.
+/// - `global_config`: The global configuration of the simulator.
 /// - `va_factory`: Random variables factory for determinist behavior.
+/// - `network`: Shared reference to the network, for navigators using messages.
+/// - `initial_time`: Initial node time.
 pub fn make_navigator_from_config(
     config: &NavigatorConfig,
     plugin_api: &Option<Arc<dyn PluginAPI>>,

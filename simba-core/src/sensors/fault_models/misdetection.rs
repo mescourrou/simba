@@ -1,6 +1,8 @@
-//! Misdetection faults
+//! Misdetection fault model.
 //!
-//! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
+//! This module defines a simple fault model that randomly drops observations.
+//! The drop decision is sampled from a Bernoulli distribution configured through
+//! [`MisdetectionFaultConfig`] and executed by [`MisdetectionFault`].
 
 use simba_macros::config_derives;
 
@@ -13,8 +15,24 @@ use crate::utils::{
     },
 };
 
+/// Configuration of the misdetection fault model.
+///
+/// This configuration controls how often an observation is considered missed.
+/// The `apparition` random variable is a Bernoulli distribution where `1` means
+/// the observation is detected and `0` means it is dropped.
+/// 
+/// # Example
+/// ```yaml
+/// faults:
+///  - type: Misdetection
+///    apparition:
+///      probability: [ 0.2 ]
+/// ```
 #[config_derives]
 pub struct MisdetectionFaultConfig {
+    /// Bernoulli distribution used to decide whether an observation is detected.
+    ///
+    /// This must be one-dimensional for this model.
     pub apparition: BernouilliRandomVariableConfig,
 }
 
@@ -81,12 +99,17 @@ impl UIComponent for MisdetectionFaultConfig {
     }
 }
 
+/// Runtime misdetection fault model.
+///
+/// This type samples a deterministic Bernoulli random variable to decide whether
+/// an observation should be kept or removed.
 #[derive(Debug)]
 pub struct MisdetectionFault {
     apparition: DeterministBernouilliRandomVariable,
 }
 
 impl MisdetectionFault {
+    /// Builds a misdetection fault model from [`MisdetectionFaultConfig`].
     pub fn from_config(
         config: &MisdetectionFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
@@ -100,9 +123,13 @@ impl MisdetectionFault {
         }
     }
 
+    /// Returns whether the observation is detected for the provided sampling seed.
+    ///
+    /// Returns `true` when the Bernoulli sample is `1`, and `false` otherwise.
     pub fn detected(&mut self, seed: f32) -> bool {
         self.apparition.generate(seed)[0] > 0. // = 1
     }
 }
 
+/// Record type for misdetection faults.
 pub struct MisdetectionRecord {}

@@ -1,13 +1,12 @@
-/*!
-Module providing the [`PID`] specification for the [`Controller`] strategy.
-
-The [`PID`] controller uses three derivative of the error:
-- `Proportional` - error itself
-- `Integral` - integration of the error
-- `Derivative` - derivative of the error
-
-Each component has a gain, which can be set in [`PIDConfig`].
-*/
+//! PID controller implementation and configuration.
+//!
+//! This module provides [`PID`], a [`Controller`]
+//! implementation based on proportional, integral, and derivative terms.
+//!
+//! Gains are configured through [`PIDConfig`]. The number and ordering of gains depend on the
+//! robot model:
+//! - Unicycle: longitudinal, angular.
+//! - Holonomic: longitudinal, lateral, angular.
 
 use crate::physics::PhysicsConfig;
 use crate::physics::internal_physics::InternalPhysicConfig;
@@ -32,13 +31,35 @@ use simba_macros::config_derives;
 /// - longitudinal velocity (All models)
 /// - lateral velocity (Holonomic model)
 /// - angular velocity (All models)
+/// 
+/// If the `robot_model` field is not set, the PID will try to infer it from physics (if physics is internal). 
+/// If it cannot be inferred or if the gains provided do not match the expected size for the inferred model, a 
+/// default model (unicycle) and default gains are used with a warning.
 #[config_derives(skip_deserialize)]
 #[derive(Default)]
 pub struct PIDConfig {
+    /// Robot model used to interpret gain vector sizes and ordering.
+    ///
+    /// Default: `None`.
     #[check]
     pub robot_model: Option<RobotModelConfig>,
+    /// Proportional gains (`Kp`) ordered by model convention.
+    ///
+    /// Default for unicycle: `[1., 1.]` (longitudinal, angular).
+    /// 
+    /// Default for holonomic: `[1., 1., 1.]` (longitudinal, lateral, angular).
     pub proportional_gains: Vec<f32>,
+    /// Derivative gains (`Kd`) ordered by model convention.
+    ///
+    /// Default for unicycle: `[0., 0.1]` (longitudinal, angular).
+    /// 
+    /// Default for holonomic: `[0., 0., 0.1]` (longitudinal, lateral, angular).
     pub derivative_gains: Vec<f32>,
+    /// Integral gains (`Ki`) ordered by model convention.
+    ///
+    /// Default for unicycle: `[0., 0.]` (longitudinal, angular).
+    /// 
+    /// Default for holonomic: `[0., 0., 0.]` (longitudinal, lateral, angular).
     pub integral_gains: Vec<f32>,
 }
 
@@ -401,9 +422,13 @@ impl UIComponent for PIDConfig {
 /// Record of the [`PID`] controller.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PIDRecord {
+    /// Snapshot of the PID configuration used to compute `command`.
     pub config: PIDConfig,
+    /// Internal scalar velocity state used by the controller.
     pub velocity: f32,
+    /// Last command produced by the PID controller.
     pub command: Command,
+    /// Simulation time associated with `command`.
     pub last_command_time: f32,
 }
 

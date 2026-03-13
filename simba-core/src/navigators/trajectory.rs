@@ -19,6 +19,9 @@ use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config of the [`Trajectory`].
+/// 
+/// This configuration takes a list of points and a boolean for looping (return to first point after the last one).
+/// Points are 1- or 2-dimensional. Any extra dimension is ignored, and missing dimensions are filled with 0.
 #[derive(Serialize, Deserialize, Debug, Check)]
 #[serde(default)]
 #[serde(deny_unknown_fields)]
@@ -38,10 +41,10 @@ impl Default for TrajectoryConfig {
     }
 }
 
-/// Record for [`Stateful`] trait. The only dynamic element
-/// is the current segment.
+/// Record for the [`Trajectory`].
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct TrajectoryRecord {
+    /// Current segment index. From 0 to the number of segments ( number of segments - 1 if no loop).
     pub current_segment: usize,
 }
 
@@ -233,9 +236,10 @@ impl std::fmt::Debug for Trajectory {
 }
 
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use super::*;
 
+    /// Test the loading of a trajectory from a config.
     #[test]
     fn loading_from_config() {
         let config = TrajectoryConfig {
@@ -249,13 +253,5 @@ pub mod tests {
             assert_eq!(row[0], config.point_list[i][0]);
             assert_eq!(row[1], config.point_list[i][1]);
         }
-    }
-
-    pub fn default_trajectory() -> Trajectory {
-        let config = TrajectoryConfig {
-            point_list: vec![vec![0., 0.], vec![5., 0.], vec![5., 5.], vec![0., 5.]],
-            do_loop: true,
-        };
-        Trajectory::from_config(&config)
     }
 }

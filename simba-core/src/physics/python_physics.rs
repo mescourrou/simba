@@ -54,9 +54,6 @@ external_record_python_methods!(
 ///
 /// Like [`PythonPhysicsConfig`], [`PythonPhysics`] uses a [`serde_json::Value`]
 /// to take every record.
-///
-/// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::record`] implementations.
 PythonPhysicsRecord,
 );
 
@@ -80,9 +77,8 @@ impl PythonPhysics {
     ///
     ///  ## Arguments
     /// * `config` -- Scenario config of the External estimator.
-    /// * `plugin_api` -- [`PluginAPI`] implementation (not used).
     /// * `global_config` -- Simulator config.
-    /// * `_va_factory` -- Factory for Determinists random variables.
+    /// * `initial_time` - Initial node time.
     pub fn from_config(
         config: &PythonPhysicsConfig,
         global_config: &SimulatorConfig,

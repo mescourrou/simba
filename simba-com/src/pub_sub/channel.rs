@@ -1,3 +1,10 @@
+//! Channel primitives for the publish/subscribe subsystem.
+//!
+//! This module defines:
+//! - [`ChannelProcessing`], the trait used by brokers to process pending messages,
+//! - [`Channel`], a concrete channel implementation supporting multi-client fan-out with optional
+//!   delivery conditions.
+
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -13,19 +20,23 @@ use log::debug;
 
 use crate::pub_sub::{SharedMutex, client::Client};
 
+/// Runtime processing interface for broker-managed channels.
 pub trait ChannelProcessing<NodeIdType, ConditionArgType>: Send + Sync + Debug {
+    /// Processes pending inbound messages and dispatches them to subscribers.
     fn process_messages(
         &self,
         client_condition_args: Option<&HashMap<NodeIdType, ConditionArgType>>,
     );
+    /// Returns a mutable `Any` view for downcasting to concrete channel types.
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
 type SenderType<MessageType> = Sender<(MessageType, f32)>;
 type ReceiverType<MessageType> = Receiver<(MessageType, f32)>;
 
+/// Concrete pub/sub channel with optional conditional delivery.
 ///
-/// Lock order: receivers then senders
+/// Lock order is: `receivers` then `senders`.
 #[derive(Clone)]
 pub struct Channel<
     MessageType: Clone + Send + 'static + Default,
@@ -61,6 +72,9 @@ impl<
     ConditionArgType: Clone + Send + 'static + Default,
 > Channel<MessageType, NodeIdType, ConditionArgType>
 {
+    /// Creates a new channel that always forwards messages to eligible recipients.
+    ///
+    /// `time_round` controls time rounding for generated clients.
     pub fn new(time_round: f32, name: &str) -> Self {
         Self {
             senders: Arc::new(Mutex::new(HashMap::new())),
@@ -72,6 +86,10 @@ impl<
         }
     }
 
+    /// Creates a new channel with a custom delivery condition.
+    ///
+    /// The `condition` predicate receives `(from_arg, to_arg)` and returns whether the message
+    /// should be delivered to the recipient.
     pub fn new_conditionnal(
         condition: impl Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static + Clone,
         time_round: f32,
@@ -87,6 +105,9 @@ impl<
         }
     }
 
+    /// Creates and registers a client endpoint for `node_id`.
+    ///
+    /// `reception_delay` is applied when constructing the returned [`Client`].
     pub fn client(&mut self, node_id: NodeIdType, reception_delay: f32) -> Client<MessageType> {
         let (to_client_tx, to_client_rx) = mpsc::channel();
         let (from_client_tx, from_client_rx) = mpsc::channel();
@@ -136,10 +157,10 @@ impl<
                 if message.1 < 0. {
                     #[cfg(feature = "debug_mode")]
                     debug!("[Channel {}] Receive end-client message", self.name);
-                    dead_clients.insert((from_id.clone(), receiver_id.clone()));
+                    dead_clients.insert((from_id.clone(), *receiver_id));
                     continue;
                 }
-                messages_to_send.push((from_id.clone(), receiver_id.clone(), message));
+                messages_to_send.push((from_id.clone(), *receiver_id, message));
             }
         }
         for (from_id, from_sender_id, message) in messages_to_send {

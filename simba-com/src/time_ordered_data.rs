@@ -292,6 +292,7 @@ impl<T> TimeOrderedData<T> {
         self.data.len()
     }
 
+    /// Is the data structure empty.
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }

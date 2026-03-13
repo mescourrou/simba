@@ -5,8 +5,10 @@ use simba_macros::config_derives;
 
 use crate::time_analysis::TimeAnalysisFactory;
 
+/// Configuraition for the profiler exporter. It allows to select the type of exporter to use, and to configure it if needed.
 #[config_derives]
 pub enum ProfileExporterConfig {
+    /// Exporter for the Chrome Trace Event format. It exports the time analysis results in a format compatible with the Chrome Trace Event format, which can be visualized with the Chrome Trace Viewer or Firefox Performance Tools.
     TraceEventExporter,
 }
 

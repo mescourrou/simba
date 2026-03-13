@@ -1,16 +1,15 @@
-/*!
-This module provides [`Sensor management`](sensor_manager::SensorManager) and
-[`Sensor Implementation`](sensor::Sensor).
-
-The [`SensorManager`](sensor_manager::SensorManager) manages all the sensors of a robot.
-
-## How to add a new sensor ?
-
-To add a new [`Sensor`](sensor::Sensor), you should implement the
-[`Sensor`](sensor::Sensor) trait, and add your new implementation to the
-[`SensorConfig`](sensor::SensorConfig) and the
-[`SensorRecord`](sensor::SensorRecord) enumarations.
-*/
+//! Sensors module.
+//!
+//! This module defines the common sensor abstractions, shared observation/record types,
+//! and configuration enums used by all sensor implementations.
+//! Sensor instances are orchestrated by
+//! [`SensorManager`](crate::sensors::sensor_manager::SensorManager), while each concrete sensor
+//! implements [`Sensor`].
+//!
+//! To add a new sensor type:
+//! 1. Implement [`Sensor`]
+//! 2. Add a corresponding variant to [`SensorConfig`]
+//! 3. Add a corresponding variant to [`SensorRecord`]
 
 pub mod displacement_sensor;
 pub mod external_sensor;
@@ -55,15 +54,21 @@ use crate::{
     utils::enum_tools::ToVec,
 };
 
+/// Runtime sensor observation with metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Observation {
+    /// Sensor name that produced the observation.
     pub sensor_name: String,
+    /// Name of the observing node.
     pub observer: String,
+    /// Simulation time at which the observation was generated.
     pub time: f32,
+    /// Sensor-specific observation payload.
     pub sensor_observation: SensorObservation,
 }
 
 impl Observation {
+    /// Creates a placeholder observation with default values.
     pub fn new() -> Self {
         Self {
             sensor_name: "sensor".to_string(),
@@ -91,11 +96,16 @@ impl Recordable<ObservationRecord> for Observation {
     }
 }
 
+/// Serializable record representation of [`Observation`].
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObservationRecord {
+    /// Sensor name that produced the observation.
     pub sensor_name: String,
+    /// Name of the observing node.
     pub observer: String,
+    /// Simulation time at which the observation was generated.
     pub time: f32,
+    /// Sensor-specific recorded payload.
     pub sensor_observation: SensorObservationRecord,
 }
 
@@ -137,14 +147,22 @@ impl UIComponent for ObservationRecord {
     }
 }
 
+/// Sum type for all concrete sensor observation payloads.
 #[derive(Debug, Clone, Serialize, Deserialize, EnumToString)]
 pub enum SensorObservation {
+    /// Oriented-landmark sensor observation payload.
     OrientedLandmark(OrientedLandmarkObservation),
+    /// Speed sensor observation payload.
     Speed(SpeedObservation),
+    /// Displacement sensor observation payload.
     Displacement(DisplacementObservation),
+    /// GNSS sensor observation payload.
     GNSS(GNSSObservation),
+    /// Robot sensor observation payload.
     OrientedRobot(OrientedRobotObservation),
+    /// Scan sensor observation payload.
     Scan(ScanObservation),
+    /// External sensor observation payload.
     External(ExternalObservation),
 }
 
@@ -166,14 +184,22 @@ impl Recordable<SensorObservationRecord> for SensorObservation {
     }
 }
 
+/// Serializable record sum type for all sensor observations.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SensorObservationRecord {
+    /// Record payload for oriented-landmark observations.
     OrientedLandmark(OrientedLandmarkObservationRecord),
+    /// Record payload for speed observations.
     Speed(SpeedObservationRecord),
+    /// Record payload for displacement observations.
     Displacement(DisplacementObservationRecord),
+    /// Record payload for GNSS observations.
     GNSS(GNSSObservationRecord),
+    /// Record payload for oriented-robot observations.
     OrientedRobot(OrientedRobotObservationRecord),
+    /// Record payload for scan observations.
     Scan(ScanObservationRecord),
+    /// Record payload for external observations.
     External(ExternalObservationRecord),
 }
 
@@ -193,20 +219,31 @@ impl UIComponent for SensorObservationRecord {
 }
 
 /// Enumerates all the possible sensors configurations.
+///
+/// Default value (from `#[config_derives]` generated implementation):
+/// [`SensorConfig::OrientedLandmark`]
+/// with [`OrientedLandmarkSensorConfig::default`](crate::sensors::oriented_landmark_sensor::OrientedLandmarkSensorConfig::default).
 #[config_derives]
 pub enum SensorConfig {
+    /// Oriented-landmark sensor configuration.
     #[check]
     OrientedLandmark(oriented_landmark_sensor::OrientedLandmarkSensorConfig),
+    /// Speed sensor configuration.
     #[check]
     Speed(speed_sensor::SpeedSensorConfig),
+    /// Displacement sensor configuration.
     #[check]
     Displacement(displacement_sensor::DisplacementSensorConfig),
+    /// GNSS sensor configuration.
     #[check]
     GNSS(gnss_sensor::GNSSSensorConfig),
+    /// Robot sensor configuration.
     #[check]
     Robot(robot_sensor::RobotSensorConfig),
+    /// Scan sensor configuration.
     #[check]
     Scan(scan_sensor::ScanSensorConfig),
+    /// External sensor configuration.
     #[check]
     External(external_sensor::ExternalSensorConfig),
 }
@@ -333,12 +370,19 @@ impl UIComponent for SensorConfig {
 /// Enumerates all the sensor records.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum SensorRecord {
+    /// Record produced by an oriented-landmark sensor.
     OrientedLandmarkSensor(oriented_landmark_sensor::OrientedLandmarkSensorRecord),
+    /// Record produced by a speed sensor.
     SpeedSensor(speed_sensor::SpeedSensorRecord),
+    /// Record produced by a displacement sensor.
     DisplacementSensor(displacement_sensor::DisplacementSensorRecord),
+    /// Record produced by a GNSS sensor.
     GNSSSensor(gnss_sensor::GNSSSensorRecord),
+    /// Record produced by a robot sensor.
     RobotSensor(robot_sensor::RobotSensorRecord),
+    /// Record produced by a scan sensor.
     ScanSensor(scan_sensor::ScanSensorRecord),
+    /// Record produced by an external sensor.
     External(external_sensor::ExternalSensorRecord),
 }
 
@@ -391,7 +435,8 @@ pub trait Sensor:
 {
     /// Initialize the [`Sensor`]. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    fn post_init(&mut self, _node: &mut Node, _initial_time: f32) -> SimbaResult<()> {
+    #[allow(unused_variables)]
+    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -406,6 +451,7 @@ pub trait Sensor:
     /// at this `time`.
     fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation>;
 
-    /// Get the time of the next observation.
+    /// Get the time of the next observation to trigger the next call to `get_observations`.
+    /// This allows the sensor to have a custom observation period, or to trigger observations at specific times.
     fn next_time_step(&self) -> f32;
 }

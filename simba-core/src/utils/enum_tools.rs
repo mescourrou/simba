@@ -1,11 +1,18 @@
+//! Utilities for working with enums in Simba, including traits and macros
+
+/// A trait for converting an enum into a vector of its variants or string representations.
 pub trait ToVec<T> {
+    /// Convert the enum into a vector of its variants or string representations.
     fn to_vec() -> Vec<T>;
 }
 
+/// A trait for creating an enum from a string representation.
 pub trait FromString
 where
     Self: Sized,
 {
+    /// Create an enum variant from a string representation.
+    /// Returns `None` if the string does not correspond to any variant.
     fn from_string(str: &str) -> Option<Self>;
 }
 
@@ -16,9 +23,12 @@ use std::{
     str::FromStr,
 };
 
+/// A trait for enums that represent variables names in the simulator.
+/// This trait provides a method to create a mapping from enum variants to any type `T` (e.g. f32) using a provided mapping function.
 pub trait EnumVariables:
     Clone + Eq + Debug + ToString + ToVec<&'static str> + ToVec<Self> + Display + FromStr + Hash
 {
+    /// Maps each enum variant to a value of type `T` using the provided mapping function, and returns a `HashMap` of the results.
     fn mapped_values<T>(mut map_fn: impl FnMut(&Self) -> T) -> HashMap<Self, T> {
         let mut map = HashMap::new();
         for variant in Self::to_vec() {
@@ -29,15 +39,22 @@ pub trait EnumVariables:
     }
 }
 
-#[macro_export]
+/// Macro to define an enum with variants and their string representations, and automatically implement the `EnumVariables` trait for it.
+/// 
+/// To be used by the procedural macro `enum_variables!` to generate enums from a concise syntax.
 macro_rules! __enum_variables_emit_subenum {
-    ($name:ident;
-        $($variant:ident, $value:literal $(, $add_value:literal)*);+ $(;)?
+    (   
+        $(#[$meta:meta])*
+        $name:ident;
+        $($($documentation:literal)? $variant:ident, $value:literal $(, $add_value:literal)*);+ $(;)?
     ) => {
+        $(#[$meta])*
         #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq, std::hash::Hash)]
         #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
         pub enum $name {
             $(
+                $(#[doc = concat!($documentation, "\n\n")])?
+                #[doc = concat!("Serialization values(s) for this variable: ", "`", $value, "`" $(, ", `", $add_value, "`")*)]
                 #[serde(rename = $value$(, alias = $add_value)*)]
                 $variant,
             )+
@@ -95,25 +112,4 @@ macro_rules! __enum_variables_emit_subenum {
     };
 }
 
-pub use __enum_variables_emit_subenum;
-
-// #[macro_export]
-// macro_rules! enum_variables {
-//     ($name:ident;
-//         $($($(sub_enum:ident),* :)? $variant:ident, $value:literal $(, $add_value:literal)*);+
-//     ) => {
-//         pub enum paste::paste! [<$name Meta>] {
-//             $(
-//                 #[serde(rename = $value$(, alias = $add_value)*)]
-//                 $variant,
-//             )+
-//         }
-
-//         crate::__enum_variables_emit_restricted!(
-//             $name;
-//             $( $variant, $value $(, $add_value)* );+
-//         );
-//     };
-// }
-
-// pub use enum_variables;
+pub(crate) use __enum_variables_emit_subenum;

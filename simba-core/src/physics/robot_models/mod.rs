@@ -1,3 +1,8 @@
+//! Robot kinematic model abstractions and configuration.
+//!
+//! This module defines supported robot model configurations, runtime command types,
+//! the [`RobotModel`] trait, and a factory helper to instantiate concrete models.
+
 use std::fmt::Debug;
 
 use serde::{Deserialize, Serialize};
@@ -16,10 +21,12 @@ use crate::{
 pub mod holonomic;
 pub mod unicycle;
 
-/// Command struct, to control both wheel speed, in m/s.
+/// Command enum, wrapping the command types of all supported robot models.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Command {
+    /// Command payload for the unicycle model.
     Unicycle(UnicycleCommand),
+    /// Command payload for the holonomic model.
     Holonomic(HolonomicCommand),
 }
 
@@ -39,10 +46,18 @@ impl UIComponent for Command {
     }
 }
 
+/// Configuration enum selecting the robot kinematic model.
+/// 
+/// Please note that the robot model is transfered from the Physics configuration to
+/// other modules (e.g. controller) if it differs or is not provided.
+///
+/// Default value: [`RobotModelConfig::Unicycle`] with [`UnicycleConfig::default`].
 #[config_derives]
 pub enum RobotModelConfig {
+    /// Differential-drive unicycle model configuration.
     #[check]
     Unicycle(UnicycleConfig),
+    /// Holonomic model configuration.
     #[check]
     Holonomic(HolonomicConfig),
 }
@@ -118,11 +133,16 @@ impl UIComponent for RobotModelConfig {
     }
 }
 
+/// Trait implemented by all runtime robot kinematic models.
 pub trait RobotModel: std::fmt::Debug + std::marker::Send + std::marker::Sync {
+    /// Updates the mutable robot state using the provided command and elapsed time.
     fn update_state(&mut self, previous_state: &mut State, command: &Command, delta_time: f32);
+
+    /// Returns the neutral/default command for this model.
     fn default_command(&self) -> Command;
 }
 
+/// Instantiates a runtime robot model from [`RobotModelConfig`].
 pub fn make_model_from_config(config: &RobotModelConfig) -> Box<dyn RobotModel> {
     match config {
         RobotModelConfig::Unicycle(cfg) => {

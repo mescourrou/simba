@@ -1,9 +1,30 @@
+//! String-based sensor filter using accepted and rejected regular expressions.
+//!
+//! This module defines a lightweight filtering mechanism used to decide whether
+//! a sensor observation should be excluded based on a list of labels or names.
+//! The filter evaluates two regexp sets:
+//! - an `accepted` set, used to explicitly keep matching strings,
+//! - a `rejected` set, used to exclude matching strings.
+//!
+//! When both sets match, the final decision depends on `priority_accept`:
+//! - if `true`, accepted matches override rejected matches,
+//! - if `false`, rejected matches take precedence.
+
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 
 #[config_derives]
+/// Configuration for a regexp-based string filter.
+///
+/// The filter is evaluated against a list of input strings. Each input string is
+/// tested against both the `accepted` and `rejected` regexp lists. If at least
+/// one accepted regexp matches, the string can be kept; if at least one rejected
+/// regexp matches, the string can be excluded.
+///
+/// The `priority_accept` flag defines the decision when both accepted and
+/// rejected patterns match the same input set.
 pub struct StringFilterConfig {
     /// Strings to accept. Can be regexp patterns.
     pub accepted: Vec<String>,
@@ -100,6 +121,10 @@ impl UIComponent for StringFilterConfig {
 }
 
 #[derive(Debug, Clone)]
+/// Filter for strings based on accepted and rejected regular expressions.
+///
+/// This structure stores compiled regular expressions for efficient repeated
+/// filtering.
 pub struct StringFilter {
     accepted: Vec<regex::Regex>,
     rejected: Vec<regex::Regex>,
@@ -107,6 +132,10 @@ pub struct StringFilter {
 }
 
 impl StringFilter {
+    /// Build a filter from its configuration.
+    ///
+    /// All accepted and rejected patterns are compiled as regular expressions.
+    /// Invalid regular expressions will panic during construction.
     pub fn from_config(config: &StringFilterConfig, _initial_time: f32) -> Self {
         Self {
             accepted: config
@@ -123,6 +152,10 @@ impl StringFilter {
         }
     }
 
+    /// Return whether the given strings should be excluded by the filter.
+    ///
+    /// The method checks the input strings against both accepted and rejected
+    /// regexp sets, then applies the configured priority rule.
     pub fn match_exclusion(&self, strings: &[String]) -> bool {
         if self.priority_accept {
             if !self.accepted.is_empty()

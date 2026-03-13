@@ -1,6 +1,10 @@
-//! AdditiveObservationCenteredPolarPolar faults
+//! Additive sensor fault model.
 //!
-//! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
+//! This module defines a fault model that adds sampled perturbations to selected
+//! observation variables.
+//! Configuration is provided by [`AdditiveFaultConfig`], while runtime execution is handled
+//! by [`AdditiveFault`].
+//! Perturbations can optionally be scaled proportionally to another variable map.
 
 use std::{
     collections::HashMap,
@@ -23,14 +27,30 @@ use crate::utils::{
     enum_tools::EnumVariables,
 };
 
+/// Configuration for the additive fault model.
+///
+/// This configuration defines if additive noise is applied, which distributions produce
+/// perturbation values, and which target variables are affected.
+///
+/// Default values:
+/// - `apparition`: [`BernouilliRandomVariableConfig`] with `probability = [1.0]`
+/// - `distributions`: one [`RandomVariableTypeConfig::Normal`] using [`NormalRandomVariableConfig::default()`]
+/// - `variable_order`: empty vector
+/// - `proportional_to`: `None`
+/// - `proportional_factor`: `None`
 #[config_derives]
 pub struct AdditiveFaultConfig<SVO: EnumVariables, SVProp: EnumVariables> {
+    /// Bernoulli trigger deciding whether the additive fault is applied.
     #[check]
     pub apparition: BernouilliRandomVariableConfig,
+    /// Random distributions used to sample additive perturbations.
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
+    /// Ordered list of target variables receiving sampled perturbations.
     pub variable_order: Vec<SVO>,
+    /// Optional variable used as a proportional scaling source.
     pub proportional_to: Option<SVProp>,
+    /// Optional multiplicative factor applied to the proportional value.
     pub proportional_factor: Option<f32>,
 }
 
@@ -41,6 +61,12 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> Check for AdditiveFaultConfig<SV
             errors.push(format!(
                 "Apparition probability should be of length 1, got {}",
                 self.apparition.probability.len()
+            ));
+        }
+        if !self.variable_order.is_empty() && self.distributions.iter().map(|d| d.dim()).sum::<usize>() != self.variable_order.len() {
+            errors.push(format!("If variable order is given, its length should match the total distribution dimension. Got total distribution dimension {} and variable order length {}.",
+                self.distributions.iter().map(|d| d.dim()).sum::<usize>(),
+                self.variable_order.len()
             ));
         }
         if errors.is_empty() {
@@ -179,6 +205,10 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> UIComponent for AdditiveFaultCon
     }
 }
 
+/// Runtime additive fault model.
+///
+/// This type samples perturbations from deterministic random variables and computes
+/// the additive delta map applied to observation variables.
 #[derive(Debug)]
 pub struct AdditiveFault<SVO: EnumVariables, SVProp: EnumVariables> {
     apparition: DeterministBernouilliRandomVariable,
@@ -188,6 +218,9 @@ pub struct AdditiveFault<SVO: EnumVariables, SVProp: EnumVariables> {
 }
 
 impl<SVO: EnumVariables, SVProp: EnumVariables> AdditiveFault<SVO, SVProp> {
+    /// Builds a runtime additive fault model from [`AdditiveFaultConfig`].
+    ///
+    /// Random variables are created using [`DeterministRandomVariableFactory`].
     pub fn from_config(
         config: &AdditiveFaultConfig<SVO, SVProp>,
         va_factory: &Arc<DeterministRandomVariableFactory>,
@@ -201,7 +234,7 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> AdditiveFault<SVO, SVProp> {
                 .map(|conf| va_factory.make_variable(conf.clone()))
                 .collect::<Vec<DeterministRandomVariable>>(),
         ));
-        if !config.variable_order.is_empty() {
+        let variable_order = if !config.variable_order.is_empty() {
             assert!(
                 config.variable_order.len()
                     == distributions
@@ -212,7 +245,10 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> AdditiveFault<SVO, SVProp> {
                         .sum::<usize>(),
                 "If variable order is given, its length must match the distribution dimension."
             );
-        }
+            config.variable_order.clone()
+        } else {
+            SVO::to_vec()
+        };
         if config.proportional_to.is_some() && config.proportional_factor.is_none() {
             config.proportional_factor = Some(1.0);
         }
@@ -222,13 +258,14 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> AdditiveFault<SVO, SVProp> {
                 config.apparition.clone(),
             ),
             distributions,
-            variable_order: config.variable_order.clone(),
+            variable_order,
             config,
         }
     }
 
-    /// Adds faults to the given variable map according to the fault configuration and the seed.
-    /// Returns the map with the new value of the modified variables
+    /// Computes additive perturbations for one sampling step.
+    ///
+    /// Returns a map containing only modified variables and their new values.
     pub fn add_faults(
         &mut self,
         seed: f32,
@@ -262,29 +299,26 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> AdditiveFault<SVO, SVProp> {
             }
         }
 
-        if !self.variable_order.is_empty() {
-            for (i, var) in self.variable_order.iter().enumerate() {
-                if let Some(value) = variable_map.remove(var) {
-                    diff_map.insert(var.clone(), value + random_sample[i]);
-                } else {
-                    panic!(
-                        "Variable '{}' not accepted in this situation. Accepted variables: [{}]",
-                        var,
-                        variable_map
-                            .keys()
-                            .map(|v| v.to_string())
-                            .collect::<Vec<_>>()
-                            .join(", "),
-                    );
-                }
+        for (i, var) in self.variable_order.iter().enumerate() {
+            if let Some(value) = variable_map.remove(var) {
+                diff_map.insert(var.clone(), value + random_sample[i]);
+            } else {
+                panic!(
+                    "Variable '{}' not accepted in this situation. Accepted variables: [{}]",
+                    var,
+                    variable_map
+                        .keys()
+                        .map(|v| v.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                );
             }
         }
         diff_map
     }
 
+        /// Returns the configuration used to build this additive fault model.
     pub fn config(&self) -> &AdditiveFaultConfig<SVO, SVProp> {
         &self.config
     }
 }
-
-pub struct AdditiveObservationCenteredPolarRecord {}

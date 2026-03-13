@@ -1,3 +1,8 @@
+//! Unicycle robot model.
+//!
+//! This module defines a differential-drive unicycle model implementing
+//! [`RobotModel`], including its command type and configuration.
+
 use libm::atan2f;
 use nalgebra::SMatrix;
 use serde::{Deserialize, Serialize};
@@ -38,6 +43,10 @@ impl UIComponent for UnicycleCommand {
     }
 }
 
+/// Configuration for the [`Unicycle`] robot model.
+///
+/// Default values:
+/// - `wheel_distance`: `0.25`
 #[config_derives]
 pub struct UnicycleConfig {
     /// Distance between the two wheels, to compute the angular velocity from the wheel speeds.
@@ -105,11 +114,13 @@ impl Default for UnicycleConfig {
 }
 
 #[derive(Debug, Clone)]
+/// Differential-drive unicycle robot model.
 pub struct Unicycle {
     wheel_distance: f32,
 }
 
 impl Unicycle {
+    /// Builds a [`Unicycle`] model from [`UnicycleConfig`].
     pub fn from_config(config: &UnicycleConfig) -> Self {
         Self {
             wheel_distance: config.wheel_distance,
