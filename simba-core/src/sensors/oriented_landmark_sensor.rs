@@ -23,9 +23,11 @@ use crate::sensors::fault_models::misassociation::{
 };
 use crate::sensors::fault_models::misdetection::{MisdetectionFault, MisdetectionFaultConfig};
 use crate::sensors::fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig};
-use crate::sensors::sensor_filters::{
-    SensorFilter, SensorFilterConfig, SensorFilterType, make_sensor_filter_from_config,
-};
+use crate::sensors::sensor_filters::external_filter::{ExternalFilter, ExternalFilterConfig};
+use crate::sensors::sensor_filters::python_filter::{PythonFilter, PythonFilterConfig};
+use crate::sensors::sensor_filters::range_filter::{RangeFilter, RangeFilterConfig};
+use crate::sensors::sensor_filters::string_filter::{StringFilter, StringFilterConfig};
+use crate::sensors::sensor_filters::SensorFilter;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -149,6 +151,80 @@ impl OrientedLandmarkSensorFaultModelType {
     }
 }
 
+/// Configuration enum selecting among multiple sensor observation filtering strategies for oriented-landmark sensors.
+///
+/// This enum provides a unified interface for declaring sensor filters with different decision logic.
+/// Each variant wraps the configuration for a specific filter type.
+/// When multiple filters are applied to a sensor, all must agree to keep the observation.
+/// 
+/// Default value: [`OrientedLandmarkSensorFilterConfig::Range`] with [`RangeFilterConfig::default`].
+/// 
+/// # Config example:
+/// ```yaml
+/// filters:
+///   - type: Range
+///     variables: [r, theta]
+///     max_range: [100, 1.57]
+///     min_range: [1., -1.57]
+///     inside: true
+/// ```
+#[config_derives]
+#[derive(UIComponent)]
+#[show_all = "Filter"]
+pub enum OrientedLandmarkSensorFilterConfig {
+    /// Range-based filtering on enumerated variables: excludes observations where numeric values fall outside specified bounds.
+    #[check]
+    Range(RangeFilterConfig<OrientedLandmarkSensorVariablesFilter>),
+    /// String pattern filtering on observed object unique id (name for nodes, id for landmarks): excludes observations matching configured regexp patterns.
+    #[check]
+    Id(StringFilterConfig),
+    /// String pattern filtering on observed object labels: excludes observations matching configured regexp patterns.
+    #[check]
+    Label(StringFilterConfig),
+    /// Python-based custom filtering: delegates exclusion logic to user-defined Python methods.
+    #[check]
+    Python(PythonFilterConfig),
+    /// Plugin-based custom filtering: delegates exclusion logic to external compiled or scripted plugins.
+    #[check]
+    External(ExternalFilterConfig),
+}
+
+impl Default for OrientedLandmarkSensorFilterConfig {
+    fn default() -> Self {
+        Self::Range(RangeFilterConfig::default())
+    }
+}
+
+/// Runtime enum containing instantiated Oriented Landmark sensor filters.
+#[derive(Debug, EnumToString)]
+pub enum OrientedLandmarkSensorFilterType {
+    /// Instantiated range filter for Oriented Landmark sensor variables.
+    Range(RangeFilter<OrientedLandmarkSensorVariablesFilter>),
+    /// Instantiated string filter for observed object unique id.
+    Id(StringFilter),
+    /// Instantiated string filter for observed object labels.
+    Label(StringFilter),
+    /// Instantiated Python filter for Oriented Landmark sensor observations.
+    Python(PythonFilter),
+    /// Instantiated external filter for Oriented Landmark sensor observations.
+    External(ExternalFilter),
+}
+
+impl OrientedLandmarkSensorFilterType {
+    /// Initializes filters that require runtime node context.
+    pub fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+    ) -> crate::errors::SimbaResult<()> {
+        match self {
+            Self::Python(f) => f.post_init(node, initial_time),
+            Self::External(f) => f.post_init(node, initial_time),
+            Self::Range(_) | Self::Id(_) | Self::Label(_) => Ok(()),
+        }
+    }
+}
+
 /// Configuration of the [`OrientedLandmarkSensor`].
 /// 
 /// The occlusions are defined geometrically using all the landmarks and their height. If occlusion occurs on a
@@ -173,7 +249,7 @@ pub struct OrientedLandmarkSensorConfig {
     pub faults: Vec<OrientedLandmarkSensorFaultModelConfig>,
     /// Filter configurations applied before fault injection.
     #[check]
-    pub filters: Vec<SensorFilterConfig<OrientedLandmarkSensorVariablesFilter>>,
+    pub filters: Vec<OrientedLandmarkSensorFilterConfig>,
     /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
     pub xray: bool,
 }
@@ -256,7 +332,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     ui.checkbox(&mut self.xray, "");
                 });
 
-                SensorFilterConfig::show_filters_mut(
+                OrientedLandmarkSensorFilterConfig::show_all_mut(
                     &mut self.filters,
                     ui,
                     ctx,
@@ -298,7 +374,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     ui.label(format!("X-Ray mode: {}", self.xray));
                 });
 
-                SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
+                OrientedLandmarkSensorFilterConfig::show_all(&self.filters, ui, ctx, unique_id);
 
                 OrientedLandmarkSensorFaultModelConfig::show_all(&self.faults, ui, ctx, unique_id);
             });
@@ -425,7 +501,7 @@ pub struct OrientedLandmarkSensor {
     /// Last observation time.
     last_time: Option<f32>,
     faults: Vec<OrientedLandmarkSensorFaultModelType>,
-    filters: Vec<SensorFilterType<OrientedLandmarkSensorVariablesFilter>>,
+    filters: Vec<OrientedLandmarkSensorFilterType>,
     /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
     xray: bool,
 }
@@ -492,13 +568,42 @@ impl OrientedLandmarkSensor {
 
         let mut filters = Vec::new();
         for filter_config in &config.filters {
-            filters.push(make_sensor_filter_from_config(
-                filter_config,
-                plugin_api,
-                global_config,
-                va_factory,
-                initial_time,
-            )?);
+            filters.push(match &filter_config {
+                OrientedLandmarkSensorFilterConfig::Range(c) => {
+                    OrientedLandmarkSensorFilterType::Range(RangeFilter::from_config(
+                        c,
+                        initial_time,
+                    ))
+                }
+                OrientedLandmarkSensorFilterConfig::Id(c) => {
+                    OrientedLandmarkSensorFilterType::Id(StringFilter::from_config(
+                        c,
+                        initial_time,
+                    ))
+                }
+                OrientedLandmarkSensorFilterConfig::Label(c) => {
+                    OrientedLandmarkSensorFilterType::Label(StringFilter::from_config(
+                        c,
+                        initial_time,
+                    ))
+                }
+                OrientedLandmarkSensorFilterConfig::External(c) => {
+                    OrientedLandmarkSensorFilterType::External(ExternalFilter::from_config(
+                        c,
+                        plugin_api,
+                        global_config,
+                        va_factory,
+                        initial_time,
+                    )?)
+                }
+                OrientedLandmarkSensorFilterConfig::Python(c) => {
+                    OrientedLandmarkSensorFilterType::Python(PythonFilter::from_config(
+                        c,
+                        global_config,
+                        initial_time,
+                    )?)
+                }
+            });
         }
 
         let activation_time = config
@@ -572,9 +677,9 @@ impl Sensor for OrientedLandmarkSensor {
             for filter in self.filters.iter() {
                 if let Some(obs) = keep_observation {
                     keep_observation = match filter {
-                        SensorFilterType::External(f) => f.filter(time, obs, &state, None),
-                        SensorFilterType::PythonFilter(f) => f.filter(time, obs, &state, None),
-                        SensorFilterType::RangeFilter(f) => {
+                        OrientedLandmarkSensorFilterType::External(f) => f.filter(time, obs, &state, None),
+                        OrientedLandmarkSensorFilterType::Python(f) => f.filter(time, obs, &state, None),
+                        OrientedLandmarkSensorFilterType::Range(f) => {
                             if let SensorObservation::OrientedLandmark(obs) = obs {
                                 if f.match_exclusion(
                                     &OrientedLandmarkSensorVariablesFilter::mapped_values(
@@ -610,7 +715,7 @@ impl Sensor for OrientedLandmarkSensor {
                                 unreachable!()
                             }
                         }
-                        SensorFilterType::IdFilter(f) => {
+                        OrientedLandmarkSensorFilterType::Id(f) => {
                             if let SensorObservation::OrientedLandmark(obs) = obs {
                                 if f.match_exclusion(&[obs.id.to_string()]) {
                                     None
@@ -621,7 +726,7 @@ impl Sensor for OrientedLandmarkSensor {
                                 unreachable!()
                             }
                         }
-                        SensorFilterType::LabelFilter(f) => {
+                        OrientedLandmarkSensorFilterType::Label(f) => {
                             if let SensorObservation::OrientedLandmark(obs) = obs {
                                 if f.match_exclusion(&obs.labels) {
                                     None

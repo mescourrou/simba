@@ -30,7 +30,7 @@ use crate::{
             misdetection::{MisdetectionFault, MisdetectionFaultConfig},
             python_fault_model::{PythonFaultModel, PythonFaultModelConfig},
         },
-        sensor_filters::{self, SensorFilter, SensorFilterConfig, SensorFilterType},
+        sensor_filters::{SensorFilter, external_filter::{ExternalFilter, ExternalFilterConfig}, python_filter::{PythonFilter, PythonFilterConfig}, range_filter::{RangeFilter, RangeFilterConfig}},
     },
     simulator::SimulatorConfig,
     state_estimators::State,
@@ -174,6 +174,72 @@ impl FaultModelTypeScanSensor {
     }
 }
 
+
+/// Configuration enum selecting among multiple sensor observation filtering strategies for scan sensors.
+///
+/// This enum provides a unified interface for declaring sensor filters with different decision logic.
+/// Each variant wraps the configuration for a specific filter type.
+/// When multiple filters are applied to a sensor, all must agree to keep the observation.
+/// 
+/// Default value: [`ScanSensorFilterConfig::Range`] with [`RangeFilterConfig::default`].
+/// 
+/// # Config example:
+/// ```yaml
+/// filters:
+///   - type: Range
+///     variables: [r, theta]
+///     max_range: [100, 1.57]
+///     min_range: [1., -1.57]
+///     inside: true
+/// ```
+#[config_derives]
+#[derive(UIComponent)]
+#[show_all = "Filter"]
+pub enum ScanSensorFilterConfig {
+    /// Range-based filtering on enumerated variables: excludes observations where numeric values fall outside specified bounds.
+    #[check]
+    Range(RangeFilterConfig<ScanSensorVariablesFilter>),
+    /// String pattern filtering on observed object unique id (name for nodes, id for landmarks): excludes observations matching configured regexp patterns.
+    #[check]
+    Python(PythonFilterConfig),
+    /// Plugin-based custom filtering: delegates exclusion logic to external compiled or scripted plugins.
+    #[check]
+    External(ExternalFilterConfig),
+}
+
+impl Default for ScanSensorFilterConfig {
+    fn default() -> Self {
+        Self::Range(RangeFilterConfig::default())
+    }
+}
+
+/// Runtime enum containing instantiated Scan sensor filters.
+#[derive(Debug, EnumToString)]
+pub enum ScanSensorFilterType {
+    /// Instantiated range filter for Scan sensor variables.
+    Range(RangeFilter<ScanSensorVariablesFilter>),
+    /// Instantiated Python filter for Scan sensor observations.
+    Python(PythonFilter),
+    /// Instantiated external filter for Scan sensor observations.
+    External(ExternalFilter),
+}
+
+impl ScanSensorFilterType {
+    /// Initializes filters that require runtime node context.
+    pub fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+    ) -> crate::errors::SimbaResult<()> {
+        match self {
+            Self::Python(f) => f.post_init(node, initial_time),
+            Self::External(f) => f.post_init(node, initial_time),
+            Self::Range(_) => Ok(()),
+        }
+    }
+}
+
+
 /// Configuration of scan ray definitions.
 #[config_derives(tag_content)]
 pub enum RayConfig {
@@ -211,7 +277,7 @@ pub struct ScanSensorConfig {
     pub faults: Vec<ScanSensorFaultModelConfig>,
     /// Filter configuration list applied before fault injection.
     #[check]
-    pub filters: Vec<SensorFilterConfig<ScanSensorVariablesFilter>>,
+    pub filters: Vec<ScanSensorFilterConfig>,
 }
 
 impl Check for ScanSensorConfig {
@@ -351,7 +417,7 @@ impl UIComponent for ScanSensorConfig {
                     }
                 });
 
-                SensorFilterConfig::show_filters_mut(
+                ScanSensorFilterConfig::show_all_mut(
                     &mut self.filters,
                     ui,
                     ctx,
@@ -409,7 +475,7 @@ impl UIComponent for ScanSensorConfig {
                     }
                 }
 
-                SensorFilterConfig::show_filters(&self.filters, ui, _ctx, unique_id);
+                ScanSensorFilterConfig::show_all(&self.filters, ui, _ctx, unique_id);
 
                 ScanSensorFaultModelConfig::show_all(&self.faults, ui, _ctx, unique_id);
             });
@@ -517,7 +583,7 @@ pub struct ScanSensor {
     height: f32,
     activation_time: Option<Periodicity>,
     faults: Vec<FaultModelTypeScanSensor>,
-    filters: Vec<SensorFilterType<ScanSensorVariablesFilter>>,
+    filters: Vec<ScanSensorFilterType>,
     last_time: Option<f32>,
 }
 
@@ -576,8 +642,7 @@ impl ScanSensor {
                     ))
                 }
                 ScanSensorFaultModelConfig::Python(cfg) => FaultModelTypeScanSensor::Python(
-                    PythonFaultModel::from_config(cfg, global_config, initial_time)
-                        .expect("Failed to create Python Fault Model"),
+                    PythonFaultModel::from_config(cfg, global_config, initial_time)?
                 ),
                 ScanSensorFaultModelConfig::External(cfg) => FaultModelTypeScanSensor::External(
                     ExternalFault::from_config(
@@ -586,9 +651,23 @@ impl ScanSensor {
                         global_config,
                         va_factory,
                         initial_time,
-                    )
-                    .expect("Failed to create External Fault Model"),
+                    )?
                 ),
+            });
+        }
+        
+        let mut filters = Vec::new();
+        for filter_config in &config.filters {
+            filters.push(match filter_config {
+                ScanSensorFilterConfig::Range(cfg) => {
+                    ScanSensorFilterType::Range(RangeFilter::from_config(cfg, initial_time))
+                }
+                ScanSensorFilterConfig::Python(cfg) => {
+                    ScanSensorFilterType::Python(PythonFilter::from_config(cfg, global_config, initial_time)?)
+                }
+                ScanSensorFilterConfig::External(cfg) => {
+                    ScanSensorFilterType::External(ExternalFilter::from_config(cfg, plugin_api, global_config, va_factory, initial_time)?)
+                }
             });
         }
 
@@ -601,19 +680,7 @@ impl ScanSensor {
                 .as_ref()
                 .map(|p| Periodicity::from_config(p, va_factory, initial_time)),
             faults: fault_models,
-            filters: config.filters.iter().try_fold(Vec::new(), |mut acc, f| {
-                sensor_filters::make_sensor_filter_from_config(
-                    f,
-                    plugin_api,
-                    global_config,
-                    va_factory,
-                    initial_time,
-                )
-                .map(|filter| {
-                    acc.push(filter);
-                    acc
-                })
-            })?,
+            filters,
             last_time: None,
         })
     }
@@ -622,11 +689,10 @@ impl ScanSensor {
 impl Sensor for ScanSensor {
     fn post_init(&mut self, _node: &mut Node, _initial_time: f32) -> SimbaResult<()> {
         for filter in &mut self.filters {
-            match filter {
-                SensorFilterType::PythonFilter(f) => f.post_init(_node, _initial_time)?,
-                SensorFilterType::External(f) => f.post_init(_node, _initial_time)?,
-                _ => (), // No post_init needed for other filters for now
-            }
+            filter.post_init(_node, _initial_time)?;
+        }
+        for fault_model in &mut self.faults {
+            fault_model.post_init(_node, _initial_time)?;
         }
         Ok(())
     }
@@ -760,9 +826,9 @@ impl Sensor for ScanSensor {
         for filter in &self.filters {
             if let Some(obs) = keep_observation {
                 keep_observation = match filter {
-                    SensorFilterType::PythonFilter(f) => f.filter(time, obs, &state, None),
-                    SensorFilterType::External(f) => f.filter(time, obs, &state, None),
-                    SensorFilterType::RangeFilter(f) => {
+                    ScanSensorFilterType::Python(f) => f.filter(time, obs, &state, None),
+                    ScanSensorFilterType::External(f) => f.filter(time, obs, &state, None),
+                    ScanSensorFilterType::Range(f) => {
                         if let SensorObservation::Scan(obs) = obs {
                             let mut obs = obs;
                             let mut to_remove = Vec::new();
@@ -798,10 +864,6 @@ impl Sensor for ScanSensor {
                             unreachable!()
                         }
                     }
-                    _ => unimplemented!(
-                        "{} filter not implemented for ScanSensor",
-                        filter.to_string()
-                    ),
                 }
             } else {
                 break;

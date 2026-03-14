@@ -24,9 +24,11 @@ use crate::sensors::fault_models::misassociation::{
 };
 use crate::sensors::fault_models::misdetection::{MisdetectionFault, MisdetectionFaultConfig};
 use crate::sensors::fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig};
-use crate::sensors::sensor_filters::{
-    SensorFilter, SensorFilterConfig, SensorFilterType, make_sensor_filter_from_config,
-};
+use crate::sensors::sensor_filters::external_filter::{ExternalFilter, ExternalFilterConfig};
+use crate::sensors::sensor_filters::python_filter::{PythonFilter, PythonFilterConfig};
+use crate::sensors::sensor_filters::range_filter::{RangeFilter, RangeFilterConfig};
+use crate::sensors::sensor_filters::string_filter::{StringFilter, StringFilterConfig};
+use crate::sensors::sensor_filters::SensorFilter;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -146,6 +148,80 @@ impl RobotSensorFaultModelType {
     }
 }
 
+/// Configuration enum selecting among multiple sensor observation filtering strategies for robot sensors.
+///
+/// This enum provides a unified interface for declaring sensor filters with different decision logic.
+/// Each variant wraps the configuration for a specific filter type.
+/// When multiple filters are applied to a sensor, all must agree to keep the observation.
+/// 
+/// Default value: [`RobotSensorFilterConfig::Range`] with [`RangeFilterConfig::default`].
+/// 
+/// # Config example:
+/// ```yaml
+/// filters:
+///   - type: Range
+///     variables: [r, theta]
+///     max_range: [100, 1.57]
+///     min_range: [1., -1.57]
+///     inside: true
+/// ```
+#[config_derives]
+#[derive(UIComponent)]
+#[show_all = "Filter"]
+pub enum RobotSensorFilterConfig {
+    /// Range-based filtering on enumerated variables: excludes observations where numeric values fall outside specified bounds.
+    #[check]
+    Range(RangeFilterConfig<RobotSensorVariablesFilter>),
+    /// String pattern filtering on observed object unique id (name for nodes, id for landmarks): excludes observations matching configured regexp patterns.
+    #[check]
+    Id(StringFilterConfig),
+    /// String pattern filtering on observed object labels: excludes observations matching configured regexp patterns.
+    #[check]
+    Label(StringFilterConfig),
+    /// Python-based custom filtering: delegates exclusion logic to user-defined Python methods.
+    #[check]
+    Python(PythonFilterConfig),
+    /// Plugin-based custom filtering: delegates exclusion logic to external compiled or scripted plugins.
+    #[check]
+    External(ExternalFilterConfig),
+}
+
+impl Default for RobotSensorFilterConfig {
+    fn default() -> Self {
+        Self::Range(RangeFilterConfig::default())
+    }
+}
+
+/// Runtime enum containing instantiated Robot sensor filters.
+#[derive(Debug, EnumToString)]
+pub enum RobotSensorFilterType {
+    /// Instantiated range filter for Robot sensor variables.
+    Range(RangeFilter<RobotSensorVariablesFilter>),
+    /// Instantiated string filter for observed object unique id.
+    Id(StringFilter),
+    /// Instantiated string filter for observed object labels.
+    Label(StringFilter),
+    /// Instantiated Python filter for Robot sensor observations.
+    Python(PythonFilter),
+    /// Instantiated external filter for Robot sensor observations.
+    External(ExternalFilter),
+}
+
+impl RobotSensorFilterType {
+    /// Initializes filters that require runtime node context.
+    pub fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+    ) -> crate::errors::SimbaResult<()> {
+        match self {
+            Self::Python(f) => f.post_init(node, initial_time),
+            Self::External(f) => f.post_init(node, initial_time),
+            Self::Range(_) | Self::Id(_) | Self::Label(_) => Ok(()),
+        }
+    }
+}
+
 /// Configuration of the [`RobotSensor`].
 /// 
 /// The robot sensor observes other robots relative to the ego robot frame.
@@ -171,7 +247,7 @@ pub struct RobotSensorConfig {
     pub faults: Vec<RobotSensorFaultModelConfig>,
     /// Filter configurations applied before fault injection.
     #[check]
-    pub filters: Vec<SensorFilterConfig<RobotSensorVariablesFilter>>,
+    pub filters: Vec<RobotSensorFilterConfig>,
     /// If `true`, line-of-sight occlusion checks are bypassed.
     pub xray: bool,
 }
@@ -254,7 +330,7 @@ impl UIComponent for RobotSensorConfig {
                     ui.checkbox(&mut self.xray, "");
                 });
 
-                SensorFilterConfig::show_filters_mut(
+                RobotSensorFilterConfig::show_all_mut(
                     &mut self.filters,
                     ui,
                     ctx,
@@ -296,7 +372,7 @@ impl UIComponent for RobotSensorConfig {
                     ui.label(format!("X-Ray mode: {}", self.xray));
                 });
 
-                SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
+                RobotSensorFilterConfig::show_all(&self.filters, ui, ctx, unique_id);
 
                 RobotSensorFaultModelConfig::show_all(&self.faults, ui, ctx, unique_id);
             });
@@ -384,7 +460,7 @@ pub struct RobotSensor {
     last_time: Option<f32>,
     xray: bool,
     faults: Vec<RobotSensorFaultModelType>,
-    filters: Vec<SensorFilterType<RobotSensorVariablesFilter>>,
+    filters: Vec<RobotSensorFilterType>,
 }
 
 impl RobotSensor {
@@ -429,8 +505,7 @@ impl RobotSensor {
                     ))
                 }
                 RobotSensorFaultModelConfig::Python(cfg) => RobotSensorFaultModelType::Python(
-                    PythonFaultModel::from_config(cfg, global_config, initial_time)
-                        .expect("Failed to create Python Fault Model"),
+                    PythonFaultModel::from_config(cfg, global_config, initial_time)?,
                 ),
                 RobotSensorFaultModelConfig::External(cfg) => RobotSensorFaultModelType::External(
                     ExternalFault::from_config(
@@ -439,21 +514,36 @@ impl RobotSensor {
                         global_config,
                         va_factory,
                         initial_time,
-                    )
-                    .expect("Failed to create External Fault Model"),
+                    )?,
                 ),
             });
         }
 
         let mut filters = Vec::new();
         for filter_config in &config.filters {
-            filters.push(make_sensor_filter_from_config(
-                filter_config,
-                plugin_api,
-                global_config,
-                va_factory,
-                initial_time,
-            )?);
+            filters.push(match &filter_config {
+                RobotSensorFilterConfig::Range(cfg) => {
+                    RobotSensorFilterType::Range(RangeFilter::from_config(cfg, initial_time))
+                }
+                RobotSensorFilterConfig::Id(cfg) => {
+                    RobotSensorFilterType::Id(StringFilter::from_config(cfg, initial_time))
+                }
+                RobotSensorFilterConfig::Label(cfg) => {
+                    RobotSensorFilterType::Label(StringFilter::from_config(cfg, initial_time))
+                }
+                RobotSensorFilterConfig::Python(cfg) => RobotSensorFilterType::Python(
+                    PythonFilter::from_config(cfg, global_config, initial_time)?,
+                ),
+                RobotSensorFilterConfig::External(cfg) => RobotSensorFilterType::External(
+                    ExternalFilter::from_config(
+                        cfg,
+                        plugin_api,
+                        global_config,
+                        va_factory,
+                        initial_time,
+                    )?,
+                ),
+            });
         }
 
         let period = config
@@ -550,13 +640,13 @@ impl Sensor for RobotSensor {
                         for filter in self.filters.iter() {
                             if let Some(obs) = keep_observation {
                                 keep_observation = match filter {
-                                    SensorFilterType::PythonFilter(f) => {
+                                    RobotSensorFilterType::Python(f) => {
                                         f.filter(time, obs, &state, Some(&other_state))
                                     }
-                                    SensorFilterType::External(f) => {
+                                    RobotSensorFilterType::External(f) => {
                                         f.filter(time, obs, &state, Some(&other_state))
                                     }
-                                    SensorFilterType::IdFilter(f) => {
+                                    RobotSensorFilterType::Id(f) => {
                                         if let SensorObservation::OrientedRobot(obs) = obs {
                                             if f.match_exclusion(std::slice::from_ref(&obs.name)) {
                                                 Some(SensorObservation::OrientedRobot(obs))
@@ -567,7 +657,7 @@ impl Sensor for RobotSensor {
                                             unreachable!()
                                         }
                                     }
-                                    SensorFilterType::LabelFilter(f) => {
+                                    RobotSensorFilterType::Label(f) => {
                                         if let SensorObservation::OrientedRobot(obs) = obs {
                                             if f.match_exclusion(&obs.labels) {
                                                 Some(SensorObservation::OrientedRobot(obs))
@@ -578,7 +668,7 @@ impl Sensor for RobotSensor {
                                             unreachable!()
                                         }
                                     }
-                                    SensorFilterType::RangeFilter(f) => {
+                                    RobotSensorFilterType::Range(f) => {
                                         if let SensorObservation::OrientedRobot(obs) = obs {
                                             if f.match_exclusion(
                                                 &RobotSensorVariablesFilter::mapped_values(|variant| {

@@ -24,9 +24,10 @@ use crate::sensors::fault_models::clutter::{ClutterFault, ClutterFaultConfig};
 use crate::sensors::fault_models::external_fault::{ExternalFault, ExternalFaultConfig};
 use crate::sensors::fault_models::misdetection::{MisdetectionFault, MisdetectionFaultConfig};
 use crate::sensors::fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig};
-use crate::sensors::sensor_filters::{
-    SensorFilter, SensorFilterConfig, SensorFilterType, make_sensor_filter_from_config,
-};
+use crate::sensors::sensor_filters::external_filter::{ExternalFilter, ExternalFilterConfig};
+use crate::sensors::sensor_filters::python_filter::{PythonFilter, PythonFilterConfig};
+use crate::sensors::sensor_filters::range_filter::{RangeFilter, RangeFilterConfig};
+use crate::sensors::sensor_filters::SensorFilter;
 use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
@@ -128,6 +129,60 @@ impl GNSSSensorFaultModelType {
     }
 }
 
+
+/// Configuration enum selecting GNSS sensor filtering strategies
+/// for GNSSSensor observations.
+/// 
+/// When multiple filters are applied to a sensor, all must agree to keep the observation.
+/// 
+/// Default value: [`GNSSSensorFilterConfig::Range`] with [`RangeFilterConfig::default`].
+#[config_derives]
+#[derive(UIComponent)]
+#[show_all = "Faults"]
+pub enum GNSSSensorFilterConfig {
+    /// Range-based filtering on enumerated variables: excludes observations where numeric values fall outside specified bounds.
+    #[check]
+    Range(RangeFilterConfig<GNSSSensorVariablesFilter>),
+    /// Python-based custom filtering: delegates exclusion logic to user-defined Python methods.
+    #[check]
+    Python(PythonFilterConfig),
+    /// Plugin-based custom filtering: delegates exclusion logic to external compiled or scripted plugins.
+    #[check]
+    External(ExternalFilterConfig),
+}
+
+impl Default for GNSSSensorFilterConfig {
+    fn default() -> Self {
+        Self::Range(RangeFilterConfig::default())
+    }
+}
+
+/// Runtime enum containing instantiated GNSS sensor filters.
+#[derive(Debug, EnumToString)]
+pub enum GNSSSensorFilterType {
+    /// Instantiated range filter for GNSS sensor variables.
+    Range(RangeFilter<GNSSSensorVariablesFilter>),
+    /// Instantiated Python filter for GNSS sensor observations.
+    Python(PythonFilter),
+    /// Instantiated external filter for GNSS sensor observations.
+    External(ExternalFilter),
+}
+
+impl GNSSSensorFilterType {
+    /// Initializes filters that require runtime node context.
+    pub fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+    ) -> crate::errors::SimbaResult<()> {
+        match self {
+            Self::Python(f) => f.post_init(node, initial_time),
+            Self::External(f) => f.post_init(node, initial_time),
+            Self::Range(_) => Ok(()),
+        }
+    }
+}
+
 /// Configuration of the [`GNSSSensor`].
 ///
 /// Default values:
@@ -144,7 +199,7 @@ pub struct GNSSSensorConfig {
     pub faults: Vec<GNSSSensorFaultModelConfig>,
     /// Filter configurations applied before fault injection.
     #[check]
-    pub filters: Vec<SensorFilterConfig<GNSSSensorVariablesFilter>>,
+    pub filters: Vec<GNSSSensorFilterConfig>,
 }
 
 impl Default for GNSSSensorConfig {
@@ -193,7 +248,7 @@ impl UIComponent for GNSSSensorConfig {
                     }
                 });
 
-                SensorFilterConfig::show_filters_mut(
+                GNSSSensorFilterConfig::show_all_mut(
                     &mut self.filters,
                     ui,
                     ctx,
@@ -227,7 +282,7 @@ impl UIComponent for GNSSSensorConfig {
                     }
                 });
 
-                SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
+                GNSSSensorFilterConfig::show_all(&self.filters, ui, ctx, unique_id);
 
                 GNSSSensorFaultModelConfig::show_all(&self.faults, ui, ctx, unique_id);
             });
@@ -307,7 +362,7 @@ pub struct GNSSSensor {
     last_time: Option<f32>,
     /// Fault models for x and y positions and on x and y velocities
     faults: Vec<GNSSSensorFaultModelType>,
-    filters: Vec<SensorFilterType<GNSSSensorVariablesFilter>>,
+    filters: Vec<GNSSSensorFilterType>,
 }
 
 impl GNSSSensor {
@@ -356,13 +411,23 @@ impl GNSSSensor {
 
         let mut filters = Vec::new();
         for filter_config in &config.filters {
-            filters.push(make_sensor_filter_from_config(
-                filter_config,
-                plugin_api,
-                global_config,
-                va_factory,
-                initial_time,
-            )?);
+            filters.push(match &filter_config {
+                GNSSSensorFilterConfig::Range(config) => {
+                    GNSSSensorFilterType::Range(RangeFilter::from_config(config, initial_time))
+                }
+                GNSSSensorFilterConfig::Python(config) => {
+                    GNSSSensorFilterType::Python(PythonFilter::from_config(config, global_config, initial_time)?)
+                }
+                GNSSSensorFilterConfig::External(config) => {
+                    GNSSSensorFilterType::External(ExternalFilter::from_config(
+                        config,
+                        plugin_api,
+                        global_config,
+                        va_factory,
+                        initial_time,
+                    )?)
+                }
+            });
         }
 
         let activation_time = config
@@ -421,9 +486,9 @@ impl Sensor for GNSSSensor {
         for filter in self.filters.iter() {
             if let Some(obs) = keep_observation {
                 keep_observation = match filter {
-                    SensorFilterType::PythonFilter(f) => f.filter(time, obs, &state, None),
-                    SensorFilterType::External(f) => f.filter(time, obs, &state, None),
-                    SensorFilterType::RangeFilter(f) => {
+                    GNSSSensorFilterType::Python(f) => f.filter(time, obs, &state, None),
+                    GNSSSensorFilterType::External(f) => f.filter(time, obs, &state, None),
+                    GNSSSensorFilterType::Range(f) => {
                         if let SensorObservation::GNSS(obs) = obs {
                             if f.match_exclusion(&GNSSSensorVariablesFilter::mapped_values(
                                 |variant| match variant {
@@ -451,10 +516,6 @@ impl Sensor for GNSSSensor {
                             unreachable!()
                         }
                     }
-                    _ => unimplemented!(
-                        "{} filter not implemented for GNSSSensor",
-                        filter.to_string()
-                    ),
                 };
             } else {
                 break;

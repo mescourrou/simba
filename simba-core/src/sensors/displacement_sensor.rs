@@ -23,9 +23,10 @@ use crate::recordable::Recordable;
 use crate::sensors::fault_models::additive::{AdditiveFault, AdditiveFaultConfig};
 use crate::sensors::fault_models::external_fault::{ExternalFault, ExternalFaultConfig};
 use crate::sensors::fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig};
-use crate::sensors::sensor_filters::{
-    SensorFilter, SensorFilterConfig, SensorFilterType, make_sensor_filter_from_config,
-};
+use crate::sensors::sensor_filters::external_filter::{ExternalFilter, ExternalFilterConfig};
+use crate::sensors::sensor_filters::python_filter::{PythonFilter, PythonFilterConfig};
+use crate::sensors::sensor_filters::range_filter::{RangeFilter, RangeFilterConfig};
+use crate::sensors::sensor_filters::SensorFilter;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -127,6 +128,59 @@ impl DisplacementSensorFaultModelType {
     }
 }
 
+/// Configuration enum selecting displacement sensor filtering strategies
+/// for DisplacementSensor observations.
+/// 
+/// When multiple filters are applied to a sensor, all must agree to keep the observation.
+/// 
+/// Default value: [`DisplacementSensorFilterConfig::Range`] with [`RangeFilterConfig::default`].
+#[config_derives]
+#[derive(UIComponent)]
+#[show_all = "Faults"]
+pub enum DisplacementSensorFilterConfig {
+    /// Range-based filtering on enumerated variables: excludes observations where numeric values fall outside specified bounds.
+    #[check]
+    Range(RangeFilterConfig<DisplacementSensorVariablesFilter>),
+    /// Python-based custom filtering: delegates exclusion logic to user-defined Python methods.
+    #[check]
+    Python(PythonFilterConfig),
+    /// Plugin-based custom filtering: delegates exclusion logic to external compiled or scripted plugins.
+    #[check]
+    External(ExternalFilterConfig),
+}
+
+impl Default for DisplacementSensorFilterConfig {
+    fn default() -> Self {
+        Self::Range(RangeFilterConfig::default())
+    }
+}
+
+/// Runtime enum containing instantiated displacement sensor filters.
+#[derive(Debug, EnumToString)]
+pub enum DisplacementSensorFilterType {
+    /// Instantiated range filter for displacement sensor variables.
+    Range(RangeFilter<DisplacementSensorVariablesFilter>),
+    /// Instantiated Python filter for displacement sensor observations.
+    Python(PythonFilter),
+    /// Instantiated external filter for displacement sensor observations.
+    External(ExternalFilter),
+}
+
+impl DisplacementSensorFilterType {
+    /// Initializes filters that require runtime node context.
+    pub fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+    ) -> crate::errors::SimbaResult<()> {
+        match self {
+            Self::Python(f) => f.post_init(node, initial_time),
+            Self::External(f) => f.post_init(node, initial_time),
+            Self::Range(_) => Ok(()),
+        }
+    }
+}
+
 /// Configuration of the [`DisplacementSensor`].
 /// 
 /// The DisplacementSensor observes the robot displacement between two observations, and reports it as a translation along the X and Y axis of the robot, and a rotation.
@@ -147,7 +201,7 @@ pub struct DisplacementSensorConfig {
     pub faults: Vec<DisplacementSensorFaultModelConfig>,
     /// Filter configurations applied before fault injection.
     #[check]
-    pub filters: Vec<SensorFilterConfig<DisplacementSensorVariablesFilter>>,
+    pub filters: Vec<DisplacementSensorFilterConfig>,
     /// If `true`, use Lie-movement mode (currently not implemented).
     pub lie_movement: bool,
 }
@@ -203,7 +257,7 @@ impl UIComponent for DisplacementSensorConfig {
                     ui.checkbox(&mut self.lie_movement, "");
                 });
 
-                SensorFilterConfig::show_filters_mut(
+                DisplacementSensorFilterConfig::show_all_mut(
                     &mut self.filters,
                     ui,
                     ctx,
@@ -239,7 +293,7 @@ impl UIComponent for DisplacementSensorConfig {
 
                 ui.label(format!("Lie movement: {}", self.lie_movement));
 
-                SensorFilterConfig::show_filters(&self.filters, ui, ctx, unique_id);
+                DisplacementSensorFilterConfig::show_all(&self.filters, ui, ctx, unique_id);
 
                 DisplacementSensorFaultModelConfig::show_all(&self.faults, ui, ctx, unique_id);
             });
@@ -322,7 +376,7 @@ pub struct DisplacementSensor {
     /// Last observation time.
     last_time: Option<f32>,
     faults: Vec<DisplacementSensorFaultModelType>,
-    filters: Vec<SensorFilterType<DisplacementSensorVariablesFilter>>,
+    filters: Vec<DisplacementSensorFilterType>,
     lie_movement: bool,
 }
 
@@ -370,13 +424,27 @@ impl DisplacementSensor {
 
         let mut filters = Vec::new();
         for filter_config in &config.filters {
-            filters.push(make_sensor_filter_from_config(
-                filter_config,
-                plugin_api,
-                global_config,
-                va_factory,
-                initial_time,
-            )?);
+            filters.push(match &filter_config {
+                DisplacementSensorFilterConfig::Range(cfg) => {
+                    DisplacementSensorFilterType::Range(RangeFilter::from_config(cfg, initial_time))
+                }
+                DisplacementSensorFilterConfig::Python(cfg) => {
+                    DisplacementSensorFilterType::Python(PythonFilter::from_config(
+                        cfg,
+                        global_config,
+                        initial_time,
+                    )?)
+                }
+                DisplacementSensorFilterConfig::External(cfg) => {
+                    DisplacementSensorFilterType::External(ExternalFilter::from_config(
+                        cfg,
+                        plugin_api,
+                        global_config,
+                        va_factory,
+                        initial_time,
+                    )?)
+                }
+            });
         }
 
         let activation_time = config
@@ -467,9 +535,9 @@ impl Sensor for DisplacementSensor {
         for filter in self.filters.iter() {
             if let Some(o) = keep_observation {
                 keep_observation = match filter {
-                    SensorFilterType::External(f) => f.filter(time, o, &state, None),
-                    SensorFilterType::PythonFilter(f) => f.filter(time, o, &state, None),
-                    SensorFilterType::RangeFilter(f) => {
+                    DisplacementSensorFilterType::External(f) => f.filter(time, o, &state, None),
+                    DisplacementSensorFilterType::Python(f) => f.filter(time, o, &state, None),
+                    DisplacementSensorFilterType::Range(f) => {
                         if let SensorObservation::Displacement(obs) = o {
                             if f.match_exclusion(&DisplacementSensorVariablesFilter::mapped_values(
                                 |variant| match variant {
@@ -493,10 +561,6 @@ impl Sensor for DisplacementSensor {
                             unreachable!()
                         }
                     }
-                    _ => unimplemented!(
-                        "{} filter not implemented for DisplacementSensor",
-                        filter.to_string()
-                    ),
                 };
             } else {
                 break;
