@@ -32,12 +32,12 @@ use crate::{
 /// The Simulator configuration is the root of the scenario configuration.
 ///
 /// # Example
-/// 
+///
 /// ```yaml
 /// version: 1.6.0
 /// max_time: 10.0
 /// log:
-///   log_level: 
+///   log_level:
 ///     type: Info
 /// results: null
 /// time_analysis:

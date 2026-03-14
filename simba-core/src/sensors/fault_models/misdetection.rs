@@ -20,7 +20,7 @@ use crate::utils::{
 /// This configuration controls how often an observation is considered missed.
 /// The `apparition` random variable is a Bernoulli distribution where `1` means
 /// the observation is detected and `0` means it is dropped.
-/// 
+///
 /// # Example
 /// ```yaml
 /// faults:

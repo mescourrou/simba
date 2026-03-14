@@ -33,7 +33,7 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
 
 /// Enumerate the configuration of the different strategies.
-/// 
+///
 /// The navigator computes control errors from a target behavior.
 #[config_derives]
 pub enum NavigatorConfig {

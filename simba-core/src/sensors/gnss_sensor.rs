@@ -1,10 +1,10 @@
 //! GNSS-like sensor implementation.
-//! 
+//!
 //! This sensor observes the global pose and planar velocity of the node, with optional filtering and fault injection.
 //!
 //! This module provides a [`Sensor`] that reports global pose and planar
 //! velocity, with optional filtering and fault injection.
-//! Filtering is configured through [`SensorFilterConfig`], and fault behavior
+//! Filtering is configured through [`GNSSSensorFilterConfig`], and fault behavior
 //! is configured through [`GNSSSensorFaultModelConfig`].
 
 use std::sync::Arc;
@@ -24,10 +24,10 @@ use crate::sensors::fault_models::clutter::{ClutterFault, ClutterFaultConfig};
 use crate::sensors::fault_models::external_fault::{ExternalFault, ExternalFaultConfig};
 use crate::sensors::fault_models::misdetection::{MisdetectionFault, MisdetectionFaultConfig};
 use crate::sensors::fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig};
+use crate::sensors::sensor_filters::SensorFilter;
 use crate::sensors::sensor_filters::external_filter::{ExternalFilter, ExternalFilterConfig};
 use crate::sensors::sensor_filters::python_filter::{PythonFilter, PythonFilterConfig};
 use crate::sensors::sensor_filters::range_filter::{RangeFilter, RangeFilterConfig};
-use crate::sensors::sensor_filters::SensorFilter;
 use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
@@ -122,19 +122,16 @@ impl GNSSSensorFaultModelType {
         match self {
             Self::Python(f) => f.post_init(node, initial_time),
             Self::External(f) => f.post_init(node, initial_time),
-            Self::Additive(_)
-            | Self::Clutter(_)
-            | Self::Misdetection(_) => Ok(()),
+            Self::Additive(_) | Self::Clutter(_) | Self::Misdetection(_) => Ok(()),
         }
     }
 }
 
-
 /// Configuration enum selecting GNSS sensor filtering strategies
 /// for GNSSSensor observations.
-/// 
+///
 /// When multiple filters are applied to a sensor, all must agree to keep the observation.
-/// 
+///
 /// Default value: [`GNSSSensorFilterConfig::Range`] with [`RangeFilterConfig::default`].
 #[config_derives]
 #[derive(UIComponent)]
@@ -377,13 +374,9 @@ impl GNSSSensor {
         let mut fault_models = Vec::new();
         for fault_config in &config.faults {
             fault_models.push(match &fault_config {
-                GNSSSensorFaultModelConfig::Additive(config) => {
-                    GNSSSensorFaultModelType::Additive(AdditiveFault::from_config(
-                        config,
-                        va_factory,
-                        initial_time,
-                    ))
-                }
+                GNSSSensorFaultModelConfig::Additive(config) => GNSSSensorFaultModelType::Additive(
+                    AdditiveFault::from_config(config, va_factory, initial_time),
+                ),
                 GNSSSensorFaultModelConfig::Clutter(config) => GNSSSensorFaultModelType::Clutter(
                     ClutterFault::from_config(config, va_factory, initial_time),
                 ),
@@ -415,9 +408,9 @@ impl GNSSSensor {
                 GNSSSensorFilterConfig::Range(config) => {
                     GNSSSensorFilterType::Range(RangeFilter::from_config(config, initial_time))
                 }
-                GNSSSensorFilterConfig::Python(config) => {
-                    GNSSSensorFilterType::Python(PythonFilter::from_config(config, global_config, initial_time)?)
-                }
+                GNSSSensorFilterConfig::Python(config) => GNSSSensorFilterType::Python(
+                    PythonFilter::from_config(config, global_config, initial_time)?,
+                ),
                 GNSSSensorFilterConfig::External(config) => {
                     GNSSSensorFilterType::External(ExternalFilter::from_config(
                         config,
@@ -621,16 +614,12 @@ impl Sensor for GNSSSensor {
                             {
                                 obs.velocity.y = *value;
                             }
-                            obs.applied_faults.push(
-                                GNSSSensorFaultModelConfig::Additive(
-                                    f.config().clone(),
-                                ),
-                            );
+                            obs.applied_faults
+                                .push(GNSSSensorFaultModelConfig::Additive(f.config().clone()));
                         }
                     }
                     GNSSSensorFaultModelType::Clutter(f) => {
-                        let new_obs_from_clutter =
-                            f.add_faults(time, 1. / 100.);
+                        let new_obs_from_clutter = f.add_faults(time, 1. / 100.);
                         for (_, obs_params) in new_obs_from_clutter {
                             let mut x = obs_params
                                 .get(&GNSSSensorVariablesFaults::X)
@@ -665,18 +654,13 @@ impl Sensor for GNSSSensor {
                                 .cloned()
                                 .unwrap_or(0.);
 
-
-                            let obs = SensorObservation::GNSS(
-                                GNSSObservation {
-                                    pose: Vector3::new(x, y, orientation),
-                                    velocity: Vector2::new(v_x, v_y),
-                                    applied_faults: vec![
-                                        GNSSSensorFaultModelConfig::Clutter(
-                                            f.config().clone(),
-                                        ),
-                                    ],
-                                },
-                            );
+                            let obs = SensorObservation::GNSS(GNSSObservation {
+                                pose: Vector3::new(x, y, orientation),
+                                velocity: Vector2::new(v_x, v_y),
+                                applied_faults: vec![GNSSSensorFaultModelConfig::Clutter(
+                                    f.config().clone(),
+                                )],
+                            });
                             observation_list.push(obs);
                         }
                     }
@@ -685,16 +669,9 @@ impl Sensor for GNSSSensor {
                             .iter()
                             .enumerate()
                             .filter_map(|(i, obs)| {
-                                if let SensorObservation::GNSS(
-                                    observation,
-                                ) = obs
-                                {
-                                    if f.detected(
-                                        time + (i as f32) / 1000.,
-                                    ) {
-                                        Some(SensorObservation::GNSS(
-                                            observation.clone(),
-                                        ))
+                                if let SensorObservation::GNSS(observation) = obs {
+                                    if f.detected(time + (i as f32) / 1000.) {
+                                        Some(SensorObservation::GNSS(observation.clone()))
                                     } else {
                                         None
                                     }

@@ -29,15 +29,15 @@ use simba_macros::config_derives;
 use std::path::Path;
 
 /// Configuration of the [`TrajectoryFollower`] strategy.
-/// 
+///
 /// The trajectory is loaded from the file specified by `trajectory_path`, which should be compatible with
 /// [`TrajectoryConfig`]. If `trajectory_path` is empty, the navigator will fall back to a default empty
 /// trajectory: the node will not move.
-/// 
-/// The trajectory following computes the error using a forward projection of the robot pose on the trajectory, 
-/// with a distance of `forward_distance`. The error is then the error in angle to go to this projected point. 
-/// The robot will try to reach a target speed of `target_speed` m/s, which is reduced when the robot gets 
-/// closer to the end of the trajectory, starting from `stop_distance` meters to the end, using a ramp 
+///
+/// The trajectory following computes the error using a forward projection of the robot pose on the trajectory,
+/// with a distance of `forward_distance`. The error is then the error in angle to go to this projected point.
+/// The robot will try to reach a target speed of `target_speed` m/s, which is reduced when the robot gets
+/// closer to the end of the trajectory, starting from `stop_distance` meters to the end, using a ramp
 /// coefficient of `stop_ramp_coefficient`.
 #[config_derives]
 pub struct TrajectoryFollowerConfig {
@@ -62,7 +62,7 @@ pub struct TrajectoryFollowerConfig {
     pub stop_distance: f32,
     /// Ramp coefficient applied to remaining distance when reducing speed near the end.
     ///
-    /// Default: `0.5`, meaning that the target speed will be reduced to 0.5 times the remaining distance when 
+    /// Default: `0.5`, meaning that the target speed will be reduced to 0.5 times the remaining distance when
     /// the robot is within `stop_distance` of the end of the trajectory.
     pub stop_ramp_coefficient: f32,
 }

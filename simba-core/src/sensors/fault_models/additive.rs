@@ -63,7 +63,10 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> Check for AdditiveFaultConfig<SV
                 self.apparition.probability.len()
             ));
         }
-        if !self.variable_order.is_empty() && self.distributions.iter().map(|d| d.dim()).sum::<usize>() != self.variable_order.len() {
+        if !self.variable_order.is_empty()
+            && self.distributions.iter().map(|d| d.dim()).sum::<usize>()
+                != self.variable_order.len()
+        {
             errors.push(format!("If variable order is given, its length should match the total distribution dimension. Got total distribution dimension {} and variable order length {}.",
                 self.distributions.iter().map(|d| d.dim()).sum::<usize>(),
                 self.variable_order.len()
@@ -317,7 +320,7 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> AdditiveFault<SVO, SVProp> {
         diff_map
     }
 
-        /// Returns the configuration used to build this additive fault model.
+    /// Returns the configuration used to build this additive fault model.
     pub fn config(&self) -> &AdditiveFaultConfig<SVO, SVProp> {
         &self.config
     }

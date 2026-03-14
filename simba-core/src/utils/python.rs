@@ -1,5 +1,5 @@
 //! Python utilities for embedding and interacting with Python code in Simba.
-//! 
+//!
 //! This module provides helper functions and traits for loading Python scripts, executing Python code, and bridging Python implementations of Simba plugin components.
 use std::ffi::{CStr, CString};
 use std::fmt::Debug;
@@ -113,7 +113,6 @@ def converter(decoded_dict):
 def convert(records):
     return json.loads(records, object_hook=converter)
 "#;
-
 
 /// Configuration contract for loading a Python class from a script file.
 pub trait PythonClassConfig: Serialize + for<'a> Deserialize<'a> {

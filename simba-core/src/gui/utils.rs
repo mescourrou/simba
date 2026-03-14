@@ -100,16 +100,16 @@ where
 }
 
 /// Path editor. It is a text edit with an "Apply" button, that allows to edit a path string and apply it when the button is clicked.
-/// 
+///
 /// Future: add a file explorer to select the path
 pub fn path_finder(ui: &mut egui::Ui, path: &mut String, _base: &Path) {
     ui.text_edit_singleline(path);
 }
 
 /// Json editor with an "Apply" button. The json is only applied to the value when the button is clicked, otherwise it is stored in the buffer stack.
-/// 
+///
 /// Future: add coloring and error highlighting in the editor, to make it easier to edit the json.
-/// 
+///
 /// # Arguments
 /// * `ui` - The egui UI to display the editor and the button.
 /// * `buffer_key` - The key to use in the buffer stack to store the editor value. It should be unique for each editor to avoid conflicts.
@@ -146,7 +146,7 @@ pub fn json_config(
 }
 
 /// Text edit with an "Apply" button. The text is only applied to the value when the button is clicked, otherwise it is stored in the buffer stack.
-/// 
+///
 /// # Arguments
 /// * `ui` - The egui UI to display the text edit and the button.
 /// * `buffer_key` - The key to use in the buffer stack to store the text edit value. It should be unique for each text edit to avoid conflicts.

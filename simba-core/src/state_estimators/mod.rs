@@ -495,7 +495,7 @@ use std::sync::Arc;
 /// ```YAML
 /// state_estimator:
 ///   type: Perfect
-///   prediction_activation: 
+///   prediction_activation:
 ///     period: {type: Num, value: 0.1}
 /// ```
 #[config_derives]
@@ -667,7 +667,7 @@ pub trait StateEstimator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<StateEstimatorRecord>
 {
     /// Initialization hook called once after node creation.
-    /// 
+    ///
     /// This step is called before the beginning of the simulation loop so all features are not available.
     #[allow(unused_variables)]
     fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {

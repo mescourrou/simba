@@ -125,11 +125,11 @@ impl<RequestMsg: Debug + Clone, ResponseMsg: Debug + Clone> ServiceClient<Reques
         Ok(())
     }
 
-        /// Tries to receive a response from the server without blocking.
-        ///
-        /// On success, this decrements the global count of circulating service messages.
-        /// If an unsubscribe flag is received, the client is marked as closed and a
-        /// [`ServiceError::Closed`] error is returned.
+    /// Tries to receive a response from the server without blocking.
+    ///
+    /// On success, this decrements the global count of circulating service messages.
+    /// If an unsubscribe flag is received, the client is marked as closed and a
+    /// [`ServiceError::Closed`] error is returned.
     pub fn try_recv(&self) -> Result<ResponseMsg, SimbaError> {
         let result = match self.response_channel.lock().unwrap().try_recv() {
             Ok(result) => result,

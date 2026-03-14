@@ -775,9 +775,9 @@ impl SensorObservationWrapper {
             SensorObservation::OrientedRobot(o) => SensorObservationWrapper::OrientedRobot(
                 OrientedRobotObservationWrapper::from_rust(o),
             ),
-            SensorObservation::Displacement(o) => SensorObservationWrapper::Displacement(
-                DisplacementObservationWrapper::from_rust(o),
-            ),
+            SensorObservation::Displacement(o) => {
+                SensorObservationWrapper::Displacement(DisplacementObservationWrapper::from_rust(o))
+            }
             SensorObservation::Scan(_) => {
                 panic!("ScanObservation cannot be converted to SensorObservationWrapper yet");
             }
@@ -1089,9 +1089,9 @@ impl NodeWrapper {
     }
 
     /// Send a message to the given channel using the node [`Network`]. It returns an error if the node is not connected to any network.
-    /// 
+    ///
     /// Should only be used for one-shot messages as it creates a new client every times. For more persistent communication, it is better to use a [`MultiClientWrapper`] obtained with the [`subscribe`](Self::subscribe) method.
-    /// 
+    ///
     /// # Arguments
     /// * `to` - Channel key to send the message to. It can be a relative key (e.g. "channel1") or an absolute key (e.g. "/my_channels/channel1").
     /// * `message` - Message to send. See [`MessageTypes`] for the supported message types in Python.
@@ -1176,10 +1176,10 @@ pub struct MultiClientWrapper {
 #[pymethods]
 impl MultiClientWrapper {
     /// Subscribe to a channel. The client will receive messages sent to this channel.
-    /// 
+    ///
     /// If the channel key is relative (does not start with a "/"), the subscription will be made to the channel using
     /// the node id as prefix. For example, if the node id is "node1" and the channel key is "channel1", the subscription will be made to "/simba/nodes/node1/channel1".
-    /// 
+    ///
     /// # Arguments
     /// * `key` - Channel key to subscribe to. It can be a relative key (e.g. "channel1") or an absolute key (e.g. "/my_channels/channel1").
     pub fn subscribe(&mut self, key: String) {
@@ -1195,7 +1195,7 @@ impl MultiClientWrapper {
     }
 
     /// Send a message to the given channel. The message will be received by all the clients subscribed to this channel which are in range.
-    /// 
+    ///
     /// # Arguments
     /// * `to` - Channel key to send the message to. It can be a relative key (e.g. "channel1") or an absolute key (e.g. "/my_channels/channel1").
     /// * `message` - Message to send. See [`MessageTypes`] for the supported message types in Python.
@@ -1226,7 +1226,7 @@ impl MultiClientWrapper {
     }
 
     /// Try to receive a message from the subscribed channels. It returns the first message received or None if no message is received within the given time.
-    /// 
+    ///
     /// It can return messages older than the given `time`.
     pub fn try_receive(&self, time: f32) -> Option<(String, EnvelopeWrapper)> {
         if let Some((path, envelope)) = self.client.try_receive(time) {
@@ -1276,24 +1276,24 @@ impl MultiClientWrapper {
 
 /// Trait to be implemented by the Python API provided by the user. It provides methods to get the state estimator, controller, navigator and physics to be used by the simulator.
 /// The user can implement this trait in Python and provide it to the simulator to use custom implementations of these components.
-/// 
+///
 /// # Example
 /// ```python
 /// import simba
 /// import json
-/// 
+///
 /// class Controller(simba.Controller):
 ///     # implementation
-/// 
+///
 /// class SimulatorAPI(simba.PluginAPI):
 ///     def get_controller(self, config: dict, global_config: dict, initial_time: float):
 ///         config = json.loads(config)
 ///         print(f"Config received by python: {type(config)} {config}")
 ///         return Controller(config, initial_time)
-/// 
+///
 /// def main():
 ///     simulator_api = SimulatorAPI()
-/// 
+///
 ///     simulator = simba.Simulator.from_config(
 ///         "config/config_controller.yaml", simulator_api
 ///     )
@@ -1412,7 +1412,7 @@ pub struct SimulatorWrapper {
 #[pymethods]
 impl SimulatorWrapper {
     /// Constructor for the simulator.
-    /// 
+    ///
     /// # Arguments
     /// * `config_path` - Path to the configuration file. The configuration file should be in YAML format and follow the structure defined in the documentation. See the [`SimulatorConfig`](crate::simulator::SimulatorConfig) for more details on the configuration structure.
     /// * `plugin_api` - Optional Python object that implements the [`PluginAPI`] interface. This object will be used to provide custom implementations of the state estimator, controller, navigator and physics if required by the configuration.

@@ -19,7 +19,7 @@ use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 
 /// Config of the [`Trajectory`].
-/// 
+///
 /// This configuration takes a list of points and a boolean for looping (return to first point after the last one).
 /// Points are 1- or 2-dimensional. Any extra dimension is ignored, and missing dimensions are filled with 0.
 #[derive(Serialize, Deserialize, Debug, Check)]

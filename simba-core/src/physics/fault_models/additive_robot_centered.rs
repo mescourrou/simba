@@ -1,5 +1,5 @@
 //! Additive robot-centered physics faults.
-//! 
+//!
 //! These faults try to simulate noise-like perturbations on the robot state variables over time, in the robot-centered frame. They can be used to simulate various types of faults, such as unmodeled dynamics, wheel slip, etc. The configuration allows to define which random distributions are sampled, how sampled dimensions are mapped to physics variables, and whether the faults should be proportional to the robot velocity (to simulate slip-like faults).
 //!
 //! This module defines a physics fault model that adds noise-like perturbations to
@@ -234,8 +234,7 @@ impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
                     if let RobotModelConfig::Unicycle(_) = self.robot_model {
                         // Unicycle robot model does not have lateral velocity (velocity_y).
                     } else {
-                        state.velocity.y +=
-                            random_sample[i] * delta_time * velocity_angle.sin();
+                        state.velocity.y += random_sample[i] * delta_time * velocity_angle.sin();
                     }
                 }
                 PhysicsVariables::VelocityX => {

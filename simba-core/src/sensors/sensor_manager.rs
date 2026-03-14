@@ -5,11 +5,11 @@
 //! consolidated observations to the rest of the simulation pipeline.
 //! Sensor creation is driven by [`SensorManagerConfig`], which contains [`ManagedSensorConfig`]
 //! entries describing each managed sensor and its routing behavior.
-//! 
-//! 
+//!
+//!
 //! All sensors generate different types of observations but every observation has the maximum of available variables.
 //! If the user wants to use only a subset of the variables, they can ignore the others.
-//! 
+//!
 
 extern crate confy;
 use core::f32;
@@ -286,7 +286,7 @@ struct ManagedSensor {
 }
 
 /// Message used to trigger a sensor through the internal network.
-/// 
+///
 /// The message is empty for now, but it could be extended in the future to include additional information about the trigger (e.g. time to trigger, dynamic sensor parameters, etc.).
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[pyclass(get_all, set_all)]
@@ -469,7 +469,7 @@ impl SensorManager {
     ///
     /// This consumes queued messages from the internal subscriber, updates remote
     /// observations, and applies trigger messages to targeted sensors.
-    /// 
+    ///
     /// This is where distant observations are collected.
     pub fn handle_messages(&mut self, time: f32) {
         while let Some((path, envelope)) = self.message_client.as_ref().unwrap().try_receive(time) {

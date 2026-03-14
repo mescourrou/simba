@@ -125,7 +125,10 @@ impl<
         #[cfg(feature = "debug_mode")]
         debug!(
             "[Channel {}] New client with id {} for node {:?}. Total clients: {}",
-            self.name, id, node_id, self.receivers.lock().unwrap().len()
+            self.name,
+            id,
+            node_id,
+            self.receivers.lock().unwrap().len()
         );
         Client::new(
             from_client_tx,
@@ -198,7 +201,10 @@ impl<
                         dead_clients.insert((to_id.clone(), *sender_id));
                     } else {
                         #[cfg(feature = "debug_mode")]
-                        debug!("[Channel {}] Message from {:?} to {:?} sent", self.name, from_id, to_id);
+                        debug!(
+                            "[Channel {}] Message from {:?} to {:?} sent",
+                            self.name, from_id, to_id
+                        );
                     }
                 } else {
                     #[cfg(feature = "debug_mode")]
@@ -214,7 +220,11 @@ impl<
         }
         #[cfg(feature = "debug_mode")]
         {
-            debug!("[Channel {}] Removing {} dead clients from channel", self.name, dead_clients.len());
+            debug!(
+                "[Channel {}] Removing {} dead clients from channel",
+                self.name,
+                dead_clients.len()
+            );
             debug!(
                 "[Channel {}] Current receiver list: {:?}",
                 self.name,
@@ -223,8 +233,7 @@ impl<
             debug!(
                 "[Channel {}] Current sender list: {:?}",
                 self.name,
-                senders
-                    .keys()
+                senders.keys()
             );
         }
 

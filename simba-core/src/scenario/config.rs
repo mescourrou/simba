@@ -15,7 +15,7 @@ use crate::config::NumberConfig;
 /// Contains the list of event declarations evaluated by the scenario system.
 ///
 /// The events will be published on the chanel `/simba/scenario` when they are triggered, with the content of the event record (see [`EventRecord`]).
-/// 
+///
 /// Default values:
 /// - `events`: empty vector
 #[config_derives]

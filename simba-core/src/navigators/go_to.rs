@@ -54,11 +54,11 @@ impl GoToMessage {
 }
 
 /// Configuration of the [`GoTo`] strategy.
-/// 
+///
 /// The target point can be set at startup through the `target_point` field, and updated at runtime by sending a [`GoToMessage`] on the [`GoTo::CHANNEL_NAME`] channel. If no target point is set, the navigator will not move the robot.
-/// 
+///
 /// The target speed is reduced when the robot gets closer to the target point, starting from `stop_distance` meters to the target, using a ramp coefficient of `stop_ramp_coefficient`.
-/// 
+///
 /// To reach the target point, the navigator computes the error to the target point in the robot frame:
 /// cartesian error and angle error.
 #[config_derives]

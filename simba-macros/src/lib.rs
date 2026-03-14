@@ -757,9 +757,11 @@ impl Parse for DocumentedEnumVariant {
                 variant_name,
             })
         } else {
-            Err(syn::Error::new(input.span(), "Expected an identifier for the variant name"))
+            Err(syn::Error::new(
+                input.span(),
+                "Expected an identifier for the variant name",
+            ))
         }
-
     }
 }
 
@@ -828,9 +830,16 @@ pub fn enum_variables(input: TokenStream) -> TokenStream {
     for variant in &parsed.variants {
         for sub_enum in &variant.sub_enums {
             if !sub_enums.contains_key(&sub_enum.variant_name) {
-                sub_enums.insert(sub_enum.variant_name.clone(), (sub_enum.doc_string.clone(), Vec::new()));
+                sub_enums.insert(
+                    sub_enum.variant_name.clone(),
+                    (sub_enum.doc_string.clone(), Vec::new()),
+                );
             }
-            sub_enums.get_mut(&sub_enum.variant_name).unwrap().1.push(variant);
+            sub_enums
+                .get_mut(&sub_enum.variant_name)
+                .unwrap()
+                .1
+                .push(variant);
         }
     }
 
@@ -839,7 +848,10 @@ pub fn enum_variables(input: TokenStream) -> TokenStream {
     if !sub_enums.is_empty() {
         for (meta_variant, (doc, sub_enum_variants)) in sub_enums.iter() {
             let sub_enum_name = format_ident!("{}{}", enum_name, meta_variant);
-            let doc_comment = doc.as_ref().map(|s| quote! {#[doc = #s]}).unwrap_or_default();
+            let doc_comment = doc
+                .as_ref()
+                .map(|s| quote! {#[doc = #s]})
+                .unwrap_or_default();
             meta_enum.extend(quote! {
                 #doc_comment
                 #meta_variant (#sub_enum_name),

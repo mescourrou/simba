@@ -40,10 +40,10 @@ pub trait EnumVariables:
 }
 
 /// Macro to define an enum with variants and their string representations, and automatically implement the `EnumVariables` trait for it.
-/// 
+///
 /// To be used by the procedural macro `enum_variables!` to generate enums from a concise syntax.
 macro_rules! __enum_variables_emit_subenum {
-    (   
+    (
         $(#[$meta:meta])*
         $name:ident;
         $($($documentation:literal)? $variant:ident, $value:literal $(, $add_value:literal)*);+ $(;)?

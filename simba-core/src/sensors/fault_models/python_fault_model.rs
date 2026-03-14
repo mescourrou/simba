@@ -24,7 +24,7 @@ use crate::{
 
 python_class_config!(
     /// Configuration for the Python-based sensor fault model.
-    /// 
+    ///
     /// The implementation of the Python class should follow the interface defined in the documentation of the [`FaultModel`] trait, especially for the [`FaultModel::add_faults()`] method, which is the core of the fault model behavior.
     PythonFaultModelConfig,
     "Python Fault Model",

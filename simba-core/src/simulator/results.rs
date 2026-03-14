@@ -47,9 +47,9 @@ impl Default for ResultSaveMode {
 pub struct ResultConfig {
     /// Filename to save the results, in JSON format. The directory of this
     /// file is used to save the figures if results are computed.
-    /// 
+    ///
     /// Path from config location.
-    /// 
+    ///
     /// If `None`, results are not saved on disk but can still be forwarded to the analysis script.
     pub result_path: Option<String>,
     /// Show the matplotlib figures (call `plt.show()`)

@@ -24,7 +24,7 @@ pub fn closest_uint_modulo(numerator: f32, denumerator: f32) -> SimbaResult<u32>
 }
 
 /// Round `number` to the nearest multiple of `precision`.
-/// 
+///
 /// `precision` is a float such as `0.1` to round to the nearest tenth, `0.01` for the nearest hundredth, etc.
 ///
 /// Returns an error if `precision` is not strictly positive.

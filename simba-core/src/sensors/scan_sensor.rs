@@ -3,7 +3,7 @@
 //! This module implements a radar/lidar-like scan sensor that emits distance/angle/radial-velocity
 //! observations against map landmarks and dynamic entities.
 //! It supports configurable ray layouts through [`RayConfig`], filtering with
-//! [`SensorFilterConfig`], and fault injection pipelines configured via [`ScanSensorFaultModelConfig`].
+//! [`ScanSensorFilterConfig`], and fault injection pipelines configured via [`ScanSensorFaultModelConfig`].
 
 use std::sync::Arc;
 
@@ -30,7 +30,12 @@ use crate::{
             misdetection::{MisdetectionFault, MisdetectionFaultConfig},
             python_fault_model::{PythonFaultModel, PythonFaultModelConfig},
         },
-        sensor_filters::{SensorFilter, external_filter::{ExternalFilter, ExternalFilterConfig}, python_filter::{PythonFilter, PythonFilterConfig}, range_filter::{RangeFilter, RangeFilterConfig}},
+        sensor_filters::{
+            SensorFilter,
+            external_filter::{ExternalFilter, ExternalFilterConfig},
+            python_filter::{PythonFilter, PythonFilterConfig},
+            range_filter::{RangeFilter, RangeFilterConfig},
+        },
     },
     simulator::SimulatorConfig,
     state_estimators::State,
@@ -58,13 +63,13 @@ enum_variables!(
     GlobalFaults,
     "Variables used as proportional factor in global fault models."
     GlobalProp,
-    "Variables used as proportional factor in per-point fault models." 
+    "Variables used as proportional factor in per-point fault models."
     PointProp:
     "X position component."
     X, "x";
     Filter, PointFaults, GlobalFaults, GlobalProp, PointProp:
     "Y position component." Y, "y" ;
-    Filter, PointFaults, PointProp: 
+    Filter, PointFaults, PointProp:
     "Range (radius) in polar coordinates."
     R, "r", "radius", "d", "distance";
     Filter, PointFaults, PointProp:
@@ -174,15 +179,14 @@ impl FaultModelTypeScanSensor {
     }
 }
 
-
 /// Configuration enum selecting among multiple sensor observation filtering strategies for scan sensors.
 ///
 /// This enum provides a unified interface for declaring sensor filters with different decision logic.
 /// Each variant wraps the configuration for a specific filter type.
 /// When multiple filters are applied to a sensor, all must agree to keep the observation.
-/// 
+///
 /// Default value: [`ScanSensorFilterConfig::Range`] with [`RangeFilterConfig::default`].
-/// 
+///
 /// # Config example:
 /// ```yaml
 /// filters:
@@ -238,7 +242,6 @@ impl ScanSensorFilterType {
         }
     }
 }
-
 
 /// Configuration of scan ray definitions.
 #[config_derives(tag_content)]
@@ -642,31 +645,37 @@ impl ScanSensor {
                     ))
                 }
                 ScanSensorFaultModelConfig::Python(cfg) => FaultModelTypeScanSensor::Python(
-                    PythonFaultModel::from_config(cfg, global_config, initial_time)?
+                    PythonFaultModel::from_config(cfg, global_config, initial_time)?,
                 ),
-                ScanSensorFaultModelConfig::External(cfg) => FaultModelTypeScanSensor::External(
-                    ExternalFault::from_config(
+                ScanSensorFaultModelConfig::External(cfg) => {
+                    FaultModelTypeScanSensor::External(ExternalFault::from_config(
                         cfg,
                         plugin_api,
                         global_config,
                         va_factory,
                         initial_time,
-                    )?
-                ),
+                    )?)
+                }
             });
         }
-        
+
         let mut filters = Vec::new();
         for filter_config in &config.filters {
             filters.push(match filter_config {
                 ScanSensorFilterConfig::Range(cfg) => {
                     ScanSensorFilterType::Range(RangeFilter::from_config(cfg, initial_time))
                 }
-                ScanSensorFilterConfig::Python(cfg) => {
-                    ScanSensorFilterType::Python(PythonFilter::from_config(cfg, global_config, initial_time)?)
-                }
+                ScanSensorFilterConfig::Python(cfg) => ScanSensorFilterType::Python(
+                    PythonFilter::from_config(cfg, global_config, initial_time)?,
+                ),
                 ScanSensorFilterConfig::External(cfg) => {
-                    ScanSensorFilterType::External(ExternalFilter::from_config(cfg, plugin_api, global_config, va_factory, initial_time)?)
+                    ScanSensorFilterType::External(ExternalFilter::from_config(
+                        cfg,
+                        plugin_api,
+                        global_config,
+                        va_factory,
+                        initial_time,
+                    )?)
                 }
             });
         }

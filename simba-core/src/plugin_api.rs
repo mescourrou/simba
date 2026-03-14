@@ -155,7 +155,7 @@ pub trait PluginAPI: Send + Sync {
 
     /// Return the [`Sensor`] to be used by the
     /// [`ExternalSensor`](`crate::sensors::external_sensor::ExternalSensor`).
-    /// 
+    ///
     /// # Arguments
     /// * `config` - Config for the external sensor. The configuration
     ///   is given using [`serde_json::Value`]. It should be converted by the

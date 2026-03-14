@@ -72,7 +72,7 @@ impl OccupancyGrid {
     }
 
     /// Converts a world position to grid (row, col) indices, considering grid orientation.
-    /// 
+    ///
     /// Returns `None` if the position is outside the grid bounds.
     pub fn pos_to_idx(&self, position: Vector2<f32>) -> Option<(usize, usize)> {
         let translated = position - self.center.xy();

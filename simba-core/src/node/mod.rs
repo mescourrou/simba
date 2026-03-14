@@ -50,7 +50,7 @@ use crate::{
 };
 
 /// Mode State machine.
-/// 
+///
 /// TODO: Use Rust type system to enforce correct mode usage instead of runtime checks.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumToString)]
 pub enum NodeState {
@@ -192,7 +192,7 @@ impl Node {
         if let Some(navigator) = self.navigator() {
             navigator.write().unwrap().post_init(self).unwrap();
         }
-    // services: Vec<SharedRwLock<Box<dyn ServiceInterface>>>>,
+        // services: Vec<SharedRwLock<Box<dyn ServiceInterface>>>>,
         if let Some(controller) = self.controller() {
             controller.write().unwrap().post_init(self).unwrap();
         }
@@ -221,7 +221,7 @@ impl Node {
     }
 
     /// Process all the messages: one-way (network) and two-way (services).
-    /// 
+    ///
     /// Processing messages mean here to transfer all the pending messages from the network to the corresponding modules (physics, state estimator, navigator, controller, sensor manager).
     pub(crate) fn process_messages(&self) -> usize {
         let mut nb_msg = 0;
@@ -248,7 +248,7 @@ impl Node {
     ///     1. The navigator computes the error from the state estimation
     ///     2. The command is computed by the Controller
     ///     3. The command is applied to the Physics (but Physics state is not updated yet).
-    /// 
+    ///
     /// The network messages are handled between each steps.
     ///
     /// Then, the node state is saved.
@@ -583,7 +583,7 @@ impl Node {
     }
 
     /// Handle all pending service and network messages up to `time`.
-    /// 
+    ///
     /// It means that the actions linked to each services or messages are executed here.
     pub fn handle_messages(&mut self, time: f32) {
         self.service_manager

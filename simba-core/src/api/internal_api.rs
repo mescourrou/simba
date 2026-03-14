@@ -1,4 +1,3 @@
-
 //! Internal API for communication between the [`Node`](crate::node::Node)s and the [`Simulator`](crate::simulator::Simulator). This module contains the definitions of the internal communication channels between the nodes and the simulator, as well as the functions to create them.
 use std::sync::mpsc::{self, Receiver, Sender};
 

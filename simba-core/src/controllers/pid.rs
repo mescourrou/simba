@@ -31,9 +31,9 @@ use simba_macros::config_derives;
 /// - longitudinal velocity (All models)
 /// - lateral velocity (Holonomic model)
 /// - angular velocity (All models)
-/// 
-/// If the `robot_model` field is not set, the PID will try to infer it from physics (if physics is internal). 
-/// If it cannot be inferred or if the gains provided do not match the expected size for the inferred model, a 
+///
+/// If the `robot_model` field is not set, the PID will try to infer it from physics (if physics is internal).
+/// If it cannot be inferred or if the gains provided do not match the expected size for the inferred model, a
 /// default model (unicycle) and default gains are used with a warning.
 #[config_derives(skip_deserialize)]
 #[derive(Default)]
@@ -46,19 +46,19 @@ pub struct PIDConfig {
     /// Proportional gains (`Kp`) ordered by model convention.
     ///
     /// Default for unicycle: `[1., 1.]` (longitudinal, angular).
-    /// 
+    ///
     /// Default for holonomic: `[1., 1., 1.]` (longitudinal, lateral, angular).
     pub proportional_gains: Vec<f32>,
     /// Derivative gains (`Kd`) ordered by model convention.
     ///
     /// Default for unicycle: `[0., 0.1]` (longitudinal, angular).
-    /// 
+    ///
     /// Default for holonomic: `[0., 0., 0.1]` (longitudinal, lateral, angular).
     pub derivative_gains: Vec<f32>,
     /// Integral gains (`Ki`) ordered by model convention.
     ///
     /// Default for unicycle: `[0., 0.]` (longitudinal, angular).
-    /// 
+    ///
     /// Default for holonomic: `[0., 0., 0.]` (longitudinal, lateral, angular).
     pub integral_gains: Vec<f32>,
 }

@@ -213,7 +213,7 @@ impl NodeRecord {
 ////////////////////////
 
 /// Configuration of the [`NodeType::Robot`].
-/// 
+///
 /// This configuration defines the different modules composing the robot, as well as their configuration.
 ///
 /// Default values:
@@ -227,23 +227,23 @@ impl NodeRecord {
 /// - `state_estimator_bench`: empty vector
 /// - `autospawn`: `true`
 /// - `labels`: empty vector
-/// 
+///
 /// # Example
 /// ```yaml
 /// robots:
 /// - name: robot2
-///   navigator: 
+///   navigator:
 ///     type: TrajectoryFollower
 ///     trajectory_path: path.yaml
 ///     forward_distance: 0.2
 ///     target_speed: 0.3
 ///     stop_distance: 0.2
 ///     stop_ramp_coefficient: 0.5
-///   controller: 
+///   controller:
 ///     type: PID
-///   physics: 
+///   physics:
 ///     type: Internal
-///     model: 
+///     model:
 ///       type: Unicycle
 ///       wheel_distance: 0.25
 ///     initial_state:
@@ -259,7 +259,7 @@ impl NodeRecord {
 ///           - 3.1416
 ///       variable_order: [x, y, orientation]
 ///     faults: []
-///   state_estimator: 
+///   state_estimator:
 ///     type: Perfect
 ///     prediction_activation:
 ///       period: {type: Num, value: 0.1}
@@ -270,7 +270,7 @@ impl NodeRecord {
 ///     - name: RobotSensor
 ///       send_to:
 ///       - Central Unit
-///       config: 
+///       config:
 ///         type: Robot
 ///         detection_distance: 100.0
 ///         activation_time:
@@ -592,20 +592,20 @@ impl UIComponent for RobotRecord {
 /// Configuration of the [`NodeType::ComputationUnit`].
 ///
 /// To get observations from other nodes, specify the `send_to` option of [`ManagedSensorConfig`](crate::sensors::sensor_manager::ManagedSensorConfig).
-/// 
+///
 /// Default values:
 /// - `name`: `"NoName"`
 /// - `network`: [`NetworkConfig::default`]
 /// - `state_estimators`: empty vector
 /// - `labels`: empty vector
-/// 
+///
 /// # Example
 /// ```yaml
 /// computation_units:
 /// - name: Central Unit
 ///   state_estimators:
 ///   - name: central_perfect
-///     config: 
+///     config:
 ///       type: Perfect
 ///       prediction_activation:
 ///         period: {type: Num, value: 0.1}
@@ -1119,7 +1119,10 @@ impl NodeFactory {
     }
 
     /// Builds a node by searching its name in global robot and computation-unit configs.
-    pub(crate) fn make_node_from_name(name: &str, params: &mut MakeNodeParams) -> SimbaResult<Node> {
+    pub(crate) fn make_node_from_name(
+        name: &str,
+        params: &mut MakeNodeParams,
+    ) -> SimbaResult<Node> {
         for robot_config in params.global_config.robots.iter() {
             if robot_config.name == name {
                 return Self::make_robot(robot_config, params);

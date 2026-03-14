@@ -47,7 +47,7 @@ impl UIComponent for Command {
 }
 
 /// Configuration enum selecting the robot kinematic model.
-/// 
+///
 /// Please note that the robot model is transfered from the Physics configuration to
 /// other modules (e.g. controller) if it differs or is not provided.
 ///

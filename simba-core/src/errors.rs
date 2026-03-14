@@ -1,11 +1,11 @@
 //! Error types and result aliases used across the crate.
-//! 
-//! This module defines the [`SimbaError`] struct, which contains a detailed error message and an error type 
-//! from the [`SimbaErrorTypes`] enum. It also defines the [`SimbaResult`] type alias for results returned by 
+//!
+//! This module defines the [`SimbaError`] struct, which contains a detailed error message and an error type
+//! from the [`SimbaErrorTypes`] enum. It also defines the [`SimbaResult`] type alias for results returned by
 //! Simba functions.
-//! 
-//! The error types are designed to be easily chained and to provide detailed information about the error chain 
-//! of errors. They cover a wide range of error categories, from mathematical errors to network errors, and can 
+//!
+//! The error types are designed to be easily chained and to provide detailed information about the error chain
+//! of errors. They cover a wide range of error categories, from mathematical errors to network errors, and can
 //! be extended as needed.
 use std::{
     error::Error,
@@ -17,7 +17,7 @@ use simba_macros::EnumToString;
 use crate::networking::{NetworkError, service_manager::ServiceError};
 
 /// Errors used in Simba.
-/// 
+///
 /// They are designed to be easily chained and to provide detailed information about the error chain of errors.
 #[derive(Debug, Clone, PartialEq, PartialOrd, EnumToString)]
 pub enum SimbaErrorTypes {

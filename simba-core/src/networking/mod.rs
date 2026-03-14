@@ -9,7 +9,7 @@
 //! 1. One-way messaging
 //!    Nodes send messages through [`Network::send_to`](network::Network::send_to) using
 //!    `channels`. Messages are stored in time-ordered
-//!    buffers and delivered when simulation time reaches their timestamp. Delivery happens during 
+//!    buffers and delivered when simulation time reaches their timestamp. Delivery happens during
 //!    sync periods. Range are checked
 //!    during simulator forwarding messages, in [`NetworkManager`](network_manager::NetworkManager)
 //!    and messages are dropped if the target node is out of range at the time of sending.

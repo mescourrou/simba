@@ -24,7 +24,7 @@ use super::distributions::{
 };
 
 /// Factory to create random variables with a deterministic behavior, using a global seed.
-/// 
+///
 /// The seeds of the generated random variables are computed by combining the global seed with a local seed generated for each variable, which ensures that the same sequence of random variables is generated across runs with the same global seed.
 pub struct DeterministRandomVariableFactory {
     /// Global run seed.

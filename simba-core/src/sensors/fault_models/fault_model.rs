@@ -8,7 +8,7 @@ use crate::{environment::Environment, errors::SimbaResult, sensors::SensorObserv
 ///
 /// This trait is used for user defined fault models that can be applied to sensor observations to simulate faults or noise.
 /// Otherwise, fault models are managed without trait using Enum variants in each sensors.
-/// 
+///
 pub trait FaultModel: Debug + Sync + Send {
     /// Post-initialization method called after the fault model is created and before the simulation starts.
     #[allow(unused_variables)]
@@ -19,7 +19,7 @@ pub trait FaultModel: Debug + Sync + Send {
     /// Add faults to the given sensor observations based on the current time, a seed for randomness, and the environment context
     ///
     /// The method modifies the `obs_list` in place by adding new observations and modifying or removing existing ones to simulate faults.
-    /// 
+    ///
     /// # Arguments
     /// * `time` - Current simulation time used for time-based fault behavior.
     /// * `seed` - A float seed for any randomness in the fault model, ensuring reproducibility. The seed is based on time but can vary if multiple faults are applied at the same time step.

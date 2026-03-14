@@ -1,7 +1,7 @@
 //! Logging configuration and internal debug-channel filtering.
 //!
 //! Simulator should not generate `debug` logs if [`InternalLog`] is not enabled.
-//! 
+//!
 //! This module provides:
 //! - [`LogLevel`] for global logging level selection,
 //! - [`InternalLog`] for fine-grained internal debug categories,

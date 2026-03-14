@@ -136,7 +136,6 @@ impl Barrier {
         }
     }
 
-
     /// Removes one thread from the barrier, allowing it to unblock sooner.
     pub fn remove_one(&self) {
         let mut lock = self.lock.lock().unwrap();

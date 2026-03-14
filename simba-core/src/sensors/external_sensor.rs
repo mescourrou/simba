@@ -133,7 +133,13 @@ impl ExternalSensor {
                         "Plugin API not set!".to_string(),
                     )
                 })?
-                .get_sensor(&config.config, global_config, va_factory, network, initial_time),
+                .get_sensor(
+                    &config.config,
+                    global_config,
+                    va_factory,
+                    network,
+                    initial_time,
+                ),
         })
     }
 }

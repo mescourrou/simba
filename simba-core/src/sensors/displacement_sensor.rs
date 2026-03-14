@@ -2,8 +2,7 @@
 //!
 //! This module provides a [`Sensor`] that reports robot displacement
 //! between consecutive observations as translation and rotation.
-//! It supports filtering through
-//! [`SensorFilterConfig`]
+//! It supports filtering through [`DisplacementSensorFilterConfig`]
 //! and configurable fault pipelines through [`DisplacementSensorFaultModelConfig`].
 
 use std::sync::Arc;
@@ -23,10 +22,10 @@ use crate::recordable::Recordable;
 use crate::sensors::fault_models::additive::{AdditiveFault, AdditiveFaultConfig};
 use crate::sensors::fault_models::external_fault::{ExternalFault, ExternalFaultConfig};
 use crate::sensors::fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig};
+use crate::sensors::sensor_filters::SensorFilter;
 use crate::sensors::sensor_filters::external_filter::{ExternalFilter, ExternalFilterConfig};
 use crate::sensors::sensor_filters::python_filter::{PythonFilter, PythonFilterConfig};
 use crate::sensors::sensor_filters::range_filter::{RangeFilter, RangeFilterConfig};
-use crate::sensors::sensor_filters::SensorFilter;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -44,11 +43,11 @@ enum_variables!(
     "Variables of the [`DisplacementSensor`]."
     DisplacementSensorVariables;
     "Authorized viaribles in filters"
-    Filter, 
+    Filter,
     "Authorized variables for additive fault proportional scaling"
-    Prop, 
+    Prop,
     "Authorized variables in faults"
-    Faults: 
+    Faults:
     "Displacement following X axis in the frame of the robot before displacement"
     X, "x", "dx";
     Filter, Prop, Faults:
@@ -57,10 +56,10 @@ enum_variables!(
     Filter, Prop, Faults:
     "Rotation of the robot during the displacement"
     Rotation, "rotation", "r";
-    Filter, Prop, Faults: 
+    Filter, Prop, Faults:
     "Euclidean norm of the displacement (sqrt(x^2 + y^2))"
     Translation, "translation", "t";
-    Filter, Prop: 
+    Filter, Prop:
     "Lie distance during the displacement (velocity * time)"
     Distance, "distance", "d";
     Filter, Prop:
@@ -130,9 +129,9 @@ impl DisplacementSensorFaultModelType {
 
 /// Configuration enum selecting displacement sensor filtering strategies
 /// for DisplacementSensor observations.
-/// 
+///
 /// When multiple filters are applied to a sensor, all must agree to keep the observation.
-/// 
+///
 /// Default value: [`DisplacementSensorFilterConfig::Range`] with [`RangeFilterConfig::default`].
 #[config_derives]
 #[derive(UIComponent)]
@@ -182,7 +181,7 @@ impl DisplacementSensorFilterType {
 }
 
 /// Configuration of the [`DisplacementSensor`].
-/// 
+///
 /// The DisplacementSensor observes the robot displacement between two observations, and reports it as a translation along the X and Y axis of the robot, and a rotation.
 /// The displacement is expressed in the frame of the robot before displacement, meaning that a positive translation along X means that the robot moved forward, and a positive rotation means that the robot rotated counterclockwise.
 ///
@@ -744,7 +743,6 @@ impl Sensor for DisplacementSensor {
                             }
                         }
                     }
-                    
                 }
             }
         } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {

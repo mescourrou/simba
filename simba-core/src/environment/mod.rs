@@ -40,9 +40,9 @@ use crate::{gui::utils::path_finder, simulator::SimulatorConfig};
 pub mod oriented_landmark;
 
 /// Configuration for building an [`Environment`].
-/// 
+///
 /// The map contains the map geometry. It is loaded from a file when `map_path` is provided, or initialized as empty otherwise. The map file should be parsable by the [`Map`] struct, which currently supports a simple custom format (see its documentation for details).
-/// 
+///
 /// The map path is relative to the simulator config path.
 #[config_derives]
 #[derive(Default)]
@@ -600,9 +600,9 @@ impl Environment {
 }
 
 /// Map, containing multiple [`OrientedLandmark`], used for the map file.
-/// 
+///
 /// The map file should be parsable by this struct, which currently supports a simple custom format (see its documentation for details).
-/// 
+///
 /// # File example
 /// ```yaml
 /// landmarks:

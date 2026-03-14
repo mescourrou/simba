@@ -2,7 +2,7 @@
 //!
 //! This module provides a [`Sensor`] that observes other robots relative to the ego robot frame.
 //! It supports configurable filters through
-//! [`SensorFilterConfig`] and fault pipelines configured by [`RobotSensorFaultModelConfig`].
+//! [`RobotSensorFilterConfig`] and fault pipelines configured by [`RobotSensorFaultModelConfig`].
 
 use super::fault_models::fault_model::FaultModel;
 use super::{Sensor, SensorObservation, SensorRecord};
@@ -24,11 +24,11 @@ use crate::sensors::fault_models::misassociation::{
 };
 use crate::sensors::fault_models::misdetection::{MisdetectionFault, MisdetectionFaultConfig};
 use crate::sensors::fault_models::python_fault_model::{PythonFaultModel, PythonFaultModelConfig};
+use crate::sensors::sensor_filters::SensorFilter;
 use crate::sensors::sensor_filters::external_filter::{ExternalFilter, ExternalFilterConfig};
 use crate::sensors::sensor_filters::python_filter::{PythonFilter, PythonFilterConfig};
 use crate::sensors::sensor_filters::range_filter::{RangeFilter, RangeFilterConfig};
 use crate::sensors::sensor_filters::string_filter::{StringFilter, StringFilterConfig};
-use crate::sensors::sensor_filters::SensorFilter;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -52,13 +52,13 @@ enum_variables!(
     Faults:
     "Relative X coordinate."
     X, "x";
-    Filter, Faults: 
+    Filter, Faults:
     "Relative Y coordinate."
     Y, "y";
     Filter, Faults:
     "Relative orientation (angle) of the observed robot compared to the ego robot."
     Orientation, "orientation", "z";
-    Filter, Faults: 
+    Filter, Faults:
     "Relative distance to the observed robot."
     R, "r", "d", "distance";
     Filter, Faults:
@@ -153,9 +153,9 @@ impl RobotSensorFaultModelType {
 /// This enum provides a unified interface for declaring sensor filters with different decision logic.
 /// Each variant wraps the configuration for a specific filter type.
 /// When multiple filters are applied to a sensor, all must agree to keep the observation.
-/// 
+///
 /// Default value: [`RobotSensorFilterConfig::Range`] with [`RangeFilterConfig::default`].
-/// 
+///
 /// # Config example:
 /// ```yaml
 /// filters:
@@ -223,12 +223,12 @@ impl RobotSensorFilterType {
 }
 
 /// Configuration of the [`RobotSensor`].
-/// 
+///
 /// The robot sensor observes other robots relative to the ego robot frame.
 ///
 /// Occlusions are handled by default, but can be bypassed by setting `xray` to `true`. In this case, the sensor will detect all robots within the `detection_distance` regardless of occlusions.
 /// The height of the sensor is considered at 0., so all landmarks can occlude robots.
-/// 
+///
 /// Default values:
 /// - `detection_distance`: `5.0`
 /// - `activation_time`: `Some(PeriodicityConfig { period: 0.1, offset: None, table: None })`
@@ -507,15 +507,15 @@ impl RobotSensor {
                 RobotSensorFaultModelConfig::Python(cfg) => RobotSensorFaultModelType::Python(
                     PythonFaultModel::from_config(cfg, global_config, initial_time)?,
                 ),
-                RobotSensorFaultModelConfig::External(cfg) => RobotSensorFaultModelType::External(
-                    ExternalFault::from_config(
+                RobotSensorFaultModelConfig::External(cfg) => {
+                    RobotSensorFaultModelType::External(ExternalFault::from_config(
                         cfg,
                         plugin_api,
                         global_config,
                         va_factory,
                         initial_time,
-                    )?,
-                ),
+                    )?)
+                }
             });
         }
 
@@ -534,15 +534,15 @@ impl RobotSensor {
                 RobotSensorFilterConfig::Python(cfg) => RobotSensorFilterType::Python(
                     PythonFilter::from_config(cfg, global_config, initial_time)?,
                 ),
-                RobotSensorFilterConfig::External(cfg) => RobotSensorFilterType::External(
-                    ExternalFilter::from_config(
+                RobotSensorFilterConfig::External(cfg) => {
+                    RobotSensorFilterType::External(ExternalFilter::from_config(
                         cfg,
                         plugin_api,
                         global_config,
                         va_factory,
                         initial_time,
-                    )?,
-                ),
+                    )?)
+                }
             });
         }
 

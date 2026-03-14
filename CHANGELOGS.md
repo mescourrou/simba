@@ -1,5 +1,16 @@
 # Changelogs
 
+## v1.7.0
+Features:
+- [breaking] Refactor sensor filter and fault configuration to enforce valid variable usage depending on the sensor type. Error will be raised during deserialization if invalid variable is used for a sensor type.
+- [doc] Add extensive documentation to all publicly exposed structs and functions, with examples for configuration and usage.
+- New Scan sensor: provides range and bearing observations of landmarks, as well as radial velocity.
+
+Fixes:
+- Fix self-sending messages being lost
+- Fix node kill action
+- Fix component creation order so that `post_init` is called after all components are created
+
 ## v1.6.0
 Features:
 - [breaking] Send current command to state estimator prediction step

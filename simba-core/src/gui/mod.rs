@@ -1,7 +1,7 @@
 //! Graphical user interface components and utilities.
-//! 
-//! This module contains the implementation of the GUI for Simba, built using the `egui` library. It provides a 
-//! main application struct [`SimbaApp`] that manages the state and rendering of the GUI, as well as various 
+//!
+//! This module contains the implementation of the GUI for Simba, built using the `egui` library. It provides a
+//! main application struct [`SimbaApp`] that manages the state and rendering of the GUI, as well as various
 //! components and utilities to display and edit simulator configurations and records.
 
 mod app;
@@ -21,9 +21,9 @@ use crate::{
 };
 
 /// Function to run the GUI of Simba. Can be called in the main function.
-/// 
+///
 /// # Arguments
-/// * `default_config_path` - The default path to the configuration file. If some is given, the GUI will start with the configuration loaded from this path. 
+/// * `default_config_path` - The default path to the configuration file. If some is given, the GUI will start with the configuration loaded from this path.
 /// * `plugin_api` - The plugin API to load external modules. Required to load external modules of the simulator.
 /// * `load_results` - Whether to load simulation results at startup. The `default_config_path` must be given to load the results, as the results path is loaded from the configuration file. If `default_config_path` is not given, this argument is ignored.
 pub fn run_gui(

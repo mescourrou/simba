@@ -25,7 +25,7 @@ use crate::{
 };
 
 /// Asynchronous API for [`Simulator`] in order to allow running the simulator in a separate thread, and communicate with it through channels. This is a client of [`AsyncApiServer`].
-/// 
+///
 /// It is used by the GUI, or when using a Python API as the simulator should not block the main thread.
 #[derive(Clone)]
 pub struct AsyncApi {
@@ -62,7 +62,7 @@ pub struct AsyncApiServer {
 /// Runner for the asynchronous API, to run the simulator in a separate thread and listen to API calls.
 /// It owns the simulator and the API server, and runs the server in a separate thread.
 /// It also provides a public API to send requests to the simulator, and a method to stop the runner and the threads.
-/// 
+///
 /// # Example:
 /// ```rust
 /// // Create a new runner with a new simulator
@@ -71,12 +71,12 @@ pub struct AsyncApiServer {
 /// let api = Arc::new(Mutex::new(runner.lock().unwrap().get_api()));
 /// // Start the runner (not the simulator)
 /// runner.lock().unwrap().run(None);
-/// 
+///
 /// api.lock().unwrap().load_config.async_call(AsyncApiLoadConfigRequest {
 ///     config: SimulatorConfig::default(),
 ///     force_send_results: false,
 /// });
-/// 
+///
 /// if let Ok(config) = api.lock().unwrap().load_config.wait_result() {
 ///     println!("Config loaded: {:?}", config);
 ///     // Run the simulator for 10 seconds, without resetting it (it will run from the current state)
@@ -84,10 +84,10 @@ pub struct AsyncApiServer {
 ///         max_time: None, // Use the max_time defined in the simulator config
 ///         reset: false,  // Do not reset the simulator, run from the current state
 ///     }).unwrap();
-/// 
+///
 ///    api.lock().unwrap().compute_results.wait_result(()).unwrap();
 /// }
-/// 
+///
 /// // Stop the runner
 /// runner.lock().unwrap().stop();
 /// ```
@@ -158,7 +158,7 @@ impl AsyncApiRunner {
     }
 
     /// Stop the runner and the threads waiting for API calls.
-    /// 
+    ///
     /// This method is automatically called when the runner is dropped, but can be called manually to stop the threads before dropping the runner.
     /// If threads are blocked, they will be force stopped after a short delay using `pthread_cancel`.
     pub fn stop(&mut self) {
@@ -184,10 +184,10 @@ impl AsyncApiRunner {
     }
 
     /// Start the runner.
-    /// 
+    ///
     /// It will spawn a thread to listen to the API calls and execute them on the simulator.
     /// It will also spawn threads for each API call to execute them in parallel and not block the main thread. The threads will be stopped when the runner is stopped.
-    /// 
+    ///
     /// # Arguments
     /// * `plugin_api` - Optional plugin API to use when loading the configuration. It can be None if the plugin API is not needed but required if the configuration use Externals.
     pub fn run(&mut self, plugin_api: Option<Arc<dyn PluginAPI>>) {

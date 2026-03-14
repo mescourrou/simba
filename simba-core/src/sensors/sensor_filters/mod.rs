@@ -4,16 +4,9 @@
 //! Filters can be configured to accept or reject observations based on numeric ranges (for enumerated variables), string patterns (for sensor IDs or labels), or custom logic via Python or external plugins.
 //! Multiple filters can be chained together (the order is important); all custom filters must accept an observation for it to pass through.
 //!
-//! The module provides two key types:
-//! - [`SensorFilterConfig`]: Configuration enum for different filter strategies (declarative)
-//! - [`SensorFilterType`]: Runtime enum containing instantiated filter implementations (operational)
-//! - [`SensorFilter`]: Base trait for all custom filter implementations
+//! The module provides [`SensorFilter`]: Base trait for all custom filter implementations
 
-use crate::{
-    errors::SimbaResult,
-    sensors::SensorObservation,
-    state_estimators::State,
-};
+use crate::{errors::SimbaResult, sensors::SensorObservation, state_estimators::State};
 
 pub mod external_filter;
 pub mod python_filter;

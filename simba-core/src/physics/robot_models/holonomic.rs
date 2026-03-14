@@ -46,7 +46,7 @@ impl UIComponent for HolonomicCommand {
 /// Configuration for the [`Holonomic`] robot model.
 ///
 /// This configuration defines saturation values.
-/// 
+///
 /// Default values:
 /// - `max_longitudinal_velocity`: `10.0`
 /// - `max_lateral_velocity`: `10.0`
