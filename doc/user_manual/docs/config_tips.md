@@ -362,7 +362,6 @@ Add time analysis to track performance:
 time_analysis:
   exporter:
     type: TraceEventExporter
-  keep_last: true
   output_path: time_performance
   analysis_unit: ms                   # Milliseconds for precision
 ```
@@ -598,7 +597,6 @@ log:
     type: Debug  # Detailed logs
 
 time_analysis:
-  keep_last: true
   output_path: timing_analysis
   analysis_unit: ms
 

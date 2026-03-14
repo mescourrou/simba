@@ -10,7 +10,6 @@ results:
 # time_analysis:
 #   exporter: TraceEventExporter
 #   output_path: "time_performance"
-#   keep_last: true
 max_time: 60
 environment:
   map_path: "maps/landmarks_square.yaml"

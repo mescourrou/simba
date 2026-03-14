@@ -12,7 +12,6 @@ max_time: 100.0
 time_analysis:
   exporter:
     type: TraceEventExporter
-  keep_last: true
   output_path: time_performance
   analysis_unit: s
 random_seed: 745138341
