@@ -1,3 +1,5 @@
+//! Periodicity utilities for scheduling periodic activations in the simulator.
+
 use simba_macros::config_derives;
 
 use crate::{
@@ -14,11 +16,56 @@ use crate::{
 #[cfg(feature = "gui")]
 use crate::{constants::TIME_ROUND_DECIMALS, gui::UIComponent};
 
+/// Configuration of a periodic trigger.
+///
+/// It defines a period (fixed or random), an optional offset, and an optional
+/// intra-period activation table.
 #[config_derives]
 pub struct PeriodicityConfig {
+    #[check]
+    /// Main period duration between activations.
     pub period: NumberConfig,
+    #[check]
+    /// Initial offset before the first activation.
+    ///
+    /// If `None`, the offset defaults to the sampled period value.
     pub offset: Option<NumberConfig>,
+    /// Optional list of activation times inside each period.
+    ///
+    /// Values are interpreted as offsets within one period. Values should be positive and within the period duration. If not empty, activations are scheduled according to this table.
     pub table: Option<Vec<f32>>,
+}
+
+impl Check for PeriodicityConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if let NumberConfig::Num(num) = &self.period
+            && *num <= 0.
+        {
+            errors.push("Periodicity period should be positive".to_string());
+        }
+        if let Some(offset) = &self.offset
+            && let NumberConfig::Num(num) = offset
+            && *num < 0.
+        {
+            errors.push("Periodicity offset should be positive or null".to_string());
+        }
+        if let Some(table) = &self.table {
+            if table.iter().any(|v| *v < 0.) {
+                errors.push("Periodic table values should be positive or null".to_string());
+            }
+            if let NumberConfig::Num(p) = &self.period
+                && table.iter().any(|v| *v > *p)
+            {
+                errors.push("Periodic table values should be within the period".to_string());
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for PeriodicityConfig {
@@ -171,6 +218,10 @@ impl UIComponent for PeriodicityConfig {
     }
 }
 
+/// Runtime periodic scheduler.
+///
+/// This type computes the next activation time from [`PeriodicityConfig`], and
+/// can be updated as simulation time progresses.
 #[derive(Debug, Clone)]
 pub struct Periodicity {
     period: DeterministRandomVariable,
@@ -181,6 +232,12 @@ pub struct Periodicity {
 }
 
 impl Periodicity {
+    /// Build a periodic scheduler from configuration.
+    ///
+    /// # Arguments
+    /// * `config` - Periodicity configuration.
+    /// * `va_factory` - Factory used to sample random period/offset values.
+    /// * `initial_time` - Simulation start time used to initialize the schedule.
     pub fn from_config(
         config: &PeriodicityConfig,
         va_factory: &DeterministRandomVariableFactory,
@@ -245,10 +302,15 @@ impl Periodicity {
         }
     }
 
+    /// Return the next scheduled activation time.
     pub fn next_time(&self) -> f32 {
         self.next_activation_time
     }
 
+    /// Advance the schedule using the current simulation `time`.
+    ///
+    /// When `time` reaches the current activation, the next activation is computed
+    /// either from the periodic table (if present) or from the period generator.
     pub fn update(&mut self, time: f32) {
         if (time - self.next_activation_time) >= -TIME_ROUND / 2. {
             if let Some(table) = &self.periodic_table {

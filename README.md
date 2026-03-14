@@ -7,39 +7,37 @@ Here is a list of available and considered features. The order is not a priority
 - [X] First simple control-state estimation-physics loop
 - [X] Message exchange between robots
 - [X] Automatic result treatment at the end of runs
-- [X] Basic sensors: speed, GNSS, relative landmark, inter-robot
+- [X] Basic sensors: displacement, speed, GNSS, relative landmark, inter-robot, scan
 - [X] State estimator test bench
 - [X] Determinist random variables for noise simulation
 - [X] Python bindings: state estimators, controllers, navigators and physics
-- [X] Back-in-time optimization: jump to present if no modification was made in the past to avoid unnecessary computation
 - [X] Time performance analysis
 - [X] Complex noise addition and faults
-- [X] Simple Graphical User Interface
-- [ ] Possibility to read data from file instead of simulation: test state estimation algorithms on real data
+- [X] Graphical User Interface (real time + replay)
+- [X] PluginAPI to provide custom implementations of components (controllers, state estimators, physics, etc.)
+- [X] Triggerable sensors
+- [X] Centralized algorithm possibility
 - [ ] Export data to file
+- [ ] Possibility to read data from file instead of simulation: test state estimation algorithms on real data
 - [ ] ROS2 interface (rosbag reading)
 - [ ] Gazebo interface (maybe)
 - [ ] C++ bindings
-- [X] Advanced Graphical User Interface (real time + replay)
-- [X] Extend PluginAPI to sensors
-- [X] Controllable sensors
 - [ ] New faults: delay, activation windows
-- [X] Central algorithm possibility
 
 ## Crates
 - `simba-core`: Main library.
 - `simba-cmd`: Command line tool to launch the simulator on a given configuration file.
 - `simba-tools`: Command line tool for developers.
 - `simba-macros`: Procedural macros used in `simba-core`.
+- `simba-com`: Library for message exchange between nodes and synchronization.
 
 ## Cargo Features:
 - "gui": enable GUI running. Use `gui::run_gui` to start a GUI.
-- "force_hard_determinism": disable features that are not fully time-deterministic.
 
 ## Documentation
 You can compile the documentation using Cargo:
 ```
-cargo doc --no-deps --document-private-items
+cargo doc --no-deps
 ```
 
 The last Rust documentation is available [here](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba).

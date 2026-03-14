@@ -1,3 +1,12 @@
+//! Python bindings and RPC bridge for navigator implementations.
+//!
+//! This module connects Python navigator objects to the Rust simulation runtime.
+//! [`PythonNavigator`] owns a Python model and exposes asynchronous request handlers through
+//! [`PythonNavigatorAsyncClient`], based on [`RemoteFunctionCall`].
+//!
+//! It also defines [`NavigatorWrapper`], the Python-visible base class used when implementing a
+//! navigator from Python.
+
 use std::{str::FromStr, sync::Arc};
 
 use log::debug;
@@ -20,12 +29,18 @@ use crate::{
 
 use super::{Navigator, NavigatorRecord};
 
+/// Simulator-side RPC handles used by Rust nodes to call Python navigator logic asynchronously.
 #[derive(Debug, Clone)]
 pub struct PythonNavigatorAsyncClient {
+    /// Remote call to `post_init`.
     pub post_init: RemoteFunctionCall<NodeWrapper, SimbaResult<()>>,
+    /// Remote call to `compute_error`.
     pub compute_error: RemoteFunctionCall<(NodeWrapper, WorldState), ControllerError>,
+    /// Remote call to `record`.
     pub record: RemoteFunctionCall<(), NavigatorRecord>,
+    /// Remote call to `pre_loop_hook`.
     pub pre_loop_hook: RemoteFunctionCall<(NodeWrapper, f32), ()>,
+    /// Remote call to `next_time_step`.
     pub next_time_step: RemoteFunctionCall<(), Option<f32>>,
 }
 
@@ -57,6 +72,7 @@ impl Recordable<NavigatorRecord> for PythonNavigatorAsyncClient {
 }
 
 #[derive(Debug)]
+/// Python-side bridge that executes navigator methods on a Python model.
 pub struct PythonNavigator {
     model: Py<PyAny>,
     client: PythonNavigatorAsyncClient,
@@ -68,6 +84,9 @@ pub struct PythonNavigator {
 }
 
 impl PythonNavigator {
+    /// Creates a new Python-backed navigator bridge.
+    ///
+    /// The provided `py_model` must implement the [`Navigator`] interface from Python, otherwise method calls will fail at runtime.
     pub fn new(py_model: Py<PyAny>) -> PythonNavigator {
         if is_enabled(crate::logger::InternalLog::API) {
             Python::attach(|py| {
@@ -99,10 +118,12 @@ impl PythonNavigator {
 }
 
 impl PythonNavigator {
+    /// Returns a cloneable asynchronous client used by the runtime.
     pub fn get_client(&self) -> PythonNavigatorAsyncClient {
         self.client.clone()
     }
 
+    /// Polls all pending RPC requests and dispatches them to Python methods.
     pub fn check_requests(&mut self) {
         self.post_init
             .clone()
@@ -169,10 +190,16 @@ impl PythonNavigator {
 
 #[pyclass(subclass)]
 #[pyo3(name = "Navigator")]
+/// Python-visible base class for custom navigator implementations.
+///
+/// Python subclasses are expected to override the exposed methods.
 pub struct NavigatorWrapper {}
 
 #[pymethods]
 impl NavigatorWrapper {
+    /// Creates a new Python navigator wrapper.
+    ///
+    /// Arguments are accepted to match the expected constructor signature used by the simulator.
     #[new]
     pub fn new(_config: Py<PyAny>, _initial_time: f32) -> NavigatorWrapper {
         Self {}

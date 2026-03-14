@@ -1,7 +1,15 @@
-/*!
-Provide the [`SensorManager`], which owns the different [`Sensor`]s and get the
-available observations.
-*/
+//! Sensor manager implementation.
+//!
+//! This module defines [`SensorManager`], the component responsible for owning node sensors,
+//! triggering observation production, handling inter-node observation messages, and exposing
+//! consolidated observations to the rest of the simulation pipeline.
+//! Sensor creation is driven by [`SensorManagerConfig`], which contains [`ManagedSensorConfig`]
+//! entries describing each managed sensor and its routing behavior.
+//!
+//!
+//! All sensors generate different types of observations but every observation has the maximum of available variables.
+//! If the user wants to use only a subset of the variables, they can ignore the others.
+//!
 
 extern crate confy;
 use core::f32;
@@ -28,6 +36,7 @@ use crate::node::Node;
 use crate::node::node_factory::FromConfigArguments;
 use crate::sensors::displacement_sensor::DisplacementSensor;
 use crate::sensors::external_sensor::ExternalSensor;
+use crate::sensors::scan_sensor::ScanSensor;
 use crate::simulator::SimbaBrokerMultiClient;
 use crate::state_estimators::State;
 use crate::utils::SharedRwLock;
@@ -39,12 +48,27 @@ use super::robot_sensor::RobotSensor;
 use super::speed_sensor::{SpeedSensor, SpeedSensorConfig};
 use super::{Observation, ObservationRecord, Sensor, SensorConfig, SensorRecord};
 
+/// Configuration of one managed sensor entry.
+///
+/// It defines the sensor instance, optional destination nodes for forwarded observations,
+/// and whether the sensor is event-triggered. Observation that are sent to other nodes are also
+/// available locally in the node's sensor manager, so they can be used by the node's state estimator.
+///
+/// Default values:
+/// - `name`: `"some_sensor"`
+/// - `send_to`: empty vector
+/// - `triggered`: `false`, setting it to `true` ignore the activation times of the sensor and wait for [`SensorTriggerMessage`] to produce observations.
+/// - `config`: [`SensorConfig::Speed`] with [`SpeedSensorConfig::default`]
 #[config_derives]
 pub struct ManagedSensorConfig {
+    /// Name used to identify this sensor in records and trigger channels.
     pub name: String,
+    /// Destination node names receiving forwarded observations from this sensor.
     pub send_to: Vec<String>,
+    /// Whether this sensor produces observations only when explicitly triggered.
     pub triggered: bool,
     #[check]
+    /// Concrete sensor configuration.
     pub config: SensorConfig,
 }
 
@@ -54,7 +78,7 @@ impl Default for ManagedSensorConfig {
             name: "some_sensor".to_string(),
             send_to: Vec::new(),
             triggered: false,
-            config: SensorConfig::SpeedSensor(SpeedSensorConfig::default()),
+            config: SensorConfig::Speed(SpeedSensorConfig::default()),
         }
     }
 }
@@ -143,10 +167,14 @@ impl UIComponent for ManagedSensorConfig {
 }
 
 /// Configuration listing all the [`SensorConfig`]s.
+///
+/// Default values:
+/// - `sensors`: empty vector
 #[config_derives]
 #[derive(Default)]
 pub struct SensorManagerConfig {
     #[check]
+    /// List of managed sensor configurations.
     pub sensors: Vec<ManagedSensorConfig>,
 }
 
@@ -204,11 +232,14 @@ impl UIComponent for SensorManagerConfig {
     }
 }
 
-/// Record listing all the [`SensorRecord`]s and the next observation time.
+/// Record listing all the [`SensorRecord`]s, the next observation time and the last emitted observations of the node's sensors.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SensorManagerRecord {
+    /// Per-sensor records currently managed by the node.
     pub sensors: Vec<ManagedSensorRecord>,
+    /// Next time at which at least one sensor is expected to produce observations.
     pub next_time: Option<f32>,
+    /// Last emitted observations in record form.
     pub last_observations: Vec<ObservationRecord>,
 }
 
@@ -233,13 +264,18 @@ impl UIComponent for SensorManagerRecord {
     }
 }
 
+/// Record for one managed sensor.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ManagedSensorRecord {
+    /// Sensor name.
     pub name: String,
+    /// Last trigger time if this sensor was externally triggered.
     pub last_triggered: Option<f32>,
+    /// Sensor-specific record payload.
     pub record: SensorRecord,
 }
 
+/// Runtime manager of one sensor allowing its triggering, observation retrieval, and observation forwarding.
 #[derive(Debug)]
 struct ManagedSensor {
     name: String,
@@ -249,12 +285,16 @@ struct ManagedSensor {
     sensor: SharedRwLock<Box<dyn Sensor>>,
 }
 
+/// Message used to trigger a sensor through the internal network.
+///
+/// The message is empty for now, but it could be extended in the future to include additional information about the trigger (e.g. time to trigger, dynamic sensor parameters, etc.).
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[pyclass(get_all, set_all)]
 pub struct SensorTriggerMessage {}
 
 #[pymethods]
 impl SensorTriggerMessage {
+    /// Creates an empty trigger message.
     #[new]
     pub fn new() -> Self {
         Self {}
@@ -274,7 +314,9 @@ pub struct SensorManager {
 }
 
 impl SensorManager {
+    /// Channel segment used as the root path for sensor-manager messages.
     pub const CHANNEL_NAME: &'static str = "sensors";
+    /// Channel segment used for observation payload messages.
     pub const OBSERVATION_CHANNEL: &'static str = "observations";
 
     /// Makes a new [`SensorManager`] without any [`Sensor`].
@@ -294,8 +336,8 @@ impl SensorManager {
     ///
     /// ## Arguments
     /// * `config` - Config of the [`SensorManager`].
-    /// * `plugin_api` - Not used yet, but will be used for external [`Sensor`]s.
-    /// * `meta_config` - Simulator meta config.
+    /// * `from_config_args` - Additional arguments required for sensor instantiation from config, including plugin API reference, global config, random variable factory, and initial time.
+    /// * `initial_state` - Initial state of the node, required for some sensors (e.g. [`DisplacementSensor`]) to compute their first observations.
     pub fn from_config(
         config: &SensorManagerConfig,
         from_config_args: &FromConfigArguments,
@@ -325,51 +367,51 @@ impl SensorManager {
                 name: sensor_config.name.clone(),
                 send_to: sensor_config.send_to.clone(),
                 sensor: Arc::new(RwLock::new(match &sensor_config.config {
-                    SensorConfig::OrientedLandmarkSensor(c) => {
+                    SensorConfig::OrientedLandmark(c) => {
                         Box::new(OrientedLandmarkSensor::from_config(
                             c,
                             from_config_args.plugin_api,
                             from_config_args.global_config,
-                            from_config_args.node_name,
                             from_config_args.va_factory,
                             from_config_args.initial_time,
-                        )) as Box<dyn Sensor>
+                        )?) as Box<dyn Sensor>
                     }
-                    SensorConfig::SpeedSensor(c) => Box::new(SpeedSensor::from_config(
+                    SensorConfig::Speed(c) => Box::new(SpeedSensor::from_config(
                         c,
                         from_config_args.plugin_api,
                         from_config_args.global_config,
-                        from_config_args.node_name,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
-                    )) as Box<dyn Sensor>,
-                    SensorConfig::DisplacementSensor(c) => {
-                        Box::new(DisplacementSensor::from_config(
-                            c,
-                            from_config_args.plugin_api,
-                            from_config_args.global_config,
-                            from_config_args.node_name,
-                            from_config_args.va_factory,
-                            from_config_args.initial_time,
-                            initial_state,
-                        )) as Box<dyn Sensor>
-                    }
-                    SensorConfig::GNSSSensor(c) => Box::new(GNSSSensor::from_config(
+                    )?) as Box<dyn Sensor>,
+                    SensorConfig::Displacement(c) => Box::new(DisplacementSensor::from_config(
                         c,
                         from_config_args.plugin_api,
                         from_config_args.global_config,
-                        from_config_args.node_name,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
-                    )) as Box<dyn Sensor>,
-                    SensorConfig::RobotSensor(c) => Box::new(RobotSensor::from_config(
+                        initial_state,
+                    )?) as Box<dyn Sensor>,
+                    SensorConfig::GNSS(c) => Box::new(GNSSSensor::from_config(
                         c,
                         from_config_args.plugin_api,
                         from_config_args.global_config,
-                        from_config_args.node_name,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
-                    )) as Box<dyn Sensor>,
+                    )?) as Box<dyn Sensor>,
+                    SensorConfig::Robot(c) => Box::new(RobotSensor::from_config(
+                        c,
+                        from_config_args.plugin_api,
+                        from_config_args.global_config,
+                        from_config_args.va_factory,
+                        from_config_args.initial_time,
+                    )?) as Box<dyn Sensor>,
+                    SensorConfig::Scan(c) => Box::new(ScanSensor::from_config(
+                        c,
+                        from_config_args.plugin_api,
+                        from_config_args.global_config,
+                        from_config_args.va_factory,
+                        from_config_args.initial_time,
+                    )?) as Box<dyn Sensor>,
                     SensorConfig::External(c) => Box::new(ExternalSensor::from_config(
                         c,
                         from_config_args.plugin_api,
@@ -423,6 +465,12 @@ impl SensorManager {
         Ok(())
     }
 
+    /// Handles incoming sensor-manager messages at the given simulation time.
+    ///
+    /// This consumes queued messages from the internal subscriber, updates remote
+    /// observations, and applies trigger messages to targeted sensors.
+    ///
+    /// This is where distant observations are collected.
     pub fn handle_messages(&mut self, time: f32) {
         while let Some((path, envelope)) = self.message_client.as_ref().unwrap().try_receive(time) {
             debug!(
@@ -474,7 +522,8 @@ impl SensorManager {
         }
     }
 
-    /// Get the observations at the given `time`.
+    /// Consume the last observations. This includes both local observations produced by the node's sensors
+    /// and distant observations received from other nodes.
     pub fn get_observations(&mut self) -> Vec<Observation> {
         let mut observations = Vec::new();
         observations.extend(self.distant_observations.drain(0..));
@@ -491,6 +540,10 @@ impl SensorManager {
         observations
     }
 
+    /// Produces local observations for sensors that are due or externally triggered.
+    ///
+    /// Generated observations are stored locally and forwarded to destination nodes
+    /// according to each sensor's `send_to` configuration.
     pub fn make_observations(&mut self, node: &mut Node, time: f32) {
         self.local_observations.clear();
         self.last_observations.clear();

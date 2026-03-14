@@ -1,3 +1,9 @@
+//! Python-based sensor observation filtering.
+//!
+//! This module provides a `SensorFilter` implementation that delegates filtering logic to a Python class.
+//! Users can define custom filter behavior by implementing a Python class with [`SensorFilter`] interface
+//! that will be invoked during simulation to modify or drop sensor observations.
+
 use pyo3::prelude::*;
 
 use crate::{
@@ -13,14 +19,24 @@ use crate::{
     },
 };
 
-python_class_config!(PythonFilterConfig, "Python Filter", "python-filter");
+python_class_config!(
+    /// Configuration for the Python-based sensor filter.
+    PythonFilterConfig, "Python Filter", "python-filter");
 
 #[derive(Debug)]
+/// Python-based sensor observation filter implementation.
+///
+/// This struct wraps a Python filter instance loaded from a user-provided script.
+/// It dynamically invokes Python methods to decide whether to filter observations.
 pub struct PythonFilter {
     instance: Py<PyAny>,
 }
 
 impl PythonFilter {
+    /// Creates a new Python filter by loading the user-defined Python class.
+    ///
+    /// Constructs the runtime filter instance from configuration by loading the Python class
+    /// specified in the config via `load_class_from_python_script()`.
     pub fn from_config(
         config: &PythonFilterConfig,
         global_config: &SimulatorConfig,

@@ -7,7 +7,6 @@ time_analysis:
   exporter: 
     type: TraceEventExporter
   output_path: "time_performance"
-  keep_last: true
 results: {} #default results
 max_time: 60.
 random_seed: 85646513.6849618
@@ -28,13 +27,13 @@ robots:
         - name: "RobotSensor"
           send_to: ["Central Unit"]
           config:
-            type: RobotSensor
+            type: Robot
             activation_time: 
               period: {type: Num, value: 0.1}
             detection_distance: 100.0
         - name: "LandmarkSensor"
           config: 
-            type: OrientedLandmarkSensor
+            type: OrientedLandmark
             detection_distance: 10.0
             faults:
               - type: AdditiveRobotCentered # Gaussian White Noise
@@ -62,7 +61,7 @@ robots:
         - name: "RobotSensor"
           send_to: ["Central Unit"]
           config: 
-            type: RobotSensor
+            type: Robot
             activation_time: 
               period: {type: Num, value: 0.1}
             detection_distance: 100.0

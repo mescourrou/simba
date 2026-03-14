@@ -1,3 +1,8 @@
+//! Bernoulli distribution random-variable utilities.
+//!
+//! This module provides configuration and deterministic sampling utilities for
+//! Bernoulli random variables used by the simulator.
+
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use simba_macros::config_derives;
@@ -5,11 +10,28 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 
-/// Configuration for a uniform random variable.
+/// Configuration for a Bernoulli random variable.
 #[config_derives]
 pub struct BernouilliRandomVariableConfig {
-    /// Probabilities of the random variable
+    /// Success probabilities for each Bernoulli output component.
     pub probability: Vec<f32>,
+}
+
+impl Check for BernouilliRandomVariableConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.probability.is_empty() {
+            errors.push("Probability vector cannot be empty.".to_string());
+        }
+        if self.probability.iter().any(|p| *p < 0. || *p > 1.) {
+            errors.push("Probabilities must be between 0 and 1.".to_string());
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for BernouilliRandomVariableConfig {
@@ -66,15 +88,22 @@ impl UIComponent for BernouilliRandomVariableConfig {
     }
 }
 
+/// Deterministic Bernoulli random variable generator.
+///
+/// Sampling is reproducible for the same seed and time input.
 #[derive(Debug, Clone)]
 pub struct DeterministBernouilliRandomVariable {
     /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
     my_seed: f32,
-    /// Probability of the bernouilli distribution.
+    /// Success probabilities of the Bernoulli distributions.
     probability: Vec<f32>,
 }
 
 impl DeterministBernouilliRandomVariable {
+    /// Build a deterministic Bernoulli random variable from configuration.
+    ///
+    /// `my_seed` should be a deterministic seed component unique to this
+    /// variable instance.
     pub fn from_config(my_seed: f32, config: BernouilliRandomVariableConfig) -> Self {
         assert!(config.probability.iter().all(|x| *x <= 1.));
         assert!(config.probability.iter().all(|x| *x >= 0.));
@@ -84,6 +113,9 @@ impl DeterministBernouilliRandomVariable {
         }
     }
 
+    /// Generate one sample vector at a given simulation `time`.
+    ///
+    /// Each output is `1.0` on success and `0.0` otherwise.
     pub fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
@@ -93,6 +125,7 @@ impl DeterministBernouilliRandomVariable {
         v
     }
 
+    /// Return the output dimension of the random variable.
     pub fn dim(&self) -> usize {
         self.probability.len()
     }

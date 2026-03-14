@@ -52,9 +52,6 @@ external_record_python_methods!(
 ///
 /// Like [`PythonNavigatorConfig`], [`PythonNavigator`] uses a [`serde_json::Value`]
 /// to take every record.
-///
-/// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::record`] implementations.
     PythonNavigatorRecord,
 );
 
@@ -79,10 +76,9 @@ impl PythonNavigator {
     /// Creates a new [`PythonNavigator`] from the given config.
     ///
     ///  ## Arguments
-    /// * `config` -- Scenario config of the External estimator.
-    /// * `plugin_api` -- [`PluginAPI`] implementation (not used).
+    /// * `config` -- Scenario config ] implementation (not used).
     /// * `global_config` -- Simulator config.
-    /// * `_va_factory` -- Factory for Determinists random variables.
+    /// * `initial_time` -- Initial time of the node.
     pub fn from_config(
         config: &PythonNavigatorConfig,
         global_config: &SimulatorConfig,

@@ -141,15 +141,22 @@ static EXCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 static INCLUDE_NODES: RwLock<Vec<String>> = RwLock::new(Vec::new());
 
 #[derive(Debug)]
+/// Synchronization state shared across simulator and node threads.
 pub struct TimeCv {
+    /// Number of nodes currently waiting on synchronization.
     pub waiting: Mutex<usize>,
+    /// Toggle used to separate successive waiting phases.
     pub intermediate_parity: Mutex<u8>,
+    /// Number of messages still circulating in the current step.
     pub circulating_messages: Mutex<usize>,
+    /// Flag forcing all threads to stop as soon as possible.
     pub force_finish: Mutex<bool>,
+    /// Condition variable used to wake waiting threads.
     pub condvar: Condvar,
 }
 
 impl TimeCv {
+    /// Create a fresh synchronization state.
     pub fn new() -> Self {
         Self {
             waiting: Mutex::new(0),
@@ -185,7 +192,9 @@ struct NodeSyncParams {
     end_time_step_sync: Arc<Mutex<bool>>,
 }
 
+/// Broker type used by the simulator network.
 pub type SimbaBroker = PathBroker<Envelope, String, Option<[f32; 2]>>;
+/// Multi-client handle type associated with [`SimbaBroker`].
 pub type SimbaBrokerMultiClient = PathMultiClient<Envelope, String>;
 
 /// This is the central structure which manages the run of the scenario.
@@ -290,14 +299,11 @@ impl Simulator {
         }
     }
 
-    /// Load the config from a file compatible with [`confy`]. Initialize the [`Simulator`].
+    /// Load the config from a file compatible with [`confy`], see [`SimulatorConfig`]. Initialize the [`Simulator`].
     ///
     /// ## Arguments
     /// * `config_path` - `Path` to the config file (see example in `config_example/config.yaml`).
     /// * `plugin_api`  - Provide an implementation of [`PluginAPI`] if you want to use external modules.
-    /// * `result_path` - Path to the file to save the results.
-    /// * `compute_results` - Enable the computation of the results, using python script.
-    /// * `no_gui` - Disable the GUI, and the opening of the figures.
     ///
     /// ## Return
     /// Returns a [`Simulator`] ready to be run.
@@ -327,6 +333,7 @@ impl Simulator {
         Ok(simulator)
     }
 
+    /// Reset the simulator state from the currently loaded configuration.
     pub fn reset(&mut self, plugin_api: Option<Arc<dyn PluginAPI>>) -> SimbaResult<()> {
         info!("Reset node");
         self.network_manager.reset();
@@ -375,6 +382,13 @@ impl Simulator {
                 .insert(node.name(), node.service_manager());
         }
 
+        self.scenario = Arc::new(Mutex::new(Scenario::from_config(
+            &config.scenario,
+            &config,
+            &self.determinist_va_factory,
+            &self.network_manager.broker(),
+        )));
+
         for node in self.nodes.iter_mut() {
             info!("Finishing initialization of {}", node.name());
             self.node_apis.insert(
@@ -387,12 +401,6 @@ impl Simulator {
             );
         }
 
-        self.scenario = Arc::new(Mutex::new(Scenario::from_config(
-            &config.scenario,
-            &config,
-            &self.determinist_va_factory,
-            &self.network_manager.broker(),
-        )));
         Ok(())
     }
 
@@ -415,6 +423,7 @@ impl Simulator {
         self.load_config_full(&config, plugin_api, force_send_results)
     }
 
+    /// Load a simulator configuration into an existing simulator instance.
     pub fn load_config(
         &mut self,
         config: &SimulatorConfig,
@@ -472,14 +481,13 @@ impl Simulator {
         self.reset(plugin_api)
     }
 
+    /// Return a clone of the currently loaded configuration.
     pub fn config(&self) -> SimulatorConfig {
         self.config.clone()
     }
 
     /// Initialize the simulator environment.
-    ///
-    /// - start the logging environment.
-    /// - Time analysis setup
+    /// - initialize Python interpreter, to be able to run Python scripts in the simulator (for results analysis, or for Python nodes).
     pub fn init_environment() {
         // env_logger::init();
 
@@ -556,15 +564,16 @@ impl Simulator {
         Ok(())
     }
 
-    /// Add a [`Node`] of type [`Robot`](crate::node_factory::NodeType::Robot) to the [`Simulator`].
+    /// Add a [`Node`] of type [`Robot`](crate::node::node_factory::NodeType::Robot) to the [`Simulator`].
     ///
     /// This function add the [`Node`] to the [`Simulator`] list and to the [`NetworkManager`].
     /// It also adds the [`NetworkManager`] to the new [`Node`].
     ///
-    /// ## Argumants
-    /// * `robot_config` - Configuration of the [`Robot`](crate::node_factory::NodeType::Robot).
-    /// * `plugin_api` - Implementation of [`PluginAPI`] for the use of external modules.
+    /// ## Arguments
+    /// * `robot_config` - Configuration of the [`Robot`](crate::node::node_factory::NodeType::Robot).
     /// * `global_config` - Full configuration of the simulation.
+    /// * `force_send_results` - Whether the node should send results to the simulator even if the results are not used for the scenario or the analysis. This can be used to force the sending of results for a node, even if it is not required, for example to be able to show its state in the GUI.
+    /// * `initial_time` - Initial time for the node, can be not null if the node is added during the simulation (for example in a scenario spawn event).
     fn add_robot(
         &mut self,
         robot_config: &RobotConfig,
@@ -597,6 +606,16 @@ impl Simulator {
         Ok(())
     }
 
+    /// Add a [`Node`] of type [`ComputationUnit`](crate::node::node_factory::NodeType::ComputationUnit) to the [`Simulator`].
+    ///
+    /// This function add the [`Node`] to the [`Simulator`] list and to the [`NetworkManager`].
+    /// It also adds the [`NetworkManager`] to the new [`Node`].
+    ///
+    /// ## Arguments
+    /// * `computation_unit_config` - Configuration of the [`ComputationUnit`](crate::node::node_factory::NodeType::ComputationUnit).
+    /// * `global_config` - Full configuration of the simulation.
+    /// * `force_send_results` - Whether the node should send results to the simulator even if the results are not used for the scenario or the analysis. This can be used to force the sending of results for a node, even if it is not required, for example to be able to show its state in the GUI.
+    /// * `initial_time` - Initial time for the node, can be not null if the node is added during the simulation (for example in a scenario spawn event).
     fn add_computation_unit(
         &mut self,
         computation_unit_config: &ComputationUnitConfig,
@@ -629,16 +648,38 @@ impl Simulator {
         Ok(())
     }
 
-    /// Simply print the Simulator state, using the info channel and the debug print.
+    /// Simply print the Simulator state, using stdout.
     pub fn show(&self) {
         println!("Config:");
+        self.show_config();
+        self.show_state(None);
+    }
+
+    /// Show the configuration loaded
+    pub fn show_config(&self) {
         println!("{:#?}", self.config);
-        println!("Simulator:");
-        for node in self.nodes.iter() {
-            println!("- {:?}", node);
+    }
+
+    /// Show simulator state
+    pub fn show_state(&self, node_name: Option<&str>) {
+        if let Some(node_name) = node_name {
+            if let Some(node) = self.nodes.iter().find(|n| n.name() == node_name) {
+                println!("State of node '{}':\n{:#?}", node_name, node);
+            } else {
+                println!("Node '{}' not found", node_name);
+            }
+        } else {
+            println!(
+                "Simulator at time {:.4}:",
+                *self.common_time.read().unwrap()
+            );
+            for node in self.nodes.iter() {
+                println!("- {:#?}", node);
+            }
         }
     }
 
+    /// Override the maximum simulated time for subsequent runs.
     pub fn set_max_time(&mut self, max_time: f32) {
         self.config.max_time = max_time;
     }
@@ -647,8 +688,7 @@ impl Simulator {
     ///
     /// This function starts one thread by [`Node`]. It waits that the thread finishes.
     ///
-    /// After the scenario is done, the results are saved, and they are analysed, following
-    /// the configuration give ([`SimulatorConfig`]).
+    /// After the scenario is done, the results are not processed. Use [`Simulator::compute_results`] to process the results and compute the analysis.
     pub fn run(&mut self) -> SimbaResult<()> {
         let mut running_parameters = RunningParameters {
             max_time: self.config.max_time,
@@ -964,6 +1004,9 @@ impl Simulator {
             taf.save_results();
         }
 
+        if is_enabled(crate::logger::InternalLog::NodeRunning) {
+            debug!("Collecting results");
+        }
         let mut new_records = Vec::new();
         if let Some(async_api) = &self.async_api {
             while let Ok(record) = async_api.records.lock().unwrap().try_recv() {
@@ -1019,6 +1062,9 @@ impl Simulator {
         Ok(())
     }
 
+    /// Load results from the given result `filename` or from the named specified in the loaded configuration.
+    ///
+    /// Returns the maximum time found in loaded records.
     pub fn load_results(&mut self, filename: Option<String>) -> SimbaResult<f32> {
         if self.config.results.is_none() {
             return Err(SimbaError::new(
@@ -1051,10 +1097,12 @@ impl Simulator {
     }
 
     #[deprecated(note = "Will be removed in future release. Use load_results instead")]
+    /// Deprecated alias for [`Simulator::load_results`].
     pub fn load_results_full(&mut self, filename: Option<String>) -> SimbaResult<f32> {
         self.load_results(filename)
     }
 
+    /// Deserialize persisted simulator results from a JSON file.
     pub fn deserialize_results_from_file(filename: &Path) -> SimbaResult<Results> {
         info!("Loading results from file `{}`", filename.to_str().unwrap());
         let mut recording_file = File::open(filename).expect("Impossible to open record file");
@@ -1072,6 +1120,8 @@ impl Simulator {
     /// ## Arguments
     /// * `node` - Node to be run.
     /// * `max_time` - Time to stop the loop.
+    /// * `async_api_server` - If the async API is enabled, the node will send its records to the async API server, which will be able to send them to the GUI in real time.
+    /// * `node_sync_params` - Parameters to synchronize the node with the other nodes of the simulation.
     fn run_one_node(
         mut node: Node,
         max_time: f32,
@@ -1185,16 +1235,8 @@ impl Simulator {
         Ok(Some(node))
     }
 
+    /// Main loop for the simulator main thread. This loop is responsible for synchronizing the nodes at each time step, executing the scenario, and processing the messages between nodes.
     fn simulator_spin(&mut self, running_parameters: &mut RunningParameters) -> SimbaResult<()> {
-        // self.nodes is empty
-        // let mut node_states: BTreeMap<String, TimeOrderedData<(State, NodeState)>> =
-        //     BTreeMap::new();
-        // for (k, _) in self.node_apis.iter() {
-        //     node_states.insert(
-        //         k.clone(),
-        //         TimeOrderedData::<(State, NodeState)>::new(TIME_ROUND),
-        //     );
-        // }
         let time_cv = self.time_cv.clone();
         loop {
             let mut lk = time_cv.waiting.lock().unwrap();
@@ -1244,21 +1286,6 @@ impl Simulator {
                     }),
             );
 
-            // for (node_name, node_api) in self.node_apis.iter() {
-            //     if let Some(state_update) = &node_api.state_update
-            //         && let Ok((time, state)) = state_update.try_recv()
-            //     {
-            //         if !node_states.contains_key(node_name) {
-            //             node_states.insert(
-            //                 node_name.clone(),
-            //                 TimeOrderedData::<(State, NodeState)>::new(TIME_ROUND),
-            //             );
-            //         }
-            //         if let Some(node_state) = node_states.get_mut(node_name) {
-            //             node_state.insert(time, state, true);
-            //         }
-            //     }
-            // }
             let mut time_end_procedure = false;
             for end_time_step_sync in running_parameters.end_time_step_syncs.iter() {
                 let mut lock = end_time_step_sync.lock().unwrap();
@@ -1331,6 +1358,7 @@ impl Simulator {
         }
     }
 
+    /// Compute configured post-processing results from in-memory records.
     pub fn compute_results(&self) -> SimbaResult<()> {
         let results = self.get_records(false);
         self._compute_results(results, &self.config)
@@ -1437,6 +1465,7 @@ def show():
         }
     }
 
+    /// Create and return a new async API client for the simulator.
     pub fn get_async_api(&mut self) -> Arc<SimulatorAsyncApi> {
         if self.async_api_server.is_none() {
             self.async_api_server = Some(SimulatorAsyncApiServer::new(0.));
@@ -1444,6 +1473,7 @@ def show():
         Arc::new(self.async_api_server.as_mut().unwrap().new_client())
     }
 
+    /// Get the shared message broker used by the simulator network manager.
     pub fn get_broker(&self) -> SharedRwLock<SimbaBroker> {
         self.network_manager.broker()
     }

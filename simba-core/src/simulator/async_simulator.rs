@@ -1,3 +1,8 @@
+//! Asynchronous simulator wrapper and lightweight async API channels.
+//!
+//! This module provides an async simulator to allow running the simulator
+//! without blocking the main thread.
+
 use std::{
     path::Path,
     sync::{Arc, Mutex, RwLock, mpsc},
@@ -14,9 +19,10 @@ use crate::{
     logger::is_enabled,
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorConfig},
-    utils::{SharedMutex, SharedRwLock},
+    utils::{SharedMutex, SharedRoLock, SharedRwLock},
 };
 
+/// High-level asynchronous simulator facade.
 pub struct AsyncSimulator {
     server: SharedMutex<AsyncApiRunner>,
     api: AsyncApi,
@@ -25,6 +31,7 @@ pub struct AsyncSimulator {
 }
 
 impl AsyncSimulator {
+    /// Create an [`AsyncSimulator`] from a configuration file path.
     pub fn from_config_path(
         config_path: &str,
         plugin_api: &Option<Arc<dyn PluginAPI>>,
@@ -33,6 +40,7 @@ impl AsyncSimulator {
         Self::from_config(config, plugin_api)
     }
 
+    /// Create an [`AsyncSimulator`] from an in-memory configuration.
     pub fn from_config(
         config: SimulatorConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,
@@ -109,6 +117,10 @@ impl AsyncSimulator {
         Ok(sim)
     }
 
+    /// Run the simulator asynchronously until completion or interruption.
+    ///
+    /// If a plugin API is provided, pending plugin requests are periodically
+    /// serviced while waiting for run completion.
     pub fn run(
         &mut self,
         plugin_api: &Option<Arc<dyn PluginAPI>>,
@@ -134,10 +146,14 @@ impl AsyncSimulator {
         }
     }
 
+    /// Retrieve simulator records.
+    ///
+    /// When `sorted` is `true`, records are returned sorted by time.
     pub fn get_records(&self, sorted: bool) -> SimbaResult<Vec<Record>> {
         self.api.get_records.call(sorted).unwrap()
     }
 
+    /// Compute simulation results using the underlying simulator instance.
     pub fn compute_results(&self) {
         // Calling directly the simulator to keep python in one thread
         self.server
@@ -150,6 +166,7 @@ impl AsyncSimulator {
             .unwrap();
     }
 
+    /// Stop the asynchronous simulator runner.
     pub fn stop(&self) {
         if is_enabled(crate::logger::InternalLog::API) {
             debug!("Stop server");
@@ -158,6 +175,7 @@ impl AsyncSimulator {
         self.server.lock().unwrap().stop();
     }
 
+    /// Display simulator content through the simulator `show` routine.
     pub fn show(&self) {
         self.server
             .lock()
@@ -168,13 +186,17 @@ impl AsyncSimulator {
             .show();
     }
 
+    /// Get shared access to the underlying simulator instance.
     pub fn get_simulator(&self) -> Arc<Mutex<Simulator>> {
         self.server.lock().unwrap().get_simulator()
     }
 }
 
+/// Client-side asynchronous API exposing current time and streamed records.
 pub struct SimulatorAsyncApi {
-    pub current_time: SharedRwLock<f32>,
+    /// Shared current simulation time.
+    pub current_time: SharedRoLock<f32>,
+    /// Stream receiver for emitted records.
     pub records: SharedMutex<mpsc::Receiver<Record>>,
 }
 
@@ -196,7 +218,7 @@ impl SimulatorAsyncApiServer {
         let (tx, rx) = mpsc::channel();
         self.records.push(tx);
         SimulatorAsyncApi {
-            current_time: self.current_time.clone(),
+            current_time: self.current_time.clone() as SharedRoLock<f32>,
             records: Arc::new(Mutex::new(rx)),
         }
     }

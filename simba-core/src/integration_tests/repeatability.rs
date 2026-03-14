@@ -22,23 +22,23 @@ macro_rules! replication_test {
                 })
                 .unwrap();
 
-                simulator.run().unwrap();
+                simulator.run().expect("Error while running simulation");
 
                 results.push(simulator.get_records(true));
                 println!("OK");
             }
 
             let reference_result = &results[0];
+            assert!(!reference_result.is_empty(), "No result recorded !");
             println!(
                 "Reference last time: {}",
-                reference_result.last().unwrap().time
+                reference_result.last().expect("No last record found").time
             );
-            assert!(!reference_result.is_empty(), "No result recorded !");
             for (i, result) in results.iter().skip(1).enumerate() {
                 println!(
                     "Result {} last time: {}",
                     i + 2,
-                    result.last().unwrap().time
+                    result.last().expect("No last record found").time
                 );
                 assert_eq!(
                     result.len(),

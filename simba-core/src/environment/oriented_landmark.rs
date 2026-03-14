@@ -1,19 +1,50 @@
-/// Landmark struct, with an `id` and a `pose`, used to read the map file.
+//! Oriented landmark model used by map loading and geometric visibility checks.
+//!
+//! This module defines [`OrientedLandmark`], a serializable landmark carrying position,
+//! orientation, and optional geometric extent (`height`, `width`) used for obstruction
+//! computations.
+
+/// Landmark entry loaded from map data.
+///
+/// The pose is represented as `[x, y, theta]` in a [`Vector3`] where `theta` is in radians.
 #[derive(Debug, Clone)]
 pub struct OrientedLandmark {
+    /// Unique landmark identifier.
     pub id: i32,
+    /// Optional semantic labels associated with this landmark.
     pub labels: Vec<String>,
+    /// Landmark pose encoded as `(x, y, theta)`.
     pub pose: Vector3<f32>,
-    /// Height of the landmark, used for obstruction checks
-    /// Use 0 for fully transparent landmarks
+    /// Height of the landmark used for obstruction checks.
+    ///
+    /// Use `0.0` for fully transparent landmarks.
     pub height: f32,
-    /// Can be 0 for ponctual landmarks
+    /// Landmark width, in meters.
+    ///
+    /// Can be `0.0` for point-like landmarks.
     pub width: f32,
+}
+
+impl OrientedLandmark {
+    /// Returns the two segment extremities representing this oriented landmark.
+    ///
+    /// For point-like landmarks (`width <= 0.0`), both returned points are equal to [`Self::pose`].
+    pub fn extremities(&self) -> (Vector3<f32>, Vector3<f32>) {
+        if self.width <= 0. {
+            return (self.pose, self.pose);
+        }
+        let half_width = self.width / 2.;
+        let rotation_matrix = Rotation2::new(self.pose.z);
+        let width_vector = rotation_matrix * Vector2::new(0., half_width);
+        let extremity1 = self.pose + Vector3::new(width_vector.x, width_vector.y, 0.);
+        let extremity2 = self.pose - Vector3::new(width_vector.x, width_vector.y, 0.);
+        (extremity1, extremity2)
+    }
 }
 
 use std::fmt;
 
-use nalgebra::Vector3;
+use nalgebra::{Rotation2, Vector2, Vector3};
 use serde::ser::{Serialize, SerializeStruct, Serializer};
 
 impl Serialize for OrientedLandmark {

@@ -58,7 +58,7 @@ robots:
         - name: RobotDetector
           send_to: [robot2]             # Share detections with robot2
           config:
-            type: RobotSensor
+            type: Robot
             detection_distance: 20.0    # Can see 20m away
             activation_time:
               period: {type: Num, value: 0.1}
@@ -98,7 +98,7 @@ robots:
         - name: RobotDetector
           send_to: [robot1]             # Share detections with robot1
           config:
-            type: RobotSensor
+            type: Robot
             detection_distance: 20.0
             activation_time:
               period: {type: Num, value: 0.1}
@@ -150,7 +150,7 @@ robots:
         # GPS with occasional errors
         - name: GPS
           config:
-            type: GNSSSensor
+            type: GNSS
             activation_time:                     # Low update rate
               period: {type: Num, value: 0.5}    # 2 Hz
             faults:
@@ -168,7 +168,7 @@ robots:
         # Landmark sensor with missed detections
         - name: Landmarks
           config:
-            type: OrientedLandmarkSensor
+            type: OrientedLandmark
             detection_distance: 15.0
             activation_time:
               period: {type: Num, value: 0.1}    # 10 Hz
@@ -176,7 +176,7 @@ robots:
               - type: Misdetection
                 apparition:
                   probability: [0.05]      # 5% miss rate
-              - type: AdditiveRobotCenteredPolar
+              - type: AdditiveRobotCentered
                 distributions:
                   - type: Normal
                     mean: [0.0, 0.0]
@@ -200,14 +200,14 @@ robots:
         - name: landmark_sensor
           send_to: [Central Processing]  # Send to central unit
           config:
-            type: OrientedLandmarkSensor
+            type: OrientedLandmark
             detection_distance: 15.0
             activation_time:
               period: {type: Num, value: 0.1}
         - name: robot_detector
           send_to: [Central Processing]  # Share robot detections
           config:
-            type: RobotSensor
+            type: Robot
             detection_distance: 10.0
             activation_time:
               period: {type: Num, value: 0.1}
@@ -222,14 +222,14 @@ robots:
         - name: landmark_sensor
           send_to: [Central Processing]  # Send to central unit
           config:
-            type: OrientedLandmarkSensor
+            type: OrientedLandmark
             detection_distance: 15.0
             activation_time:
               period: {type: Num, value: 0.1}
         - name: robot_detector
           send_to: [Central Processing]  # Share robot detections
           config:
-            type: RobotSensor
+            type: Robot
             detection_distance: 10.0
             activation_time:
               period: {type: Num, value: 0.1}
@@ -316,7 +316,7 @@ Match sensor properties to real-world devices:
 # High-precision GPS (1Hz, 0.1m accuracy)
 - name: GPS_HighRes
   config:
-    type: GNSSSensor
+    type: GNSS
     activation_time:
       period: {type: Num, value: 1.0}
     faults:
@@ -329,7 +329,7 @@ Match sensor properties to real-world devices:
 # Low-cost GPS (1Hz, 1m accuracy)
 - name: GPS_LowCost
   config:
-    type: GNSSSensor
+    type: GNSS
     activation_time:
       period: {type: Num, value: 1.0}
     faults:
@@ -362,7 +362,6 @@ Add time analysis to track performance:
 time_analysis:
   exporter:
     type: TraceEventExporter
-  keep_last: true
   output_path: time_performance
   analysis_unit: ms                   # Milliseconds for precision
 ```
@@ -520,7 +519,7 @@ sensor_manager:
   sensors:
     - name: RobotDetector
       config:
-        type: RobotSensor
+        type: Robot
         detection_distance: 50.0  # Increase range
         activation_time:
           period: {type: Num, value: 0.05}  # Increase update rate
@@ -598,7 +597,6 @@ log:
     type: Debug  # Detailed logs
 
 time_analysis:
-  keep_last: true
   output_path: timing_analysis
   analysis_unit: ms
 

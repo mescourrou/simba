@@ -1,7 +1,13 @@
+//! Occupancy grid utilities for 2D spatial lookup.
+//!
+//! This module provides a grid centered at a world pose `(x, y, theta)` and
+//! helpers to access cells either by grid indices or by world coordinates.
+
 use nalgebra::{Rotation2, Vector2, Vector3};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// Discrete occupancy grid with geometric metadata.
 pub struct OccupancyGrid {
     grid: Vec<f32>,
     cell_height: f32,
@@ -18,6 +24,14 @@ impl Default for OccupancyGrid {
 }
 
 impl OccupancyGrid {
+    /// Create a new occupancy grid filled with zeros.
+    ///
+    /// # Arguments
+    /// * `center` - Grid center in world coordinates `(x, y, theta)`.
+    /// * `cell_height` - Height of one cell in world units.
+    /// * `cell_width` - Width of one cell in world units.
+    /// * `nb_rows` - Number of rows in the grid.
+    /// * `nb_cols` - Number of columns in the grid.
     pub fn new(
         center: Vector3<f32>,
         cell_height: f32,
@@ -37,6 +51,9 @@ impl OccupancyGrid {
         }
     }
 
+    /// Get a cell value by `(row, col)` indices.
+    ///
+    /// Returns `None` if indices are out of bounds.
     pub fn get_idx(&self, row: usize, col: usize) -> Option<&f32> {
         if row >= self.nb_rows || col >= self.nb_cols {
             return None;
@@ -44,6 +61,9 @@ impl OccupancyGrid {
         self.grid.get(row * self.nb_cols + col)
     }
 
+    /// Get a mutable cell value by `(row, col)` indices.
+    ///
+    /// Returns `None` if indices are out of bounds.
     pub fn get_idx_mut(&mut self, row: usize, col: usize) -> Option<&mut f32> {
         if row >= self.nb_rows || col >= self.nb_cols {
             return None;
@@ -52,6 +72,8 @@ impl OccupancyGrid {
     }
 
     /// Converts a world position to grid (row, col) indices, considering grid orientation.
+    ///
+    /// Returns `None` if the position is outside the grid bounds.
     pub fn pos_to_idx(&self, position: Vector2<f32>) -> Option<(usize, usize)> {
         let translated = position - self.center.xy();
 
@@ -72,6 +94,9 @@ impl OccupancyGrid {
         }
     }
 
+    /// Get a cell value from a world position.
+    ///
+    /// Returns `None` if the position is outside the grid.
     pub fn get_pos(&self, position: Vector2<f32>) -> Option<&f32> {
         if let Some((row, col)) = self.pos_to_idx(position) {
             self.get_idx(row, col)
@@ -80,6 +105,9 @@ impl OccupancyGrid {
         }
     }
 
+    /// Get a mutable cell value from a world position.
+    ///
+    /// Returns `None` if the position is outside the grid.
     pub fn get_pos_mut(&mut self, position: Vector2<f32>) -> Option<&mut f32> {
         if let Some((row, col)) = self.pos_to_idx(position) {
             self.get_idx_mut(row, col)

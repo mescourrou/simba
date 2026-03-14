@@ -2,7 +2,7 @@
 Module providing different strategies for the state estimation.
 
 To use an external state estimator (in Rust), use [`external_estimator`]
-and implement a specification for [`PluginAPI`](crate::plugin_api::PluginAPI).
+and implement a specification for [`PluginAPI`].
 
 ## How to create a new (internal) state estimation strategy
 To create a new state estimation strategy, here are the required steps.
@@ -11,8 +11,8 @@ To create a new state estimation strategy, here are the required steps.
    Your new strategy should define a Config struct, such as
    [`PerfectEstimator`](crate::state_estimators::perfect_estimator::PerfectEstimator),
    with Serialize, Deserialize, Debug, Clone and Default traits.  Add this new Config to
-   [`StateEstimatorConfig`](state_estimator::StateEstimatorConfig) enumeration, and to the match
-   patterns in [`make_state_estimator_from_config`](state_estimator::make_state_estimator_from_config)
+   [`StateEstimatorConfig`] enumeration, and to the match
+   patterns in [`make_state_estimator_from_config`]
    so that the right strategy is created.
 
 2) **Make a new Record**
@@ -23,8 +23,8 @@ To create a new state estimation strategy, here are the required steps.
 3) **Implement the Trait**
    Implement the trait methods.
 
-4) **Implement the Stateful trait**
-   Don't forget to implement the [`Stateful`](crate::stateful::Stateful) trait, with the newly created
+4) **Implement the Recordable trait**
+   Don't forget to implement the [`Recordable`] trait, with the newly created
    Record struct as generic type.
 */
 
@@ -47,13 +47,37 @@ use simba_macros::config_derives;
 #[config_derives]
 pub struct StateConfig {
     /// Position and orientation of the robot
-    #[check(le(self.velocity.len(), 3))]
     pub pose: Vec<f32>,
     /// Linear velocity
-    #[check(le(self.velocity.len(), 2))]
     pub velocity: Vec<f32>,
+    /// Random initialization of the state. If `pose` is not null, random values are added to the pose and velocity according to `variable_order`.
+    #[check]
     pub random: Vec<RandomVariableTypeConfig>,
+    /// Ordered list mapping sampled random values to state variables.
     pub variable_order: Vec<String>,
+}
+
+impl Check for StateConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.pose.len() > 3 {
+            errors.push(format!(
+                "Pose should contain at most 3 elements, got {}",
+                self.pose.len()
+            ));
+        }
+        if self.velocity.len() > 2 {
+            errors.push(format!(
+                "Velocity should contain at most 2 elements, got {}",
+                self.velocity.len()
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for StateConfig {
@@ -121,10 +145,7 @@ impl UIComponent for StateConfig {
                     "vy",
                     "r",
                     "theta",
-                ]
-                .iter()
-                .map(|x| String::from(*x))
-                .collect();
+                ];
                 ui.horizontal(|ui| {
                     ui.label("Variable order:");
                     for (i, var) in self.variable_order.iter_mut().enumerate() {
@@ -139,7 +160,7 @@ impl UIComponent for StateConfig {
                             possible_variables
                                 .get(self.variable_order.len().min(possible_variables.len()))
                                 .unwrap()
-                                .clone(),
+                                .to_string(),
                         );
                     }
                 });
@@ -211,7 +232,7 @@ impl UIComponent for StateRecord {
 pub struct State {
     /// Pose of the robot [x, y, orientation]
     pub pose: SVector<f32, 3>,
-    /// Linear velocity of the robot (in the longitudinal direction), and angular velocity.
+    /// Linear velocity of the robot [longitudinal, lateral], and angular velocity.
     pub velocity: SVector<f32, 3>,
 }
 
@@ -224,6 +245,10 @@ impl State {
         }
     }
 
+    /// Build a [`State`] from a flat vector.
+    ///
+    /// Expected order is `[x, y, theta, vx, vy, w]`. Missing values are kept at
+    /// zero.
     pub fn from_vector(vec: &[f32]) -> Self {
         let mut state = State::new();
         if !vec.is_empty() {
@@ -305,6 +330,7 @@ impl State {
         state
     }
 
+    /// Normalize the heading angle to the ]-PI, PI] range.
     pub fn theta_modulo(mut self) -> Self {
         self.pose.z = mod2pi(self.pose.z);
         self
@@ -358,11 +384,16 @@ impl fmt::Display for State {
     }
 }
 
+/// Serializable record for a full world state.
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct WorldStateRecord {
+    /// Optional record of the ego state.
     pub ego: Option<StateRecord>,
+    /// Records of dynamic objects indexed by name (other nodes).
     pub objects: BTreeMap<String, StateRecord>,
+    /// Records of landmarks indexed by id.
     pub landmarks: BTreeMap<i32, StateRecord>,
+    /// Optional occupancy grid snapshot.
     pub occupancy_grid: Option<OccupancyGrid>,
 }
 
@@ -402,13 +433,18 @@ impl UIComponent for WorldStateRecord {
 /// Full State to be estimated.
 #[derive(Debug, Clone, Default)]
 pub struct WorldState {
+    /// Optional current estimate of the ego state. Not always available, e.g. for computation units.
     pub ego: Option<State>,
+    /// Current estimates of dynamic objects (other nodes) indexed by name.
     pub objects: BTreeMap<String, State>,
+    /// Current estimates of landmarks indexed by id.
     pub landmarks: BTreeMap<i32, State>,
+    /// Optional occupancy grid estimate.
     pub occupancy_grid: Option<OccupancyGrid>,
 }
 
 impl WorldState {
+    /// Create an empty world state.
     pub fn new() -> Self {
         Self {
             ego: None,
@@ -458,13 +494,20 @@ use std::sync::Arc;
 /// To select the [`StateEstimatorConfig::Perfect`], the yaml config should be:
 /// ```YAML
 /// state_estimator:
-///     Perfect:
-///         prediction_period: 0.01
+///   type: Perfect
+///   prediction_activation:
+///     period: {type: Num, value: 0.1}
 /// ```
 #[config_derives]
 pub enum StateEstimatorConfig {
+    /// Built-in perfect state estimator.
+    #[check]
     Perfect(perfect_estimator::PerfectEstimatorConfig),
+    /// External state estimator provided through plugin API.
+    #[check]
     External(external_estimator::ExternalEstimatorConfig),
+    /// Python-backed state estimator.
+    #[check]
     Python(python_estimator::PythonEstimatorConfig),
 }
 
@@ -484,10 +527,7 @@ impl UIComponent for StateEstimatorConfig {
             ui.label("State Estimator:");
             string_combobox(
                 ui,
-                &StateEstimatorConfig::to_vec()
-                    .iter()
-                    .map(|x: &&str| String::from(*x))
-                    .collect(),
+                &StateEstimatorConfig::to_vec(),
                 &mut current_str,
                 format!("state-estimator-choice-{}", unique_id),
             );
@@ -552,11 +592,14 @@ impl UIComponent for StateEstimatorConfig {
     }
 }
 
-/// List the possible records.
+/// List the possible StateEstimatorRecord variants.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum StateEstimatorRecord {
+    /// Record for the [`PerfectEstimator`](crate::state_estimators::perfect_estimator::PerfectEstimator).
     Perfect(perfect_estimator::PerfectEstimatorRecord),
+    /// Record for the [`ExternalEstimator`](crate::state_estimators::external_estimator::ExternalEstimator).
     External(external_estimator::ExternalEstimatorRecord),
+    /// Record for the [`PythonEstimator`](crate::state_estimators::python_estimator::PythonEstimator).
     Python(python_estimator::PythonEstimatorRecord),
 }
 
@@ -583,9 +626,7 @@ impl UIComponent for StateEstimatorRecord {
     }
 }
 
-/**
- * Make the right [`StateEstimator`] from the configuration given.
- */
+/// Build the appropriate [`StateEstimator`] from a configuration.
 pub fn make_state_estimator_from_config(
     config: &StateEstimatorConfig,
     plugin_api: &Option<Arc<dyn PluginAPI>>,
@@ -621,10 +662,15 @@ pub fn make_state_estimator_from_config(
 
 use crate::sensors::Observation;
 
+/// Common interface implemented by all state-estimator strategies.
 pub trait StateEstimator:
     std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<StateEstimatorRecord>
 {
-    fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
+    /// Initialization hook called once after node creation.
+    ///
+    /// This step is called before the beginning of the simulation loop so all features are not available.
+    #[allow(unused_variables)]
+    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -659,12 +705,16 @@ pub trait StateEstimator:
     /// is called for each observation.
     fn next_time_step(&self) -> f32;
 
+    /// Hook called before each simulation loop iteration, just after the Physics update.
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
 }
 
+/// Allow to run a list of [`StateEstimator`] outside of the simulation control loop.
 #[config_derives]
 pub struct BenchStateEstimatorConfig {
+    /// Human-readable estimator name to identify the estimator in the simulation results.
     pub name: String,
+    /// Underlying estimator configuration.
     #[check]
     pub config: StateEstimatorConfig,
 }
@@ -724,14 +774,20 @@ impl UIComponent for BenchStateEstimatorConfig {
     }
 }
 
+/// Record for additional state-estimator record.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BenchStateEstimatorRecord {
+    /// Human-readable estimator name.
     pub name: String,
+    /// Recorded estimator payload.
     pub record: StateEstimatorRecord,
 }
 
+/// Out-of-control-loop state-estimator instance.
 #[derive(Debug)]
 pub struct BenchStateEstimator {
+    /// Human-readable estimator name.
     pub name: String,
+    /// Shared estimator instance.
     pub state_estimator: SharedRwLock<Box<dyn StateEstimator>>,
 }

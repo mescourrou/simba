@@ -1,6 +1,12 @@
-/*!
-Module providing the main node manager, [`Node`]. The building of the Nodes is done by [`NodeFactory`](crate::node_factory::NodeFactory).
-*/
+//! Node runtime orchestration and lifecycle management.
+//!
+//! This module defines [`Node`], the central runtime unit that wires together navigation,
+//! control, physics simulation, sensing, networking, services, and recording.
+//! [`Node`] executes the simulation loop, processes asynchronous messages, and coordinates
+//! time synchronization across nodes.
+//!
+//! Node construction is delegated to [`NodeFactory`](crate::node::node_factory::NodeFactory),
+//! which assembles concrete implementations from configuration.
 
 pub mod node_factory;
 
@@ -43,21 +49,35 @@ use crate::{
     utils::maths::round_precision,
 };
 
+/// Mode State machine.
+///
+/// TODO: Use Rust type system to enforce correct mode usage instead of runtime checks.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, EnumToString)]
 pub enum NodeState {
+    /// Node has been created but is not running yet.
     Created,
+    /// Node is active and can execute simulation steps.
     Running,
+    /// Node is marked for termination and will stop at the next safe point.
     Zombie,
+    /// Node has fully terminated and no longer participates in simulation.
     Terminated,
 }
 
+/// Metadata describing a node, used for introspection, logging, and inter-node coordination.
 #[derive(Debug, Clone)]
 pub struct NodeMetaData {
+    /// Unique runtime name of the node.
     pub name: String,
+    /// Type of node, such as robot or computation unit.
     pub node_type: NodeType,
+    /// Name of the model used to instantiate this node.
     pub model_name: String,
+    /// User-defined labels used for grouping and filtering.
     pub labels: Vec<String>,
+    /// Current lifecycle state of the node.
     pub state: NodeState,
+    /// Current ground-truth planar position when available.
     pub position: Option<[f32; 2]>,
 }
 
@@ -75,15 +95,12 @@ pub struct NodeMetaData {
 /// * `state_estimator` is of [`StateEstimator`] trait. It estimates the node
 ///   state, and send it to the [`Navigator`].
 ///
-/// * `sensor_manager`, of type [`SensorManager`], manages the [`Sensor`](crate::sensors::sensor::Sensor)s. The
+/// * `sensor_manager`, of type [`SensorManager`], manages the [`Sensor`](crate::sensors::Sensor)s. The
 ///   observations of the sensors are sent to the [`StateEstimator`].
 /// * `network` is the node [`Network`] interface. It manages the reception and
 ///   the send of messages to other nodes.
-///
-/// The [`Node`] internally manages a history of its states, using [`TimeOrderedData`].
-/// In this way, it can get back to a past state, in order to treat a message sent
-/// from the past. [`Node::run_next_time_step`] does the necessary
-/// so that the required time is reached taking into account all past messages.
+/// * `environment` is the shared environment of the simulator, used to get the list of all nodes, and
+///   the landmark map.
 #[derive(Debug)]
 pub struct Node {
     /// [`Navigator`] module, implementing the navigation strategy.
@@ -94,14 +111,13 @@ pub struct Node {
     pub(self) physics: Option<SharedRwLock<Box<dyn Physics>>>,
     /// [`StateEstimator`] module, implementing the state estimation strategy.
     pub(self) state_estimator: Option<SharedRwLock<Box<dyn StateEstimator>>>,
-    /// Manages all the [`Sensor`](crate::sensors::sensor::Sensor)s and send the observations to `state_estimator`.
+    /// Manages all the [`Sensor`](crate::sensors::Sensor)s and send the observations to `state_estimator`.
     pub(self) sensor_manager: Option<SharedRwLock<SensorManager>>,
     /// [`Network`] interface to receive and send messages with other nodes.
     pub(self) network: Option<SharedRwLock<Network>>,
     /// Additional [`StateEstimator`] to be evaluated.
     pub(self) state_estimator_bench: Option<SharedRwLock<Vec<BenchStateEstimator>>>,
 
-    // services: Vec<SharedRwLock<Box<dyn ServiceInterface>>>>,
     /// Not really an option, but for delayed initialization
     pub(self) service_manager: Option<SharedRwLock<ServiceManager>>,
 
@@ -176,6 +192,7 @@ impl Node {
         if let Some(navigator) = self.navigator() {
             navigator.write().unwrap().post_init(self).unwrap();
         }
+        // services: Vec<SharedRwLock<Box<dyn ServiceInterface>>>>,
         if let Some(controller) = self.controller() {
             controller.write().unwrap().post_init(self).unwrap();
         }
@@ -196,20 +213,17 @@ impl Node {
 
     /// Run the node to reach the given time.
     ///
-    /// It will go back in time if needed by old messages or other asynchronous operations.
-    ///
     /// ## Arguments
     /// * `time` -- Time to reach.
-    ///
-    /// ## Return
-    /// Next time step.
-    pub fn run_next_time_step(&mut self, time: f32, time_cv: &TimeCv) -> SimbaResult<()> {
+    pub(crate) fn run_next_time_step(&mut self, time: f32, time_cv: &TimeCv) -> SimbaResult<()> {
         self.process_messages();
         self.run_time_step(time, time_cv)
     }
 
     /// Process all the messages: one-way (network) and two-way (services).
-    pub fn process_messages(&self) -> usize {
+    ///
+    /// Processing messages mean here to transfer all the pending messages from the network to the corresponding modules (physics, state estimator, navigator, controller, sensor manager).
+    pub(crate) fn process_messages(&self) -> usize {
         let mut nb_msg = 0;
         nb_msg += self
             .service_manager
@@ -224,22 +238,21 @@ impl Node {
 
     /// Run only one time step.
     ///
-    /// To run the given `time` step, the node sets itself in the state of this moment
-    /// using [`Node::set_in_state`].
-    ///
     /// The update step is done in this order:
     /// 1. Update the physics
-    /// 2. Generate the observations
-    /// 3. Correction step of the state estimator
-    /// 4. If it is the time for the state estimator to do its prediction step:
-    ///     1. The prediction step is done
-    ///     2. The navigator computes the error from the state estimation
-    ///     3. The command is computed by the Controller
-    ///     4. The command is applied to the Physics.
-    /// 5. The network messages are handled
+    /// 2. Call to `pre_loop_hook`s.
+    /// 3. Prediction step of the state estimators
+    /// 4. Generate the observations (and send them)
+    /// 5. Correction step of the state estimator
+    /// 6. If it is the time for the state estimator to do its prediction step or required by either controller or navigator:
+    ///     1. The navigator computes the error from the state estimation
+    ///     2. The command is computed by the Controller
+    ///     3. The command is applied to the Physics (but Physics state is not updated yet).
+    ///
+    /// The network messages are handled between each steps.
     ///
     /// Then, the node state is saved.
-    pub fn run_time_step(&mut self, time: f32, time_cv: &TimeCv) -> SimbaResult<()> {
+    fn run_time_step(&mut self, time: f32, time_cv: &TimeCv) -> SimbaResult<()> {
         if self.node_meta_data.read().unwrap().state != NodeState::Running {
             return Err(SimbaError::new(
                 SimbaErrorTypes::ImplementationError,
@@ -504,7 +517,11 @@ impl Node {
         Ok(())
     }
 
-    pub fn sync_with_others(&mut self, time_cv: &TimeCv, time: f32) {
+    /// Synchronize this node with the other nodes at an intermediate barrier.
+    ///
+    /// The method repeatedly processes pending messages while waiting for the
+    /// synchronization parity to change.
+    pub(crate) fn sync_with_others(&mut self, time_cv: &TimeCv, time: f32) {
         let mut lk = time_cv.waiting.lock().unwrap();
         let waiting_parity = *time_cv.intermediate_parity.lock().unwrap();
         *lk += 1;
@@ -565,6 +582,9 @@ impl Node {
         }
     }
 
+    /// Handle all pending service and network messages up to `time`.
+    ///
+    /// It means that the actions linked to each services or messages are executed here.
     pub fn handle_messages(&mut self, time: f32) {
         self.service_manager
             .as_ref()
@@ -707,6 +727,7 @@ impl Node {
         self.node_meta_data.read().unwrap().name.clone()
     }
 
+    /// Get the current lifecycle state.
     pub fn state(&self) -> NodeState {
         self.node_meta_data.read().unwrap().state.clone()
     }
@@ -715,14 +736,17 @@ impl Node {
         self.node_meta_data.write().unwrap().state = state;
     }
 
+    /// Return whether this node is configured to emit records.
     pub fn send_records(&self) -> bool {
         self.send_records
     }
 
+    /// Get the names of other known nodes in the simulation.
     pub fn other_node_names(&self) -> &[String] {
         &self.other_node_names
     }
 
+    /// Get this node type.
     pub fn node_type(&self) -> NodeType {
         self.node_meta_data.read().unwrap().node_type.clone()
     }
@@ -783,6 +807,7 @@ impl Node {
         }
     }
 
+    /// Get the shared simulation [`Environment`].
     pub fn environment(&self) -> &Arc<Environment> {
         &self.environment
     }
@@ -792,10 +817,12 @@ impl Node {
         self.service_manager.as_ref().unwrap().clone()
     }
 
+    /// Get shared read-only access to this node metadata.
     pub fn meta_data(&self) -> SharedRoLock<NodeMetaData> {
         self.node_meta_data.clone() as Arc<dyn RoLock<NodeMetaData>>
     }
 
+    /// Get the optional shared metadata map for all nodes.
     pub fn meta_data_list(
         &self,
     ) -> Option<SharedRoLock<HashMap<String, SharedRoLock<NodeMetaData>>>> {
@@ -803,12 +830,14 @@ impl Node {
             as Option<Arc<dyn RoLock<HashMap<String, SharedRoLock<NodeMetaData>>>>>
     }
 
+    /// Mark this node as [`NodeState::Zombie`]. The kill is done by [`Self::kill`].
     pub fn pre_kill(&mut self) {
         self.node_meta_data.write().unwrap().state = NodeState::Zombie;
     }
 
+    /// Terminate this node and publish its final state update.
     pub fn kill(&mut self, time: f32) {
-        self.node_meta_data.write().unwrap().state = NodeState::Zombie;
+        self.node_meta_data.write().unwrap().state = NodeState::Terminated;
         if let Some(service_manager) = &self.service_manager {
             service_manager.write().unwrap().unsubscribe_node();
         }
@@ -915,7 +944,7 @@ impl Recordable<NodeRecord> for Node {
         match &self.node_meta_data.read().unwrap().node_type {
             NodeType::Robot => NodeRecord::Robot(Box::new(self.robot_record())),
             NodeType::ComputationUnit => {
-                NodeRecord::ComputationUnit(self.computation_unit_record())
+                NodeRecord::ComputationUnit(Box::new(self.computation_unit_record()))
             }
             _ => unimplemented!(),
         }

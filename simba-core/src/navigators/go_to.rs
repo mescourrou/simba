@@ -1,7 +1,11 @@
-/*!
-Implementation of a [`Navigator`] strategy, which follows a polyline shaped
-trajectory.
-*/
+//! Point-target [`Navigator`] implementation.
+//!
+//! [`GoTo`] drives the robot toward a single target point. The target can be configured at
+//! startup through [`GoToConfig`] and updated at runtime using [`GoToMessage`] on
+//! [`GoTo::CHANNEL_NAME`].
+//!
+//! The controller computes heading, longitudinal, lateral, and velocity errors from the current
+//! ego state and the active target point.
 
 use std::{
     str::FromStr,
@@ -22,6 +26,7 @@ use crate::{
 extern crate nalgebra as na;
 use libm::atan2;
 
+use config_checker::*;
 use nalgebra::SVector;
 use pyo3::{pyclass, pymethods};
 use serde_derive::{Deserialize, Serialize};
@@ -30,12 +35,17 @@ use simba_macros::config_derives;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass(get_all, set_all)]
+/// Runtime message used to update the target point of a [`GoTo`] navigator.
 pub struct GoToMessage {
+    /// Target point in world coordinates `[x, y]`.
+    ///
+    /// `None` clears the current target.
     pub target_point: Option<[f32; 2]>,
 }
 
 #[pymethods]
 impl GoToMessage {
+    /// Creates a new [`GoToMessage`] from an optional target point.
     #[new]
     #[pyo3(signature = (list=None))]
     pub fn new(list: Option<[f32; 2]>) -> Self {
@@ -44,17 +54,47 @@ impl GoToMessage {
 }
 
 /// Configuration of the [`GoTo`] strategy.
+///
+/// The target point can be set at startup through the `target_point` field, and updated at runtime by sending a [`GoToMessage`] on the [`GoTo::CHANNEL_NAME`] channel. If no target point is set, the navigator will not move the robot.
+///
+/// The target speed is reduced when the robot gets closer to the target point, starting from `stop_distance` meters to the target, using a ramp coefficient of `stop_ramp_coefficient`.
+///
+/// To reach the target point, the navigator computes the error to the target point in the robot frame:
+/// cartesian error and angle error.
 #[config_derives]
 pub struct GoToConfig {
+    /// Initial target point in world coordinates `[x, y]`.
+    ///
+    /// Default: `None`.
     pub target_point: Option<[f32; 2]>,
-    #[check(ge(0.))]
+    /// Target linear speed in m/s.
+    ///
+    /// Default: `0.5`.
     pub target_speed: f32,
-    /// Distance where to stop when reaching the end of the trajectory
-    #[check(ge(0.))]
+    /// Distance threshold to force stop near the target point, in meters.
+    ///
+    /// Default: `0.2`.
     pub stop_distance: f32,
-    /// Coefficient of the target velocity, multiplied by the remaining distance
-    #[check(ge(0.))]
+    /// Ramp coefficient applied to remaining distance when reducing speed near the target.
+    ///
+    /// Default: `0.5`.
     pub stop_ramp_coefficient: f32,
+}
+
+impl Check for GoToConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errs = Vec::new();
+        if self.target_speed < 0. {
+            errs.push("Target speed should be positive".to_string());
+        }
+        if self.stop_distance < 0. {
+            errs.push("Stop distance should be positive".to_string());
+        }
+        if self.stop_ramp_coefficient < 0. {
+            errs.push("Stop ramp coefficient should be positive".to_string());
+        }
+        if errs.is_empty() { Ok(()) } else { Err(errs) }
+    }
 }
 
 impl Default for GoToConfig {
@@ -86,10 +126,10 @@ impl UIComponent for GoToConfig {
                     use crate::gui::utils::string_combobox;
 
                     ui.label("Target point: ".to_string());
-                    let possible_values = vec!["None".to_string(), "Some".to_string()];
+                    let possible_values = vec!["None", "Some"];
                     let buffer_key = format!("go-to-target-point-option-{unique_id}");
                     if !buffer_key.contains(&buffer_key) {
-                        buffer_stack.insert(buffer_key.clone(), possible_values[0].clone());
+                        buffer_stack.insert(buffer_key.clone(), possible_values[0].to_string());
                     }
                     let value = buffer_stack.get_mut(&buffer_key).unwrap();
                     string_combobox(ui, &possible_values, value, format!("go-to-{}", unique_id));
@@ -171,6 +211,7 @@ impl UIComponent for GoToConfig {
 pub struct GoToRecord {
     /// Current error
     pub error: ControllerError,
+    /// Current target point in world coordinates `[x, y]`.
     pub current_point: Option<[f32; 2]>,
 }
 
@@ -213,14 +254,16 @@ pub struct GoTo {
 }
 
 impl GoTo {
+    /// Relative channel used to receive [`GoToMessage`] target updates. The full channel path use the
+    /// [`NODE`](crate::networking::channels::internal::NODE) prefix and the node name, like `/simba/nodes/<node_name>/navigator/goto`.
     pub const CHANNEL_NAME: &'static str = "navigator/goto";
 
     /// Makes a [`GoTo`] from the given config.
     ///
     /// ## Arguments
     /// * `config` - GoTo configuration
-    /// * `plugin_api` - Not used there.
-    /// * `global_config` - Global configuration of the simulator.
+    /// * `network` - Shared reference to the network, used to subscribe to the target update messages on [`GoTo::CHANNEL_NAME`].
+    /// * `initial_time` - Initial simulation time, in seconds. Not used by this navigator, but provided for consistency with other navigators and potential future use.
     pub fn from_config(
         config: &GoToConfig,
         network: &SharedRwLock<Network>,

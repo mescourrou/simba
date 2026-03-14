@@ -1,3 +1,8 @@
+//! Fixed distribution random-variable utilities.
+//!
+//! This module provides configuration and deterministic generation logic for
+//! fixed random variables used by the simulator.
+
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
@@ -8,6 +13,20 @@ use crate::gui::UIComponent;
 pub struct FixedRandomVariableConfig {
     /// Fixed value to return.
     pub values: Vec<f32>,
+}
+
+impl Check for FixedRandomVariableConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.values.is_empty() {
+            errors.push("Values vector cannot be empty.".to_string());
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for FixedRandomVariableConfig {
@@ -62,23 +81,31 @@ impl UIComponent for FixedRandomVariableConfig {
     }
 }
 
-/// Random variable which always return the same value.
+/// Random variable that always returns the same values.
 #[derive(Debug, Clone)]
 pub struct DeterministFixedRandomVariable {
     values: Vec<f32>,
 }
 
 impl DeterministFixedRandomVariable {
+    /// Build a deterministic fixed random variable from configuration.
+    ///
+    /// `_my_seed` is accepted for API consistency with other random variables
+    /// and is not used.
     pub fn from_config(_my_seed: f32, config: FixedRandomVariableConfig) -> Self {
         Self {
             values: config.values,
         }
     }
 
+    /// Generate one sample vector at a given simulation time.
+    ///
+    /// For fixed variables, the output is constant and independent of time.
     pub fn generate(&self, _time: f32) -> Vec<f32> {
         self.values.clone()
     }
 
+    /// Return the output dimension of the random variable.
     pub fn dim(&self) -> usize {
         self.values.len()
     }

@@ -19,6 +19,7 @@ pub struct Robot {
     landmark_obs: Option<OrientedLandmarkObservation>,
     robot_obs: Option<OrientedRobotObservation>,
     gnss_obs: Option<drawables::observations::GNSSObservation>,
+    scan_obs: Option<drawables::observations::ScanObservation>,
     context_info_enabled: bool,
 }
 
@@ -27,21 +28,26 @@ impl Robot {
         let mut landmark_obs = None;
         let mut robot_obs = None;
         let mut gnss_obs = None;
-
+        let mut scan_obs = None;
         for sensor_conf in &config.sensor_manager.sensors {
             match &sensor_conf.config {
-                SensorConfig::GNSSSensor(c) => {
+                SensorConfig::GNSS(c) => {
                     gnss_obs = Some(drawables::observations::GNSSObservation::init(
                         c, sim_config,
                     ))
                 }
-                SensorConfig::SpeedSensor(_) => {}
-                SensorConfig::DisplacementSensor(_) => {}
-                SensorConfig::OrientedLandmarkSensor(c) => {
+                SensorConfig::Speed(_) => {}
+                SensorConfig::Displacement(_) => {}
+                SensorConfig::OrientedLandmark(c) => {
                     landmark_obs = Some(OrientedLandmarkObservation::init(c, sim_config))
                 }
-                SensorConfig::RobotSensor(c) => {
+                SensorConfig::Robot(c) => {
                     robot_obs = Some(OrientedRobotObservation::init(c, sim_config))
+                }
+                SensorConfig::Scan(c) => {
+                    scan_obs = Some(drawables::observations::ScanObservation::init(
+                        c, sim_config,
+                    ))
                 }
                 SensorConfig::External(_) => {}
             }
@@ -54,6 +60,7 @@ impl Robot {
             landmark_obs,
             robot_obs,
             gnss_obs,
+            scan_obs,
             context_info_enabled: false,
         }
     }
@@ -72,6 +79,11 @@ impl Robot {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
 
+        if let Some((max_time, _)) = self.records.max_time()
+            && time > max_time + TIME_ROUND
+        {
+            return Ok(shapes);
+        }
         if let Some((_, record)) = self.records.get_data_beq_time(time) {
             let pose = record.physics.pose();
             let position = Vec2::new(pose[0], pose[1]);
@@ -126,6 +138,16 @@ impl Robot {
                             painter_info,
                             scale,
                             o,
+                        )?)
+                    }
+                    SensorObservationRecord::Scan(o) => {
+                        shapes.extend(self.scan_obs.as_ref().unwrap().draw(
+                            ui,
+                            viewport,
+                            painter_info,
+                            scale,
+                            o,
+                            &Vector3::from(pose),
                         )?)
                     }
                     _ => {}

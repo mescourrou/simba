@@ -1,6 +1,9 @@
-//! Misassociation faults
+//! Misassociation fault model.
 //!
-//! Remark: the order of the application of the random value is alphabetical on the name of the observation variables if no order is specified.
+//! This module defines a fault model that can replace an observation label with another one,
+//! according to a configurable random process.
+//! Behavior is controlled by [`MisassociationFaultConfig`], and runtime decisions are executed by
+//! [`MisassociationFault`].
 
 use std::{
     ops::Rem,
@@ -11,7 +14,6 @@ use nalgebra::Vector2;
 use rand::prelude::*;
 use rand::seq::SliceRandom;
 use rand_chacha::ChaCha8Rng;
-use serde_json::from_str;
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
@@ -22,8 +24,6 @@ use crate::gui::{
 use crate::{
     environment::Environment,
     node::NodeState,
-    sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
-    simulator::SimulatorConfig,
     utils::{
         SharedMutex,
         determinist_random_variable::{
@@ -36,32 +36,66 @@ use crate::{
     },
 };
 
-use super::fault_model::FaultModel;
-
+/// Ordering strategy used to pick replacement labels.
+///
+/// This controls how candidate labels are arranged before indexing with a sampled value.
 #[config_derives]
 #[derive(Default)]
 pub enum Sort {
+    /// Keep the source-provided order of candidates (alphabetically).
     None,
+    /// Shuffle candidates using a deterministic random generator seeded from simulation state.
     Random,
+    /// Sort candidates by increasing squared distance to the observer position.
     #[default]
     Distance,
 }
 
+/// Source used to build the candidate label list for misassociation.
 #[config_derives]
 pub enum Source {
+    /// Use landmark identifiers from the current map.
     Map,
+    /// Use identifiers of running robots from environment metadata.
     Robots,
 }
 
+/// Configuration for the misassociation fault model.
+///
+/// This configuration defines when misassociation happens and how the replacement label
+/// is selected from candidates.
+/// The `apparition` variable decides if misassociation is applied for a sample,
+/// while `distribution` provides the sampled index used to pick a candidate label.
+/// The `sort` and `source` options define how the candidate list is built and ordered.
 #[config_derives]
 pub struct MisassociationFaultConfig {
-    #[check(eq(self.apparition.probability.len(), 1))]
+    /// Bernoulli variable controlling whether misassociation is triggered.
+    #[check]
     pub apparition: BernouilliRandomVariableConfig,
+    /// Random variable used to sample the candidate index.
     #[check]
     pub distribution: RandomVariableTypeConfig,
-    #[check(if(is_enum(self.source, Source::Robots), !is_enum(Sort::Distance)))]
+    /// Strategy used to order candidate labels before sampling.
     pub sort: Sort,
+    /// Source from which candidate labels are collected.
     pub source: Source,
+}
+
+impl Check for MisassociationFaultConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.apparition.probability.len() != 1 {
+            errors.push(format!(
+                "Apparition probability should be of length 1, got {}",
+                self.apparition.probability.len()
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for MisassociationFaultConfig {
@@ -122,7 +156,7 @@ impl UIComponent for MisassociationFaultConfig {
 
             ui.horizontal(|ui| {
                 ui.label("Source:");
-                let possible_values = vec!["Robots".to_string(), "Map".to_string()];
+                let possible_values = vec!["Robots", "Map"];
                 let mut current_source = self.source.to_string();
                 string_combobox(ui, &possible_values, &mut current_source, unique_id);
                 if current_source != self.source.to_string() {
@@ -158,6 +192,10 @@ impl UIComponent for MisassociationFaultConfig {
     }
 }
 
+/// Runtime implementation of label misassociation faults.
+///
+/// This type samples configured random variables and maps an input label to another label
+/// selected from map landmarks or robot names.
 #[derive(Debug)]
 pub struct MisassociationFault {
     apparition: DeterministBernouilliRandomVariable,
@@ -169,12 +207,10 @@ pub struct MisassociationFault {
 }
 
 impl MisassociationFault {
+    /// Builds a runtime fault model from [`MisassociationFaultConfig`].
     pub fn from_config(
         config: &MisassociationFaultConfig,
-        _global_config: &SimulatorConfig,
-        _robot_name: &str,
         va_factory: &DeterministRandomVariableFactory,
-        _initial_time: f32,
     ) -> Self {
         let distribution = Arc::new(Mutex::new(
             va_factory.make_variable(config.distribution.clone()),
@@ -195,20 +231,18 @@ impl MisassociationFault {
             config: config.clone(),
         }
     }
-}
 
-impl FaultModel for MisassociationFault {
-    fn add_faults(
+    /// Returns the label after applying one misassociation decision.
+    ///
+    /// If misassociation is not triggered for `seed`, this returns `old_label` unchanged.
+    /// Otherwise, it selects a new label from candidates extracted from [`Environment`].
+    pub fn new_label(
         &mut self,
-        _time: f32,
         seed: f32,
-        obs_list: &mut Vec<SensorObservation>,
-        _obs_type: SensorObservation,
+        old_label: String,
+        position: Vector2<f32>,
         environment: &Arc<Environment>,
-    ) {
-        let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
-        let mut seed = seed;
-
+    ) -> String {
         let mut id_list: Vec<(String, Vector2<f32>)> = match &self.source {
             Source::Robots => environment
                 .get_meta_data()
@@ -237,58 +271,23 @@ impl FaultModel for MisassociationFault {
             let mut rng = ChaCha8Rng::seed_from_u64((self.global_seed + seed).to_bits() as u64);
             id_list.shuffle(&mut rng);
         }
-        for obs in obs_list {
-            seed += obs_seed_increment;
-            if self.apparition.generate(seed)[0] < 1. {
-                continue;
-            }
-            let random_sample = self.distribution.lock().unwrap().generate(seed);
-            match obs {
-                SensorObservation::OrientedRobot(o) => {
-                    if let Sort::Distance = self.sort {
-                        id_list.sort_by_key(|i| {
-                            ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
-                        });
-                    }
-                    let new_id = id_list
-                        [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
-                    .0
-                    .clone();
-                    o.name = new_id;
-                    o.applied_faults
-                        .push(FaultModelConfig::Misassociation(self.config.clone()));
-                }
-                SensorObservation::GNSS(_) => {
-                    panic!("Not implemented (appropriated for this sensor?)");
-                }
-                SensorObservation::Speed(_) => {
-                    panic!("Not implemented (appropriated for this sensor?)");
-                }
-                SensorObservation::Displacement(_) => {
-                    panic!("Not implemented (appropriated for this sensor?)");
-                }
-                SensorObservation::OrientedLandmark(o) => {
-                    if let Sort::Distance = self.sort {
-                        id_list.sort_by_key(|i| {
-                            ((i.1 - o.pose.fixed_rows::<2>(0)).norm_squared() * 1000.) as usize
-                        });
-                    }
-                    let new_id = id_list
-                        [(random_sample[0].abs().floor() as usize).rem(id_list.len())]
-                    .0
-                    .clone();
-                    o.id = from_str(&new_id).expect(
-                        "Unexpected error: id_list should only contain int represented as string",
-                    );
-                    o.applied_faults
-                        .push(FaultModelConfig::Misassociation(self.config.clone()));
-                }
-                SensorObservation::External(_) => {
-                    panic!("MisassociationFault cannot fault ExternalObservation");
-                }
-            }
+        if self.apparition.generate(seed)[0] < 1. {
+            return old_label;
         }
+        let random_sample = self.distribution.lock().unwrap().generate(seed);
+        if let Sort::Distance = self.sort {
+            id_list.sort_by_key(|i| ((i.1 - position).norm_squared() * 1000.) as usize);
+        }
+        id_list[(random_sample[0].abs().floor() as usize).rem(id_list.len())]
+            .0
+            .clone()
+    }
+
+    /// Returns the configuration used to build this fault model.
+    pub fn config(&self) -> &MisassociationFaultConfig {
+        &self.config
     }
 }
 
+/// Record type for misassociation faults.
 pub struct MisassociationRecord {}

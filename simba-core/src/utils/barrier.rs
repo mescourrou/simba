@@ -1,3 +1,6 @@
+//! A barrier implementation for synchronizing threads in the simulator.
+//! This barrier implementation uses the same logic than the standard-library `std::sync::Barrier`,
+//! but allows dynamically adding or removing threads from the barrier.
 use std::{
     fmt,
     sync::{Condvar, Mutex},
@@ -133,6 +136,7 @@ impl Barrier {
         }
     }
 
+    /// Removes one thread from the barrier, allowing it to unblock sooner.
     pub fn remove_one(&self) {
         let mut lock = self.lock.lock().unwrap();
         *self.num_threads.lock().unwrap() -= 1;
@@ -143,6 +147,7 @@ impl Barrier {
         }
     }
 
+    /// Adds one thread to the barrier, making it block until one more thread calls `wait()`.
     pub fn add_one(&self) {
         let _lk = self.lock.lock().unwrap();
         *self.num_threads.lock().unwrap() += 1;

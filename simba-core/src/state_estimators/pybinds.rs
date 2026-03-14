@@ -1,3 +1,10 @@
+//! Python bindings and async bridge for state estimators.
+//!
+//! This module provides:
+//! - an async client/server bridge to call Python estimator code from Rust,
+//! - request payload types used by the async bridge,
+//! - the Python-facing base wrapper class for custom estimators.
+
 use std::{str::FromStr, sync::Arc};
 
 use log::debug;
@@ -26,6 +33,10 @@ use super::{
 };
 
 #[derive(Debug, Clone)]
+/// Async client implementation of the state-estimator interface for Python GIL support.
+///
+/// This client forwards calls through remote-function channels to the Python
+/// estimator host running in the main Python bridge.
 pub struct PythonStateEstimatorAsyncClient {
     post_init: RemoteFunctionCall<NodeWrapper, SimbaResult<()>>,
     prediction_step: RemoteFunctionCall<PythonStateEstimatorPredictionStepRequest, ()>,
@@ -108,6 +119,10 @@ impl Recordable<StateEstimatorRecord> for PythonStateEstimatorAsyncClient {
 #[derive(Debug)]
 // #[pyclass(subclass)]
 // #[pyo3(name = "StateEstimator")]
+/// Host-side Python state-estimator bridge.
+///
+/// It receives async requests, invokes Python methods on the wrapped model,
+/// and exposes a client implementing the Rust estimator traits.
 pub struct PythonStateEstimator {
     model: Py<PyAny>,
     client: PythonStateEstimatorAsyncClient,
@@ -121,28 +136,40 @@ pub struct PythonStateEstimator {
 }
 
 #[derive(Debug, Clone)]
+/// Request for prediction step.
 pub struct PythonStateEstimatorPredictionStepRequest {
+    /// Node wrapper associated with the current estimator instance.
     pub node: NodeWrapper,
+    /// Optional command currently applied by the physics.
     pub command: Option<CommandWrapper>,
+    /// Simulation time of the step.
     pub time: f32,
 }
 
 #[derive(Debug, Clone)]
+/// Request for correction step.
 pub struct PythonStateEstimatorCorrectionStepRequest {
+    /// Node wrapper associated with the current estimator instance.
     pub node: NodeWrapper,
+    /// Observations used for correction.
     pub observations: Vec<Observation>,
+    /// Simulation time of the step.
     pub time: f32,
 }
 
 #[derive(Debug, Clone)]
+/// Request for the pre-loop hook.
 pub struct PythonStateEstimatorPreLoopHookRequest {
+    /// Node wrapper associated with the current estimator instance.
     pub node: NodeWrapper,
+    /// Simulation time of the hook call.
     pub time: f32,
 }
 
 // #[pymethods]
 impl PythonStateEstimator {
     // #[new]
+    /// Create a new Python state-estimator host from a Python model object.
     pub fn new(py_model: Py<PyAny>) -> PythonStateEstimator {
         if is_enabled(crate::logger::InternalLog::API) {
             Python::attach(|py| {
@@ -180,10 +207,12 @@ impl PythonStateEstimator {
 }
 
 impl PythonStateEstimator {
+    /// Get a clone of the async client that can be used by the simulator.
     pub fn get_client(&self) -> PythonStateEstimatorAsyncClient {
         self.client.clone()
     }
 
+    /// Poll all pending async requests and dispatch them to Python methods.
     pub fn check_requests(&mut self) {
         self.post_init
             .clone()
@@ -278,14 +307,17 @@ impl PythonStateEstimator {
 
 #[pyclass(subclass)]
 #[pyo3(name = "StateEstimator")]
+/// Wrapper base class for custom state estimators.
 pub struct StateEstimatorWrapper {
     #[pyo3(get, set)]
+    /// Optional display name for the estimator instance.
     pub name: String,
 }
 
 #[pymethods]
 impl StateEstimatorWrapper {
     #[new]
+    /// Create a default wrapper instance.
     pub fn new(_config: Py<PyAny>, _initial_time: f32) -> StateEstimatorWrapper {
         StateEstimatorWrapper {
             name: String::from("anonyme"),

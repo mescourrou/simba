@@ -1,3 +1,9 @@
+//! Holonomic robot model.
+//!
+//! This module defines a holonomic robot kinematic model implementing
+//! [`RobotModel`], along with command and configuration types.
+
+use config_checker::*;
 use libm::atan2f;
 use nalgebra::SMatrix;
 use serde::{Deserialize, Serialize};
@@ -12,11 +18,14 @@ use crate::{
 
 /// Command struct, to control the robot using velocity in both directions.
 ///
-/// x is the axis oriented
+/// x is the axis oriented forward, y is the axis oriented to the left.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HolonomicCommand {
+    /// Commanded forward/backward velocity in the robot frame.
     pub longitudinal_velocity: f32,
+    /// Commanded lateral velocity in the robot frame.
     pub lateral_velocity: f32,
+    /// Commanded angular velocity around the vertical axis.
     pub angular_velocity: f32,
 }
 
@@ -34,11 +43,51 @@ impl UIComponent for HolonomicCommand {
     }
 }
 
+/// Configuration for the [`Holonomic`] robot model.
+///
+/// This configuration defines saturation values.
+///
+/// Default values:
+/// - `max_longitudinal_velocity`: `10.0`
+/// - `max_lateral_velocity`: `10.0`
+/// - `max_angular_velocity`: `1.0`
 #[config_derives]
 pub struct HolonomicConfig {
+    /// Maximum absolute longitudinal velocity.
     pub max_longitudinal_velocity: f32,
+    /// Maximum absolute lateral velocity.
     pub max_lateral_velocity: f32,
+    /// Maximum absolute angular velocity.
     pub max_angular_velocity: f32,
+}
+
+impl Check for HolonomicConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.max_longitudinal_velocity < 0. {
+            errors.push(format!(
+                "Max longitudinal velocity should be positive, got {}",
+                self.max_longitudinal_velocity
+            ));
+        }
+        if self.max_lateral_velocity < 0. {
+            errors.push(format!(
+                "Max lateral velocity should be positive, got {}",
+                self.max_lateral_velocity
+            ));
+        }
+        if self.max_angular_velocity < 0. {
+            errors.push(format!(
+                "Max angular velocity should be positive, got {}",
+                self.max_angular_velocity
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for HolonomicConfig {
@@ -101,6 +150,7 @@ impl UIComponent for HolonomicConfig {
 }
 
 #[derive(Debug, Clone)]
+/// Runtime holonomic robot model.
 pub struct Holonomic {
     max_longitudinal_velocity: f32,
     max_lateral_velocity: f32,
@@ -108,6 +158,7 @@ pub struct Holonomic {
 }
 
 impl Holonomic {
+    /// Builds a [`Holonomic`] model from [`HolonomicConfig`].
     pub fn from_config(config: &HolonomicConfig) -> Self {
         Self {
             max_longitudinal_velocity: config.max_longitudinal_velocity,

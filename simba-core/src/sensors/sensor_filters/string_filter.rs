@@ -1,24 +1,41 @@
+//! String-based sensor filter using accepted and rejected regular expressions.
+//!
+//! This module defines a lightweight filtering mechanism used to decide whether
+//! a sensor observation should be excluded based on a list of labels or names.
+//! The filter evaluates two regexp sets:
+//! - an `accepted` set, used to explicitly keep matching strings,
+//! - a `rejected` set, used to exclude matching strings.
+//!
+//! When both sets match, the final decision depends on `priority_accept`:
+//! - if `true`, accepted matches override rejected matches,
+//! - if `false`, rejected matches take precedence.
+
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::{
-    sensors::{SensorObservation, sensor_filters::SensorFilter},
-    state_estimators::State,
-};
 
 #[config_derives]
-pub struct LabelFilterConfig {
-    /// Labels to accept. Can be regexp patterns.
+/// Configuration for a regexp-based string filter.
+///
+/// The filter is evaluated against a list of input strings. Each input string is
+/// tested against both the `accepted` and `rejected` regexp lists. If at least
+/// one accepted regexp matches, the string can be kept; if at least one rejected
+/// regexp matches, the string can be excluded.
+///
+/// The `priority_accept` flag defines the decision when both accepted and
+/// rejected patterns match the same input set.
+pub struct StringFilterConfig {
+    /// Strings to accept. Can be regexp patterns.
     pub accepted: Vec<String>,
-    /// Labels to reject. Can be regexp patterns.
+    /// Strings to reject. Can be regexp patterns.
     pub rejected: Vec<String>,
     /// How to manage intersection between accepted and rejected sets.
-    /// If true, when a label is in the accepted and rejected sets, it is accepted.
+    /// If true, when a string is in the accepted and rejected sets, it is accepted.
     pub priority_accept: bool,
 }
 
-impl Default for LabelFilterConfig {
+impl Default for StringFilterConfig {
     fn default() -> Self {
         Self {
             accepted: Vec::new(),
@@ -29,7 +46,7 @@ impl Default for LabelFilterConfig {
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for LabelFilterConfig {
+impl UIComponent for StringFilterConfig {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
@@ -40,13 +57,13 @@ impl UIComponent for LabelFilterConfig {
         unique_id: &str,
     ) {
         ui.vertical(|ui| {
-            ui.label("Accepted labels (regexp):");
+            ui.label("Accepted strings (regexp):");
             let mut to_remove = Vec::new();
             for (i, id) in self.accepted.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     use crate::gui::utils::text_singleline_with_apply;
 
-                    let unique_var_id = format!("accepted-labels-{i}-{unique_id}");
+                    let unique_var_id = format!("accepted-strings-{i}-{unique_id}");
                     text_singleline_with_apply(ui, &unique_var_id, buffer_stack, id);
                     if ui.button("-").clicked() {
                         to_remove.push(i);
@@ -60,13 +77,13 @@ impl UIComponent for LabelFilterConfig {
                 self.accepted.push(String::new());
             }
 
-            ui.label("Rejected labels (regexp):");
+            ui.label("Rejected strings (regexp):");
             let mut to_remove = Vec::new();
             for (i, id) in self.rejected.iter_mut().enumerate() {
                 ui.horizontal(|ui| {
                     use crate::gui::utils::text_singleline_with_apply;
 
-                    let unique_var_id = format!("rejected-labels-{i}-{unique_id}");
+                    let unique_var_id = format!("rejected-strings-{i}-{unique_id}");
                     ui.label("- ");
                     text_singleline_with_apply(ui, &unique_var_id, buffer_stack, id);
                     if ui.button("-").clicked() {
@@ -90,11 +107,11 @@ impl UIComponent for LabelFilterConfig {
 
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
         ui.vertical(|ui| {
-            ui.label("Accepted labels (regexp):");
+            ui.label("Accepted strings (regexp):");
             for var in &self.accepted {
                 ui.label(format!("- '{}'", var));
             }
-            ui.label("Rejected labels (regexp):");
+            ui.label("Rejected strings (regexp):");
             for var in &self.rejected {
                 ui.label(format!("- '{}'", var));
             }
@@ -104,14 +121,22 @@ impl UIComponent for LabelFilterConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct LabelFilter {
+/// Filter for strings based on accepted and rejected regular expressions.
+///
+/// This structure stores compiled regular expressions for efficient repeated
+/// filtering.
+pub struct StringFilter {
     accepted: Vec<regex::Regex>,
     rejected: Vec<regex::Regex>,
     priority_accept: bool,
 }
 
-impl LabelFilter {
-    pub fn from_config(config: &LabelFilterConfig, _initial_time: f32) -> Self {
+impl StringFilter {
+    /// Build a filter from its configuration.
+    ///
+    /// All accepted and rejected patterns are compiled as regular expressions.
+    /// Invalid regular expressions will panic during construction.
+    pub fn from_config(config: &StringFilterConfig, _initial_time: f32) -> Self {
         Self {
             accepted: config
                 .accepted
@@ -127,70 +152,37 @@ impl LabelFilter {
         }
     }
 
-    fn keep_labels(&self, labels: &[String]) -> bool {
+    /// Return whether the given strings should be excluded by the filter.
+    ///
+    /// The method checks the input strings against both accepted and rejected
+    /// regexp sets, then applies the configured priority rule.
+    pub fn match_exclusion(&self, strings: &[String]) -> bool {
         if self.priority_accept {
             if !self.accepted.is_empty()
-                && labels
+                && strings
                     .iter()
                     .any(|label| self.accepted.iter().any(|re| re.is_match(label)))
             {
-                return true;
-            } else if labels
+                return false;
+            } else if strings
                 .iter()
                 .any(|label| self.rejected.iter().any(|re| re.is_match(label)))
             {
-                return false;
+                return true;
             }
-        } else if labels
+        } else if strings
             .iter()
             .any(|label| self.rejected.iter().any(|re| re.is_match(label)))
         {
-            return false;
+            return true;
         } else if !self.accepted.is_empty()
-            && labels
+            && strings
                 .iter()
                 .any(|label| self.accepted.iter().any(|re| re.is_match(label)))
         {
-            return true;
+            return false;
         }
-        self.accepted.is_empty()
-    }
-}
-
-impl SensorFilter for LabelFilter {
-    fn filter(
-        &self,
-        _time: f32,
-        observation: SensorObservation,
-        _observer_state: &State,
-        _observee_state: Option<&State>,
-    ) -> Option<SensorObservation> {
-        match &observation {
-            SensorObservation::GNSS(_) => {
-                unimplemented!("IdFilter cannot filter GNSSObservation");
-            }
-            SensorObservation::Speed(_) => {
-                unimplemented!("IdFilter cannot filter SpeedObservation");
-            }
-            SensorObservation::Displacement(_) => {
-                unimplemented!("IdFilter cannot filter DisplacementObservation");
-            }
-            SensorObservation::OrientedLandmark(obs) => {
-                if !self.keep_labels(&obs.labels) {
-                    return None;
-                }
-            }
-            SensorObservation::OrientedRobot(obs) => {
-                if !self.keep_labels(&obs.labels) {
-                    return None;
-                }
-            }
-            SensorObservation::External(_) => {
-                panic!("IdFilter cannot filter ExternalObservation");
-            }
-        }
-
-        Some(observation)
+        !self.accepted.is_empty()
     }
 }
 
@@ -200,42 +192,42 @@ mod tests {
 
     #[test]
     fn accept_first() {
-        let config = LabelFilterConfig {
+        let config = StringFilterConfig {
             accepted: vec!["robot_good".to_string()],
             rejected: vec!["robot_.*".to_string()],
             priority_accept: true,
         };
-        let filter = LabelFilter::from_config(&config, 0.0);
-        assert!(!filter.keep_labels(&["robot_1".to_string(), "robot_bad".to_string()]));
-        assert!(filter.keep_labels(&["robot_good".to_string(), "robot_bad".to_string()]));
-        assert!(filter.keep_labels(&["robot_bad".to_string(), "robot_good".to_string()]));
-        assert!(!filter.keep_labels(&["landmark_1".to_string()]));
+        let filter = StringFilter::from_config(&config, 0.0);
+        assert!(filter.match_exclusion(&["robot_1".to_string(), "robot_bad".to_string()]));
+        assert!(!filter.match_exclusion(&["robot_good".to_string(), "robot_bad".to_string()]));
+        assert!(!filter.match_exclusion(&["robot_bad".to_string(), "robot_good".to_string()]));
+        assert!(filter.match_exclusion(&["landmark_1".to_string()]));
     }
 
     #[test]
     fn reject_first() {
-        let config = LabelFilterConfig {
+        let config = StringFilterConfig {
             accepted: vec!["robot_.*".to_string()],
             rejected: vec!["robot_bad".to_string()],
             priority_accept: false,
         };
-        let filter = LabelFilter::from_config(&config, 0.0);
-        assert!(filter.keep_labels(&["robot_1".to_string()]));
-        assert!(!filter.keep_labels(&["robot_1".to_string(), "robot_bad".to_string()]));
-        assert!(!filter.keep_labels(&["robot_bad".to_string(), "robot_1".to_string()]));
-        assert!(!filter.keep_labels(&["landmark_1".to_string()]));
+        let filter = StringFilter::from_config(&config, 0.0);
+        assert!(!filter.match_exclusion(&["robot_1".to_string()]));
+        assert!(filter.match_exclusion(&["robot_1".to_string(), "robot_bad".to_string()]));
+        assert!(filter.match_exclusion(&["robot_bad".to_string(), "robot_1".to_string()]));
+        assert!(filter.match_exclusion(&["landmark_1".to_string()]));
     }
 
     #[test]
     fn accept_empty() {
-        let config = LabelFilterConfig {
+        let config = StringFilterConfig {
             accepted: vec![],
             rejected: vec!["robot_.*".to_string()],
             priority_accept: true,
         };
-        let filter = LabelFilter::from_config(&config, 0.0);
-        assert!(!filter.keep_labels(&["robot_1".to_string()]));
-        assert!(!filter.keep_labels(&["robot_bad".to_string()]));
-        assert!(filter.keep_labels(&["landmark_1".to_string()]));
+        let filter = StringFilter::from_config(&config, 0.0);
+        assert!(filter.match_exclusion(&["robot_1".to_string()]));
+        assert!(filter.match_exclusion(&["robot_bad".to_string()]));
+        assert!(!filter.match_exclusion(&["landmark_1".to_string()]));
     }
 }

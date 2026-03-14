@@ -1,7 +1,10 @@
-/*!
-Implementation of a [`Navigator`] strategy, which follows a polyline shaped
-trajectory.
-*/
+//! Polyline-based [`Navigator`] implementation.
+//!
+//! [`TrajectoryFollower`] computes control errors by projecting the robot pose onto a
+//! [`Trajectory`], then deriving lateral, longitudinal, heading, and velocity errors from that
+//! projection.
+//!
+//! The behavior is configured through [`TrajectoryFollowerConfig`].
 
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::path_finder};
@@ -19,28 +22,68 @@ extern crate nalgebra as na;
 use libm::atan2;
 use na::Vector3;
 
+use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 use std::path::Path;
 
 /// Configuration of the [`TrajectoryFollower`] strategy.
+///
+/// The trajectory is loaded from the file specified by `trajectory_path`, which should be compatible with
+/// [`TrajectoryConfig`]. If `trajectory_path` is empty, the navigator will fall back to a default empty
+/// trajectory: the node will not move.
+///
+/// The trajectory following computes the error using a forward projection of the robot pose on the trajectory,
+/// with a distance of `forward_distance`. The error is then the error in angle to go to this projected point.
+/// The robot will try to reach a target speed of `target_speed` m/s, which is reduced when the robot gets
+/// closer to the end of the trajectory, starting from `stop_distance` meters to the end, using a ramp
+/// coefficient of `stop_ramp_coefficient`.
 #[config_derives]
 pub struct TrajectoryFollowerConfig {
-    /// Path to load the path. The file should be compatible with [`TrajectoryConfig`].
+    /// Path of the trajectory configuration file.
+    ///
+    /// The file must deserialize as [`TrajectoryConfig`]. Relative paths are resolved from
+    /// the configuration path.
+    /// Default: empty string (`""`), which makes [`TrajectoryFollower::from_config`] fall back to
+    /// [`TrajectoryFollower::new`].
     pub trajectory_path: String,
-    /// Distance of the point which is projected on the trajectory.
-    #[check(ge(0.))]
+    /// Forward projection distance used during map matching, in meters.
+    ///
+    /// Default: `1.0`.
     pub forward_distance: f32,
-    /// Speed to reach, in m/s.
-    #[check(ge(0.))]
+    /// Target linear speed in m/s.
+    ///
+    /// Default: `0.5`.
     pub target_speed: f32,
-    /// Distance where to stop when reaching the end of the trajectory
-    #[check(ge(0.))]
+    /// Distance threshold to force stop near the trajectory end, in meters.
+    ///
+    /// Default: `0.2`.
     pub stop_distance: f32,
-    /// Coefficient of the target velocity, multiplied by the remaining distance
-    #[check(ge(0.))]
+    /// Ramp coefficient applied to remaining distance when reducing speed near the end.
+    ///
+    /// Default: `0.5`, meaning that the target speed will be reduced to 0.5 times the remaining distance when
+    /// the robot is within `stop_distance` of the end of the trajectory.
     pub stop_ramp_coefficient: f32,
+}
+
+impl Check for TrajectoryFollowerConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errs = Vec::new();
+        if self.forward_distance < 0. {
+            errs.push("Forward distance should be positive".to_string());
+        }
+        if self.target_speed < 0. {
+            errs.push("Target speed should be positive".to_string());
+        }
+        if self.stop_distance < 0. {
+            errs.push("Stop distance should be positive".to_string());
+        }
+        if self.stop_ramp_coefficient < 0. {
+            errs.push("Stop ramp coefficient should be positive".to_string());
+        }
+        if errs.is_empty() { Ok(()) } else { Err(errs) }
+    }
 }
 
 impl Default for TrajectoryFollowerConfig {
@@ -145,6 +188,7 @@ pub struct TrajectoryFollowerRecord {
     pub error: ControllerError,
     /// Trajectory dynamic record.
     pub trajectory: TrajectoryRecord,
+    /// Last projected point on the matched trajectory segment, in world coordinates `[x, y]`.
     pub projected_point: [f32; 2],
 }
 
@@ -221,9 +265,9 @@ impl TrajectoryFollower {
     ///
     /// ## Arguments
     /// * `config` - Trajectory configuration
-    /// * `plugin_api` - Not used there.
     /// * `global_config` - Global configuration of the simulator. Used there to get the
     ///   path of the config, used as relative reference for the trajectory path.
+    /// * `initial_time` - Initial simulation time, in seconds. Not used by this navigator, but provided for consistency with other navigators and potential future use.
     pub fn from_config(
         config: &TrajectoryFollowerConfig,
         global_config: &SimulatorConfig,

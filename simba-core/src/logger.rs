@@ -1,3 +1,13 @@
+//! Logging configuration and internal debug-channel filtering.
+//!
+//! Simulator should not generate `debug` logs if [`InternalLog`] is not enabled.
+//!
+//! This module provides:
+//! - [`LogLevel`] for global logging level selection,
+//! - [`InternalLog`] for fine-grained internal debug categories,
+//! - [`LoggerConfig`] to configure logging from simulator configuration,
+//! - helper functions to initialize and query internal log flags.
+
 use std::sync::RwLock;
 
 use simba_macros::config_derives;
@@ -13,13 +23,20 @@ use crate::{
 
 static INTERNAL_LOG_LEVEL: RwLock<Vec<InternalLog>> = RwLock::new(Vec::new());
 
+/// Global logging level configuration.
 #[config_derives(tag_content)]
 pub enum LogLevel {
+    /// Disable all logs.
     Off,
+    /// Enable only error logs.
     Error,
+    /// Enable warning and error logs.
     Warn,
+    /// Enable info, warning, and error logs.
     Info,
+    /// Enable debug, info, warning, and error logs.
     Debug,
+    /// Enable debug logs with additional internal category filtering.
     Internal(Vec<InternalLog>),
 }
 
@@ -69,30 +86,57 @@ impl From<LogLevel> for String {
     }
 }
 
+/// Internal debug categories used when [`LogLevel::Internal`] is selected.
 #[config_derives]
 pub enum InternalLog {
+    /// Enable all internal categories.
     All,
+    /// Network message lifecycle logs.
     NetworkMessages,
+    /// Detailed network message logs.
     NetworkMessagesDetailed,
+    /// Service request/response handling logs.
     ServiceHandling,
+    /// Setup phase summary logs.
     SetupSteps,
+    /// Detailed setup phase logs.
     SetupStepsDetailed,
+    /// Sensor manager summary logs.
     SensorManager,
+    /// Detailed sensor manager logs.
     SensorManagerDetailed,
+    /// Node execution summary logs.
     NodeRunning,
+    /// Detailed node execution logs.
     NodeRunningDetailed,
+    /// Detailed node synchronization logs.
     NodeSyncDetailed,
+    /// API bridge logs (Python and PluginAPI).
     API,
+    /// Detailed navigator computation logs.
     NavigatorDetailed,
+    /// Scenario loading and update logs.
     Scenario,
+    /// Environment summary logs.
     Environment,
+    /// Detailed environment logs.
     EnvironmentDetailed,
 }
 
+/// Logger configuration applied at simulator startup.
 #[config_derives]
 pub struct LoggerConfig {
+    /// List of node names to include exclusively in logs.
+    ///
+    /// Empty by default, meaning no inclusion filter.
     pub included_nodes: Vec<String>,
+    /// List of node names to exclude from logs.
+    ///
+    /// Empty by default, meaning no exclusion filter.
     pub excluded_nodes: Vec<String>,
+    /// Selected global log level.
+    ///
+    /// Default: [`LogLevel::Info`].
     pub log_level: LogLevel,
 }
 
@@ -191,12 +235,20 @@ impl UIComponent for LoggerConfig {
     }
 }
 
+/// Initializes internal logging filters from a [`LoggerConfig`].
+///
+/// When `config.log_level` is [`LogLevel::Internal`], the provided categories replace the current
+/// in-memory internal filter list.
 pub fn init_log(config: &LoggerConfig) {
     if let LogLevel::Internal(v) = &config.log_level {
         *INTERNAL_LOG_LEVEL.write().unwrap() = v.clone();
     }
 }
 
+/// Returns whether a given internal debug category is currently enabled.
+///
+/// This returns `true` when the exact category is present in the initialized internal list, or
+/// when [`InternalLog::All`] is enabled.
 pub fn is_enabled(internal_level: InternalLog) -> bool {
     if let InternalLog::All = internal_level {
         return true;

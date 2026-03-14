@@ -1,8 +1,14 @@
+//! Node configuration and factory utilities.
+//!
+//! This module defines node-type configurations/records and provides [`NodeFactory`]
+//! helpers to instantiate runtime nodes from simulator configuration.
+
 use std::{
     str::FromStr,
     sync::{Arc, RwLock},
 };
 
+use config_checker::*;
 use log::debug;
 use serde::{Deserialize, Serialize};
 use simba_com::pub_sub::{BrokerTrait, PathKey};
@@ -35,11 +41,16 @@ use crate::{
     utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
+/// Type of node instantiated in the simulator.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum NodeType {
+    /// Full robot node with physics, control, navigation and sensing.
     Robot,
+    /// Sensor-only node.
     Sensor,
+    /// Passive object node.
     Object,
+    /// Computation-only node.
     ComputationUnit,
 }
 
@@ -52,6 +63,7 @@ impl NodeType {
         Self::ComputationUnit,
     ];
 
+    /// Returns whether this node type owns a physics module.
     pub fn has_physics(&self) -> bool {
         match self {
             Self::Robot | Self::Object => true,
@@ -59,6 +71,7 @@ impl NodeType {
         }
     }
 
+    /// Returns whether this node type owns a controller module.
     pub fn has_controller(&self) -> bool {
         match self {
             Self::Robot => true,
@@ -66,6 +79,7 @@ impl NodeType {
         }
     }
 
+    /// Returns whether this node type owns a navigator module.
     pub fn has_navigator(&self) -> bool {
         match self {
             Self::Robot => true,
@@ -73,6 +87,7 @@ impl NodeType {
         }
     }
 
+    /// Returns whether this node type owns a primary state estimator.
     pub fn has_state_estimator(&self) -> bool {
         match self {
             Self::Robot => true,
@@ -80,6 +95,7 @@ impl NodeType {
         }
     }
 
+    /// Returns whether this node type can host benchmark state estimators.
     pub fn has_state_estimator_bench(&self) -> bool {
         match self {
             Self::Robot | Self::Sensor | Self::ComputationUnit => true,
@@ -87,6 +103,7 @@ impl NodeType {
         }
     }
 
+    /// Returns whether this node type owns a sensor manager.
     pub fn has_sensors(&self) -> bool {
         match self {
             Self::Robot | Self::Sensor | Self::ComputationUnit => true,
@@ -94,6 +111,7 @@ impl NodeType {
         }
     }
 
+    /// Returns whether this node type owns a network module.
     pub fn has_network(&self) -> bool {
         match self {
             Self::Robot | Self::Sensor | Self::ComputationUnit => true,
@@ -102,11 +120,14 @@ impl NodeType {
     }
 }
 
+/// Record enum for node runtime snapshots.
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum NodeRecord {
     // Box RobotRecord to reduce size of NodeRecord
+    /// Record payload for a robot node.
     Robot(Box<RobotRecord>),
-    ComputationUnit(ComputationUnitRecord),
+    /// Record payload for a computation-unit node.
+    ComputationUnit(Box<ComputationUnitRecord>),
 }
 
 #[cfg(feature = "gui")]
@@ -120,6 +141,7 @@ impl UIComponent for NodeRecord {
 }
 
 impl NodeRecord {
+    /// Returns the corresponding [`NodeType`] for this record.
     pub fn as_node_type(&self) -> NodeType {
         match &self {
             Self::Robot(_) => NodeType::Robot,
@@ -127,6 +149,7 @@ impl NodeRecord {
         }
     }
 
+    /// Returns the navigator record when available.
     pub fn navigator(&self) -> Option<&NavigatorRecord> {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.navigator),
@@ -134,6 +157,7 @@ impl NodeRecord {
         }
     }
 
+    /// Returns the controller record when available.
     pub fn controller(&self) -> Option<&ControllerRecord> {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.controller),
@@ -141,6 +165,7 @@ impl NodeRecord {
         }
     }
 
+    /// Returns the physics record when available.
     pub fn physics(&self) -> Option<&PhysicsRecord> {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.physics),
@@ -148,6 +173,7 @@ impl NodeRecord {
         }
     }
 
+    /// Returns the state-estimator record when available.
     pub fn state_estimator(&self) -> Option<&StateEstimatorRecord> {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.state_estimator),
@@ -155,6 +181,7 @@ impl NodeRecord {
         }
     }
 
+    /// Returns benchmark state-estimator records when available.
     pub fn state_estimator_bench(&self) -> Option<&Vec<BenchStateEstimatorRecord>> {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.state_estimator_bench),
@@ -164,6 +191,7 @@ impl NodeRecord {
         }
     }
 
+    /// Returns the sensor-manager record when available.
     pub fn sensor_manager(&self) -> Option<&SensorManagerRecord> {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.sensors),
@@ -171,6 +199,7 @@ impl NodeRecord {
         }
     }
 
+    /// Returns node name.
     pub fn name(&self) -> &String {
         match &self {
             Self::Robot(robot_record) => &robot_record.name,
@@ -184,34 +213,109 @@ impl NodeRecord {
 ////////////////////////
 
 /// Configuration of the [`NodeType::Robot`].
+///
+/// This configuration defines the different modules composing the robot, as well as their configuration.
+///
+/// Default values:
+/// - `name`: `"NoName"`
+/// - `navigator`: default [`go_to::GoToConfig`]
+/// - `controller`: default [`pid::PIDConfig`]
+/// - `physics`: default [`internal_physics::InternalPhysicConfig`]
+/// - `state_estimator`: default [`perfect_estimator::PerfectEstimatorConfig`]
+/// - `sensor_manager`: [`SensorManagerConfig::default`]
+/// - `network`: [`NetworkConfig::default`]
+/// - `state_estimator_bench`: empty vector
+/// - `autospawn`: `true`
+/// - `labels`: empty vector
+///
+/// # Example
+/// ```yaml
+/// robots:
+/// - name: robot2
+///   navigator:
+///     type: TrajectoryFollower
+///     trajectory_path: path.yaml
+///     forward_distance: 0.2
+///     target_speed: 0.3
+///     stop_distance: 0.2
+///     stop_ramp_coefficient: 0.5
+///   controller:
+///     type: PID
+///   physics:
+///     type: Internal
+///     model:
+///       type: Unicycle
+///       wheel_distance: 0.25
+///     initial_state:
+///       random:
+///         - type: Uniform
+///           min:
+///           - -5.0
+///           - -5.0
+///           - -3.1416
+///           max:
+///           - 5.0
+///           - 5.0
+///           - 3.1416
+///       variable_order: [x, y, orientation]
+///     faults: []
+///   state_estimator:
+///     type: Perfect
+///     prediction_activation:
+///       period: {type: Num, value: 0.1}
+///     targets:
+///     - self
+///   sensor_manager:
+///     sensors:
+///     - name: RobotSensor
+///       send_to:
+///       - Central Unit
+///       config:
+///         type: Robot
+///         detection_distance: 100.0
+///         activation_time:
+///           period: {type: Num, value: 0.1}
+///         faults: []
+///         filters:
+///           - type: Range
+///             variables: [x, y]
+///             min_range: [0, -1]
+///             max_range: [10, 1]
+///   network:
+///     range: 10.0
+///     reception_delay: 0.1
+///   state_estimator_bench: []
+/// ```
 #[config_derives]
 pub struct RobotConfig {
-    /// Name of the robot.
+    /// Name of the robot. Will be used in the `model_name` field as well.
     pub name: String,
-    /// [`Navigator`](crate::navigators::navigator::Navigator) to use, and its configuration.
+    /// [`Navigator`](crate::navigators::Navigator) to use, and its configuration.
     #[check]
     pub navigator: NavigatorConfig,
     /// [`Controller`](crate::controllers::Controller) to use, and its configuration.
     #[check]
     pub controller: ControllerConfig,
-    /// [`Physics`](crate::physics::physics::Physics) to use, and its configuration.
+    /// [`Physics`](crate::physics::Physics) to use, and its configuration.
     #[check]
     pub physics: PhysicsConfig,
-    /// [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to use, and its configuration.
+    /// [`StateEstimator`](crate::state_estimators::StateEstimator) to use, and its configuration.
     #[check]
     pub state_estimator: StateEstimatorConfig,
-    /// [`SensorManager`] configuration, which defines the [`Sensor`](crate::sensors::sensor::Sensor)s used.
+    /// [`SensorManager`] configuration, which defines the [`Sensor`](crate::sensors::Sensor)s used.
     #[check]
     pub sensor_manager: SensorManagerConfig,
     /// [`Network`] configuration.
     #[check]
     pub network: NetworkConfig,
 
-    /// Additional [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to be evaluated but without a feedback
-    /// loop with the [`Navigator`](crate::navigators::navigator::Navigator)
+    /// Additional [`StateEstimator`](crate::state_estimators::StateEstimator) to be evaluated but without a feedback
+    /// loop with the [`Navigator`](crate::navigators::Navigator)
     #[check]
     pub state_estimator_bench: Vec<BenchStateEstimatorConfig>,
+    /// If `true`, node starts in running state when created.
     pub autospawn: bool,
+    /// Free-form labels attached to the node metadata.
     pub labels: Vec<String>,
 }
 
@@ -219,7 +323,7 @@ impl Default for RobotConfig {
     /// Default configuration, using:
     /// * Default [`GoTo`](go_to::GoTo) navigator.
     /// * Default [`PID`](pid::PID) controller.
-    /// * Default [`PerfectPhysics`](perfect_physics::PerfectPhysics) physics.
+    /// * Default [`InternalPhysics`](internal_physics::InternalPhysics) physics.
     /// * Default [`PerfectEstimator`](perfect_estimator::PerfectEstimator) state estimator.
     /// * Default [`SensorManager`] config (no sensors).
     /// * Default [`Network`] config.
@@ -412,20 +516,25 @@ impl UIComponent for RobotConfig {
 pub struct RobotRecord {
     /// Name of the robot.
     pub name: String,
+    /// Config/model name used to instantiate the robot. It corresponds to the name of the robot
+    /// in the configuration file.
     pub model_name: String,
-    /// Record of the [`Navigator`](crate::navigators::navigator::Navigator) module.
+    /// Record of the [`Navigator`](crate::navigators::Navigator) module.
     pub navigator: NavigatorRecord,
     /// Record of the [`Controller`](crate::controllers::Controller) module.
     pub controller: ControllerRecord,
-    /// Record of the [`Physics`](crate::physics::physics::Physics) module.
+    /// Record of the [`Physics`](crate::physics::Physics) module.
     pub physics: PhysicsRecord,
-    /// Record of the [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) module.
+    /// Record of the [`StateEstimator`](crate::state_estimators::StateEstimator) module.
     pub state_estimator: StateEstimatorRecord,
-    /// Record of the additionnal [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator)s, only to evaluate them.
+    /// Record of the additionnal [`StateEstimator`](crate::state_estimators::StateEstimator)s, only to evaluate them.
     pub state_estimator_bench: Vec<BenchStateEstimatorRecord>,
 
+    /// Record of the [`SensorManager`] module.
     pub sensors: SensorManagerRecord,
+    /// Current runtime node state.
     pub state: NodeState,
+    /// Labels attached to the node.
     pub labels: Vec<String>,
 }
 
@@ -481,6 +590,29 @@ impl UIComponent for RobotRecord {
 ////////////////////////
 
 /// Configuration of the [`NodeType::ComputationUnit`].
+///
+/// To get observations from other nodes, specify the `send_to` option of [`ManagedSensorConfig`](crate::sensors::sensor_manager::ManagedSensorConfig).
+///
+/// Default values:
+/// - `name`: `"NoName"`
+/// - `network`: [`NetworkConfig::default`]
+/// - `state_estimators`: empty vector
+/// - `labels`: empty vector
+///
+/// # Example
+/// ```yaml
+/// computation_units:
+/// - name: Central Unit
+///   state_estimators:
+///   - name: central_perfect
+///     config:
+///       type: Perfect
+///       prediction_activation:
+///         period: {type: Num, value: 0.1}
+///       targets:
+///       - robot1
+///       - robot2
+/// ```
 #[config_derives]
 pub struct ComputationUnitConfig {
     /// Name of the unit.
@@ -489,10 +621,11 @@ pub struct ComputationUnitConfig {
     #[check]
     pub network: NetworkConfig,
 
-    /// [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator)s
+    /// [`StateEstimator`](crate::state_estimators::StateEstimator)s
     #[check]
     pub state_estimators: Vec<BenchStateEstimatorConfig>,
 
+    /// Free-form labels attached to the node metadata.
     pub labels: Vec<String>,
 }
 
@@ -626,9 +759,13 @@ impl UIComponent for ComputationUnitConfig {
 pub struct ComputationUnitRecord {
     /// Name of the robot.
     pub name: String,
+    /// Records of benchmark state estimators.
     pub state_estimators: Vec<BenchStateEstimatorRecord>,
+    /// Record of the [`SensorManager`] module.
     pub sensor_manager: SensorManagerRecord,
+    /// Config/model name used to instantiate this unit.
     pub model_name: String,
+    /// Labels attached to the node.
     pub labels: Vec<String>,
 }
 
@@ -665,19 +802,31 @@ impl UIComponent for ComputationUnitRecord {
 /*      Factory       */
 ////////////////////////
 
+/// Shared parameters used by node factory constructors.
 pub struct MakeNodeParams<'a> {
+    /// Optional plugin API bridge.
     pub plugin_api: &'a Option<Arc<dyn PluginAPI>>,
+    /// Global simulator configuration.
     pub global_config: &'a SimulatorConfig,
+    /// Deterministic random-variable factory.
     pub va_factory: &'a Arc<DeterministRandomVariableFactory>,
+    /// Optional time-analysis factory used to create node profilers.
     pub time_analysis_factory: Option<&'a mut TimeAnalysisFactory>,
+    /// Simulator time condition variable shared across node services.
     pub time_cv: Arc<TimeCv>,
+    /// If `true`, forces record transmission even without results configuration.
     pub force_send_results: bool,
+    /// Optional override name for the created node.
     pub new_name: Option<&'a str>,
+    /// Shared simulation message broker.
     pub broker: &'a SharedRwLock<SimbaBroker>,
+    /// Initial simulation time.
     pub initial_time: f32,
+    /// Shared simulation environment.
     pub environment: Arc<Environment>,
 }
 
+/// Factory for creating runtime [`Node`] instances.
 pub struct NodeFactory {}
 
 impl NodeFactory {
@@ -749,12 +898,14 @@ impl NodeFactory {
         Ok(client)
     }
 
+    /// Builds a robot node from [`RobotConfig`].
     pub fn make_robot(config: &RobotConfig, params: &mut MakeNodeParams) -> SimbaResult<Node> {
         let node_type = NodeType::Robot;
+        let node_name = params.new_name.unwrap_or(&config.name).to_string();
         // Make global channels
-        let client = Self::make_global_channels(&config.name, params.broker)?;
+        let client = Self::make_global_channels(&node_name, params.broker)?;
         let network = Arc::new(RwLock::new(Network::from_config(
-            config.name.clone(),
+            node_name.clone(),
             &config.network,
             params.global_config,
             params.va_factory,
@@ -765,7 +916,7 @@ impl NodeFactory {
             global_config: params.global_config,
             initial_time: params.initial_time,
             network: &network,
-            node_name: &config.name,
+            node_name: &node_name,
             plugin_api: params.plugin_api,
             va_factory: params.va_factory,
         };
@@ -773,7 +924,7 @@ impl NodeFactory {
         let initial_state = physics.read().unwrap().state(params.initial_time).clone();
         let mut node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
-                name: params.new_name.unwrap_or(&config.name).to_string(),
+                name: node_name.clone(),
                 node_type,
                 model_name: config.name.clone(),
                 labels: config.labels.clone(),
@@ -831,7 +982,7 @@ impl NodeFactory {
             time_analysis: params
                 .time_analysis_factory
                 .as_mut()
-                .map(|taf| taf.new_node(config.name.clone())),
+                .map(|taf| taf.new_node(node_name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
             node_message_client: client,
@@ -873,14 +1024,16 @@ impl NodeFactory {
         Ok(node)
     }
 
-    pub fn make_computation_unit(
+    /// Builds a computation-unit node from [`ComputationUnitConfig`].
+    pub(crate) fn make_computation_unit(
         config: &ComputationUnitConfig,
         params: &mut MakeNodeParams,
     ) -> SimbaResult<Node> {
         let node_type = NodeType::ComputationUnit;
-        let client = Self::make_global_channels(&config.name, params.broker)?;
+        let node_name = params.new_name.unwrap_or(&config.name).to_string();
+        let client = Self::make_global_channels(&node_name, params.broker)?;
         let network = Arc::new(RwLock::new(Network::from_config(
-            config.name.clone(),
+            node_name.clone(),
             &config.network,
             params.global_config,
             params.va_factory,
@@ -891,13 +1044,13 @@ impl NodeFactory {
             global_config: params.global_config,
             initial_time: params.initial_time,
             network: &network,
-            node_name: &config.name,
+            node_name: &node_name,
             plugin_api: params.plugin_api,
             va_factory: params.va_factory,
         };
         let mut node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
-                name: params.new_name.unwrap_or(&config.name).to_string(),
+                name: node_name.clone(),
                 node_type,
                 model_name: config.name.clone(),
                 labels: config.labels.clone(),
@@ -923,7 +1076,7 @@ impl NodeFactory {
             time_analysis: params
                 .time_analysis_factory
                 .as_mut()
-                .map(|taf| taf.new_node(config.name.clone())),
+                .map(|taf| taf.new_node(node_name.clone())),
             send_records: params.force_send_results || params.global_config.results.is_some(),
             meta_data_list: None,
             node_message_client: client,
@@ -965,7 +1118,11 @@ impl NodeFactory {
         Ok(node)
     }
 
-    pub fn make_node_from_name(name: &str, params: &mut MakeNodeParams) -> SimbaResult<Node> {
+    /// Builds a node by searching its name in global robot and computation-unit configs.
+    pub(crate) fn make_node_from_name(
+        name: &str,
+        params: &mut MakeNodeParams,
+    ) -> SimbaResult<Node> {
         for robot_config in params.global_config.robots.iter() {
             if robot_config.name == name {
                 return Self::make_robot(robot_config, params);
@@ -985,12 +1142,19 @@ impl NodeFactory {
     }
 }
 
+/// Arguments forwarded to subsystem `from_config` constructors during node creation.
 pub struct FromConfigArguments<'a> {
+    /// Optional plugin API bridge.
     pub plugin_api: &'a Option<Arc<dyn PluginAPI>>,
+    /// Global simulator configuration.
     pub global_config: &'a SimulatorConfig,
+    /// Name of the node being created.
     pub node_name: &'a String,
+    /// Deterministic random-variable factory.
     pub va_factory: &'a Arc<DeterministRandomVariableFactory>,
+    /// Node-local network handle.
     pub network: &'a SharedRwLock<Network>,
+    /// Initial simulation time.
     pub initial_time: f32,
 }
 

@@ -1,17 +1,9 @@
-/*!
-Module providing the interface to use external [`Sensor`].
-
-To make your own external sensor strategy, the simulator should
-be used as a library (see [dedicated page](crate::plugin_api)).
-
-Your own external sensor strategy is made using the
-[`PluginAPI::get_sensor`] function.
-
-For the [`Stateful`] trait, the generic type is [`SensorRecord`],
-and your implementation should return a [`SensorRecord::External`]
-type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
-and [`serde_json::from_value`] to make the bridge to your own Record struct.
-*/
+//! External sensor integration.
+//!
+//! This module provides the bridge allowing simulator users to plug custom sensor
+//! implementations through [`PluginAPI`].
+//! External sensor creation is delegated to [`PluginAPI::get_sensor`], and observation/record
+//! payloads are exchanged through [`serde_json::Value`].
 
 use std::sync::Arc;
 
@@ -43,8 +35,10 @@ external_record_python_methods!(
 ExternalObservationRecord,
 );
 
+/// Runtime observation payload emitted by an external sensor.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct ExternalObservation {
+    /// Opaque JSON payload produced by the plugin sensor implementation.
     pub observation: Value,
 }
 
@@ -69,16 +63,19 @@ impl Recordable<ExternalObservationRecord> for ExternalObservation {
 }
 
 external_config!(
-/// Config for the external state estimation (generic).
+/// Configuration for an external sensor (generic).
 ///
-/// The config for [`ExternalEstimator`] uses a [`serde_json::Value`] to
+/// The config for [`ExternalSensor`] uses a [`serde_json::Value`] to
 /// integrate your own configuration inside the full simulator config.
+///
+/// Default value: `config = serde_json::Value::Null`.
 ///
 /// In the yaml file, the config could be:
 /// ```YAML
-/// state_estimator:
-///     External:
-///         parameter_of_my_own_estimator: true
+/// sensors:
+///   - type: External
+///     config:
+///       parameter_of_my_own_sensor: true
 /// ```
     ExternalSensorConfig,
     "External Sensor",
@@ -89,10 +86,10 @@ external_record_python_methods!(
 /// Record for the external sensor (generic).
 ///
 /// Like [`ExternalSensorConfig`], [`ExternalSensor`] uses a [`serde_json::Value`]
-/// to take every record.
+/// to store records.
 ///
-/// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::from_record`] and [`Stateful::record`] implementations.
+/// The record is not automatically cast to your own type; conversion should be
+/// handled in your plugin-specific serialization/deserialization code.
 ExternalSensorRecord,
 );
 
@@ -113,12 +110,14 @@ impl ExternalSensor {
     /// * `config` -- Scenario config of the External sensor.
     /// * `plugin_api` -- Required [`PluginAPI`] implementation.
     /// * `global_config` -- Simulator config.
-    /// * `_va_factory` -- Factory for Determinists random variables.
+    /// * `va_factory` -- Factory for Determinists random variables.
+    /// * `network` -- Reference to the network, to allow the sensor to send messages if needed.
+    /// * `initial_time` -- Initial time of the simulation, to allow the sensor to initialize itself with the correct time.
     pub fn from_config(
         config: &ExternalSensorConfig,
         plugin_api: &Option<Arc<dyn PluginAPI>>,
         global_config: &SimulatorConfig,
-        _va_factory: &DeterministRandomVariableFactory,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> SimbaResult<Self> {
@@ -134,7 +133,13 @@ impl ExternalSensor {
                         "Plugin API not set!".to_string(),
                     )
                 })?
-                .get_sensor(&config.config, global_config, network, initial_time),
+                .get_sensor(
+                    &config.config,
+                    global_config,
+                    va_factory,
+                    network,
+                    initial_time,
+                ),
         })
     }
 }

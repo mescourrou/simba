@@ -1,3 +1,8 @@
+//! Python bindings and async bridge for physics models.
+//!
+//! This module provides runtime wrappers to connect Python physics implementations
+//! with the Rust [`Physics`] trait and service interfaces.
+
 use std::{str::FromStr, sync::Arc};
 
 use log::debug;
@@ -20,6 +25,7 @@ use crate::{
 use super::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
 
 #[derive(Debug, Clone)]
+/// Async simulator-side physics adapter communicating with Python through RFC channels.
 pub struct PythonPhysicAsyncClient {
     apply_command: RemoteFunctionCall<(Command, f32), ()>,
     post_init: RemoteFunctionCall<NodeWrapper, SimbaResult<()>>,
@@ -73,6 +79,7 @@ impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysicAsyncClient {
 }
 
 #[derive(Debug)]
+/// Runtime bridge hosting a Python physics implementation.
 pub struct PythonPhysics {
     model: Py<PyAny>,
     client: PythonPhysicAsyncClient,
@@ -85,6 +92,7 @@ pub struct PythonPhysics {
 }
 
 impl PythonPhysics {
+    /// Creates a new Python physics bridge from a Python model instance.
     pub fn new(py_model: Py<PyAny>) -> PythonPhysics {
         if is_enabled(crate::logger::InternalLog::API) {
             Python::attach(|py| {
@@ -121,10 +129,12 @@ impl PythonPhysics {
 }
 
 impl PythonPhysics {
+    /// Returns a cloneable async client handle for the hosted Python physics model.
     pub fn get_client(&self) -> PythonPhysicAsyncClient {
         self.client.clone()
     }
 
+    /// Processes pending remote calls and dispatches them to Python methods.
     pub fn check_requests(&mut self) {
         self.apply_command
             .clone()
@@ -205,11 +215,13 @@ impl PythonPhysics {
 
 #[pyclass(subclass)]
 #[pyo3(name = "Physics")]
+/// Base Python-exposed physics class wrapper.
 pub struct PhysicsWrapper {}
 
 #[pymethods]
 impl PhysicsWrapper {
     #[new]
+    /// Creates a new default Python physics wrapper instance.
     pub fn new(_config: Py<PyAny>, _initial_time: f32) -> PhysicsWrapper {
         Self {}
     }

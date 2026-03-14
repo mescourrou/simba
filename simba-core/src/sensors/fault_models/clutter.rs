@@ -1,41 +1,87 @@
-use std::sync::{Arc, Mutex};
+//! Clutter fault model.
+//!
+//! This module defines a fault model that injects synthetic observations (clutter)
+//! into sensor outputs.
+//! The behavior is configured through [`ClutterFaultConfig`], then executed at runtime
+//! by [`ClutterFault`].
+//! Clutter generation first samples how many synthetic observations must be created,
+//! then samples observation values from configured random distributions.
+
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{
     UIComponent,
-    utils::{string_combobox, text_singleline_with_apply},
+    utils::{enum_combobox, text_singleline_with_apply},
 };
-use crate::{
-    environment::Environment,
-    sensors::{SensorObservation, fault_models::fault_model::FaultModelConfig},
-    utils::{
-        SharedMutex,
-        determinist_random_variable::{
-            DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
-        },
-        distributions::{
-            poisson::PoissonRandomVariableConfig, uniform::UniformRandomVariableConfig,
-        },
-        geometry::mod2pi,
+use crate::utils::{
+    SharedMutex,
+    determinist_random_variable::{
+        DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
     },
+    distributions::{poisson::PoissonRandomVariableConfig, uniform::UniformRandomVariableConfig},
+    enum_tools::EnumVariables,
 };
 
-use super::fault_model::FaultModel;
-
+/// Configuration of the clutter fault model.
+///
+/// This configuration controls how many clutter observations are generated and how
+/// their variables are sampled.
+/// `apparition` defines the number of generated clutter observations per call,
+/// `distributions` define sampled values, and `variable_order` maps sampled dimensions
+/// to concrete observation variables.
+///
+/// Default values:
+/// - `apparition`: [`RandomVariableTypeConfig::Poisson`] with `lambda = [10.0]`
+/// - `distributions`: one [`RandomVariableTypeConfig::Uniform`] with `min = [-10.0, -10.0]` and `max = [10.0, 10.0]`
+/// - `variable_order`: empty vector (implicit variable order)
+/// - `observation_id`: `"clutter"`
 #[config_derives]
-pub struct ClutterFaultConfig {
-    // #[check(eq(self.apparition.probability.len(), 1))]
+pub struct ClutterFaultConfig<SV: EnumVariables> {
+    /// Random variable used to sample the number of clutter observations. Should be one-dimensional and return non-negative integer values.
     #[check]
     pub apparition: RandomVariableTypeConfig,
+    /// Random-variable list used to sample clutter observation values.
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
-    pub variable_order: Vec<String>,
+    /// Optional explicit mapping order from sampled dimensions to variables.
+    pub variable_order: Vec<SV>,
+    /// Identifier assigned to generated clutter observations.
     pub observation_id: String,
 }
 
-impl Default for ClutterFaultConfig {
+impl<SV: EnumVariables> Check for ClutterFaultConfig<SV> {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.apparition.dim() != 1 {
+            errors.push(format!(
+                "Apparition probability should be of length 1, got {}",
+                self.apparition.dim()
+            ));
+        }
+        if !self.variable_order.is_empty()
+            && self.distributions.iter().map(|d| d.dim()).sum::<usize>()
+                != self.variable_order.len()
+        {
+            errors.push(format!("If variable order is given, its length should match the total distribution dimension. Got total distribution dimension {} and variable order length {}.",
+                self.distributions.iter().map(|d| d.dim()).sum::<usize>(),
+                self.variable_order.len()
+            ));
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
+impl<SV: EnumVariables> Default for ClutterFaultConfig<SV> {
     fn default() -> Self {
         Self {
             apparition: RandomVariableTypeConfig::Poisson(PoissonRandomVariableConfig {
@@ -54,7 +100,7 @@ impl Default for ClutterFaultConfig {
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for ClutterFaultConfig {
+impl<SV: EnumVariables> UIComponent for ClutterFaultConfig<SV> {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
@@ -85,23 +131,12 @@ impl UIComponent for ClutterFaultConfig {
                 current_node_name,
                 unique_id,
             );
-            let possible_variables = [
-                "x",
-                "y",
-                "orientation",
-                "velocity_x",
-                "velocity_y",
-                "w",
-                "v",
-            ]
-            .iter()
-            .map(|x| String::from(*x))
-            .collect();
+            let possible_variables: Vec<SV> = SV::to_vec();
             ui.horizontal(|ui| {
                 ui.label("Variable order:");
                 for (i, var) in self.variable_order.iter_mut().enumerate() {
                     let unique_var_id = format!("variable-{i}-{unique_id}");
-                    string_combobox(ui, &possible_variables, var, unique_var_id);
+                    enum_combobox(ui, var, unique_var_id);
                 }
                 if !self.variable_order.is_empty() && ui.button("-").clicked() {
                     self.variable_order.pop();
@@ -145,18 +180,26 @@ impl UIComponent for ClutterFaultConfig {
     }
 }
 
+/// Runtime clutter fault model.
+///
+/// This type uses deterministic random variables to generate additional synthetic
+/// observations represented as `(id, variable_map)` pairs.
 #[derive(Debug)]
-pub struct ClutterFault {
+pub struct ClutterFault<SV: EnumVariables> {
     apparition: SharedMutex<DeterministRandomVariable>,
     distributions: SharedMutex<Vec<DeterministRandomVariable>>,
-    variable_order: Vec<String>,
+    variable_order: Vec<SV>,
     observation_id: String,
-    config: ClutterFaultConfig,
+    config: ClutterFaultConfig<SV>,
 }
 
-impl ClutterFault {
+impl<SV: EnumVariables> ClutterFault<SV> {
+    /// Builds a runtime clutter fault model from [`ClutterFaultConfig`].
+    ///
+    /// Validates distribution dimensions and prepares deterministic random variables
+    /// using the provided [`DeterministRandomVariableFactory`].
     pub fn from_config(
-        config: &ClutterFaultConfig,
+        config: &ClutterFaultConfig<SV>,
         va_factory: &DeterministRandomVariableFactory,
         _initial_time: f32,
     ) -> Self {
@@ -167,7 +210,7 @@ impl ClutterFault {
                 .map(|conf| va_factory.make_variable(conf.clone()))
                 .collect::<Vec<DeterministRandomVariable>>(),
         ));
-        if !config.variable_order.is_empty() {
+        let variable_order = if !config.variable_order.is_empty() {
             assert!(
                 config.variable_order.len()
                     == distributions
@@ -178,7 +221,10 @@ impl ClutterFault {
                         .sum::<usize>(),
                 "If variable order is given, its length must match the distribution dimension."
             );
-        }
+            config.variable_order.clone()
+        } else {
+            SV::to_vec()
+        };
         let apparition_distrib = Arc::new(Mutex::new(
             va_factory.make_variable(config.apparition.clone()),
         ));
@@ -189,184 +235,53 @@ impl ClutterFault {
         Self {
             apparition: apparition_distrib,
             distributions,
-            variable_order: config.variable_order.clone(),
+            variable_order,
             observation_id: config.observation_id.clone(),
             config: config.clone(),
         }
     }
-}
 
-impl FaultModel for ClutterFault {
-    fn add_faults(
+    /// Generates clutter observations for one sampling step.
+    ///
+    /// Returns a list of generated observations, each represented by its observation id
+    /// and a variable-value map.
+    pub fn add_faults(
         &mut self,
-        _time: f32,
         seed: f32,
-        obs_list: &mut Vec<SensorObservation>,
-        obs_type: SensorObservation,
-        _environment: &Arc<Environment>,
-    ) {
-        let obs_seed_increment = 1. / (100. * obs_list.len() as f32);
+        seed_increment: f32,
+    ) -> Vec<(String, HashMap<SV, f32>)> {
         let mut seed = seed;
 
         let n_obs = self.apparition.lock().unwrap().generate(seed)[0]
             .abs()
             .floor() as usize;
+        let mut new_obs = Vec::new();
         for _ in 0..n_obs {
-            seed += obs_seed_increment;
+            let mut o = HashMap::new();
+            seed += seed_increment;
             let mut random_sample = Vec::new();
             for d in self.distributions.lock().unwrap().iter() {
                 random_sample.extend_from_slice(&d.generate(seed));
             }
-            let mut new_obs = obs_type.clone();
-            match &mut new_obs {
-                SensorObservation::OrientedRobot(o) => {
-                    if !self.variable_order.is_empty() {
-                        for (i, variable) in self.variable_order.iter().enumerate() {
-                            match variable.as_str() {
-                                "x" => o.pose.x = random_sample[i],
-                                "y" => o.pose.y = random_sample[i],
-                                "z" | "orientation" => o.pose.z = random_sample[i],
-                                &_ => panic!(
-                                    "Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]",
-                                    variable
-                                ),
-                            }
-                        }
-                    } else {
-                        assert!(
-                            random_sample.len() >= 3,
-                            "The distribution of an Clutter fault for OrientedRobot observation need to be of dimension 3."
-                        );
-                        o.pose.x = random_sample[0];
-                        o.pose.y = random_sample[1];
-                        o.pose.z = random_sample[2];
-                    }
-                    o.pose.z = mod2pi(o.pose.z);
-                    o.name = self.observation_id.clone();
-                    o.applied_faults
-                        .push(FaultModelConfig::Clutter(self.config.clone()));
+            if !self.variable_order.is_empty() {
+                for (i, variable) in self.variable_order.iter().enumerate() {
+                    o.insert(variable.clone(), random_sample[i]);
                 }
-                SensorObservation::GNSS(o) => {
-                    if !self.variable_order.is_empty() {
-                        for (i, variable) in self.variable_order.iter().enumerate() {
-                            match variable.as_str() {
-                                "position_x" | "x" => o.pose.x = random_sample[i],
-                                "position_y" | "y" => o.pose.y = random_sample[i],
-                                "orientation" | "z" => o.pose.z = random_sample[i],
-                                "velocity_x" => o.velocity.x = random_sample[i],
-                                "velocity_y" => o.velocity.y = random_sample[i],
-                                &_ => panic!(
-                                    "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, orientation | z, velocity_x, velocity_y]",
-                                    variable
-                                ),
-                            }
-                        }
-                    } else {
-                        assert!(
-                            random_sample.len() >= 2,
-                            "The distribution of an Clutter fault for GNSS observation need to be at least of dimension 2 (to 5 for orientation and velocities)."
-                        );
-                        o.pose.x = random_sample[0];
-                        o.pose.y = random_sample[1];
-                        if random_sample.len() >= 3 {
-                            o.pose.z = random_sample[2];
-                        }
-                        if random_sample.len() >= 4 {
-                            o.velocity.x = random_sample[3];
-                        }
-                        if random_sample.len() >= 5 {
-                            o.velocity.y = random_sample[4];
-                        }
+            } else {
+                for (i, variable) in SV::to_vec().into_iter().enumerate() {
+                    if i >= random_sample.len() {
+                        break;
                     }
-                    o.applied_faults
-                        .push(FaultModelConfig::Clutter(self.config.clone()));
-                }
-                SensorObservation::Speed(o) => {
-                    if !self.variable_order.is_empty() {
-                        for (i, variable) in self.variable_order.iter().enumerate() {
-                            match variable.as_str() {
-                                "w" | "angular" | "angular_velocity" => {
-                                    o.angular_velocity = random_sample[i]
-                                }
-                                "v" | "linear" | "linear_velocity" => {
-                                    o.linear_velocity = random_sample[i]
-                                }
-                                &_ => panic!(
-                                    "Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]",
-                                    variable
-                                ),
-                            }
-                        }
-                    } else {
-                        assert!(
-                            random_sample.len() >= 2,
-                            "The distribution of an Clutter fault for Speed observation need to be of dimension 2."
-                        );
-                        o.angular_velocity = random_sample[0];
-                        o.linear_velocity = random_sample[1];
-                    }
-                    o.applied_faults
-                        .push(FaultModelConfig::Clutter(self.config.clone()));
-                }
-                SensorObservation::Displacement(o) => {
-                    if !self.variable_order.is_empty() {
-                        for (i, variable) in self.variable_order.iter().enumerate() {
-                            match variable.as_str() {
-                                "dx" | "x" => o.translation.x = random_sample[i],
-                                "dy" | "y" => o.translation.y = random_sample[i],
-                                "r" | "rotation" => o.rotation = random_sample[i],
-                                &_ => panic!(
-                                    "Unknown variable name: '{}'. Available variable names: [dx | x, dy | y, r | rotation]",
-                                    variable
-                                ),
-                            }
-                        }
-                    } else {
-                        assert!(
-                            random_sample.len() >= 2,
-                            "The distribution of an Clutter fault for Displacement observation need to be at least of dimension 2 (to 3 for rotation)."
-                        );
-                        o.translation.x = random_sample[0];
-                        o.translation.y = random_sample[1];
-                        if random_sample.len() >= 3 {
-                            o.rotation = random_sample[2];
-                        }
-                    }
-                    o.applied_faults
-                        .push(FaultModelConfig::Clutter(self.config.clone()));
-                }
-                SensorObservation::OrientedLandmark(o) => {
-                    if !self.variable_order.is_empty() {
-                        for (i, variable) in self.variable_order.iter().enumerate() {
-                            match variable.as_str() {
-                                "x" => o.pose.x = random_sample[i],
-                                "y" => o.pose.y = random_sample[i],
-                                "z" | "orientation" => o.pose.z = random_sample[i],
-                                &_ => panic!(
-                                    "Unknown variable name: '{}'. Available variable names: [x, y, z | orientation]",
-                                    variable
-                                ),
-                            }
-                        }
-                    } else {
-                        assert!(
-                            random_sample.len() >= 3,
-                            "The distribution of an Clutter fault for OrientedLandmark observation need to be of dimension 3."
-                        );
-                        o.pose.x = random_sample[0];
-                        o.pose.y = random_sample[1];
-                        o.pose.z = random_sample[2];
-                    }
-                    o.pose.z = mod2pi(o.pose.z);
-                    o.id = self.observation_id.parse().unwrap_or(-1);
-                    o.applied_faults
-                        .push(FaultModelConfig::Clutter(self.config.clone()));
-                }
-                SensorObservation::External(_) => {
-                    panic!("ClutterFault cannot fault ExternalObservation");
+                    o.insert(variable, random_sample[i]);
                 }
             }
-            obs_list.push(new_obs);
+            new_obs.push((self.observation_id.clone(), o));
         }
+        new_obs
+    }
+
+    /// Returns the configuration used to build this clutter fault model.
+    pub fn config(&self) -> &ClutterFaultConfig<SV> {
+        &self.config
     }
 }

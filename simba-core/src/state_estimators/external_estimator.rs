@@ -6,11 +6,6 @@ be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external state estimation strategy is made using the
 [`PluginAPI::get_state_estimator`] function.
-
-For the [`Stateful`] trait, the generic type is [`StateEstimatorRecord`],
-and your implementation should return a [`StateEstimatorRecord::External`]
-type. The value inside is a [`serde_json::Value`]. Use [`serde_json::to_value`]
-and [`serde_json::from_value`] to make the bridge to your own Record struct.
 */
 
 use std::sync::Arc;
@@ -62,9 +57,6 @@ external_record_python_methods!(
 ///
 /// Like [`ExternalEstimatorConfig`], [`ExternalEstimator`] uses a [`serde_json::Value`]
 /// to take every record.
-///
-/// The record is not automatically cast to your own type, the cast should be done
-/// in [`Stateful::record`] implementations.
 ExternalEstimatorRecord,
 );
 

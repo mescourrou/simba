@@ -25,11 +25,30 @@ use log::{error, info, warn};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
-/// Configuration for [`PerfectEstimator`].
+/// Configuration for the [`PerfectEstimator`] strategy.
+///
+/// This estimator provides a perfect estimation of the state, without any error. It can be used when the state used
+/// by the controller should be perfect. It can also be used as a baseline to compare other estimators with.
+///
+/// # Example
+/// ```yaml
+/// state_estimator:
+///  type: Perfect
+///  prediction_activation:
+///    period: {type: Num, value: 0.1}
+///  targets:
+///   - self
+///   - robot2
+/// ```
 #[config_derives]
 pub struct PerfectEstimatorConfig {
     /// Prediction period.
+    #[check]
     pub prediction_activation: Option<PeriodicityConfig>,
+    /// List of targets for the perfect estimator (other nodes).
+    ///
+    /// "self" can be used to include the ego state in the estimation. It is included by default but
+    /// if the `targets` field is specified, it must be included explicitly to be part of the estimation.
     pub targets: Vec<String>,
 }
 

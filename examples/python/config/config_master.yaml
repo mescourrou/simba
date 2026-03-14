@@ -11,7 +11,6 @@ time_analysis:
   exporter:
     type: TraceEventExporter
   output_path: "time_performance"
-  keep_last: true
 max_time: 60.
 robots:
   - name: "robot1"

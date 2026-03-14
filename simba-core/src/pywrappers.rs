@@ -1,4 +1,16 @@
 #![allow(clippy::useless_conversion)]
+//! Python wrapper layer for Simba core types exposed through PyO3.
+//!
+//! This module contains thin wrapper types used to:
+//! - expose Rust data structures and APIs to Python,
+//! - convert values between Python-facing wrappers and internal Rust models,
+//! - provide Python entry points for simulation and networking.
+//!
+//! Most wrappers follow the same pattern:
+//! - a `#[pyclass]` with Python-friendly fields,
+//! - `from_rust` and `to_rust` conversion helpers,
+//! - a default constructor for easy Python-side instantiation.
+
 use std::{
     collections::BTreeMap,
     str::FromStr,
@@ -43,10 +55,11 @@ use crate::{
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "ControllerError")]
+/// Python wrapper around controller tracking error values.
 pub struct ControllerErrorWrapper {
-    /// Lateral error.
+    /// Lateral error (y axis).
     pub lateral: f32,
-    /// Longitudinal error.
+    /// Longitudinal error (x axis).
     pub longitudinal: f32,
     /// Orientation error.
     pub theta: f32,
@@ -56,6 +69,7 @@ pub struct ControllerErrorWrapper {
 
 #[pymethods]
 impl ControllerErrorWrapper {
+    /// Create a zero-initialized controller error.
     #[new]
     pub fn new() -> Self {
         Self {
@@ -67,6 +81,7 @@ impl ControllerErrorWrapper {
     }
 }
 impl ControllerErrorWrapper {
+    /// Convert from the Rust [`ControllerError`] type.
     pub fn from_rust(ce: &ControllerError) -> Self {
         Self {
             lateral: ce.lateral,
@@ -76,6 +91,7 @@ impl ControllerErrorWrapper {
         }
     }
 
+    /// Convert this wrapper to the Rust [`ControllerError`] type.
     pub fn to_rust(&self) -> ControllerError {
         ControllerError {
             lateral: self.lateral,
@@ -95,32 +111,44 @@ impl Default for ControllerErrorWrapper {
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Pose")]
 #[derive(Clone, Debug)]
+/// 2D pose with heading angle used by Python APIs.
 pub struct Pose {
+    /// Position on x axis.
     pub x: f32,
+    /// Position on y axis.
     pub y: f32,
+    /// Heading angle (radians).
     pub theta: f32,
 }
 
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Vec2")]
 #[derive(Clone, Debug)]
+/// Generic 2D vector used in Python wrappers.
 pub struct Vec2 {
+    /// x component.
     pub x: f32,
+    /// y component.
     pub y: f32,
 }
 
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Vec3")]
 #[derive(Clone, Debug)]
+/// Generic 3D vector used in Python wrappers.
 pub struct Vec3 {
+    /// x component.
     pub x: f32,
+    /// y component.
     pub y: f32,
+    /// z component.
     pub z: f32,
 }
 
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "State")]
+/// Python wrapper around a robot [`State`].
 pub struct StateWrapper {
     /// Position and orientation of the robot
     pub pose: Pose,
@@ -130,6 +158,7 @@ pub struct StateWrapper {
 
 #[pymethods]
 impl StateWrapper {
+    /// Create a zero-initialized state.
     #[new]
     pub fn new() -> Self {
         Self {
@@ -148,6 +177,7 @@ impl StateWrapper {
 }
 
 impl StateWrapper {
+    /// Convert from the Rust [`State`] type.
     pub fn from_rust(s: &State) -> Self {
         Self {
             pose: Pose {
@@ -162,6 +192,7 @@ impl StateWrapper {
             },
         }
     }
+    /// Convert this wrapper to the Rust [`State`] type.
     pub fn to_rust(&self) -> State {
         State {
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
@@ -179,15 +210,21 @@ impl Default for StateWrapper {
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "WorldState")]
+/// Python wrapper around a full [`WorldState`].
 pub struct WorldStateWrapper {
+    /// Optional state of the ego robot.
     pub ego: Option<StateWrapper>,
+    /// States of named dynamic objects (other nodes).
     pub objects: BTreeMap<String, StateWrapper>,
+    /// States of known landmarks indexed by id.
     pub landmarks: BTreeMap<i32, StateWrapper>,
+    /// Optional occupancy grid map.
     pub occupancy_grid: Option<OccupancyGridWrapper>,
 }
 
 #[pymethods]
 impl WorldStateWrapper {
+    /// Create an empty world state.
     #[new]
     pub fn new() -> Self {
         Self {
@@ -200,6 +237,7 @@ impl WorldStateWrapper {
 }
 
 impl WorldStateWrapper {
+    /// Convert from the Rust [`WorldState`] type.
     pub fn from_rust(s: &WorldState) -> Self {
         Self {
             ego: s.ego.as_ref().map(StateWrapper::from_rust),
@@ -219,6 +257,7 @@ impl WorldStateWrapper {
                 .map(OccupancyGridWrapper::from_rust),
         }
     }
+    /// Convert this wrapper to the Rust [`WorldState`] type.
     pub fn to_rust(&self) -> WorldState {
         WorldState {
             ego: self.ego.as_ref().map(StateWrapper::to_rust),
@@ -249,12 +288,14 @@ impl Default for WorldStateWrapper {
 #[derive(Clone, Debug)]
 #[pyclass]
 #[pyo3(name = "OccupancyGrid")]
+/// Python wrapper around [`OccupancyGrid`].
 pub struct OccupancyGridWrapper {
     grid: OccupancyGrid,
 }
 
 #[pymethods]
 impl OccupancyGridWrapper {
+    /// Create a grid centered at `center` with fixed cell geometry.
     #[new]
     pub fn new(
         center: [f32; 3],
@@ -274,10 +315,14 @@ impl OccupancyGridWrapper {
         }
     }
 
+    /// Get a cell value by `(row, col)` index.
     pub fn get_idx(&self, row: usize, col: usize) -> Option<f32> {
         self.grid.get_idx(row, col).cloned()
     }
 
+    /// Set a cell value by `(row, col)` index.
+    ///
+    /// Returns `true` if the index exists, `false` otherwise.
     pub fn set_idx(&mut self, row: usize, col: usize, value: f32) -> bool {
         if let Some(v) = self.grid.get_idx_mut(row, col) {
             *v = value;
@@ -287,10 +332,14 @@ impl OccupancyGridWrapper {
         }
     }
 
+    /// Get a cell value using world coordinates `[x, y]`.
     pub fn get_pos(&self, position: [f32; 2]) -> Option<f32> {
         self.grid.get_pos(Vector2::from(position)).cloned()
     }
 
+    /// Set a cell value using world coordinates `[x, y]`.
+    ///
+    /// Returns `true` if the position maps to a valid cell, `false` otherwise.
     pub fn set_pos(&mut self, position: [f32; 2], value: f32) -> bool {
         if let Some(v) = self.grid.get_pos_mut(Vector2::from(position)) {
             *v = value;
@@ -302,9 +351,12 @@ impl OccupancyGridWrapper {
 }
 
 impl OccupancyGridWrapper {
+    /// Clone a Rust [`OccupancyGrid`] into its Python wrapper.
     pub fn from_rust(s: &OccupancyGrid) -> Self {
         Self { grid: s.clone() }
     }
+
+    /// Clone this wrapper back to a Rust [`OccupancyGrid`].
     pub fn to_rust(&self) -> OccupancyGrid {
         self.grid.clone()
     }
@@ -313,12 +365,13 @@ impl OccupancyGridWrapper {
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OrientedLandmarkObservation")]
+/// Python wrapper around an oriented landmark sensor observation.
 pub struct OrientedLandmarkObservationWrapper {
     /// Id of the landmark
     pub id: i32,
     /// Labels of the landmark
     pub labels: Vec<String>,
-    /// Pose of the landmark
+    /// Relative pose of the landmark
     pub pose: Pose,
     /// Applied fault in JSON format
     pub applied_faults: String,
@@ -330,6 +383,7 @@ pub struct OrientedLandmarkObservationWrapper {
 
 #[pymethods]
 impl OrientedLandmarkObservationWrapper {
+    /// Create a default-oriented landmark observation.
     #[new]
     pub fn new() -> Self {
         Self {
@@ -348,6 +402,7 @@ impl OrientedLandmarkObservationWrapper {
 }
 
 impl OrientedLandmarkObservationWrapper {
+    /// Convert from the Rust [`OrientedLandmarkObservation`] type.
     pub fn from_rust(s: &OrientedLandmarkObservation) -> Self {
         Self {
             id: s.id,
@@ -362,6 +417,7 @@ impl OrientedLandmarkObservationWrapper {
             height: s.height,
         }
     }
+    /// Convert this wrapper to the Rust [`OrientedLandmarkObservation`] type.
     pub fn to_rust(&self) -> OrientedLandmarkObservation {
         OrientedLandmarkObservation {
             id: self.id,
@@ -383,9 +439,13 @@ impl Default for OrientedLandmarkObservationWrapper {
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "SpeedObservation")]
+/// Python wrapper around speed sensor observation values.
 pub struct SpeedObservationWrapper {
+    /// Linear velocity along robot forward axis.
     pub linear_velocity: f32,
+    /// Linear velocity along robot lateral axis.
     pub lateral_velocity: f32,
+    /// Angular velocity around vertical axis.
     pub angular_velocity: f32,
     /// Applied faults in JSON format
     pub applied_faults: String,
@@ -393,6 +453,7 @@ pub struct SpeedObservationWrapper {
 
 #[pymethods]
 impl SpeedObservationWrapper {
+    /// Create a default speed observation.
     #[new]
     pub fn new() -> Self {
         Self {
@@ -405,6 +466,7 @@ impl SpeedObservationWrapper {
 }
 
 impl SpeedObservationWrapper {
+    /// Convert from the Rust [`SpeedObservation`] type.
     pub fn from_rust(s: &SpeedObservation) -> Self {
         Self {
             linear_velocity: s.linear_velocity,
@@ -413,6 +475,7 @@ impl SpeedObservationWrapper {
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
+    /// Convert this wrapper to the Rust [`SpeedObservation`] type.
     pub fn to_rust(&self) -> SpeedObservation {
         SpeedObservation {
             linear_velocity: self.linear_velocity,
@@ -432,8 +495,11 @@ impl Default for SpeedObservationWrapper {
 #[derive(Clone, Debug)]
 #[pyclass(get_all)]
 #[pyo3(name = "GNSSObservation")]
+/// Python wrapper around GNSS-like pose and velocity observation.
 pub struct GNSSObservationWrapper {
+    /// Pose measurement `[x, y, theta]`.
     pub pose: Vec3,
+    /// Velocity measurement `[vx, vy]`.
     pub velocity: Vec2,
     /// Applied faults in JSON format
     pub applied_faults: String,
@@ -441,6 +507,7 @@ pub struct GNSSObservationWrapper {
 
 #[pymethods]
 impl GNSSObservationWrapper {
+    /// Create a default GNSS observation.
     #[new]
     pub fn new() -> Self {
         Self {
@@ -456,6 +523,7 @@ impl GNSSObservationWrapper {
 }
 
 impl GNSSObservationWrapper {
+    /// Convert from the Rust [`GNSSObservation`] type.
     pub fn from_rust(s: &GNSSObservation) -> Self {
         Self {
             pose: Vec3 {
@@ -470,6 +538,7 @@ impl GNSSObservationWrapper {
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
+    /// Convert this wrapper to the Rust [`GNSSObservation`] type.
     pub fn to_rust(&self) -> GNSSObservation {
         GNSSObservation {
             pose: Vector3::from_vec(vec![self.pose.x, self.pose.y, self.pose.z]),
@@ -488,8 +557,11 @@ impl Default for GNSSObservationWrapper {
 #[derive(Clone, Debug)]
 #[pyclass(get_all)]
 #[pyo3(name = "DisplacementObservation")]
+/// Python wrapper around incremental displacement measurement.
 pub struct DisplacementObservationWrapper {
+    /// Translation increment on the xy plane.
     pub translation: Vec2,
+    /// Rotation increment (radians).
     pub rotation: f32,
     /// Applied faults in JSON format
     pub applied_faults: String,
@@ -497,6 +569,7 @@ pub struct DisplacementObservationWrapper {
 
 #[pymethods]
 impl DisplacementObservationWrapper {
+    /// Create a default displacement observation.
     #[new]
     pub fn new() -> Self {
         Self {
@@ -508,6 +581,7 @@ impl DisplacementObservationWrapper {
 }
 
 impl DisplacementObservationWrapper {
+    /// Convert from the Rust [`DisplacementObservation`] type.
     pub fn from_rust(s: &DisplacementObservation) -> Self {
         Self {
             translation: Vec2 {
@@ -518,6 +592,7 @@ impl DisplacementObservationWrapper {
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
+    /// Convert this wrapper to the Rust [`DisplacementObservation`] type.
     pub fn to_rust(&self) -> DisplacementObservation {
         DisplacementObservation {
             translation: Vector2::from_vec(vec![self.translation.x, self.translation.y]),
@@ -536,6 +611,7 @@ impl Default for DisplacementObservationWrapper {
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "OrientedRobotObservation")]
+/// Python wrapper around oriented robot observation.
 pub struct OrientedRobotObservationWrapper {
     /// Name of the Robot
     pub name: String,
@@ -549,6 +625,7 @@ pub struct OrientedRobotObservationWrapper {
 
 #[pymethods]
 impl OrientedRobotObservationWrapper {
+    /// Create a default-oriented robot observation.
     #[new]
     pub fn new() -> Self {
         Self {
@@ -565,6 +642,7 @@ impl OrientedRobotObservationWrapper {
 }
 
 impl OrientedRobotObservationWrapper {
+    /// Convert from the Rust [`OrientedRobotObservation`] type.
     pub fn from_rust(s: &OrientedRobotObservation) -> Self {
         Self {
             name: s.name.clone(),
@@ -577,6 +655,7 @@ impl OrientedRobotObservationWrapper {
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
         }
     }
+    /// Convert this wrapper to the Rust [`OrientedRobotObservation`] type.
     pub fn to_rust(&self) -> OrientedRobotObservation {
         OrientedRobotObservation {
             name: self.name.clone(),
@@ -596,20 +675,29 @@ impl Default for OrientedRobotObservationWrapper {
 #[derive(Clone, EnumToString, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "SensorObservation")]
+/// Tagged union of supported sensor observations exposed to Python.
 pub enum SensorObservationWrapper {
+    /// Observation from an oriented-landmark sensor.
     OrientedLandmark(OrientedLandmarkObservationWrapper),
+    /// Observation from a speed sensor.
     Speed(SpeedObservationWrapper),
+    /// Observation from a GNSS-like sensor.
     GNSS(GNSSObservationWrapper),
+    /// Observation from an oriented-robot sensor.
     OrientedRobot(OrientedRobotObservationWrapper),
+    /// Observation from a displacement sensor.
+    Displacement(DisplacementObservationWrapper),
 }
 
 #[pymethods]
 impl SensorObservationWrapper {
     #[new]
+    /// Create a default observation (GNSS for placeholder purposes).
     pub fn new() -> Self {
         SensorObservationWrapper::GNSS(GNSSObservationWrapper::new())
     }
 
+    /// Try to convert the observation to an [`OrientedLandmarkObservationWrapper`].
     pub fn as_oriented_landmark(&self) -> PyResult<OrientedLandmarkObservationWrapper> {
         if let Self::OrientedLandmark(o) = self {
             Ok(o.clone())
@@ -620,6 +708,7 @@ impl SensorObservationWrapper {
         }
     }
 
+    /// Try to convert the observation to a [`SpeedObservationWrapper`].
     pub fn as_speed(&self) -> PyResult<SpeedObservationWrapper> {
         if let Self::Speed(o) = self {
             Ok(o.clone())
@@ -630,6 +719,7 @@ impl SensorObservationWrapper {
         }
     }
 
+    /// Try to convert the observation to a [`GNSSObservationWrapper`].
     pub fn as_gnss(&self) -> PyResult<GNSSObservationWrapper> {
         if let Self::GNSS(o) = self {
             Ok(o.clone())
@@ -640,6 +730,7 @@ impl SensorObservationWrapper {
         }
     }
 
+    /// Try to convert the observation to an [`OrientedRobotObservationWrapper`].
     pub fn as_oriented_robot(&self) -> PyResult<OrientedRobotObservationWrapper> {
         if let Self::OrientedRobot(o) = self {
             Ok(o.clone())
@@ -650,13 +741,26 @@ impl SensorObservationWrapper {
         }
     }
 
+    /// Try to convert the observation to a [`DisplacementObservationWrapper`].
+    pub fn as_displacement(&self) -> PyResult<DisplacementObservationWrapper> {
+        if let Self::Displacement(o) = self {
+            Ok(o.clone())
+        } else {
+            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Impossible to convert this observation to a DisplacementObservation",
+            ))
+        }
+    }
+
     #[getter]
+    /// Return the variant name as a string.
     pub fn kind(&self) -> String {
         self.to_string()
     }
 }
 
 impl SensorObservationWrapper {
+    /// Convert from the Rust [`SensorObservation`] type.
     pub fn from_rust(s: &SensorObservation) -> Self {
         match s {
             SensorObservation::GNSS(o) => {
@@ -671,11 +775,18 @@ impl SensorObservationWrapper {
             SensorObservation::OrientedRobot(o) => SensorObservationWrapper::OrientedRobot(
                 OrientedRobotObservationWrapper::from_rust(o),
             ),
-            _ => {
+            SensorObservation::Displacement(o) => {
+                SensorObservationWrapper::Displacement(DisplacementObservationWrapper::from_rust(o))
+            }
+            SensorObservation::Scan(_) => {
+                panic!("ScanObservation cannot be converted to SensorObservationWrapper yet");
+            }
+            SensorObservation::External(_) => {
                 panic!("ExternalObservation cannot be converted to SensorObservationWrapper yet");
             }
         }
     }
+    /// Convert this wrapper to the Rust [`SensorObservation`] type.
     pub fn to_rust(&self) -> SensorObservation {
         match self {
             SensorObservationWrapper::GNSS(o) => SensorObservation::GNSS(o.to_rust()),
@@ -685,6 +796,9 @@ impl SensorObservationWrapper {
             }
             SensorObservationWrapper::OrientedRobot(o) => {
                 SensorObservation::OrientedRobot(o.to_rust())
+            }
+            SensorObservationWrapper::Displacement(o) => {
+                SensorObservation::Displacement(o.to_rust())
             }
         }
     }
@@ -699,15 +813,21 @@ impl Default for SensorObservationWrapper {
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Observation")]
+/// Generic observation wrapper carrying metadata and observation from one sensor.
 pub struct ObservationWrapper {
+    /// Sensor identifier.
     pub sensor_name: String,
+    /// Name of the node that observed.
     pub observer: String,
+    /// Observation timestamp.
     pub time: f32,
+    /// Concrete sensor observation payload.
     pub sensor_observation: SensorObservationWrapper,
 }
 
 #[pymethods]
 impl ObservationWrapper {
+    /// Create a default observation with placeholder metadata.
     #[new]
     pub fn new() -> Self {
         Self {
@@ -720,6 +840,7 @@ impl ObservationWrapper {
 }
 
 impl ObservationWrapper {
+    /// Convert from the Rust [`Observation`] type.
     pub fn from_rust(s: &Observation) -> Self {
         Self {
             sensor_name: s.sensor_name.clone(),
@@ -728,6 +849,7 @@ impl ObservationWrapper {
             sensor_observation: SensorObservationWrapper::from_rust(&s.sensor_observation),
         }
     }
+    /// Convert this wrapper to the Rust [`Observation`] type.
     pub fn to_rust(&self) -> Observation {
         Observation {
             sensor_name: self.sensor_name.clone(),
@@ -744,21 +866,27 @@ impl Default for ObservationWrapper {
     }
 }
 
+/// Wrapper around the [`Command`] to be used in Python.
+/// It can be either a [`UnicycleCommandWrapper`] or a [`HolonomicCommandWrapper`].
 #[derive(Clone, EnumToString, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Command")]
 pub enum CommandWrapper {
+    /// Command for unicycle robot models, containing the left and right wheel speeds.
     Unicycle(UnicycleCommandWrapper),
+    /// Command for holonomic robot models, containing the longitudinal, lateral and angular velocities.
     Holonomic(HolonomicCommandWrapper),
 }
 
 #[pymethods]
 impl CommandWrapper {
+    /// Creates a new [`CommandWrapper`] with a default [`UnicycleCommandWrapper`]. It can be changed later using the setter or the static methods.
     #[new]
     pub fn new() -> CommandWrapper {
         Self::Unicycle(UnicycleCommandWrapper::new())
     }
 
+    /// Tries to convert the command to a [`UnicycleCommandWrapper`]. It returns an error if the command is not a [`UnicycleCommandWrapper`].
     pub fn as_unicycle_command(&self) -> PyResult<UnicycleCommandWrapper> {
         if let Self::Unicycle(o) = self {
             Ok(o.clone())
@@ -769,6 +897,7 @@ impl CommandWrapper {
         }
     }
 
+    /// Tries to convert the command to a [`HolonomicCommandWrapper`]. It returns an error if the command is not a [`HolonomicCommandWrapper`].
     pub fn as_holonomic_command(&self) -> PyResult<HolonomicCommandWrapper> {
         if let Self::Holonomic(o) = self {
             Ok(o.clone())
@@ -779,16 +908,19 @@ impl CommandWrapper {
         }
     }
 
+    /// Returns the kind of the command as a string. It can be either "Unicycle" or "Holonomic".
     #[getter]
     pub fn kind(&self) -> String {
         self.to_string()
     }
 
+    /// Creates a new [`CommandWrapper`] from a [`UnicycleCommandWrapper`].
     #[staticmethod]
     pub fn from_unicycle_command(cmd: UnicycleCommandWrapper) -> CommandWrapper {
         Self::Unicycle(cmd)
     }
 
+    /// Creates a new [`CommandWrapper`] from a [`HolonomicCommandWrapper`].
     #[staticmethod]
     pub fn from_holonomic_command(cmd: HolonomicCommandWrapper) -> CommandWrapper {
         Self::Holonomic(cmd)
@@ -802,6 +934,7 @@ impl Default for CommandWrapper {
 }
 
 impl CommandWrapper {
+    /// Creates a [`CommandWrapper`] from its Rust counterpart [`Command`]
     pub fn from_rust(s: &Command) -> Self {
         match s {
             Command::Unicycle(cmd) => {
@@ -812,6 +945,8 @@ impl CommandWrapper {
             }
         }
     }
+
+    /// Converts the Python wrapper back to its Rust counterpart [`Command`]
     pub fn to_rust(&self) -> Command {
         match self {
             CommandWrapper::Unicycle(cmd) => {
@@ -824,6 +959,7 @@ impl CommandWrapper {
     }
 }
 
+/// Wrapper around the [`UnicycleCommand`] to be used in Python.
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "UnicycleCommand")]
@@ -836,6 +972,7 @@ pub struct UnicycleCommandWrapper {
 
 #[pymethods]
 impl UnicycleCommandWrapper {
+    /// Creates a new [`UnicycleCommandWrapper`] with all wheel speeds set to 0.
     #[new]
     pub fn new() -> UnicycleCommandWrapper {
         Self {
@@ -852,12 +989,15 @@ impl Default for UnicycleCommandWrapper {
 }
 
 impl UnicycleCommandWrapper {
+    /// Creates an [`UnicycleCommandWrapper`] from its Rust counterpart [`UnicycleCommand`]
     pub fn from_rust(s: &UnicycleCommand) -> Self {
         Self {
             left_wheel_speed: s.left_wheel_speed,
             right_wheel_speed: s.right_wheel_speed,
         }
     }
+
+    /// Converts the Python wrapper back to its Rust counterpart [`UnicycleCommand`]
     pub fn to_rust(&self) -> UnicycleCommand {
         UnicycleCommand {
             left_wheel_speed: self.left_wheel_speed,
@@ -866,17 +1006,22 @@ impl UnicycleCommandWrapper {
     }
 }
 
+/// Wrapper around the [`HolonomicCommand`] to be used in Python.
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "HolonomicCommand")]
 pub struct HolonomicCommandWrapper {
+    /// Longitudinal velocity (following x axis of the robot).
     pub longitudinal_velocity: f32,
+    /// Lateral velocity (following y axis of the robot).
     pub lateral_velocity: f32,
+    /// Angular velocity (radians per second).
     pub angular_velocity: f32,
 }
 
 #[pymethods]
 impl HolonomicCommandWrapper {
+    /// Creates a new [`HolonomicCommandWrapper`] with all velocities set to 0.
     #[new]
     pub fn new() -> HolonomicCommandWrapper {
         Self {
@@ -894,6 +1039,7 @@ impl Default for HolonomicCommandWrapper {
 }
 
 impl HolonomicCommandWrapper {
+    /// Creates an [`HolonomicCommandWrapper`] from its Rust counterpart [`HolonomicCommand`]
     pub fn from_rust(s: &HolonomicCommand) -> Self {
         Self {
             longitudinal_velocity: s.longitudinal_velocity,
@@ -901,6 +1047,8 @@ impl HolonomicCommandWrapper {
             angular_velocity: s.angular_velocity,
         }
     }
+
+    /// Converts the Python wrapper back to its Rust counterpart [`HolonomicCommand`]
     pub fn to_rust(&self) -> HolonomicCommand {
         HolonomicCommand {
             longitudinal_velocity: self.longitudinal_velocity,
@@ -910,15 +1058,21 @@ impl HolonomicCommandWrapper {
     }
 }
 
+/// Wrapper for the [`Envelope`]
 #[derive(Clone, Debug)]
 #[pyclass(get_all, set_all)]
 #[pyo3(name = "Envelope")]
 pub struct EnvelopeWrapper {
+    /// Expeditor
     pub msg_from: String,
+    /// Message sent, see [`MessageTypes`] for supported messages
     pub message: MessageTypes,
+    /// Time of the message
     pub timestamp: f32,
 }
 
+/// Wrapper around the [`Node`] to be used in Python.
+/// It provides methods around the [`Network`].
 #[derive(Debug, Clone)]
 #[pyclass]
 #[pyo3(name = "Node")]
@@ -929,10 +1083,20 @@ pub struct NodeWrapper {
 
 #[pymethods]
 impl NodeWrapper {
+    /// Get the unique name of the node.
     pub fn name(&self) -> String {
         self.name.clone()
     }
 
+    /// Send a message to the given channel using the node [`Network`]. It returns an error if the node is not connected to any network.
+    ///
+    /// Should only be used for one-shot messages as it creates a new client every times. For more persistent communication, it is better to use a [`MultiClientWrapper`] obtained with the [`subscribe`](Self::subscribe) method.
+    ///
+    /// # Arguments
+    /// * `to` - Channel key to send the message to. It can be a relative key (e.g. "channel1") or an absolute key (e.g. "/my_channels/channel1").
+    /// * `message` - Message to send. See [`MessageTypes`] for the supported message types in Python.
+    /// * `time` - Time at which the message is sent. It should be the current time of the simulator or in the future.
+    /// * `flags` - Message flags. See [`MessageFlag`] for the supported flags.
     #[pyo3(signature = (to, message, time, flags=Vec::new()))]
     #[warn(clippy::useless_conversion)]
     pub fn send_message(
@@ -963,9 +1127,11 @@ impl NodeWrapper {
         }
     }
 
-    pub fn subscribe(&self, topics: Vec<String>) -> PyResult<MultiClientWrapper> {
+    /// Subscribe to a channel using the node [`Network`] and get a [`MultiClientWrapper`] to send and receive messages on this channel.
+    /// It returns an error if the node is not connected to any network.
+    pub fn subscribe(&self, channels: Vec<String>) -> PyResult<MultiClientWrapper> {
         if let Some(network) = &self.network.as_ref().and_then(|n| n.upgrade()) {
-            let keys = topics
+            let keys = channels
                 .iter()
                 .map(|t| PathKey::from_str(t.as_str()).unwrap())
                 .collect::<Vec<PathKey>>();
@@ -976,6 +1142,7 @@ impl NodeWrapper {
         }
     }
 
+    /// Create a new channel in the network using [`Network::make_channel`]. It returns an error if the node is not connected to any network.
     pub fn make_channel(&self, channel_name: String) -> PyResult<()> {
         if let Some(network) = &self.network.as_ref().and_then(|n| n.upgrade()) {
             let key = PathKey::from_str(channel_name.as_str()).unwrap();
@@ -988,6 +1155,7 @@ impl NodeWrapper {
 }
 
 impl NodeWrapper {
+    /// Create a new NodeWrapper from a Node.
     pub fn from_rust(n: &Node) -> Self {
         Self {
             name: n.name(),
@@ -996,6 +1164,8 @@ impl NodeWrapper {
     }
 }
 
+/// Wrapper around the [`SimbaBrokerMultiClient`] to be used in Python.
+/// It provides methods to subscribe to channels, send messages and receive messages.
 #[derive(Debug)]
 #[pyclass]
 #[pyo3(name = "Client")]
@@ -1005,16 +1175,32 @@ pub struct MultiClientWrapper {
 
 #[pymethods]
 impl MultiClientWrapper {
+    /// Subscribe to a channel. The client will receive messages sent to this channel.
+    ///
+    /// If the channel key is relative (does not start with a "/"), the subscription will be made to the channel using
+    /// the node id as prefix. For example, if the node id is "node1" and the channel key is "channel1", the subscription will be made to "/simba/nodes/node1/channel1".
+    ///
+    /// # Arguments
+    /// * `key` - Channel key to subscribe to. It can be a relative key (e.g. "channel1") or an absolute key (e.g. "/my_channels/channel1").
     pub fn subscribe(&mut self, key: String) {
         let key = PathKey::from_str(key.as_str()).unwrap();
         self.client.subscribe(&key);
     }
 
+    /// Similar to [`subscribe`](Self::subscribe) but it overrides the network delays.
+    /// To be used for meta messages, or virtual messages that would not exists in a real world
     pub fn subscribe_instantaneous(&mut self, key: String) {
         let key = PathKey::from_str(key.as_str()).unwrap();
         self.client.subscribe_instantaneous(&key);
     }
 
+    /// Send a message to the given channel. The message will be received by all the clients subscribed to this channel which are in range.
+    ///
+    /// # Arguments
+    /// * `to` - Channel key to send the message to. It can be a relative key (e.g. "channel1") or an absolute key (e.g. "/my_channels/channel1").
+    /// * `message` - Message to send. See [`MessageTypes`] for the supported message types in Python.
+    /// * `time` - Time at which the message is sent. It should be the current time of the simulator or in the future.
+    /// * `flags` - Message flags. See [`MessageFlag`] for the supported flags.
     pub fn send(
         &self,
         to: String,
@@ -1039,6 +1225,9 @@ impl MultiClientWrapper {
         Ok(())
     }
 
+    /// Try to receive a message from the subscribed channels. It returns the first message received or None if no message is received within the given time.
+    ///
+    /// It can return messages older than the given `time`.
     pub fn try_receive(&self, time: f32) -> Option<(String, EnvelopeWrapper)> {
         if let Some((path, envelope)) = self.client.try_receive(time) {
             let msg = match serde_json::from_value(envelope.message.clone()) {
@@ -1058,10 +1247,12 @@ impl MultiClientWrapper {
         }
     }
 
+    /// Get the time of the next message to be received. It returns None if no message is expected to be received in the future.
     pub fn next_message_time(&self) -> Option<f32> {
         self.client.next_message_time()
     }
 
+    /// Get the list of channels the client is subscribed to.
     pub fn subscribed_keys(&self) -> Vec<String> {
         self.client
             .subscribed_keys()
@@ -1070,28 +1261,56 @@ impl MultiClientWrapper {
             .collect()
     }
 
+    /// Get the node id of the client. It is the same as the name of the node the client is attached to.
     pub fn node_id(&self) -> String {
         self.client.node_id().to_string()
     }
 }
 
 impl MultiClientWrapper {
+    /// Create a new MultiClientWrapper from a SimbaBrokerMultiClient.
     pub fn from_rust(client: SimbaBrokerMultiClient) -> Self {
         Self { client }
     }
 }
 
+/// Trait to be implemented by the Python API provided by the user. It provides methods to get the state estimator, controller, navigator and physics to be used by the simulator.
+/// The user can implement this trait in Python and provide it to the simulator to use custom implementations of these components.
+///
+/// # Example
+/// ```python
+/// import simba
+/// import json
+///
+/// class Controller(simba.Controller):
+///     # implementation
+///
+/// class SimulatorAPI(simba.PluginAPI):
+///     def get_controller(self, config: dict, global_config: dict, initial_time: float):
+///         config = json.loads(config)
+///         print(f"Config received by python: {type(config)} {config}")
+///         return Controller(config, initial_time)
+///
+/// def main():
+///     simulator_api = SimulatorAPI()
+///
+///     simulator = simba.Simulator.from_config(
+///         "config/config_controller.yaml", simulator_api
+///     )
+///     simulator.run()
+/// ```
 #[pyclass(subclass)]
 #[pyo3(name = "PluginAPI")]
 pub struct PluginAPIWrapper {}
 
 #[pymethods]
 impl PluginAPIWrapper {
+    /// Constructor for the PluginAPI. It does not take any argument and returns an instance of the PluginAPI.
     #[new]
     pub fn new() -> Self {
         Self {}
     }
-    /// Return the [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to be used by the
+    /// Return the [`StateEstimator`](crate::state_estimators::StateEstimator) to be used by the
     /// [`ExternalEstimator`](crate::state_estimators::external_estimator::ExternalEstimator).
     ///
     /// # Arguments
@@ -1102,7 +1321,7 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`StateEstimator`](crate::state_estimators::state_estimator::StateEstimator) to use.
+    /// Returns the [`StateEstimator`](crate::state_estimators::StateEstimator) to use.
     pub fn get_state_estimator(
         &self,
         _config: Py<PyAny>,
@@ -1154,7 +1373,7 @@ impl PluginAPIWrapper {
         panic!("The given PluginAPI does not provide a navigator");
     }
 
-    /// Return the [`Physics`](crate::physics::physics::Physics) to be used by the
+    /// Return the [`Physics`](crate::physics::Physics) to be used by the
     /// [`ExternalPhysics`](crate::physics::external_physics::ExternalPhysics).
     ///
     /// # Arguments
@@ -1165,7 +1384,7 @@ impl PluginAPIWrapper {
     ///
     /// # Return
     ///
-    /// Returns the [`Physics`](crate::physics::physics::Physics) to use.
+    /// Returns the [`Physics`](crate::physics::Physics) to use.
     pub fn get_physics(
         &self,
         _config: Py<PyAny>,
@@ -1182,6 +1401,7 @@ impl Default for PluginAPIWrapper {
     }
 }
 
+/// Simulator wrapper to be used in Python. It provides a method to create a simulator from a configuration file and a method to run the simulator.
 #[pyclass]
 #[pyo3(name = "Simulator")]
 pub struct SimulatorWrapper {
@@ -1191,6 +1411,11 @@ pub struct SimulatorWrapper {
 
 #[pymethods]
 impl SimulatorWrapper {
+    /// Constructor for the simulator.
+    ///
+    /// # Arguments
+    /// * `config_path` - Path to the configuration file. The configuration file should be in YAML format and follow the structure defined in the documentation. See the [`SimulatorConfig`](crate::simulator::SimulatorConfig) for more details on the configuration structure.
+    /// * `plugin_api` - Optional Python object that implements the [`PluginAPI`] interface. This object will be used to provide custom implementations of the state estimator, controller, navigator and physics if required by the configuration.
     #[staticmethod]
     #[pyo3(signature = (config_path, plugin_api=None))]
     pub fn from_config(
@@ -1214,6 +1439,8 @@ impl SimulatorWrapper {
         })
     }
 
+    /// Run the simulator. This function will block until the simulation is finished.
+    /// It will call the given state estimator, controller, navigator and physics at each simulation step.
     pub fn run(&mut self) {
         self.simulator.run(&self.python_api, None, false);
         self.simulator.compute_results();
@@ -1221,6 +1448,8 @@ impl SimulatorWrapper {
     }
 }
 
+/// Run the GUI of the simulator. This function will block until the GUI is closed but
+/// will allow communications between Python thread and GUI to be able to use [`PythonAPI`] in the GUI.
 #[cfg(feature = "gui")]
 #[pyfunction]
 #[pyo3(signature = (default_config_path=None, plugin_api=None, load_results=false))]

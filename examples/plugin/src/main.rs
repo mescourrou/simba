@@ -6,7 +6,7 @@ use simba::controllers::{Controller, ControllerError, ControllerRecord};
 use simba::errors::SimbaResult;
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::{Navigator, NavigatorRecord};
-use simba::networking::network::{Envelope, Network};
+use simba::networking::network::Network;
 use simba::networking::service::HasService;
 use simba::node::Node;
 use simba::physics::external_physics::ExternalPhysicsRecord;
@@ -23,10 +23,9 @@ use simba::state_estimators::{
     State, StateEstimator, StateEstimatorRecord, StateRecord, WorldState,
 };
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use simba::utils::{SharedMutex, SharedRwLock};
+use simba::utils::SharedRwLock;
 use std::path::Path;
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 ///////////////////////////////////
 /*     CONTROLLER TEMPLATE       */
@@ -365,6 +364,7 @@ impl PluginAPI for MyWonderfulPlugin {
         &self,
         config: &serde_json::Value,
         _global_config: &SimulatorConfig,
+        _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
     ) -> Box<dyn Sensor> {

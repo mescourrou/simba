@@ -1,3 +1,10 @@
+//! Channel primitives for the publish/subscribe subsystem.
+//!
+//! This module defines:
+//! - [`ChannelProcessing`], the trait used by brokers to process pending messages,
+//! - [`Channel`], a concrete channel implementation supporting multi-client fan-out with optional
+//!   delivery conditions.
+
 use std::{
     collections::{HashMap, HashSet},
     fmt::Debug,
@@ -10,34 +17,38 @@ use std::{
 
 #[cfg(feature = "debug_mode")]
 use log::debug;
-use multimap::MultiMap;
 
 use crate::pub_sub::{SharedMutex, client::Client};
 
+/// Runtime processing interface for broker-managed channels.
 pub trait ChannelProcessing<NodeIdType, ConditionArgType>: Send + Sync + Debug {
+    /// Processes pending inbound messages and dispatches them to subscribers.
     fn process_messages(
         &self,
         client_condition_args: Option<&HashMap<NodeIdType, ConditionArgType>>,
     );
+    /// Returns a mutable `Any` view for downcasting to concrete channel types.
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
 type SenderType<MessageType> = Sender<(MessageType, f32)>;
 type ReceiverType<MessageType> = Receiver<(MessageType, f32)>;
 
+/// Concrete pub/sub channel with optional conditional delivery.
 ///
-/// Lock order: receivers then senders
+/// Lock order is: `receivers` then `senders`.
 #[derive(Clone)]
 pub struct Channel<
     MessageType: Clone + Send + 'static + Default,
     NodeIdType: Hash + Eq + Clone + Send + Sync + 'static,
     ConditionArgType: Clone + Send + 'static + Default = u8,
 > {
-    senders: SharedMutex<MultiMap<NodeIdType, (usize, SenderType<MessageType>)>>,
-    receivers: SharedMutex<MultiMap<NodeIdType, (usize, ReceiverType<MessageType>)>>,
+    senders: SharedMutex<HashMap<(NodeIdType, usize), SenderType<MessageType>>>,
+    receivers: SharedMutex<HashMap<(NodeIdType, usize), ReceiverType<MessageType>>>,
     condition: SharedMutex<dyn Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static>,
     time_round: f32,
     client_count: SharedMutex<usize>,
+    name: String,
 }
 
 impl<
@@ -48,6 +59,7 @@ impl<
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Channel")
+            .field("name", &self.name)
             .field("senders_count", &self.senders.lock().unwrap().len())
             .field("receivers_count", &self.receivers.lock().unwrap().len())
             .finish()
@@ -60,29 +72,42 @@ impl<
     ConditionArgType: Clone + Send + 'static + Default,
 > Channel<MessageType, NodeIdType, ConditionArgType>
 {
-    pub fn new(time_round: f32) -> Self {
+    /// Creates a new channel that always forwards messages to eligible recipients.
+    ///
+    /// `time_round` controls time rounding for generated clients.
+    pub fn new(time_round: f32, name: &str) -> Self {
         Self {
-            senders: Arc::new(Mutex::new(MultiMap::new())),
-            receivers: Arc::new(Mutex::new(MultiMap::new())),
+            senders: Arc::new(Mutex::new(HashMap::new())),
+            receivers: Arc::new(Mutex::new(HashMap::new())),
             condition: Arc::new(Mutex::new(|_, _| true)),
             time_round,
             client_count: Arc::new(Mutex::new(0)),
+            name: name.into(),
         }
     }
 
+    /// Creates a new channel with a custom delivery condition.
+    ///
+    /// The `condition` predicate receives `(from_arg, to_arg)` and returns whether the message
+    /// should be delivered to the recipient.
     pub fn new_conditionnal(
         condition: impl Fn(ConditionArgType, ConditionArgType) -> bool + Send + 'static + Clone,
         time_round: f32,
+        name: &str,
     ) -> Self {
         Self {
-            senders: Arc::new(Mutex::new(MultiMap::new())),
-            receivers: Arc::new(Mutex::new(MultiMap::new())),
+            senders: Arc::new(Mutex::new(HashMap::new())),
+            receivers: Arc::new(Mutex::new(HashMap::new())),
             condition: Arc::new(Mutex::new(condition)),
             time_round,
             client_count: Arc::new(Mutex::new(0)),
+            name: name.into(),
         }
     }
 
+    /// Creates and registers a client endpoint for `node_id`.
+    ///
+    /// `reception_delay` is applied when constructing the returned [`Client`].
     pub fn client(&mut self, node_id: NodeIdType, reception_delay: f32) -> Client<MessageType> {
         let (to_client_tx, to_client_rx) = mpsc::channel();
         let (from_client_tx, from_client_rx) = mpsc::channel();
@@ -92,11 +117,19 @@ impl<
         self.receivers
             .lock()
             .unwrap()
-            .insert(node_id.clone(), (id, from_client_rx));
+            .insert((node_id.clone(), id), from_client_rx);
         self.senders
             .lock()
             .unwrap()
-            .insert(node_id.clone(), (id, to_client_tx));
+            .insert((node_id.clone(), id), to_client_tx);
+        #[cfg(feature = "debug_mode")]
+        debug!(
+            "[Channel {}] New client with id {} for node {:?}. Total clients: {}",
+            self.name,
+            id,
+            node_id,
+            self.receivers.lock().unwrap().len()
+        );
         Client::new(
             from_client_tx,
             to_client_rx,
@@ -122,18 +155,20 @@ impl<
         let mut receivers = self.receivers.lock().unwrap();
         let mut senders = self.senders.lock().unwrap();
         let mut messages_to_send = Vec::new();
-        for (from_id, receiver) in receivers.iter() {
-            while let Ok(message) = receiver.1.try_recv() {
+        for ((from_id, receiver_id), receiver) in receivers.iter() {
+            while let Ok(message) = receiver.try_recv() {
                 if message.1 < 0. {
-                    dead_clients.insert((from_id.clone(), receiver.0));
-                    break;
+                    #[cfg(feature = "debug_mode")]
+                    debug!("[Channel {}] Receive end-client message", self.name);
+                    dead_clients.insert((from_id.clone(), *receiver_id));
+                    continue;
                 }
-                messages_to_send.push((from_id.clone(), receiver.0, message));
+                messages_to_send.push((from_id.clone(), *receiver_id, message));
             }
         }
         for (from_id, from_sender_id, message) in messages_to_send {
             let from_arg = client_condition_args.and_then(|args| args.get(&from_id));
-            for (to_id, senders) in senders.iter_all() {
+            for ((to_id, sender_id), sender) in senders.iter() {
                 let to_arg = if from_arg.is_some() {
                     client_condition_args.and_then(|args| args.get(to_id))
                 } else {
@@ -144,33 +179,39 @@ impl<
                 } else {
                     true
                 };
-                for (sender_id, sender) in senders {
-                    // Avoid sending the message back to the sender
-                    if &from_id == to_id && *sender_id == from_sender_id {
-                        continue;
-                    }
-                    if send {
-                        if sender.send(message.clone()).is_err() {
-                            // panic!(
-                            //     "Failed to send message from {:?} to ({:?}, {}): {:?}",
-                            //     from_id,
-                            //     to_id,
-                            //     *sender_id,
-                            //     e.to_string()
-                            // );
-                            // Assume dead client
-                            dead_clients.insert((to_id.clone(), *sender_id));
-                        } else {
-                            #[cfg(feature = "debug_mode")]
-                            debug!("Message from {:?} to {:?} sent", from_id, to_id);
-                        }
+                // Avoid sending the message back to the sender
+                if &from_id == to_id && *sender_id == from_sender_id {
+                    #[cfg(feature = "debug_mode")]
+                    debug!(
+                        "[Channel {}] Not sending message back to the sender ({:?} to {:?})",
+                        self.name, from_id, to_id
+                    );
+                    continue;
+                }
+                if send {
+                    if sender.send(message.clone()).is_err() {
+                        // panic!(
+                        //     "Failed to send message from {:?} to ({:?}, {}): {:?}",
+                        //     from_id,
+                        //     to_id,
+                        //     *sender_id,
+                        //     e.to_string()
+                        // );
+                        // Assume dead client
+                        dead_clients.insert((to_id.clone(), *sender_id));
                     } else {
                         #[cfg(feature = "debug_mode")]
                         debug!(
-                            "Message from {:?} to {:?} not sent due to condition",
-                            from_id, to_id
+                            "[Channel {}] Message from {:?} to {:?} sent",
+                            self.name, from_id, to_id
                         );
                     }
+                } else {
+                    #[cfg(feature = "debug_mode")]
+                    debug!(
+                        "[Channel {}] Message from {:?} to {:?} not sent due to condition",
+                        self.name, from_id, to_id
+                    );
                 }
             }
         }
@@ -179,20 +220,20 @@ impl<
         }
         #[cfg(feature = "debug_mode")]
         {
-            debug!("Removing {} dead clients from channel", dead_clients.len());
             debug!(
-                "Current receiver list: {:?}",
-                receivers
-                    .iter()
-                    .map(|(id, rec)| (id, rec.0))
-                    .collect::<Vec<_>>()
+                "[Channel {}] Removing {} dead clients from channel",
+                self.name,
+                dead_clients.len()
             );
             debug!(
-                "Current sender list: {:?}",
-                senders
-                    .iter()
-                    .map(|(id, sender)| (id, sender.0))
-                    .collect::<Vec<_>>()
+                "[Channel {}] Current receiver list: {:?}",
+                self.name,
+                receivers.keys()
+            );
+            debug!(
+                "[Channel {}] Current sender list: {:?}",
+                self.name,
+                senders.keys()
             );
         }
 
@@ -200,30 +241,18 @@ impl<
         for (key, sender_id) in dead_clients.into_iter() {
             #[cfg(feature = "debug_mode")]
             debug!(
-                "Removing client {:?} with sender id {} from channel",
-                key, sender_id
+                "[Channel {}] Removing client {:?} with sender id {} from channel",
+                self.name, key, sender_id
             );
             // Remove receivers
-            let mut clients = receivers
-                .remove(&key)
+            let _ = receivers
+                .remove(&(key.clone(), sender_id))
                 .expect("Client name to remove does not exist in receivers");
-            let client_index = clients
-                .iter()
-                .position(|(id, _)| *id == sender_id)
-                .expect("Client id to remove does not exist in receivers");
-            clients.remove(client_index);
-            receivers.insert_many(key.clone(), clients);
 
             // Remove senders
-            let mut clients = senders
-                .remove(&key)
+            let _ = senders
+                .remove(&(key, sender_id))
                 .expect("Client name to remove does not exist in senders");
-            let client_index = clients
-                .iter()
-                .position(|(id, _)| *id == sender_id)
-                .expect("Client id to remove does not exist in senders");
-            clients.remove(client_index);
-            senders.insert_many(key.clone(), clients);
         }
     }
 

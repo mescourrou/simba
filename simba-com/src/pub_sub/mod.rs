@@ -1,20 +1,37 @@
+//! Publish/subscribe primitives used for inter-component communication.
+//!
+//! This module re-exports broker, channel, and client building blocks, including path-based
+//! helpers for hierarchical channel names.
+
 mod broker;
 mod channel;
 mod client;
 mod multi_client;
 
+/// Generic broker implementation.
 pub use broker::Broker;
+/// Core broker trait.
 pub use broker::BrokerTrait;
+/// Broker extension trait for conditional channels.
 pub use broker::BrokerTraitExtended;
+/// Broker processing trait.
 pub use broker::BrokerTraitProcessing;
+/// Path-key based broker wrapper.
 pub use broker::PathBroker;
+/// Hierarchical key type for path-based channels.
 pub use broker::PathKey;
+/// Channel implementation used by brokers.
 pub use channel::Channel;
+/// Single-channel client endpoint.
 pub use client::Client;
+/// Generic multi-channel client.
 pub use multi_client::MultiClient;
+/// Multi-channel client trait.
 pub use multi_client::MultiClientTrait;
+/// Path-key based multi-channel client.
 pub use multi_client::PathMultiClient;
 
+/// Type alias for per-client delivery condition predicates.
 pub type ConditionType<ConditionArgType> = fn(ConditionArgType, ConditionArgType) -> bool;
 type SharedMutex<T> = std::sync::Arc<std::sync::Mutex<T>>;
 // type SharedRwLock<T> = std::sync::Arc<std::sync::RwLock<T>>;

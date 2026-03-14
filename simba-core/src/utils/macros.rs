@@ -1,3 +1,9 @@
+//! Utility macros used to generate config and record wrapper types.
+//!
+//! This module centralizes macro definitions used across Simba to avoid
+//! repetitive boilerplate for external configs, Python class configs, and
+//! serialized record wrappers.
+
 macro_rules! python_class_config {
     (
         $(#[$meta:meta])*  // Capture attributes including doc comments
@@ -8,7 +14,9 @@ macro_rules! python_class_config {
 $(#[$meta])*  // Re-emit all attributes, including doc
 #[simba_macros::config_derives(skip_jsonschema, skip_unknown_fields)]
 pub struct $struct_name {
+    /// Python script file path (relative to the base path specified in the global config).
     file: String,
+    /// Class name to be loaded from the Python script.
     class_name: String,
     /// Config serialized.
     #[serde(flatten)]

@@ -1,3 +1,8 @@
+//! Exponential distribution random-variable utilities.
+//!
+//! This module provides configuration and deterministic sampling utilities for
+//! exponential random variables used by the simulator.
+
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use simba_macros::config_derives;
@@ -6,11 +11,28 @@ use statrs::distribution::Exp;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 
-/// Configuration for a uniform random variable.
+/// Configuration for an exponential random variable.
 #[config_derives]
 pub struct ExponentialRandomVariableConfig {
-    /// Probabilities of the random variable
+    /// Rate parameters (`lambda`) of the exponential distributions.
     pub lambda: Vec<f64>,
+}
+
+impl Check for ExponentialRandomVariableConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.lambda.is_empty() {
+            errors.push("Lambda vector cannot be empty.".to_string());
+        }
+        if self.lambda.iter().any(|p| *p < 0.) {
+            errors.push("Lambdas must be non-negative.".to_string());
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
 }
 
 impl Default for ExponentialRandomVariableConfig {
@@ -66,6 +88,9 @@ impl UIComponent for ExponentialRandomVariableConfig {
 }
 
 #[derive(Debug, Clone)]
+/// Deterministic exponential random variable generator.
+///
+/// Sampling is reproducible for the same seed and time input.
 pub struct DeterministExponentialRandomVariable {
     /// Seed used, which is the global seed from the factory + the unique seed of this random variable (computed by the factory).
     my_seed: f32,
@@ -74,6 +99,10 @@ pub struct DeterministExponentialRandomVariable {
 }
 
 impl DeterministExponentialRandomVariable {
+    /// Build a deterministic exponential random variable from configuration.
+    ///
+    /// `my_seed` should be a deterministic seed component unique to this
+    /// variable instance.
     pub fn from_config(my_seed: f32, config: ExponentialRandomVariableConfig) -> Self {
         assert!(config.lambda.iter().all(|x| *x >= 0.));
         Self {
@@ -86,6 +115,9 @@ impl DeterministExponentialRandomVariable {
         }
     }
 
+    /// Generate one sample vector at a given simulation `time`.
+    ///
+    /// The produced values are reproducible for the same `(my_seed, time)` pair.
     pub fn generate(&self, time: f32) -> Vec<f32> {
         let mut rng = ChaCha8Rng::seed_from_u64((self.my_seed + time).to_bits() as u64);
         let mut v = Vec::new();
@@ -95,6 +127,7 @@ impl DeterministExponentialRandomVariable {
         v
     }
 
+    /// Return the output dimension of the random variable.
     pub fn dim(&self) -> usize {
         self.exponential.len()
     }

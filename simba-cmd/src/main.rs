@@ -35,7 +35,8 @@ fn doit(args: Cli) -> SimbaResult<()> {
         )?;
 
         // Show the simulator loaded configuration
-        simulator.show();
+        println!("Configuration loaded:");
+        simulator.show_config();
 
         if !args.load_results {
             // Run the simulator for the time given in the configuration

@@ -38,14 +38,12 @@ impl ExecutionNode {
 #[derive(Debug)]
 pub struct ExecutionTree {
     top_time_nodes: Vec<ExecutionNode>,
-    keep_last: bool,
 }
 
 impl ExecutionTree {
     pub fn new() -> Self {
         ExecutionTree {
             top_time_nodes: Vec::new(),
-            keep_last: true,
         }
     }
 
@@ -60,12 +58,8 @@ impl ExecutionTree {
 
         if let Some(mut current) = current {
             if coordinates[0] == 0 {
-                if self.keep_last {
-                    *current = ExecutionNode::from(name, time_int, depth);
-                    return;
-                } else {
-                    panic!("Keep_last = false not implemented yet for Execution Tree");
-                }
+                *current = ExecutionNode::from(name, time_int, depth);
+                return;
             }
             for coord in coordinates.iter().take(depth - 1) {
                 for _j in 0..*coord {

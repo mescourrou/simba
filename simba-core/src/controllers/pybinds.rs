@@ -1,3 +1,12 @@
+//! Python bindings and RPC bridge for controller implementations.
+//!
+//! This module connects Python controller objects to the Rust simulation runtime.
+//! [`PythonController`] owns a Python model and serves asynchronous RPC requests from
+//! [`PythonControllerAsyncClient`].
+//!
+//! It also exposes [`ControllerWrapper`], the Python-visible base class used for custom
+//! controller implementations.
+
 use std::{str::FromStr, sync::Arc};
 
 use log::debug;
@@ -19,6 +28,7 @@ use crate::{
 use super::{Controller, ControllerError, ControllerRecord};
 
 #[derive(Debug, Clone)]
+/// Simulator-side RPC handles used by the runtime to call Python controller methods.
 pub struct PythonControllerAsyncClient {
     post_init: RemoteFunctionCall<NodeWrapper, SimbaResult<()>>,
     make_command: RemoteFunctionCall<(NodeWrapper, ControllerError, f32), Command>,
@@ -57,6 +67,7 @@ impl Recordable<ControllerRecord> for PythonControllerAsyncClient {
 }
 
 #[derive(Debug)]
+/// Python-side bridge that executes controller methods on a Python model.
 pub struct PythonController {
     model: Py<PyAny>,
     client: PythonControllerAsyncClient,
@@ -68,6 +79,9 @@ pub struct PythonController {
 }
 
 impl PythonController {
+    /// Creates a new Python controller bridge.
+    ///
+    /// The provided `py_model` must implement the [`Controller`] trait.
     pub fn new(py_model: Py<PyAny>) -> PythonController {
         if is_enabled(crate::logger::InternalLog::API) {
             Python::attach(|py| {
@@ -100,10 +114,12 @@ impl PythonController {
 }
 
 impl PythonController {
+    /// Returns a cloneable asynchronous client used by the runtime.
     pub fn get_client(&self) -> PythonControllerAsyncClient {
         self.client.clone()
     }
 
+    /// Polls pending RPC calls and dispatches them to Python implementations.
     pub fn check_requests(&mut self) {
         self.post_init
             .clone()
@@ -176,10 +192,16 @@ impl PythonController {
 
 #[pyclass(subclass)]
 #[pyo3(name = "Controller")]
+/// Python-visible base class for custom controller implementations.
+///
+/// Python subclasses are expected to override the exposed methods.
 pub struct ControllerWrapper {}
 
 #[pymethods]
 impl ControllerWrapper {
+    /// Creates a new Python controller wrapper.
+    ///
+    /// The constructor signature matches simulator expectations.
     #[new]
     pub fn new(_config: Py<PyAny>, _initial_time: f32) -> ControllerWrapper {
         Self {}

@@ -1,21 +1,10 @@
-/*!
-# Determinist Random Variable
-
-This module provides a way to create random variables with a deterministic behavior. This is
-useful to have a reproducible behavior.
-
-This module proposes a factory to create random variables with a deterministic behavior. The
-factory is created with a global seed, and each random variable created with this factory will
-have a unique seed, to have a different series of random numbers.
-
-The random variables can be of different types:
-- Fixed: always return the same value
-- Uniform: return a random value between a min and a max, with a uniform distribution
-- Normal: return a random value following a normal distribution
-
-Other types can be added in the future.
-
- */
+//! Deterministic random-variable factory and runtime wrappers.
+//!
+//! This module provides reproducible random-variable generation by combining a
+//! global seed with per-variable local seeds. It exposes:
+//! - a factory to create deterministic random variables,
+//! - runtime wrappers over supported distributions,
+//! - configuration enums used across the simulator and GUI.
 
 use std::sync::Mutex;
 
@@ -35,6 +24,8 @@ use super::distributions::{
 };
 
 /// Factory to create random variables with a deterministic behavior, using a global seed.
+///
+/// The seeds of the generated random variables are computed by combining the global seed with a local seed generated for each variable, which ensures that the same sequence of random variables is generated across runs with the same global seed.
 pub struct DeterministRandomVariableFactory {
     /// Global run seed.
     global_seed: Mutex<f32>,
@@ -78,11 +69,13 @@ impl DeterministRandomVariableFactory {
         }
     }
 
+    /// Set the global seed and reset the internal seed generator.
     pub fn set_global_seed(&self, seed: f32) {
         *self.global_seed.lock().unwrap() = seed;
         *self.seed_generator.lock().unwrap() = ChaCha8Rng::seed_from_u64(seed.to_bits() as u64);
     }
 
+    /// Get the current global seed.
     pub fn global_seed(&self) -> f32 {
         *self.global_seed.lock().unwrap()
     }
@@ -99,16 +92,22 @@ impl Default for DeterministRandomVariableFactory {
 }
 
 #[derive(Debug, Clone)]
+/// Runtime wrapper around supported deterministic random-variable types.
 pub enum DeterministRandomVariable {
     /// Fixed value
     Fixed(DeterministFixedRandomVariable),
+    /// Uniform distribution.
     Uniform(DeterministUniformRandomVariable),
+    /// Normal distribution.
     Normal(DeterministNormalRandomVariable),
+    /// Poisson distribution.
     Poisson(DeterministPoissonRandomVariable),
+    /// Exponential distribution.
     Exponential(DeterministExponentialRandomVariable),
 }
 
 impl DeterministRandomVariable {
+    /// Generate one sample vector for the given simulation `time`.
     pub fn generate(&self, time: f32) -> Vec<f32> {
         match self {
             DeterministRandomVariable::Fixed(v) => v.generate(time),
@@ -119,6 +118,7 @@ impl DeterministRandomVariable {
         }
     }
 
+    /// Return the output dimension of the wrapped random variable.
     pub fn dim(&self) -> usize {
         match self {
             DeterministRandomVariable::Fixed(v) => v.dim(),
@@ -130,19 +130,40 @@ impl DeterministRandomVariable {
     }
 }
 
-/// Configuration of the random variable: fixed, uniform or normal.
+/// Configuration of random-variable type and parameters.
 #[config_derives]
 pub enum RandomVariableTypeConfig {
     /// No random variable
     None,
     /// Fixed value
+    #[check]
     Fixed(FixedRandomVariableConfig),
     /// Uniform distribution
+    #[check]
     Uniform(UniformRandomVariableConfig),
     /// Normal distribution
+    #[check]
     Normal(NormalRandomVariableConfig),
+    /// Poisson distribution.
+    #[check]
     Poisson(PoissonRandomVariableConfig),
+    /// Exponential distribution.
+    #[check]
     Exponential(ExponentialRandomVariableConfig),
+}
+
+impl RandomVariableTypeConfig {
+    /// Return the output dimension implied by this configuration.
+    pub fn dim(&self) -> usize {
+        match self {
+            RandomVariableTypeConfig::None => 0,
+            RandomVariableTypeConfig::Fixed(c) => c.values.len(),
+            RandomVariableTypeConfig::Uniform(c) => c.max.len(),
+            RandomVariableTypeConfig::Normal(c) => c.mean.len(),
+            RandomVariableTypeConfig::Poisson(c) => c.lambda.len(),
+            RandomVariableTypeConfig::Exponential(c) => c.lambda.len(),
+        }
+    }
 }
 
 impl Default for RandomVariableTypeConfig {
@@ -170,10 +191,7 @@ impl UIComponent for RandomVariableTypeConfig {
             "Normal",
             "Poisson",
             "Exponential",
-        ]
-        .iter()
-        .map(|x| String::from(*x))
-        .collect();
+        ];
         ui.horizontal(|ui| {
             ui.label("Type:");
 
@@ -276,6 +294,7 @@ impl UIComponent for RandomVariableTypeConfig {
 
 #[cfg(feature = "gui")]
 impl RandomVariableTypeConfig {
+    /// Render a mutable list editor for random-variable configurations in the GUI.
     pub fn show_vector_mut(
         vec: &mut Vec<RandomVariableTypeConfig>,
         ui: &mut egui::Ui,
@@ -313,6 +332,7 @@ impl RandomVariableTypeConfig {
         });
     }
 
+    /// Render a read-only list view for random-variable configurations in the GUI.
     pub fn show_vector(
         vec: &[RandomVariableTypeConfig],
         ui: &mut egui::Ui,
@@ -332,6 +352,7 @@ impl RandomVariableTypeConfig {
 }
 
 #[cfg(feature = "gui")]
+/// Render a GUI widget to display and regenerate a random seed.
 pub fn seed_generation_component(
     seed: &mut f32,
     ui: &mut egui::Ui,

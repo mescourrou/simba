@@ -1,6 +1,8 @@
-/*!
-Provide the implementation of the [`Physics`] trait.
-*/
+//! Internal physics implementation.
+//!
+//! This module provides the built-in Rust implementation of
+//! [`Physics`], including robot model integration,
+//! command application, state propagation, and optional physics fault injection.
 
 use std::sync::{Arc, Mutex};
 
@@ -21,17 +23,25 @@ use crate::{
     state_estimators::{State, StateConfig, StateRecord},
     utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory},
 };
+use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
-/// Config for the [`InternalPhysics`].
+/// Configuration for [`InternalPhysics`].
+///
+/// Default values:
+/// - `model`: [`RobotModelConfig::Unicycle`] with [`UnicycleConfig::default`]
+/// - `initial_state`: [`StateConfig::default`]
+/// - `faults`: empty vector
 #[config_derives]
 pub struct InternalPhysicConfig {
+    /// Robot kinematic model configuration.
     #[check]
     pub model: RobotModelConfig,
     /// Starting state.
     #[check]
     pub initial_state: StateConfig,
+    /// Physics fault model configurations applied after each update.
     #[check]
     pub faults: Vec<PhysicsFaultModelConfig>,
 }
@@ -136,6 +146,7 @@ impl UIComponent for InternalPhysicsRecord {
 }
 
 #[derive(Debug)]
+/// Runtime internal physics engine.
 pub struct InternalPhysics {
     model: Box<dyn RobotModel>,
     /// Current state
@@ -152,8 +163,9 @@ impl InternalPhysics {
     ///
     /// ## Arguments
     /// * `config` - Configuration of [`InternalPhysics`].
-    /// * `plugin_api` - [`PluginAPI`] not used there.
-    /// * `global_config` - Configuration of the simulator.
+    /// * `robot_name` - Name of the robot, used for fault model initialization.
+    /// * `va_factory` - Factory for creating random variables, used for fault model initialization.
+    /// * `initial_time` - Initial time of the node.
     pub fn from_config(
         config: &InternalPhysicConfig,
         robot_name: &String,

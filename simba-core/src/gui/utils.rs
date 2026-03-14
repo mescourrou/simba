@@ -1,9 +1,12 @@
+//! This module contains utility functions for the GUI, such as comboboxes, checkboxes, path editors, etc. These functions are used to create common UI elements in the GUI, and to avoid code duplication.
+
 use std::{collections::BTreeMap, fmt::Debug, path::Path};
 
 use egui::Color32;
 
 use crate::utils::enum_tools::ToVec;
 
+/// Combobox for an enum. It allows to select one value of the enum, and store it in a mutable reference.
 pub fn enum_combobox<EnumType>(ui: &mut egui::Ui, value: &mut EnumType, id: impl std::hash::Hash)
 where
     EnumType: ToVec<&'static str> + ToVec<EnumType> + Debug + PartialEq,
@@ -20,9 +23,10 @@ where
         });
 }
 
+/// Combobox for a list of strings. It allows to select one value of the list, and store it in a mutable reference.
 pub fn string_combobox(
     ui: &mut egui::Ui,
-    possible_values: &Vec<String>,
+    possible_values: &[&str],
     value: &mut String,
     id: impl std::hash::Hash,
 ) {
@@ -30,11 +34,12 @@ pub fn string_combobox(
         .selected_text(format!("{:?}", value))
         .show_ui(ui, |ui| {
             for s in possible_values {
-                ui.selectable_value(value, s.clone(), s);
+                ui.selectable_value(value, s.to_string(), *s);
             }
         });
 }
 
+/// Checkbox list for a list of strings. It allows to select multiple values of the list, and store them in a vector.
 pub fn string_checkbox(
     ui: &mut egui::Ui,
     possible_values: &Vec<String>,
@@ -57,6 +62,7 @@ pub fn string_checkbox(
     }
 }
 
+/// Radio button list for an enum. It allows to select one value of the enum, and store it in a mutable reference.
 pub fn enum_radio<EnumType>(ui: &mut egui::Ui, value: &mut EnumType)
 where
     EnumType: ToVec<&'static str> + ToVec<EnumType> + Debug + PartialEq,
@@ -69,6 +75,7 @@ where
     }
 }
 
+/// Checkbox list for an enum. It allows to select multiple values of the enum, and store them in a vector.
 pub fn enum_checkbox<EnumType>(ui: &mut egui::Ui, values: &mut Vec<EnumType>)
 where
     EnumType: ToVec<&'static str> + ToVec<EnumType> + Debug + PartialEq + Clone,
@@ -92,10 +99,23 @@ where
     }
 }
 
+/// Path editor. It is a text edit with an "Apply" button, that allows to edit a path string and apply it when the button is clicked.
+///
+/// Future: add a file explorer to select the path
 pub fn path_finder(ui: &mut egui::Ui, path: &mut String, _base: &Path) {
     ui.text_edit_singleline(path);
 }
 
+/// Json editor with an "Apply" button. The json is only applied to the value when the button is clicked, otherwise it is stored in the buffer stack.
+///
+/// Future: add coloring and error highlighting in the editor, to make it easier to edit the json.
+///
+/// # Arguments
+/// * `ui` - The egui UI to display the editor and the button.
+/// * `buffer_key` - The key to use in the buffer stack to store the editor value. It should be unique for each editor to avoid conflicts.
+/// * `error_key` - The key to use in the buffer stack to store the error message. It should be unique for each editor to avoid conflicts.
+/// * `buffer_stack` - The buffer stack to store the editor value and the error message while "Apply" is not clicked.
+/// * `value` - The value to update when "Apply" is clicked. It should be a mutable reference to the value to update.
 pub fn json_config(
     ui: &mut egui::Ui,
     buffer_key: &String,
@@ -125,6 +145,13 @@ pub fn json_config(
     }
 }
 
+/// Text edit with an "Apply" button. The text is only applied to the value when the button is clicked, otherwise it is stored in the buffer stack.
+///
+/// # Arguments
+/// * `ui` - The egui UI to display the text edit and the button.
+/// * `buffer_key` - The key to use in the buffer stack to store the text edit value. It should be unique for each text edit to avoid conflicts.
+/// * `buffer_stack` - The buffer stack to store the text edit value while "Apply" is not clicked.
+/// * `value` - The value to update when "Apply" is clicked. It should be a mutable reference to the value to update.
 pub fn text_singleline_with_apply(
     ui: &mut egui::Ui,
     buffer_key: &str,
@@ -141,5 +168,3 @@ pub fn text_singleline_with_apply(
         buffer_stack.remove(buffer_key);
     }
 }
-
-pub fn state_widget(_ui: &mut egui::Ui) {}

@@ -1,5 +1,8 @@
+//! Utilities for working with the `confy` crate, which is used for configuration management in the simulator.
+
 use confy::ConfyError;
 
+/// Provides detailed error messages for configuration-related errors, including the underlying causes.
 pub fn detailed_error(error: &ConfyError) -> String {
     format!(
         "{}: {}",

@@ -2,16 +2,15 @@ use serde::{Deserialize, Serialize};
 use simba::controllers::ControllerError;
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::{Navigator, NavigatorRecord};
-use simba::networking::network::{Envelope, Network};
+use simba::networking::network::Network;
 use simba::plugin_api::PluginAPI;
 use simba::pybinds::PythonAPI;
 use simba::recordable::Recordable;
 use simba::simulator::{AsyncSimulator, Simulator, SimulatorConfig};
 use simba::state_estimators::{StateEstimator, WorldState};
 use simba::utils::determinist_random_variable::DeterministRandomVariableFactory;
-use simba::utils::{SharedMutex, SharedRwLock};
-use std::sync::mpsc::{self, Receiver, Sender};
-use std::sync::{Arc, Mutex};
+use simba::utils::SharedRwLock;
+use std::sync::Arc;
 
 use pyo3::prelude::*;
 

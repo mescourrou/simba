@@ -1,29 +1,22 @@
-/*!
-Module which provides communication tools between nodes.
-
-Each [`Node`](crate::node::Node) includes a [`Network`](network::Network).
-The [`NetworkManager`](network_manager::NetworkManager) makes the link between the
-[`Network`](network::Network)s and is owned by the [`Simulator`](crate::simulator::Simulator).
-
-There are two main ways to communicate between nodes.
-
-1) One-way communication: A node sends a message to another node. This is done using the
-   [`Network::send_to`](network::Network::send_to) and
-   [`Network::broadcast`](network::Network::broadcast) methods. The message is sent to the
-   receiver [`Network`](network::Network) and is stored in a time ordered buffer. The receiver
-   unwraps the message when it reaches the time of the message. If the message is sent in the
-   past, the receiver will go back in time to unwrap the message. The message treatment is done
-   in [`run_time_step`](crate::node::Node::run_time_step), at the end. The message is
-   then passed from one [`MessageHandler`](message_handler::MessageHandler) to the next until
-   one of them handles the message.
-
-2) Two-way communication: A node sends a request to another node and waits for the response.
-   This is done using the [`Service`](service::Service) and [`ServiceClient`](service::ServiceClient).
-   The server node proposes a service, and then a client node need to get a
-   [`ServiceClient`](service::ServiceClient) instance to be able to make a request. The client
-   sends a request to the server, and is blocked until the server sends a response. The server
-   node should handle the requests in [`run_time_step`](crate::node::Node::run_time_step).
-*/
+//! Networking primitives used by the simulator to exchange data between nodes.
+//!
+//! Each [`Node`](crate::node::Node) owns a [`Network`](network::Network). The
+//! [`NetworkManager`](network_manager::NetworkManager) connects all node networks and is owned by
+//! the [`Simulator`](crate::simulator::Simulator).
+//!
+//! # Communication models
+//!
+//! 1. One-way messaging
+//!    Nodes send messages through [`Network::send_to`](network::Network::send_to) using
+//!    `channels`. Messages are stored in time-ordered
+//!    buffers and delivered when simulation time reaches their timestamp. Delivery happens during
+//!    sync periods. Range are checked
+//!    during simulator forwarding messages, in [`NetworkManager`](network_manager::NetworkManager)
+//!    and messages are dropped if the target node is out of range at the time of sending.
+//! 2. Request/response services
+//!    Nodes expose and consume services using [`Service`](service::Service) and
+//!    [`ServiceClient`](service::ServiceClient). A client sends a request to a remote node and
+//!    waits for the response, while the server handles pending requests during sync periods.
 
 use pyo3::{pyclass, pymethods};
 use serde::{Deserialize, Serialize};
@@ -36,35 +29,50 @@ pub mod network_manager;
 pub mod service;
 pub mod service_manager;
 
+/// Errors that can occur while using networking and service communication APIs.
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum NetworkError {
+    /// The underlying channel is closed and can no longer send or receive data.
     ClosedChannel,
+    /// The target node is not known by the networking layer.
     NodeUnknown,
+    /// An unknown error represented by a free-form message.
     Unknown(String),
+    /// The error happened on the client side of a request/response operation.
     ClientSide,
+    /// A non-specific networking error.
     Other,
 }
 
+/// Payload variants that can transit through the network.
+///
+/// This enum is exposed to Python through `pyo3` and is serializable for transport.
 #[derive(Debug, Clone, Serialize, Deserialize, EnumToString)]
 #[pyclass]
 pub enum MessageTypes {
+    /// Arbitrary UTF-8 textual payload.
     String(String),
+    /// Navigation payload used by [`GoToMessage`].
     GoTo(GoToMessage),
+    /// Sensor event payload used by [`SensorTriggerMessage`].
     SensorTrigger(SensorTriggerMessage),
 }
 
 #[pymethods]
 impl MessageTypes {
+    /// Creates a [`MessageTypes::GoTo`] from a [`GoToMessage`].
     #[staticmethod]
     pub fn from_goto(message: GoToMessage) -> Self {
         MessageTypes::GoTo(message)
     }
 
+    /// Creates a [`MessageTypes::SensorTrigger`] from a [`SensorTriggerMessage`].
     #[staticmethod]
     pub fn from_sensor_trigger(message: SensorTriggerMessage) -> Self {
         MessageTypes::SensorTrigger(message)
     }
 
+    /// Returns the contained [`GoToMessage`] when this value is [`MessageTypes::GoTo`].
     pub fn as_goto(&self) -> Option<GoToMessage> {
         match self {
             MessageTypes::GoTo(msg) => Some(msg.clone()),
@@ -72,6 +80,8 @@ impl MessageTypes {
         }
     }
 
+    /// Returns the contained [`SensorTriggerMessage`] when this value is
+    /// [`MessageTypes::SensorTrigger`].
     pub fn as_sensor_trigger(&self) -> Option<SensorTriggerMessage> {
         match self {
             MessageTypes::SensorTrigger(msg) => Some(msg.clone()),
@@ -79,25 +89,36 @@ impl MessageTypes {
         }
     }
 
+    /// Returns the variant discriminator as a string.
     #[getter]
     pub fn kind(&self) -> String {
         self.to_string()
     }
 }
 
+/// Definition of channels managed by the simulator.
 pub mod channels {
+    /// Root of the internal channels, used for internal communication between nodes and the simulator.
     pub const INTERNAL: &str = "/simba";
+    /// Internal channel namespaces derived from [`INTERNAL`].
     pub mod internal {
         use constcat::concat;
+        /// Root of the log channels, used for internal logs.
         pub const LOG: &str = concat!(super::INTERNAL, "/log");
+        /// Log levels for internal logs, LOG/<node_name>/{error,warn,info,debug}
         pub mod log {
-            // Log levels for internal logs, LOG/<node_name>/{error,warn,info,debug}
+            /// ERROR log level channel
             pub const ERROR: &str = "/error";
+            /// WARNING log level channel.
             pub const WARNING: &str = "/warn";
+            /// INFO log level channel.
             pub const INFO: &str = "/info";
+            /// DEBUG log level channel.
             pub const DEBUG: &str = "/debug";
         }
+        /// Root path for node-scoped internal channels.
         pub const NODE: &str = concat!(super::INTERNAL, "/nodes");
+        /// Root path for simulator command channels (special messages such as kill).
         pub const COMMAND: &str = concat!(super::INTERNAL, "/command");
     }
 }
@@ -342,7 +363,7 @@ mod tests {
                 sensors: vec![ManagedSensorConfig {
                     name: "RobotSensor".to_string(),
                     send_to: Vec::new(),
-                    config: SensorConfig::RobotSensor(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other node poses.
+                    config: SensorConfig::Robot(RobotSensorConfig::default()), // Test valid while RobotSensor uses service for other node poses.
                     ..Default::default()
                 }],
             },
@@ -354,7 +375,7 @@ mod tests {
                 sensors: vec![ManagedSensorConfig {
                     name: "RobotSensor".to_string(),
                     send_to: Vec::new(),
-                    config: SensorConfig::RobotSensor(RobotSensorConfig::default()),
+                    config: SensorConfig::Robot(RobotSensorConfig::default()),
                     ..Default::default()
                 }],
             },

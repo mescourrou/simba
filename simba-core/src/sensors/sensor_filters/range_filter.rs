@@ -1,37 +1,74 @@
+//! Range-based sensor filter over named numeric variables.
+//!
+//! This module provides a generic filter that evaluates one or more numeric
+//! variables against configured inclusive ranges. The variable identifiers are
+//! generic and constrained by [`EnumVariables`], which allows each sensor type
+//! to define its own valid set of filterable variables.
+//!
+//! Filtering behavior depends on the `inside` flag:
+//! - if `inside` is `true`, every configured variable must stay inside its range,
+//! - if `inside` is `false`, configured variables must stay outside the ranges.
+
+use std::collections::HashMap;
+
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
-use crate::gui::{UIComponent, utils::string_combobox};
-use crate::{
-    sensors::{SensorObservation, sensor_filters::SensorFilter},
-    state_estimators::State,
-};
+use crate::gui::{UIComponent, utils::enum_combobox};
+use crate::utils::enum_tools::EnumVariables;
 
 #[config_derives]
-pub struct RangeFilterConfig {
-    #[check(and(and(eq(self.variables.len(), self.min_range.len()), eq(self.variables.len(), self.max_range.len())), inside(self.variables.clone(), vec![
-        "x".to_string(),
-        "y".to_string(),
-        "orientation".to_string(),
-        "theta".to_string(),
-        "position_x".to_string(),
-        "position_y".to_string(),
-        "velocity_x".to_string(),
-        "velocity_y".to_string(),
-        "w".to_string(),
-        "v".to_string(),
-        "self_velocity".to_string(),
-        "target_velocity".to_string(),
-        "width".to_string(),
-        "height".to_string(),]
-    )))]
-    pub variables: Vec<String>,
+/// Configuration for a range-based filter over sensor variables.
+///
+/// Each entry in `variables` is paired with the corresponding entries in
+/// `min_range` and `max_range`. These vectors must therefore have identical
+/// lengths. Range checks are inclusive.
+///
+/// The generic parameter `SV` defines the allowed variable identifiers and is
+/// typically a sensor-specific enum generated through Simba macros.
+pub struct RangeFilterConfig<SV: EnumVariables> {
+    /// Ordered list of variables to test.
+    pub variables: Vec<SV>,
+    /// Inclusive lower bounds associated with `variables`.
     pub min_range: Vec<f32>,
+    /// Inclusive upper bounds associated with `variables`.
     pub max_range: Vec<f32>,
+    /// Whether matching values should stay inside (`true`) or outside (`false`) ranges.
     pub inside: bool,
 }
 
-impl Default for RangeFilterConfig {
+impl<SV: EnumVariables> Check for RangeFilterConfig<SV> {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        if self.variables.len() != self.min_range.len()
+            || self.variables.len() != self.max_range.len()
+        {
+            errors.push(format!(
+                "variables, min_range and max_range should have the same length, got {} variables, {} min_range and {} max_range",
+                self.variables.len(),
+                self.min_range.len(),
+                self.max_range.len()
+            ));
+        }
+        let possible_variables = SV::to_vec();
+        for var in &self.variables {
+            if !possible_variables.contains(&var.to_string().as_str()) {
+                errors.push(format!(
+                    "Unknown variable name: '{}'. Available variable names: [{}]",
+                    var,
+                    possible_variables.join(", ")
+                ));
+            }
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
+impl<SV: EnumVariables> Default for RangeFilterConfig<SV> {
     fn default() -> Self {
         Self {
             variables: Vec::new(),
@@ -43,7 +80,7 @@ impl Default for RangeFilterConfig {
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for RangeFilterConfig {
+impl<SV: EnumVariables> UIComponent for RangeFilterConfig<SV> {
     fn show_mut(
         &mut self,
         ui: &mut egui::Ui,
@@ -54,30 +91,12 @@ impl UIComponent for RangeFilterConfig {
         unique_id: &str,
     ) {
         ui.vertical(|ui| {
-            let possible_variables = [
-                "x",
-                "y",
-                "orientation",
-                "theta",
-                "position_x",
-                "position_y",
-                "velocity_x",
-                "velocity_y",
-                "w",
-                "v",
-                "self_velocity",
-                "target_velocity",
-                "width",
-                "height",
-            ]
-            .iter()
-            .map(|x| String::from(*x))
-            .collect();
+            let possible_variables: Vec<SV> = SV::to_vec();
             ui.horizontal(|ui| {
                 ui.label("Variable order:");
                 for (i, var) in self.variables.iter_mut().enumerate() {
                     let unique_var_id = format!("variable-{i}-{unique_id}");
-                    string_combobox(ui, &possible_variables, var, unique_var_id);
+                    enum_combobox(ui, var, unique_var_id);
                 }
                 if !self.variables.is_empty() && ui.button("-").clicked() {
                     self.variables.pop();
@@ -127,220 +146,50 @@ impl UIComponent for RangeFilterConfig {
 }
 
 #[derive(Debug, Clone)]
-pub struct RangeFilter {
-    config: RangeFilterConfig,
+/// Runtime range filter built from [`RangeFilterConfig`].
+pub struct RangeFilter<SV: EnumVariables> {
+    config: RangeFilterConfig<SV>,
 }
 
-impl RangeFilter {
-    pub fn from_config(config: &RangeFilterConfig, _initial_time: f32) -> Self {
+impl<SV: EnumVariables> RangeFilter<SV> {
+    /// Build a range filter from its configuration.
+    pub fn from_config(config: &RangeFilterConfig<SV>, _initial_time: f32) -> Self {
         Self {
             config: config.clone(),
         }
     }
-}
 
-impl SensorFilter for RangeFilter {
-    fn filter(
-        &self,
-        _time: f32,
-        observation: SensorObservation,
-        observer_state: &State,
-        observee_state: Option<&State>,
-    ) -> Option<SensorObservation> {
+    /// Return whether the provided variable map passes the exclusion filter.
+    ///
+    /// The method evaluates every configured variable and returns `true` when the
+    /// input should be kept according to the configured range policy.
+    pub fn match_exclusion(&self, variable_map: &HashMap<SV, f32>) -> bool {
         let mut keep = true;
-
-        match &observation {
-            SensorObservation::GNSS(obs) => {
-                for (i, var) in self.config.variables.iter().enumerate() {
-                    let value = match var.as_str() {
-                        "x" | "position_x" => obs.pose.x,
-                        "y" | "position_y" => obs.pose.y,
-                        "orientation" | "z" => obs.pose.z,
-                        "velocity_x" => obs.velocity.x,
-                        "velocity_y" => obs.velocity.y,
-                        "self_velocity" => observer_state.velocity.fixed_rows::<2>(0).norm(),
-                        &_ => panic!(
-                            "Unknown variable name: '{}'. Available variable names: [position_x | x, position_y | y, orientation | z, velocity_x, velocity_y, self_velocity]",
-                            self.config.variables[i]
-                        ),
-                    };
-                    let in_range =
-                        value >= self.config.min_range[i] && value <= self.config.max_range[i];
-                    if self.config.inside {
-                        if !in_range {
-                            keep = false;
-                            break;
-                        }
-                    } else if in_range {
+        for (i, var) in self.config.variables.iter().enumerate() {
+            if let Some(value) = variable_map.get(var) {
+                let in_range =
+                    *value >= self.config.min_range[i] && *value <= self.config.max_range[i];
+                if self.config.inside {
+                    if !in_range {
                         keep = false;
                         break;
                     }
+                } else if in_range {
+                    keep = false;
+                    break;
                 }
-            }
-            SensorObservation::Speed(obs) => {
-                for (i, var) in self.config.variables.iter().enumerate() {
-                    let value = match var.as_str() {
-                        "w" | "angular" | "angular_velocity" => obs.angular_velocity,
-                        "v" | "linear" | "linear_velocity" => obs.linear_velocity,
-                        &_ => panic!(
-                            "Unknown variable name: '{}'. Available variable names: [w | angular | angular_velocity, v | linear | linear_velocity]",
-                            self.config.variables[i]
-                        ),
-                    };
-                    let in_range =
-                        value >= self.config.min_range[i] && value <= self.config.max_range[i];
-                    if self.config.inside {
-                        if !in_range {
-                            keep = false;
-                            break;
-                        }
-                    } else if in_range {
-                        keep = false;
-                        break;
-                    }
-                }
-            }
-            SensorObservation::Displacement(obs) => {
-                for (i, var) in self.config.variables.iter().enumerate() {
-                    let value = match var.as_str() {
-                        "x" | "dx" => obs.translation.x,
-                        "y" | "dy" => obs.translation.y,
-                        "r" | "rotation" => obs.rotation,
-                        "translation" => obs.translation.iter().map(|v| v * v).sum::<f32>().sqrt(),
-                        "self_velocity" => observer_state.velocity.fixed_rows::<2>(0).norm(),
-                        &_ => panic!(
-                            "Unknown variable name: '{}'. Available variable names: [dx | x, dy | y, rotation | r, translation, self_velocity]",
-                            self.config.variables[i]
-                        ),
-                    };
-                    let in_range =
-                        value >= self.config.min_range[i] && value <= self.config.max_range[i];
-                    if self.config.inside {
-                        if !in_range {
-                            keep = false;
-                            break;
-                        }
-                    } else if in_range {
-                        keep = false;
-                        break;
-                    }
-                }
-            }
-            SensorObservation::OrientedLandmark(obs) => {
-                for (i, var) in self.config.variables.iter().enumerate() {
-                    let in_range = match var.as_str() {
-                        "r" => {
-                            let d = obs.pose.fixed_rows::<2>(0).norm();
-                            d >= self.config.min_range[i] && d <= self.config.max_range[i]
-                        }
-                        "theta" => {
-                            let theta = obs.pose.y.atan2(obs.pose.x);
-                            theta >= self.config.min_range[i] && theta <= self.config.max_range[i]
-                        }
-                        "x" => {
-                            obs.pose.x >= self.config.min_range[i]
-                                && obs.pose.x <= self.config.max_range[i]
-                        }
-                        "y" => {
-                            obs.pose.y >= self.config.min_range[i]
-                                && obs.pose.y <= self.config.max_range[i]
-                        }
-                        "z" | "orientation" => {
-                            obs.pose.z >= self.config.min_range[i]
-                                && obs.pose.z <= self.config.max_range[i]
-                        }
-                        "self_velocity" => {
-                            observer_state.velocity.fixed_rows::<2>(0).norm()
-                                >= self.config.min_range[i]
-                                && observer_state.velocity.fixed_rows::<2>(0).norm()
-                                    <= self.config.max_range[i]
-                        }
-                        "width" => {
-                            obs.width >= self.config.min_range[i]
-                                && obs.width <= self.config.max_range[i]
-                        }
-                        "height" => {
-                            obs.height >= self.config.min_range[i]
-                                && obs.height <= self.config.max_range[i]
-                        }
-                        &_ => panic!(
-                            "Unknown variable name: '{}'. Available variable names: [r, theta, x, y, z | orientation, self_velocity, width, height]",
-                            self.config.variables[i]
-                        ),
-                    };
-                    if self.config.inside {
-                        if !in_range {
-                            keep = false;
-                            break;
-                        }
-                    } else if in_range {
-                        keep = false;
-                        break;
-                    }
-                }
-            }
-            SensorObservation::OrientedRobot(obs) => {
-                for (i, var) in self.config.variables.iter().enumerate() {
-                    let in_range = match var.as_str() {
-                        "r" => {
-                            let d = obs.pose.fixed_rows::<2>(0).norm();
-                            d >= self.config.min_range[i] && d <= self.config.max_range[i]
-                        }
-                        "theta" => {
-                            let theta = obs.pose.y.atan2(obs.pose.x);
-                            theta >= self.config.min_range[i] && theta <= self.config.max_range[i]
-                        }
-                        "x" => {
-                            obs.pose.x >= self.config.min_range[i]
-                                && obs.pose.x <= self.config.max_range[i]
-                        }
-                        "y" => {
-                            obs.pose.y >= self.config.min_range[i]
-                                && obs.pose.y <= self.config.max_range[i]
-                        }
-                        "z" | "orientation" => {
-                            obs.pose.z >= self.config.min_range[i]
-                                && obs.pose.z <= self.config.max_range[i]
-                        }
-                        "self_velocity" => {
-                            observer_state.velocity.fixed_rows::<2>(0).norm()
-                                >= self.config.min_range[i]
-                                && observer_state.velocity.fixed_rows::<2>(0).norm()
-                                    <= self.config.max_range[i]
-                        }
-                        "target_velocity" => {
-                            if let Some(observee_state) = observee_state {
-                                observee_state.velocity.fixed_rows::<2>(0).norm()
-                                    >= self.config.min_range[i]
-                                    && observee_state.velocity.fixed_rows::<2>(0).norm()
-                                        <= self.config.max_range[i]
-                            } else {
-                                panic!(
-                                    "Observee state is required to filter on target_velocity with OrientedRobot observation"
-                                );
-                            }
-                        }
-                        &_ => panic!(
-                            "Unknown variable name: '{}'. Available variable names: [r, theta, x, y, z | orientation, self_velocity, target_velocity]",
-                            self.config.variables[i]
-                        ),
-                    };
-                    if self.config.inside {
-                        if !in_range {
-                            keep = false;
-                            break;
-                        }
-                    } else if in_range {
-                        keep = false;
-                        break;
-                    }
-                }
-            }
-            SensorObservation::External(_) => {
-                panic!("RangeFilter cannot filter ExternalObservation");
+            } else {
+                panic!(
+                    "Variable '{}' not accepted in this situation. Accepted variables: [{}]",
+                    var,
+                    variable_map
+                        .keys()
+                        .map(|v| v.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                );
             }
         }
-
-        if keep { Some(observation) } else { None }
+        keep
     }
 }

@@ -5,12 +5,12 @@ log:
   excluded_nodes: []
   log_level:
     type: Info
-results: {}
-max_time: 20.0
+results:
+  result_path: result.json
+max_time: 2.0
 time_analysis:
   exporter:
     type: TraceEventExporter
-  keep_last: true
   output_path: time_performance
   analysis_unit: s
 random_seed: null
@@ -61,55 +61,75 @@ robots:
     - self
   sensor_manager:
     sensors:
-    - name: RobotSensor
-      send_to:
-      - Central Unit
+    # - name: RobotSensor
+    #   send_to:
+    #   - Central Unit
+    #   config:
+    #     type: Robot
+    #     detection_distance: 100.0
+    #     activation_time:
+    #       period: {type: Num, value: 0.1}
+    #     faults: []
+    # - name: LandmarkSensor
+    #   config: 
+    #     type: OrientedLandmarkSensor
+    #     detection_distance: 100.0
+    #     activation_time:
+    #       period: {type: Num, value: 0.1}
+    #     faults:
+    #     - type: AdditiveRobotCentered
+    #       apparition:
+    #         probability:
+    #         - 1.0
+    #       distributions:
+    #       - type: Normal
+    #         mean:
+    #         - 0.0
+    #         - 0.0
+    #         - 0.0
+    #         - 0.0
+    #         covariance:
+    #         - 0.01
+    #         - 0.0
+    #         - 0.0
+    #         - 0.0
+    #         - 0.0
+    #         - 0.01
+    #         - 0.0
+    #         - 0.0
+    #         - 0.0
+    #         - 0.0
+    #         - 0.01
+    #         - 0.0
+    #         - 0.0
+    #         - 0.0
+    #         - 0.0
+    #         - 0.3
+    #       variable_order:
+    #       - x
+    #       - y
+    #       - orientation
+    #       - width
+    - name: ScanSensor
       config:
-        type: RobotSensor
-        detection_distance: 100.0
-        activation_time:
+        type: Scan
+        detection_distance: 100
+        activation_time: 
           period: {type: Num, value: 0.1}
-        faults: []
-    - name: LandmarkSensor
-      config: 
-        type: OrientedLandmarkSensor
-        detection_distance: 100.0
-        activation_time:
-          period: {type: Num, value: 0.1}
+        rays:
+          type: Regular
+          value: 100
+        height: 1
         faults:
-        - type: AdditiveRobotCentered
-          apparition:
-            probability:
-            - 1.0
-          distributions:
-          - type: Normal
-            mean:
-            - 0.0
-            - 0.0
-            - 0.0
-            - 0.0
-            covariance:
-            - 0.01
-            - 0.0
-            - 0.0
-            - 0.0
-            - 0.0
-            - 0.01
-            - 0.0
-            - 0.0
-            - 0.0
-            - 0.0
-            - 0.01
-            - 0.0
-            - 0.0
-            - 0.0
-            - 0.0
-            - 0.3
-          variable_order:
-          - x
-          - y
-          - orientation
-          - width
+          - type: Misdetection
+            apparition:
+              probability: [ 0.2 ]
+        filters:
+          - type: Range
+            variables: [r, theta]
+            max_range: [100, 1.57]
+            min_range: [1., -1.57]
+            inside: true
   network:
     range: 0.0
     reception_delay: 0.0
@@ -148,23 +168,22 @@ robots:
       period: {type: Num, value: 0.1}
     targets:
     - self
-    map_path: null
-  sensor_manager:
-    sensors:
-    - name: RobotSensor
-      send_to:
-      - Central Unit
-      config: 
-        type: RobotSensor
-        detection_distance: 100.0
-        activation_time:
-          period: {type: Num, value: 0.1}
-        faults: []
-        filters:
-          - type: RangeFilter
-            variables: [x, y]
-            min_range: [0, -1]
-            max_range: [10, 1]
+  # sensor_manager:
+  #   sensors:
+  #   - name: RobotSensor
+  #     send_to:
+  #     - Central Unit
+  #     config: 
+  #       type: RobotSensor
+  #       detection_distance: 100.0
+  #       activation_time:
+  #         period: {type: Num, value: 0.1}
+  #       faults: []
+  #       filters:
+  #         - type: Range
+  #           variables: [x, y]
+  #           min_range: [0, -1]
+  #           max_range: [10, 1]
   network:
     range: 0.0
     reception_delay: 0.0
@@ -197,4 +216,3 @@ computation_units:
       targets:
       - robot1
       - robot2
-      map_path: null

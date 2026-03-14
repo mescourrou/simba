@@ -50,8 +50,8 @@ fi
 cargo fmt --all
 cargo clippy --all-targets -- -D warnings
 cargo build --release
-cargo doc --no-deps --document-private-items --release
 ./generate_config_doc.py
+cargo doc --no-deps --release
 target/release/simba-tools --generate-schema config.schema.json
 
 ./test.sh

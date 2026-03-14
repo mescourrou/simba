@@ -5,4 +5,5 @@ RUN apt-get update -y && \
         python3 python3-pip
     
 RUN pip install maturin matplotlib numpy pandas ipython virtualenv tree-sitter tree-sitter-rust mkdocs patchelf --break-system-packages
+RUN cargo install cargo-nextest --locked
 RUN virtualenv --system-site-packages /env
