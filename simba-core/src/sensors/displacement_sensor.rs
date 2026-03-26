@@ -513,8 +513,6 @@ impl Sensor for DisplacementSensor {
             );
 
             let local_displacement = rotation_matrix
-                .try_inverse()
-                .expect("Rotation matrix should be invertible")
                 .transform_vector(&Vector2::new(dx, dy));
 
             (local_displacement.x, local_displacement.y, dtheta)
@@ -622,24 +620,24 @@ impl Sensor for DisplacementSensor {
                                 if let Some(new_x) =
                                     new_values.get(&DisplacementSensorVariablesFaults::X)
                                 {
-                                    o.translation.x += new_x;
+                                    o.translation.x = *new_x;
                                 }
                                 if let Some(new_y) =
                                     new_values.get(&DisplacementSensorVariablesFaults::Y)
                                 {
-                                    o.translation.y += new_y;
+                                    o.translation.y = *new_y;
                                 }
                                 if let Some(new_r) =
                                     new_values.get(&DisplacementSensorVariablesFaults::Rotation)
                                 {
-                                    o.rotation += new_r;
+                                    o.rotation = *new_r;
                                 }
                                 if let Some(new_t) =
                                     new_values.get(&DisplacementSensorVariablesFaults::Translation)
                                 {
                                     let current_t = o.translation.fixed_rows::<2>(0).norm();
                                     let new_t_vec = o.translation * (new_t / current_t);
-                                    o.translation += new_t_vec;
+                                    o.translation = new_t_vec;
                                 }
                                 o.applied_faults.push(
                                     DisplacementSensorFaultModelConfig::AdditivePreDisplacement(
@@ -710,12 +708,12 @@ impl Sensor for DisplacementSensor {
                                 if let Some(new_x) =
                                     new_values.get(&DisplacementSensorVariablesFaults::X)
                                 {
-                                    transformed_translation.x += new_x;
+                                    transformed_translation.x = *new_x;
                                 }
                                 if let Some(new_y) =
                                     new_values.get(&DisplacementSensorVariablesFaults::Y)
                                 {
-                                    transformed_translation.y += new_y;
+                                    transformed_translation.y = *new_y;
                                 }
                                 o.translation = rotation_matrix
                                     .try_inverse()
@@ -724,14 +722,14 @@ impl Sensor for DisplacementSensor {
                                 if let Some(new_r) =
                                     new_values.get(&DisplacementSensorVariablesFaults::Rotation)
                                 {
-                                    o.rotation += new_r;
+                                    o.rotation = *new_r;
                                 }
                                 if let Some(new_t) =
                                     new_values.get(&DisplacementSensorVariablesFaults::Translation)
                                 {
                                     let current_t = o.translation.fixed_rows::<2>(0).norm();
                                     let new_t_vec = o.translation * (new_t / current_t);
-                                    o.translation += new_t_vec;
+                                    o.translation = new_t_vec;
                                 }
                                 o.applied_faults.push(
                                     DisplacementSensorFaultModelConfig::AdditivePostDisplacement(
