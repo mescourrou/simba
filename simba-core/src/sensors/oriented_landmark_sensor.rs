@@ -963,6 +963,11 @@ impl Sensor for OrientedLandmarkSensor {
                                 {
                                     obs.width = *new_width;
                                 }
+                                obs.applied_faults.push(
+                                    OrientedLandmarkSensorFaultModelConfig::AdditiveRobotCentered(
+                                        f.config().clone(),
+                                    ),
+                                );
                             }
                         }
                         OrientedLandmarkSensorFaultModelType::Clutter(f) => {
