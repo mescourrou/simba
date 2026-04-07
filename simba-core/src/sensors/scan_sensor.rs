@@ -968,6 +968,11 @@ impl Sensor for ScanSensor {
                                 obs.angles.push(angle);
                                 obs.radial_velocities.push(v);
                             }
+                            obs.applied_faults.push(
+                                ScanSensorFaultModelConfig::AdditiveRobotCentered(
+                                    f.config().clone(),
+                                ),
+                            );
                         }
                     }
                     FaultModelTypeScanSensor::PointAdditiveRobotCentered(f) => {
@@ -1250,6 +1255,11 @@ impl Sensor for ScanSensor {
                                     obs.radial_velocities.push(v);
                                 }
                             }
+                            obs.applied_faults.push(
+                                ScanSensorFaultModelConfig::PointMisdetection(
+                                    f.config().clone(),
+                                ),
+                            );
                         }
                     }
                 }

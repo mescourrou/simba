@@ -63,7 +63,7 @@ enum_variables!(
     R, "r", "range", "d", "distance";
     Filter, Faults:
     "Relative bearing of the landmark."
-    Theta, "theta";
+    Theta, "theta", "bearing";
     Filter, Faults:
     "Width of the landmark."
     Width, "width";
@@ -862,6 +862,9 @@ impl Sensor for OrientedLandmarkSensor {
                                 {
                                     obs.width = *new_width;
                                 }
+                                obs.applied_faults.push(OrientedLandmarkSensorFaultModelConfig::AdditiveObservationCentered(
+                                    f.config().clone(),
+                                ));
                             }
                         }
                         OrientedLandmarkSensorFaultModelType::AdditiveRobotCentered(f) => {
@@ -963,6 +966,11 @@ impl Sensor for OrientedLandmarkSensor {
                                 {
                                     obs.width = *new_width;
                                 }
+                                obs.applied_faults.push(
+                                    OrientedLandmarkSensorFaultModelConfig::AdditiveRobotCentered(
+                                        f.config().clone(),
+                                    ),
+                                );
                             }
                         }
                         OrientedLandmarkSensorFaultModelType::Clutter(f) => {
@@ -1026,6 +1034,9 @@ impl Sensor for OrientedLandmarkSensor {
                                         node.environment(),
                                     );
                                     observation.id = new_label.parse().unwrap_or(observation.id);
+                                    observation.applied_faults.push(OrientedLandmarkSensorFaultModelConfig::Misassociation(
+                                        f.config().clone()
+                                    ));
                                 } else {
                                     unreachable!()
                                 }
