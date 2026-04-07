@@ -357,6 +357,7 @@ impl Simulator {
             save_mode: cfg.save_mode.clone(),
             ..Default::default()
         });
+        self.records.clear();
 
         self.plugin_api = plugin_api.clone();
 

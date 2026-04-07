@@ -262,253 +262,50 @@ impl Node {
         info!("Run time {}", time);
 
         // Update the true state
-        if let Some(physics) = &self.physics {
-            physics.write().unwrap().update_state(time);
-            let pose = physics.read().unwrap().state(time).pose;
-            self.node_meta_data.write().unwrap().position = Some([pose[0], pose[1]]);
-        }
+        self.physics_update(time);
 
+        self.handle_messages(time);
         self.sync_with_others(time_cv, time);
 
         // Pre loop calls to manage messages
-        if let Some(state_estimator) = self.state_estimator() {
-            state_estimator.write().unwrap().pre_loop_hook(self, time);
-        }
-        if let Some(state_estimator_bench) = self.state_estimator_bench.clone() {
-            for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                state_estimator
-                    .state_estimator
-                    .write()
-                    .unwrap()
-                    .pre_loop_hook(self, time);
-            }
-        }
-        if let Some(controller) = self.controller() {
-            controller.write().unwrap().pre_loop_hook(self, time);
-        }
-        if let Some(navigator) = self.navigator() {
-            navigator.write().unwrap().pre_loop_hook(self, time);
-        }
+        self.pre_loop_hooks(time);
 
-        if let Some(sensor_manager) = &self.sensor_manager() {
-            sensor_manager.write().unwrap().handle_messages(time);
-        }
+        self.handle_messages(time);
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Pre prediction step wait");
         }
         self.sync_with_others(time_cv, time);
 
-        let mut do_control_loop = false;
+        let do_control_loop = self.prediction_step(time);
 
-        // If it is time for the state estimator to do the prediction
-        if let Some(state_estimator) = &self.state_estimator()
-            && time >= state_estimator.read().unwrap().next_time_step()
-        {
-            // Prediction step
-            let ta = self.time_analysis.as_ref().map(|time_analysis| {
-                time_analysis.lock().unwrap().time_analysis(
-                    time,
-                    "control_loop_state_estimator_prediction_step".to_string(),
-                )
-            });
-            state_estimator.write().unwrap().prediction_step(
-                self,
-                self.current_command.clone(),
-                time,
-            );
-            if let Some(time_analysis) = &self.time_analysis {
-                time_analysis
-                    .lock()
-                    .unwrap()
-                    .finished_time_analysis(ta.unwrap());
-            }
-            do_control_loop = true;
-        }
-
-        if let Some(state_estimator_bench) = &self.state_estimator_bench() {
-            for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                if time
-                    >= state_estimator
-                        .state_estimator
-                        .read()
-                        .unwrap()
-                        .next_time_step()
-                {
-                    let ta = self.time_analysis.as_ref().map(|time_analysis| {
-                        time_analysis
-                            .lock()
-                            .unwrap()
-                            .time_analysis(time, state_estimator.name.clone() + "_prediction_step")
-                    });
-                    state_estimator
-                        .state_estimator
-                        .write()
-                        .unwrap()
-                        .prediction_step(self, self.current_command.clone(), time);
-                    if let Some(time_analysis) = &self.time_analysis {
-                        time_analysis
-                            .lock()
-                            .unwrap()
-                            .finished_time_analysis(ta.unwrap());
-                    }
-                }
-            }
-        }
-        if let Some(sensor_manager) = &self.sensor_manager() {
-            sensor_manager.write().unwrap().handle_messages(time);
-        }
+        
+        self.handle_messages(time);
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Post prediction step wait");
         }
         self.sync_with_others(time_cv, time);
 
-        if let Some(sensor_manager) = &self.sensor_manager() {
-            sensor_manager.write().unwrap().handle_messages(time);
-            sensor_manager
-                .write()
-                .unwrap()
-                .make_observations(self, time);
-        }
+        self.make_observations(time);
+        
 
+        self.handle_messages(time);
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Post observation wait");
         }
         self.sync_with_others(time_cv, time);
 
-        if let Some(sensor_manager) = &self.sensor_manager() {
-            sensor_manager.write().unwrap().handle_messages(time);
-            // Make observations (if it is the right time)
-            let observations = sensor_manager.write().unwrap().get_observations();
-            if is_enabled(crate::logger::InternalLog::SensorManager) {
-                debug!("Got {} observations", observations.len());
-            }
-            if !observations.is_empty() {
-                // Treat the observations
-                if let Some(state_estimator) = &self.state_estimator() {
-                    let ta = self.time_analysis.as_ref().map(|time_analysis| {
-                        time_analysis.lock().unwrap().time_analysis(
-                            time,
-                            "control_loop_state_estimator_correction_step".to_string(),
-                        )
-                    });
-                    state_estimator
-                        .write()
-                        .unwrap()
-                        .correction_step(self, &observations, time);
-                    if let Some(time_analysis) = &self.time_analysis {
-                        time_analysis
-                            .lock()
-                            .unwrap()
-                            .finished_time_analysis(ta.unwrap());
-                    }
-                }
+        self.correction_step(time);
 
-                if let Some(state_estimator_bench) = &self.state_estimator_bench() {
-                    for state_estimator in state_estimator_bench.read().unwrap().iter() {
-                        let ta = self.time_analysis.as_ref().map(|time_analysis| {
-                            time_analysis.lock().unwrap().time_analysis(
-                                time,
-                                state_estimator.name.clone() + "_correction_step",
-                            )
-                        });
-                        state_estimator
-                            .state_estimator
-                            .write()
-                            .unwrap()
-                            .correction_step(self, &observations, time);
-                        if let Some(time_analysis) = &self.time_analysis {
-                            time_analysis
-                                .lock()
-                                .unwrap()
-                                .finished_time_analysis(ta.unwrap());
-                        }
-                    }
-                }
-            }
-        }
-
+        self.handle_messages(time);
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Post correction step wait");
         }
         self.sync_with_others(time_cv, time);
 
-        if do_control_loop
-            || (self.navigator().is_some()
-                && time
-                    >= self
-                        .navigator()
-                        .as_ref()
-                        .unwrap()
-                        .read()
-                        .unwrap()
-                        .next_time_step()
-                        .unwrap_or(f32::INFINITY))
-            || (self.controller().is_some()
-                && time
-                    >= self
-                        .controller()
-                        .as_ref()
-                        .unwrap()
-                        .read()
-                        .unwrap()
-                        .next_time_step()
-                        .unwrap_or(f32::INFINITY))
-        {
-            let state_estimator = &self.state_estimator().unwrap();
-            let world_state = state_estimator.read().unwrap().world_state();
+        self.nav_and_control_step(time, do_control_loop);
+        
 
-            // Compute the error to the planned path
-            let ta = self.time_analysis.as_ref().map(|time_analysis| {
-                time_analysis
-                    .lock()
-                    .unwrap()
-                    .time_analysis(time, "control_loop_navigator_compute_error".to_string())
-            });
-            let error = self
-                .navigator()
-                .as_ref()
-                .unwrap()
-                .write()
-                .unwrap()
-                .compute_error(self, world_state);
-            if let Some(time_analysis) = &self.time_analysis {
-                time_analysis
-                    .lock()
-                    .unwrap()
-                    .finished_time_analysis(ta.unwrap());
-            }
-
-            // Compute the command from the error
-            let ta = self.time_analysis.as_ref().map(|time_analysis| {
-                time_analysis
-                    .lock()
-                    .unwrap()
-                    .time_analysis(time, "control_loop_controller_make_command".to_string())
-            });
-            let command = self
-                .controller()
-                .as_ref()
-                .unwrap()
-                .write()
-                .unwrap()
-                .make_command(self, &error, time);
-            if let Some(time_analysis) = &self.time_analysis {
-                time_analysis
-                    .lock()
-                    .unwrap()
-                    .finished_time_analysis(ta.unwrap());
-            }
-
-            // Apply the command to the physics
-            self.physics
-                .as_ref()
-                .unwrap()
-                .write()
-                .unwrap()
-                .apply_command(&command, time);
-            self.current_command = Some(command);
-        }
-
+        self.handle_messages(time);
         if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
             debug!("Pre-save wait");
         }
@@ -604,6 +401,9 @@ impl Node {
                     }
                 }
             }
+        }
+        if let Some(sensor_manager) = &self.sensor_manager() {
+            sensor_manager.write().unwrap().handle_messages(time);
         }
     }
 
@@ -717,6 +517,240 @@ impl Node {
             debug!("next_time_step: {}", next_time_step);
         }
         Ok(next_time_step)
+    }
+}
+
+/// Running steps
+impl Node {
+    /// Physics update
+    fn physics_update(&mut self, time: f32) {
+        if let Some(physics) = &self.physics {
+            physics.write().unwrap().update_state(time);
+            let pose = physics.read().unwrap().state(time).pose;
+            self.node_meta_data.write().unwrap().position = Some([pose[0], pose[1]]);
+        }
+    }
+
+    fn pre_loop_hooks(&mut self, time: f32) {
+        if let Some(state_estimator) = self.state_estimator() {
+            state_estimator.write().unwrap().pre_loop_hook(self, time);
+        }
+        if let Some(state_estimator_bench) = self.state_estimator_bench.clone() {
+            for state_estimator in state_estimator_bench.read().unwrap().iter() {
+                state_estimator
+                    .state_estimator
+                    .write()
+                    .unwrap()
+                    .pre_loop_hook(self, time);
+            }
+        }
+        if let Some(controller) = self.controller() {
+            controller.write().unwrap().pre_loop_hook(self, time);
+        }
+        if let Some(navigator) = self.navigator() {
+            navigator.write().unwrap().pre_loop_hook(self, time);
+        }
+    }
+
+    fn prediction_step(&mut self, time: f32) -> bool {
+        if let Some(state_estimator_bench) = &self.state_estimator_bench() {
+            for state_estimator in state_estimator_bench.read().unwrap().iter() {
+                if time
+                    >= state_estimator
+                        .state_estimator
+                        .read()
+                        .unwrap()
+                        .next_time_step()
+                {
+                    let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                        time_analysis
+                            .lock()
+                            .unwrap()
+                            .time_analysis(time, state_estimator.name.clone() + "_prediction_step")
+                    });
+                    state_estimator
+                        .state_estimator
+                        .write()
+                        .unwrap()
+                        .prediction_step(self, self.current_command.clone(), time);
+                    if let Some(time_analysis) = &self.time_analysis {
+                        time_analysis
+                            .lock()
+                            .unwrap()
+                            .finished_time_analysis(ta.unwrap());
+                    }
+                }
+            }
+        }
+
+        if let Some(state_estimator) = &self.state_estimator()
+            && time >= state_estimator.read().unwrap().next_time_step()
+        {
+            // Prediction step
+            let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                time_analysis.lock().unwrap().time_analysis(
+                    time,
+                    "control_loop_state_estimator_prediction_step".to_string(),
+                )
+            });
+            state_estimator.write().unwrap().prediction_step(
+                self,
+                self.current_command.clone(),
+                time,
+            );
+            if let Some(time_analysis) = &self.time_analysis {
+                time_analysis
+                    .lock()
+                    .unwrap()
+                    .finished_time_analysis(ta.unwrap());
+            }
+            true
+        } else {
+            false
+        }
+    }
+
+    fn make_observations(&mut self, time: f32) {
+        if let Some(sensor_manager) = &self.sensor_manager() {
+            sensor_manager.write().unwrap().handle_messages(time);
+            sensor_manager
+                .write()
+                .unwrap()
+                .make_observations(self, time);
+        }
+    }
+
+    fn correction_step(&mut self, time: f32) {
+        if let Some(sensor_manager) = &self.sensor_manager() {
+            sensor_manager.write().unwrap().handle_messages(time);
+            // Make observations (if it is the right time)
+            let observations = sensor_manager.write().unwrap().get_observations();
+            if is_enabled(crate::logger::InternalLog::SensorManager) {
+                debug!("Got {} observations", observations.len());
+            }
+            if !observations.is_empty() {
+                // Treat the observations
+                if let Some(state_estimator) = &self.state_estimator() {
+                    let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                        time_analysis.lock().unwrap().time_analysis(
+                            time,
+                            "control_loop_state_estimator_correction_step".to_string(),
+                        )
+                    });
+                    state_estimator
+                        .write()
+                        .unwrap()
+                        .correction_step(self, &observations, time);
+                    if let Some(time_analysis) = &self.time_analysis {
+                        time_analysis
+                            .lock()
+                            .unwrap()
+                            .finished_time_analysis(ta.unwrap());
+                    }
+                }
+
+                if let Some(state_estimator_bench) = &self.state_estimator_bench() {
+                    for state_estimator in state_estimator_bench.read().unwrap().iter() {
+                        let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                            time_analysis.lock().unwrap().time_analysis(
+                                time,
+                                state_estimator.name.clone() + "_correction_step",
+                            )
+                        });
+                        state_estimator
+                            .state_estimator
+                            .write()
+                            .unwrap()
+                            .correction_step(self, &observations, time);
+                        if let Some(time_analysis) = &self.time_analysis {
+                            time_analysis
+                                .lock()
+                                .unwrap()
+                                .finished_time_analysis(ta.unwrap());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn nav_and_control_step(&mut self, time: f32, do_control_loop: bool) {
+        if do_control_loop
+            || (self.navigator().is_some()
+                && time
+                    >= self
+                        .navigator()
+                        .as_ref()
+                        .unwrap()
+                        .read()
+                        .unwrap()
+                        .next_time_step()
+                        .unwrap_or(f32::INFINITY))
+            || (self.controller().is_some()
+                && time
+                    >= self
+                        .controller()
+                        .as_ref()
+                        .unwrap()
+                        .read()
+                        .unwrap()
+                        .next_time_step()
+                        .unwrap_or(f32::INFINITY))
+        {
+            let state_estimator = &self.state_estimator().unwrap();
+            let world_state = state_estimator.read().unwrap().world_state();
+
+            // Compute the error to the planned path
+            let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                time_analysis
+                    .lock()
+                    .unwrap()
+                    .time_analysis(time, "control_loop_navigator_compute_error".to_string())
+            });
+            let error = self
+                .navigator()
+                .as_ref()
+                .unwrap()
+                .write()
+                .unwrap()
+                .compute_error(self, world_state);
+            if let Some(time_analysis) = &self.time_analysis {
+                time_analysis
+                    .lock()
+                    .unwrap()
+                    .finished_time_analysis(ta.unwrap());
+            }
+
+            // Compute the command from the error
+            let ta = self.time_analysis.as_ref().map(|time_analysis| {
+                time_analysis
+                    .lock()
+                    .unwrap()
+                    .time_analysis(time, "control_loop_controller_make_command".to_string())
+            });
+            let command = self
+                .controller()
+                .as_ref()
+                .unwrap()
+                .write()
+                .unwrap()
+                .make_command(self, &error, time);
+            if let Some(time_analysis) = &self.time_analysis {
+                time_analysis
+                    .lock()
+                    .unwrap()
+                    .finished_time_analysis(ta.unwrap());
+            }
+
+            // Apply the command to the physics
+            self.physics
+                .as_ref()
+                .unwrap()
+                .write()
+                .unwrap()
+                .apply_command(&command, time);
+            self.current_command = Some(command);
+        }
     }
 }
 

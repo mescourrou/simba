@@ -39,6 +39,8 @@ pub struct OptimizationConfig {
     ///   overhead but can be slower for heavy algorithms running on multiple nodes.
     /// 
     /// For now, only `1` (no parallelization) or `0` (1 thread per node) are supported.
+    /// 
+    /// With the `monothreaded` Rust feature, only `1` (no parallelization) is supported (other values are ignored with a warning).
     pub threads: usize,
 }
 
@@ -54,27 +56,32 @@ impl Default for OptimizationConfig {
 
 impl Check for OptimizationConfig {
     fn do_check(&self) -> Result<(), Vec<String>> {
-        let mut errors = Vec::new();
         #[cfg(not(feature = "monothreaded"))]
-        if self.threads > 1 {
-            errors.push(format!(
-                "Only 0 (1 thread per node) and 1 (no parallelization) are supported for now, got {}",
-                self.threads
-            ));
+        {
+            let mut errors = Vec::new();
+            if self.threads > 1 {
+                errors.push(format!(
+                    "Only 0 (1 thread per node) and 1 (no parallelization) are supported for now, got {}",
+                    self.threads
+                ));
+            }
+            if errors.is_empty() {
+                Ok(())
+            } else {
+                Err(errors)
+            }
         }
         #[cfg(feature = "monothreaded")]
-        if self.threads != 1 {
-            use log::warn;
+        {
+            if self.threads != 1 {
+                use log::warn;
 
-            warn!(
-                "The 'monothreaded' feature is enabled, so only 1 thread (no parallelization) is supported, got {} in the configuration (ignoring the 'threads' value)",
-                self.threads
-            );
-        }
-        if errors.is_empty() {
+                warn!(
+                    "The 'monothreaded' feature is enabled, so only 1 thread (no parallelization) is supported, got {} in the configuration (ignoring the 'threads' value)",
+                    self.threads
+                );
+            }
             Ok(())
-        } else {
-            Err(errors)
         }
     }
 }
