@@ -106,6 +106,7 @@ impl UIComponent for MisdetectionFaultConfig {
 #[derive(Debug)]
 pub struct MisdetectionFault {
     apparition: DeterministBernouilliRandomVariable,
+    config: MisdetectionFaultConfig,
 }
 
 impl MisdetectionFault {
@@ -120,6 +121,7 @@ impl MisdetectionFault {
                 va_factory.global_seed(),
                 config.apparition.clone(),
             ),
+            config: config.clone(),
         }
     }
 
@@ -128,6 +130,11 @@ impl MisdetectionFault {
     /// Returns `true` when the Bernoulli sample is `1`, and `false` otherwise.
     pub fn detected(&mut self, seed: f32) -> bool {
         self.apparition.generate(seed)[0] > 0. // = 1
+    }
+
+    /// Returns the configuration of this fault model.
+    pub fn config(&self) -> &MisdetectionFaultConfig {
+        &self.config
     }
 }
 

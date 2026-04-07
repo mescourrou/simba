@@ -63,7 +63,7 @@ enum_variables!(
     R, "r", "d", "distance";
     Filter, Faults:
     "Relative bearing angle to the observed robot."
-    Theta, "theta" ;
+    Theta, "theta", "bearing";
     Filter:
     "Velocity of the observator."
     SelfVelocity, "self_velocity";
@@ -820,6 +820,11 @@ impl Sensor for RobotSensor {
                                             {
                                                 obs.pose.z = *new_orientation;
                                             }
+                                            obs.applied_faults.push(
+                                                RobotSensorFaultModelConfig::AdditiveObservationCentered(
+                                                    f.config().clone(),
+                                                ),
+                                            );
                                         }
                                     }
                                     RobotSensorFaultModelType::AdditiveRobotCentered(f) => {
@@ -913,6 +918,11 @@ impl Sensor for RobotSensor {
                                             {
                                                 obs.pose.z = *new_orientation;
                                             }
+                                            obs.applied_faults.push(
+                                                RobotSensorFaultModelConfig::AdditiveRobotCentered(
+                                                    f.config().clone(),
+                                                ),
+                                            );
                                         }
                                     }
                                     RobotSensorFaultModelType::Clutter(f) => {
@@ -973,6 +983,11 @@ impl Sensor for RobotSensor {
                                                     node.environment(),
                                                 );
                                                 observation.name = new_label;
+                                                observation.applied_faults.push(
+                                                    RobotSensorFaultModelConfig::Misassociation(
+                                                        f.config().clone(),
+                                                    ),
+                                                );
                                             } else {
                                                 unreachable!()
                                             }

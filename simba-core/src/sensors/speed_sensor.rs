@@ -540,6 +540,11 @@ impl Sensor for SpeedSensor {
                                 SpeedSensorVariablesFaults::W => obs.angular_velocity += value,
                                 SpeedSensorVariablesFaults::V => obs.linear_velocity += value,
                             });
+                            obs.applied_faults.push(
+                                SpeedSensorFaultModelConfig::Additive(
+                                    f.config().clone(),
+                                ),
+                            );
                         }
                     }
                 }
