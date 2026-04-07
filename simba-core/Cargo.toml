@@ -16,6 +16,7 @@ gui = ["egui", "eframe"] # Enable GUI features
 schema = ["schemars"]  # Enable schemars for schema generation
 force_hard_determinism = []  # Disable features that may introduce non-determinism
 debug_mode = ["simba-com/debug_mode"]  # Enable heavy debug logs
+monothreaded = []  # Force single-threaded execution
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

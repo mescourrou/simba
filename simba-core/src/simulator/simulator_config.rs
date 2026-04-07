@@ -28,6 +28,57 @@ use crate::{
     constants::TIME_ROUND_DECIMALS, utils::determinist_random_variable::seed_generation_component,
 };
 
+/// Configuration for the simulator optimization settings.
+/// 
+/// These settings can speedup the simulation or not depending on the scenario and the hardware.
+#[config_derives]
+pub struct OptimizationConfig {
+    /// Number of threads to use to run the simulation.
+    /// - If `0`, creates as many threads as there are nodes (+ the main thread).
+    /// - If `1`, runs the simulation in a single thread (no parallelization), which disable synchronization
+    ///   overhead but can be slower for heavy algorithms running on multiple nodes.
+    /// 
+    /// For now, only `1` (no parallelization) or `0` (1 thread per node) are supported.
+    pub threads: usize,
+}
+
+impl Default for OptimizationConfig {
+    fn default() -> Self {
+        #[cfg(feature = "monothreaded")]
+        let threads = 1;
+        #[cfg(not(feature = "monothreaded"))]
+        let threads = 0;
+        Self { threads }
+    }
+}
+
+impl Check for OptimizationConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        let mut errors = Vec::new();
+        #[cfg(not(feature = "monothreaded"))]
+        if self.threads > 1 {
+            errors.push(format!(
+                "Only 0 (1 thread per node) and 1 (no parallelization) are supported for now, got {}",
+                self.threads
+            ));
+        }
+        #[cfg(feature = "monothreaded")]
+        if self.threads != 1 {
+            use log::warn;
+
+            warn!(
+                "The 'monothreaded' feature is enabled, so only 1 thread (no parallelization) is supported, got {} in the configuration (ignoring the 'threads' value)",
+                self.threads
+            );
+        }
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
 /// Scenario configuration for the simulator.
 /// The Simulator configuration is the root of the scenario configuration.
 ///
@@ -120,6 +171,9 @@ pub struct SimulatorConfig {
     /// Global environment settings (maps).
     #[check]
     pub environment: EnvironmentConfig,
+    /// Optimization settings (parallelization, etc.).
+    #[check]
+    pub optimization: OptimizationConfig,
 }
 
 impl Default for SimulatorConfig {
@@ -137,6 +191,7 @@ impl Default for SimulatorConfig {
             max_time: 60.,
             scenario: ScenarioConfig::default(),
             environment: EnvironmentConfig::default(),
+            optimization: OptimizationConfig::default(),
         }
     }
 }

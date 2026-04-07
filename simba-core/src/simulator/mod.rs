@@ -35,6 +35,7 @@ pub use results::{ResultConfig, ResultSaveMode, Results};
 
 mod simulator_config;
 pub use simulator_config::SimulatorConfig;
+pub use simulator_config::OptimizationConfig;
 
 mod async_simulator;
 use async_simulator::SimulatorAsyncApiServer;
