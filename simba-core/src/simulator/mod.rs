@@ -48,6 +48,8 @@ use serde_derive::{Deserialize, Serialize};
 
 use simba_com::pub_sub::{PathBroker, PathMultiClient};
 
+use crate::physics::Physics;
+use crate::utils::SharedRoLock;
 use crate::{
     VERSION,
     api::internal_api::NodeClient,
@@ -56,7 +58,7 @@ use crate::{
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     logger::{LoggerConfig, init_log, is_enabled},
     networking::{
-        network::Envelope, network_manager::NetworkManager, service_manager::ServiceManager,
+        network::Envelope, network_manager::NetworkManager,
     },
     node::{
         Node, NodeState,
@@ -183,6 +185,7 @@ pub(crate) struct RunningParameters {
     handles: Vec<JoinHandle<SimbaResult<Option<Node>>>>,
     end_time_step_syncs: Vec<Arc<Mutex<bool>>>,
     running_nodes_names: Vec<String>,
+    nb_threads: usize,
 }
 
 struct NodeSyncParams {
@@ -191,6 +194,7 @@ struct NodeSyncParams {
     common_time: SharedRwLock<f32>,
     barrier: Arc<Barrier>,
     end_time_step_sync: Arc<Mutex<bool>>,
+    physics_list: SharedRwLock<BTreeMap<String, SharedRoLock<Box<dyn Physics>>>>,
 }
 
 /// Broker type used by the simulator network.
@@ -248,11 +252,13 @@ pub struct Simulator {
 
     time_cv: Arc<TimeCv>,
     common_time: SharedRwLock<f32>,
+    max_threads: usize,
 
     async_api: Option<Arc<SimulatorAsyncApi>>,
     async_api_server: Option<SimulatorAsyncApiServer>,
 
     node_apis: BTreeMap<String, NodeClient>,
+    physics_list: SharedRwLock<BTreeMap<String, SharedRoLock<Box<dyn Physics>>>>,
 
     result_saving_data: Option<ResultSavingData>,
     records: Vec<Record>,
@@ -260,7 +266,6 @@ pub struct Simulator {
     force_send_results: bool,
     scenario: SharedMutex<Scenario>,
     plugin_api: Option<Arc<dyn PluginAPI>>,
-    service_managers: BTreeMap<String, SharedRwLock<ServiceManager>>,
     environment: Arc<Environment>,
 }
 
@@ -272,6 +277,10 @@ impl Simulator {
         let va_factory = Arc::new(DeterministRandomVariableFactory::new(rng));
         let network_manager = NetworkManager::new();
         let broker = network_manager.broker().clone();
+        #[cfg(feature = "monothreaded")]
+        let max_threads = 1;
+        #[cfg(not(feature = "monothreaded"))]
+        let max_threads = 0;
         Simulator {
             nodes: Vec::new(),
             config: SimulatorConfig::default(),
@@ -283,6 +292,7 @@ impl Simulator {
             common_time: Arc::new(RwLock::new(f32::INFINITY)),
             node_apis: BTreeMap::new(),
             result_saving_data: Some(ResultSavingData::default()),
+            physics_list: Arc::new(RwLock::new(BTreeMap::new())),
             records: Vec::new(),
             time_analysis_factory: Some(
                 TimeAnalysisFactory::init_from_config(&TimeAnalysisConfig::default()).unwrap(),
@@ -295,8 +305,8 @@ impl Simulator {
                 &broker,
             ))),
             plugin_api: None,
-            service_managers: BTreeMap::new(),
             environment: Arc::new(Environment::default()),
+            max_threads,
         }
     }
 
@@ -343,6 +353,7 @@ impl Simulator {
         self.time_cv = Arc::new(TimeCv::new());
         let config = self.config.clone();
         self.common_time = Arc::new(RwLock::new(f32::INFINITY));
+        self.max_threads = config.optimization.threads;
 
         self.time_analysis_factory = match &config.time_analysis {
             Some(time_analysis) => Some(TimeAnalysisFactory::init_from_config(time_analysis)?),
@@ -363,13 +374,13 @@ impl Simulator {
 
         self.environment = Arc::new(Environment::from_config(&config.environment, &config)?);
 
-        self.service_managers = BTreeMap::new();
         // Create robots
         for robot_config in &config.robots {
             self.add_robot(robot_config, &config, self.force_send_results, 0.)?;
             let node = self.nodes.last().unwrap();
-            self.service_managers
-                .insert(node.name(), node.service_manager());
+            if let Some(physics) = node.physics() {
+                self.physics_list.write().unwrap().insert(node.name().clone(), physics);
+            }
         }
         // Create computation units
         for computation_unit_config in &config.computation_units {
@@ -380,8 +391,9 @@ impl Simulator {
                 0.,
             )?;
             let node = self.nodes.last().unwrap();
-            self.service_managers
-                .insert(node.name(), node.service_manager());
+            if let Some(physics) = node.physics() {
+                self.physics_list.write().unwrap().insert(node.name().clone(), physics);
+            }
         }
 
         self.scenario = Arc::new(Mutex::new(Scenario::from_config(
@@ -396,7 +408,7 @@ impl Simulator {
             self.node_apis.insert(
                 node.name(),
                 node.post_creation_init(
-                    &self.service_managers,
+                    self.physics_list.clone(),
                     self.environment.get_meta_data().clone(),
                     0.,
                 ),
@@ -700,6 +712,7 @@ impl Simulator {
             handles: vec![],
             end_time_step_syncs: Vec::new(),
             running_nodes_names: Vec::new(),
+            nb_threads: self.max_threads,
         };
 
         if let Some(data) = &self.result_saving_data {
@@ -708,29 +721,192 @@ impl Simulator {
                 _ => self.prepare_save_results()?,
             }
         }
-        while let Some(node) = self.nodes.pop() {
-            self.spawn_node(node, &mut running_parameters)?;
-        }
 
         let mut error = None;
-        running_parameters.barrier.wait();
-        running_parameters.barrier.remove_one();
-        if let Err(e) = self.simulator_spin(&mut running_parameters) {
-            log::error!("Error in simulator spin: {}", e.detailed_error());
-            error = Some(e);
-            *self.time_cv.force_finish.lock().unwrap() = true;
-        }
-
-        for handle in running_parameters.handles.drain(0..) {
-            match handle.join().unwrap() {
-                Err(e) => error = Some(e),
-                Ok(node) => {
-                    if let Some(n) = node {
-                        self.nodes.push(n)
+        if cfg!(feature = "monothreaded") || self.max_threads == 1 {
+            for node in self.nodes.iter_mut() {
+                if node.state() != NodeState::Running {
+                    return Err(SimbaError::new(
+                        SimbaErrorTypes::ImplementationError,
+                        format!(
+                            "Node {} not in Running state at start of run_one_node",
+                            node.name()
+                        ),
+                    ));
+                }
+                info!("Start node {}", node.name());
+                let mut thread_ids = THREAD_IDS.write().unwrap();
+                thread_ids.push(thread::current().id());
+                THREAD_NAMES.write().unwrap().push(node.name());
+                drop(thread_ids);
+            }
+            let mut previous_time = -1.;
+            loop {
+                let mut time = f32::INFINITY;
+                // if *node_sync_params.time_cv.force_finish.lock().unwrap() {
+                //     break;
+                // }
+                for node in self.nodes.iter_mut() {
+                    match node.next_time_step(previous_time + TIME_ROUND / 2.) {
+                        Ok(t) => {
+                            if t < time {
+                                time = t;
+                                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                                    debug!("Node {} set next_time to {time}", node.name());
+                                }
+                            }
+                        }
+                        Err(e) => {
+                            error = Some(e);
+                            break;
+                        }
                     }
                 }
-            };
-        }
+                if error.is_some() {
+                    break;
+                }
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("Got next_time: {time}");
+                }
+
+                if let Some(async_api_server) = &self.async_api_server {
+                    async_api_server.update_time(time);
+                }
+                *TIME.write().unwrap() = time;
+                if time > running_parameters.max_time {
+                    break;
+                }
+
+
+                info!("Run time {}", time);
+                for node in self.nodes.iter_mut() {
+                    node.process_messages();
+                    node.physics_update(time);
+                }
+                let node_states = self.node_states();
+                if let Err(e) = self.network_manager.process_messages(&node_states) {
+                    error = Some(e);
+                    break;
+                }
+                for node in self.nodes.iter_mut() {
+                    if node.process_messages() {
+                        node.handle_messages(time);
+                    }
+                    node.pre_loop_hooks(time);
+                }
+                if let Err(e) = self.network_manager.process_messages(&node_states) {
+                    error = Some(e);
+                    break;
+                }
+                let mut do_control_loops = Vec::new();
+                for node in self.nodes.iter_mut() {
+                    if node.process_messages() {
+                        node.handle_messages(time);
+                    }
+                    do_control_loops.push(node.prediction_step(time));
+                }
+                if let Err(e) = self.network_manager.process_messages(&node_states) {
+                    error = Some(e);
+                    break;
+                }
+                for node in self.nodes.iter_mut() {
+                    if node.process_messages() {
+                        node.handle_messages(time);
+                    }
+                    node.make_observations(time);
+                }
+                if let Err(e) = self.network_manager.process_messages(&node_states) {
+                    error = Some(e);
+                    break;
+                }
+                for node in self.nodes.iter_mut() {
+                    if node.process_messages() {
+                        node.handle_messages(time);
+                    }
+                    node.correction_step(time);
+                }
+
+                if let Err(e) = self.network_manager.process_messages(&node_states) {
+                    error = Some(e);
+                    break;
+                }
+                for (node, do_control_loop) in self.nodes.iter_mut().zip(do_control_loops.into_iter()) {
+                    if node.process_messages() {
+                        node.handle_messages(time);
+                    }
+                    node.nav_and_control_step(time, do_control_loop);
+                    if node.process_messages() {
+                        node.handle_messages(time);
+                    }
+                }
+
+                if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
+                    debug!("End of time step wait");
+                }
+
+
+                let node_states = self.node_states();
+                if let Err(e) = self.end_of_time_step_procedure(&node_states, &mut running_parameters) {
+                    error = Some(e);
+                    break;
+                }
+
+                let mut to_remove = Vec::new();
+                for (i, node) in self.nodes.iter_mut().enumerate() {
+                    if node.send_records()
+                        && let Some(async_api_server) = &self.async_api_server
+                    {
+                        async_api_server.send_record(&Record {
+                            time,
+                            node: node.record(),
+                        });
+                    }
+                    
+                    if node.process_messages() {
+                        node.handle_messages(time);
+                    }
+                    if node.state() == NodeState::Zombie {
+                        info!("Killing node {}", node.name());
+                        if node.process_messages() {
+                            node.handle_messages(time);
+                        }
+                        node.kill(time);
+                        self.physics_list.write().unwrap().remove(&node.name());
+                        to_remove.push(i);
+                    }
+                }
+                for i in to_remove.into_iter().rev() {
+                    self.nodes.remove(i);
+                }
+                previous_time = time;
+            }
+        } else {
+        #[cfg(not(feature = "monothreaded"))]
+        {
+            while let Some(node) = self.nodes.pop() {
+                self.spawn_node(node, &mut running_parameters)?;
+            }
+    
+            running_parameters.barrier.wait();
+            running_parameters.barrier.remove_one();
+            if let Err(e) = self.simulator_spin(&mut running_parameters) {
+                log::error!("Error in simulator spin: {}", e.detailed_error());
+                error = Some(e);
+                *self.time_cv.force_finish.lock().unwrap() = true;
+            }
+    
+            for handle in running_parameters.handles.drain(0..) {
+                match handle.join().unwrap() {
+                    Err(e) => error = Some(e),
+                    Ok(node) => {
+                        if let Some(n) = node {
+                            self.nodes.push(n)
+                        }
+                    }
+                };
+            }
+        }}
+
 
         if let Some(e) = error {
             self.process_records(None).map_err(|e2| {
@@ -769,20 +945,29 @@ impl Simulator {
         self.environment.insert_meta_data(name.clone(), meta_data);
 
         node.set_state(NodeState::Running);
-        self.service_managers
-            .insert(name.clone(), node.service_manager());
+        
+        self.physics_list.write().unwrap().insert(node.name().clone(), node.physics().unwrap());
+
         self.node_apis.insert(
             name.clone(),
             node.post_creation_init(
-                &self.service_managers,
+                self.physics_list.clone(),
                 self.environment.get_meta_data().clone(),
                 time,
             ),
         );
-
-        self.spawn_node(node, running_parameters)
+        if cfg!(feature = "monothreaded") || running_parameters.nb_threads == 1 {
+            self.nodes.push(node);
+             Ok(())
+        } else {
+            #[cfg(feature = "monothreaded")]
+            panic!("spawn_node_from_name should not be called in monothreaded mode");
+            #[cfg(not(feature = "monothreaded"))]
+            self.spawn_node(node, running_parameters)
+        }
     }
 
+    #[cfg(not(feature = "monothreaded"))]
     pub(crate) fn spawn_node(
         &mut self,
         node: Node,
@@ -814,6 +999,7 @@ impl Simulator {
         let nb_nodes = running_parameters.nb_nodes.clone();
         *nb_nodes.write().unwrap() += 1;
         let end_time_step_sync = Arc::new(Mutex::new(false));
+        let physics_list = self.physics_list.clone();
         running_parameters
             .end_time_step_syncs
             .push(end_time_step_sync.clone());
@@ -829,6 +1015,7 @@ impl Simulator {
                     common_time: common_time_clone,
                     barrier: barrier_clone,
                     end_time_step_sync,
+                    physics_list,
                 },
             );
             let _lk = time_cv.waiting.lock().unwrap();
@@ -1124,6 +1311,7 @@ impl Simulator {
     /// * `max_time` - Time to stop the loop.
     /// * `async_api_server` - If the async API is enabled, the node will send its records to the async API server, which will be able to send them to the GUI in real time.
     /// * `node_sync_params` - Parameters to synchronize the node with the other nodes of the simulation.
+    #[cfg(not(feature = "monothreaded"))]
     fn run_one_node(
         mut node: Node,
         max_time: f32,
@@ -1216,17 +1404,18 @@ impl Simulator {
                 debug!("Wait at final barrier");
             }
             node_sync_params.barrier.wait();
-            if node.process_messages() > 0 {
+            if node.process_messages() {
                 node.handle_messages(next_time);
             }
             if node.state() == NodeState::Zombie {
                 info!("Killing node {}", node.name());
-                if node.process_messages() > 0 {
+                if node.process_messages() {
                     node.handle_messages(next_time);
                 }
                 *node_sync_params.nb_nodes.write().unwrap() -= 1;
                 node_sync_params.time_cv.condvar.notify_all();
                 node.kill(next_time);
+                node_sync_params.physics_list.write().unwrap().remove(&node.name());
                 node_sync_params.barrier.remove_one();
                 return Ok(None);
             }
@@ -1272,21 +1461,7 @@ impl Simulator {
                     waiting_nodes
                 );
             }
-            let node_states = HashMap::from_iter(
-                self.environment
-                    .get_meta_data()
-                    .read()
-                    .unwrap()
-                    .iter()
-                    .filter_map(|(node_name, meta_data)| {
-                        let meta_data = meta_data.read().unwrap();
-                        if meta_data.state == NodeState::Running {
-                            Some((node_name.clone(), meta_data.position))
-                        } else {
-                            None
-                        }
-                    }),
-            );
+            let node_states = self.node_states();
 
             let mut time_end_procedure = false;
             for end_time_step_sync in running_parameters.end_time_step_syncs.iter() {
@@ -1310,22 +1485,7 @@ impl Simulator {
                         *running_parameters.finishing_cv.0.lock().unwrap()
                     );
                 }
-                let current_time = *TIME.read().unwrap();
-                if let Err(e) = self.process_records(Some(current_time)) {
-                    log::error!(
-                        "Error in processing records at time {}: {}",
-                        current_time,
-                        e.detailed_error()
-                    );
-                    return Err(e);
-                }
-                let scenario = self.scenario.clone();
-                scenario
-                    .lock()
-                    .unwrap()
-                    .execute_scenario(current_time, self, &node_states, running_parameters)
-                    .unwrap();
-                self.network_manager.process_messages(&node_states).unwrap();
+                self.end_of_time_step_procedure(&node_states, running_parameters)?;
                 for end_time_step_sync in running_parameters.end_time_step_syncs.iter() {
                     end_time_step_sync.lock().unwrap().clone_from(&false);
                 }
@@ -1358,6 +1518,44 @@ impl Simulator {
             *waiting_parity = 1 - *waiting_parity;
             time_cv.condvar.notify_all();
         }
+    }
+
+    fn end_of_time_step_procedure(&mut self, node_states: &HashMap<String, Option<[f32; 2]>>, running_parameters: &mut RunningParameters) -> SimbaResult<()> {
+        let current_time = *TIME.read().unwrap();
+        if let Err(e) = self.process_records(Some(current_time)) {
+            log::error!(
+                "Error in processing records at time {}: {}",
+                current_time,
+                e.detailed_error()
+            );
+            return Err(e);
+        }
+        let scenario = self.scenario.clone();
+        scenario
+            .lock()
+            .unwrap()
+            .execute_scenario(current_time, self, &node_states, running_parameters)
+            .unwrap();
+        self.network_manager.process_messages(&node_states).unwrap();
+        Ok(())
+    }
+
+    fn node_states(&self) -> HashMap<String, Option<[f32; 2]>> {
+        HashMap::from_iter(
+            self.environment
+                .get_meta_data()
+                .read()
+                .unwrap()
+                .iter()
+                .filter_map(|(node_name, meta_data)| {
+                    let meta_data = meta_data.read().unwrap();
+                    if meta_data.state == NodeState::Running {
+                        Some((node_name.clone(), meta_data.position))
+                    } else {
+                        None
+                    }
+                }),
+        )
     }
 
     /// Compute configured post-processing results from in-memory records.

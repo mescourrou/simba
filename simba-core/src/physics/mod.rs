@@ -162,7 +162,6 @@ impl UIComponent for PhysicsRecord {
 
 use crate::{
     errors::SimbaResult,
-    networking::service::HasService,
     node::{Node, node_factory::FromConfigArguments},
     physics::robot_models::Command,
     recordable::Recordable,
@@ -194,7 +193,6 @@ pub trait Physics:
     + std::marker::Send
     + std::marker::Sync
     + Recordable<PhysicsRecord>
-    + HasService<GetRealStateReq, GetRealStateResp>
 {
     /// Optional initialization hook called once after node setup.
     #[allow(unused_variables)]

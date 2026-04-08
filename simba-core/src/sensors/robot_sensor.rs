@@ -9,11 +9,10 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
-use crate::errors::{SimbaErrorTypes, SimbaResult};
+use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::logger::is_enabled;
-use crate::networking::service_manager::ServiceError;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::fault_models::additive::{AdditiveFault, AdditiveFaultConfig};
@@ -597,449 +596,431 @@ impl Sensor for RobotSensor {
             debug!("Rotation matrix: {}", rotation_matrix);
         }
 
-        for (i, other_node_name) in node.other_node_names().iter().enumerate() {
+        for (i, (other_node_name, other_node_physics)) in node.get_all_node_physics().read().unwrap().iter().enumerate() {
+            if other_node_name == &node.name() {
+                continue;
+            }
             if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
                 debug!("Sensing node {}", other_node_name);
             }
-            assert!(*other_node_name != node.name());
 
-            let service_manager = node.service_manager();
-            match service_manager.read().unwrap().get_real_state(
-                &other_node_name.to_string(),
-                node,
-                time,
+            let other_state = other_node_physics.read().unwrap().state(time).clone();
+            if node.environment().is_target_observable(
+                &other_state.pose.fixed_rows::<2>(0).clone_owned(),
+                Some(0.),
+                &state.pose.fixed_rows::<2>(0).clone_owned(),
+                if self.xray { None } else { Some(0.) },
+                self.detection_distance,
+                Some(node.name().clone()),
             ) {
-                Ok(other_state) => {
-                    if node.environment().is_target_observable(
-                        &other_state.pose.fixed_rows::<2>(0).clone_owned(),
-                        Some(0.),
-                        &state.pose.fixed_rows::<2>(0).clone_owned(),
-                        if self.xray { None } else { Some(0.) },
-                        self.detection_distance,
-                        Some(node.name().clone()),
-                    ) {
-                        let robot_seed =
-                            (i as f32) / (100. * (time - self.last_time.unwrap_or(-1.)));
-                        let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
-                        let labels = node
-                            .meta_data_list()
-                            .unwrap()
-                            .read()
-                            .unwrap()
-                            .get(other_node_name)
-                            .map_or(Vec::new(), |md| md.read().unwrap().labels.clone());
-                        let obs = SensorObservation::OrientedRobot(OrientedRobotObservation {
-                            name: other_node_name.clone(),
-                            labels,
-                            pose,
-                            applied_faults: Vec::new(),
-                        });
+                let robot_seed =
+                    (i as f32) / (100. * (time - self.last_time.unwrap_or(-1.)));
+                let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
+                let labels = node
+                    .meta_data_list()
+                    .unwrap()
+                    .read()
+                    .unwrap()
+                    .get(other_node_name)
+                    .map_or(Vec::new(), |md| md.read().unwrap().labels.clone());
+                let obs = SensorObservation::OrientedRobot(OrientedRobotObservation {
+                    name: other_node_name.clone(),
+                    labels,
+                    pose,
+                    applied_faults: Vec::new(),
+                });
 
-                        let mut keep_observation = Some(obs);
+                let mut keep_observation = Some(obs);
 
-                        for filter in self.filters.iter() {
-                            if let Some(obs) = keep_observation {
-                                keep_observation = match filter {
-                                    RobotSensorFilterType::Python(f) => {
-                                        f.filter(time, obs, &state, Some(&other_state))
-                                    }
-                                    RobotSensorFilterType::External(f) => {
-                                        f.filter(time, obs, &state, Some(&other_state))
-                                    }
-                                    RobotSensorFilterType::Id(f) => {
-                                        if let SensorObservation::OrientedRobot(obs) = obs {
-                                            if f.match_exclusion(std::slice::from_ref(&obs.name)) {
-                                                Some(SensorObservation::OrientedRobot(obs))
-                                            } else {
-                                                None
-                                            }
-                                        } else {
-                                            unreachable!()
-                                        }
-                                    }
-                                    RobotSensorFilterType::Label(f) => {
-                                        if let SensorObservation::OrientedRobot(obs) = obs {
-                                            if f.match_exclusion(&obs.labels) {
-                                                Some(SensorObservation::OrientedRobot(obs))
-                                            } else {
-                                                None
-                                            }
-                                        } else {
-                                            unreachable!()
-                                        }
-                                    }
-                                    RobotSensorFilterType::Range(f) => {
-                                        if let SensorObservation::OrientedRobot(obs) = obs {
-                                            if f.match_exclusion(
-                                                &RobotSensorVariablesFilter::mapped_values(|variant| {
-                                                    match variant {
-                                                        RobotSensorVariablesFilter::X => obs.pose.x,
-                                                        RobotSensorVariablesFilter::Y => obs.pose.y,
-                                                        RobotSensorVariablesFilter::Orientation => {
-                                                            obs.pose.z
-                                                        }
-                                                        RobotSensorVariablesFilter::R => {
-                                                            obs.pose.fixed_rows::<2>(0).norm()
-                                                        }
-                                                        RobotSensorVariablesFilter::Theta => {
-                                                            obs.pose.y.atan2(obs.pose.x)
-                                                        }
-                                                        RobotSensorVariablesFilter::SelfVelocity => {
-                                                            state.velocity.fixed_rows::<2>(0).norm()
-                                                        }
-                                                        RobotSensorVariablesFilter::TargetVelocity => {
-                                                            other_state
-                                                                .velocity
-                                                                .fixed_rows::<2>(0)
-                                                                .norm()
-                                                        }
-                                                    }
-                                                }),
-                                            ) {
-                                                Some(SensorObservation::OrientedRobot(obs))
-                                            } else {
-                                                None
-                                            }
-                                        } else {
-                                            unreachable!()
-                                        }
-                                    }
-                                };
-                            } else {
-                                break;
+                for filter in self.filters.iter() {
+                    if let Some(obs) = keep_observation {
+                        keep_observation = match filter {
+                            RobotSensorFilterType::Python(f) => {
+                                f.filter(time, obs, &state, Some(&other_state))
                             }
-                        }
-
-                        let mut new_obs = Vec::new();
-                        if let Some(observation) = keep_observation {
-                            new_obs.push(observation); // Not adding directly to observation_list to apply faults only once
-                            for fault_model in self.faults.iter_mut() {
-                                match fault_model {
-                                    RobotSensorFaultModelType::Python(f) => f.add_faults(
-                                        time,
-                                        time + robot_seed,
-                                        &mut new_obs,
-                                        SensorObservation::OrientedRobot(
-                                            OrientedRobotObservation::default(),
-                                        ),
-                                        node.environment(),
-                                    ),
-                                    RobotSensorFaultModelType::External(f) => f.add_faults(
-                                        time,
-                                        time + robot_seed,
-                                        &mut new_obs,
-                                        SensorObservation::OrientedRobot(
-                                            OrientedRobotObservation::default(),
-                                        ),
-                                        node.environment(),
-                                    ),
-                                    RobotSensorFaultModelType::AdditiveObservationCentered(f) => {
-                                        let obs_list_len = new_obs.len();
-                                        for (i, obs) in new_obs
-                                            .iter_mut()
-                                            .map(|o| {
-                                                if let SensorObservation::OrientedRobot(
-                                                    observation,
-                                                ) = o
-                                                {
-                                                    observation
-                                                } else {
-                                                    unreachable!()
+                            RobotSensorFilterType::External(f) => {
+                                f.filter(time, obs, &state, Some(&other_state))
+                            }
+                            RobotSensorFilterType::Id(f) => {
+                                if let SensorObservation::OrientedRobot(obs) = obs {
+                                    if f.match_exclusion(std::slice::from_ref(&obs.name)) {
+                                        Some(SensorObservation::OrientedRobot(obs))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    unreachable!()
+                                }
+                            }
+                            RobotSensorFilterType::Label(f) => {
+                                if let SensorObservation::OrientedRobot(obs) = obs {
+                                    if f.match_exclusion(&obs.labels) {
+                                        Some(SensorObservation::OrientedRobot(obs))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    unreachable!()
+                                }
+                            }
+                            RobotSensorFilterType::Range(f) => {
+                                if let SensorObservation::OrientedRobot(obs) = obs {
+                                    if f.match_exclusion(
+                                        &RobotSensorVariablesFilter::mapped_values(|variant| {
+                                            match variant {
+                                                RobotSensorVariablesFilter::X => obs.pose.x,
+                                                RobotSensorVariablesFilter::Y => obs.pose.y,
+                                                RobotSensorVariablesFilter::Orientation => {
+                                                    obs.pose.z
                                                 }
-                                            })
-                                            .enumerate()
-                                        {
-                                            let seed =
-                                                time + i as f32 / (100. * obs_list_len as f32);
-                                            let new_values = f.add_faults(
-                                                seed,
-                                                RobotSensorVariablesFaults::mapped_values(
-                                                    |variant| match variant {
-                                                        RobotSensorVariablesFaults::X => obs.pose.x,
-                                                        RobotSensorVariablesFaults::Y => obs.pose.y,
-                                                        RobotSensorVariablesFaults::Orientation => {
-                                                            obs.pose.z
-                                                        }
-                                                        RobotSensorVariablesFaults::R => 0.,
-                                                        RobotSensorVariablesFaults::Theta => {
-                                                            obs.pose.z
-                                                        }
-                                                    },
-                                                ),
-                                                &RobotSensorVariables::mapped_values(|variant| {
-                                                    match variant {
-                                                        RobotSensorVariables::Orientation => {
-                                                            obs.pose.z
-                                                        }
-                                                        RobotSensorVariables::R => {
-                                                            obs.pose.fixed_rows::<2>(0).norm()
-                                                        }
-                                                        RobotSensorVariables::Theta => obs.pose.z,
-                                                        RobotSensorVariables::X => obs.pose.x,
-                                                        RobotSensorVariables::Y => obs.pose.y,
-                                                        RobotSensorVariables::SelfVelocity => {
-                                                            state.velocity.fixed_rows::<2>(0).norm()
-                                                        }
-                                                        RobotSensorVariables::TargetVelocity => {
-                                                            other_state
-                                                                .velocity
-                                                                .fixed_rows::<2>(0)
-                                                                .norm()
-                                                        }
-                                                    }
-                                                }),
-                                            );
-                                            if let Some(new_x) =
-                                                new_values.get(&RobotSensorVariablesFaults::X)
-                                            {
-                                                obs.pose.x = *new_x;
-                                            }
-                                            if let Some(new_y) =
-                                                new_values.get(&RobotSensorVariablesFaults::Y)
-                                            {
-                                                obs.pose.y = *new_y;
-                                            }
-                                            let new_r = if let Some(new_r) =
-                                                new_values.get(&RobotSensorVariablesFaults::R)
-                                            {
-                                                *new_r
-                                            } else {
-                                                0.
-                                            };
-                                            let new_theta = if let Some(new_theta) =
-                                                new_values.get(&RobotSensorVariablesFaults::Theta)
-                                            {
-                                                *new_theta
-                                            } else {
-                                                obs.pose.z
-                                            };
-                                            obs.pose.x += new_r * new_theta.cos();
-                                            obs.pose.y += new_r * new_theta.sin();
-                                            if let Some(new_orientation) = new_values
-                                                .get(&RobotSensorVariablesFaults::Orientation)
-                                            {
-                                                obs.pose.z = *new_orientation;
-                                            }
-                                            obs.applied_faults.push(
-                                                RobotSensorFaultModelConfig::AdditiveObservationCentered(
-                                                    f.config().clone(),
-                                                ),
-                                            );
-                                        }
-                                    }
-                                    RobotSensorFaultModelType::AdditiveRobotCentered(f) => {
-                                        let obs_list_len = new_obs.len();
-                                        for (i, obs) in new_obs
-                                            .iter_mut()
-                                            .map(|o| {
-                                                if let SensorObservation::OrientedRobot(
-                                                    observation,
-                                                ) = o
-                                                {
-                                                    observation
-                                                } else {
-                                                    unreachable!()
+                                                RobotSensorVariablesFilter::R => {
+                                                    obs.pose.fixed_rows::<2>(0).norm()
                                                 }
-                                            })
-                                            .enumerate()
-                                        {
-                                            let seed =
-                                                time + i as f32 / (100. * obs_list_len as f32);
-                                            let new_values = f.add_faults(
-                                                seed,
-                                                RobotSensorVariablesFaults::mapped_values(
-                                                    |variant| match variant {
-                                                        RobotSensorVariablesFaults::X => obs.pose.x,
-                                                        RobotSensorVariablesFaults::Y => obs.pose.y,
-                                                        RobotSensorVariablesFaults::Orientation => {
-                                                            obs.pose.z
-                                                        }
-                                                        RobotSensorVariablesFaults::R => {
-                                                            obs.pose.fixed_rows::<2>(0).norm()
-                                                        }
-                                                        RobotSensorVariablesFaults::Theta => {
-                                                            obs.pose.y.atan2(obs.pose.x)
-                                                        }
-                                                    },
-                                                ),
-                                                &RobotSensorVariables::mapped_values(|variant| {
-                                                    match variant {
-                                                        RobotSensorVariables::Orientation => {
-                                                            obs.pose.z
-                                                        }
-                                                        RobotSensorVariables::R => {
-                                                            obs.pose.fixed_rows::<2>(0).norm()
-                                                        }
-                                                        RobotSensorVariables::Theta => {
-                                                            obs.pose.y.atan2(obs.pose.x)
-                                                        }
-                                                        RobotSensorVariables::X => obs.pose.x,
-                                                        RobotSensorVariables::Y => obs.pose.y,
-                                                        RobotSensorVariables::SelfVelocity => {
-                                                            state.velocity.fixed_rows::<2>(0).norm()
-                                                        }
-                                                        RobotSensorVariables::TargetVelocity => {
-                                                            other_state
-                                                                .velocity
-                                                                .fixed_rows::<2>(0)
-                                                                .norm()
-                                                        }
-                                                    }
-                                                }),
-                                            );
-                                            if let Some(new_x) =
-                                                new_values.get(&RobotSensorVariablesFaults::X)
-                                            {
-                                                obs.pose.x = *new_x;
-                                            }
-                                            if let Some(new_y) =
-                                                new_values.get(&RobotSensorVariablesFaults::Y)
-                                            {
-                                                obs.pose.y = *new_y;
-                                            }
-                                            let new_r = if let Some(new_r) =
-                                                new_values.get(&RobotSensorVariablesFaults::R)
-                                            {
-                                                *new_r
-                                            } else {
-                                                obs.pose.fixed_rows::<2>(0).norm()
-                                            };
-                                            let new_theta = if let Some(new_theta) =
-                                                new_values.get(&RobotSensorVariablesFaults::Theta)
-                                            {
-                                                *new_theta
-                                            } else {
-                                                obs.pose.y.atan2(obs.pose.x)
-                                            };
-                                            obs.pose.x = new_r * new_theta.cos();
-                                            obs.pose.y = new_r * new_theta.sin();
-                                            if let Some(new_orientation) = new_values
-                                                .get(&RobotSensorVariablesFaults::Orientation)
-                                            {
-                                                obs.pose.z = *new_orientation;
-                                            }
-                                            obs.applied_faults.push(
-                                                RobotSensorFaultModelConfig::AdditiveRobotCentered(
-                                                    f.config().clone(),
-                                                ),
-                                            );
-                                        }
-                                    }
-                                    RobotSensorFaultModelType::Clutter(f) => {
-                                        let new_obs_from_clutter =
-                                            f.add_faults(time + robot_seed, robot_seed / 100.);
-                                        for (obs_id, obs_params) in new_obs_from_clutter {
-                                            let mut x = obs_params
-                                                .get(&RobotSensorVariablesFaults::X)
-                                                .cloned()
-                                                .unwrap_or(0.);
-                                            let mut y = obs_params
-                                                .get(&RobotSensorVariablesFaults::Y)
-                                                .cloned()
-                                                .unwrap_or(0.);
-                                            let orientation = obs_params
-                                                .get(&RobotSensorVariablesFaults::Orientation)
-                                                .cloned()
-                                                .unwrap_or(0.);
-
-                                            let r = obs_params
-                                                .get(&RobotSensorVariablesFaults::R)
-                                                .cloned()
-                                                .unwrap_or(0.);
-                                            let theta = obs_params
-                                                .get(&RobotSensorVariablesFaults::Theta)
-                                                .cloned()
-                                                .unwrap_or(0.);
-                                            x += r * theta.cos();
-                                            y += r * theta.sin();
-
-                                            let obs = SensorObservation::OrientedRobot(
-                                                OrientedRobotObservation {
-                                                    name: obs_id,
-                                                    labels: Vec::new(),
-                                                    pose: Vector3::new(x, y, orientation),
-                                                    applied_faults: vec![
-                                                        RobotSensorFaultModelConfig::Clutter(
-                                                            f.config().clone(),
-                                                        ),
-                                                    ],
-                                                },
-                                            );
-                                            new_obs.push(obs);
-                                        }
-                                    }
-                                    RobotSensorFaultModelType::Misassociation(f) => {
-                                        for (i, obs) in new_obs.iter_mut().enumerate() {
-                                            if let SensorObservation::OrientedRobot(observation) =
-                                                obs
-                                            {
-                                                let new_label = f.new_label(
-                                                    time + robot_seed + (i as f32) / 1000.,
-                                                    observation.name.clone(),
-                                                    observation
-                                                        .pose
+                                                RobotSensorVariablesFilter::Theta => {
+                                                    obs.pose.y.atan2(obs.pose.x)
+                                                }
+                                                RobotSensorVariablesFilter::SelfVelocity => {
+                                                    state.velocity.fixed_rows::<2>(0).norm()
+                                                }
+                                                RobotSensorVariablesFilter::TargetVelocity => {
+                                                    other_state
+                                                        .velocity
                                                         .fixed_rows::<2>(0)
-                                                        .clone_owned(),
-                                                    node.environment(),
-                                                );
-                                                observation.name = new_label;
-                                                observation.applied_faults.push(
-                                                    RobotSensorFaultModelConfig::Misassociation(
-                                                        f.config().clone(),
-                                                    ),
-                                                );
-                                            } else {
-                                                unreachable!()
-                                            }
-                                        }
-                                    }
-                                    RobotSensorFaultModelType::Misdetection(f) => {
-                                        new_obs = new_obs
-                                            .iter()
-                                            .enumerate()
-                                            .filter_map(|(i, obs)| {
-                                                if let SensorObservation::OrientedRobot(
-                                                    observation,
-                                                ) = obs
-                                                {
-                                                    if f.detected(
-                                                        time + robot_seed + (i as f32) / 1000.,
-                                                    ) {
-                                                        Some(SensorObservation::OrientedRobot(
-                                                            observation.clone(),
-                                                        ))
-                                                    } else {
-                                                        None
-                                                    }
-                                                } else {
-                                                    unreachable!()
+                                                        .norm()
                                                 }
-                                            })
-                                            .collect();
+                                            }
+                                        }),
+                                    ) {
+                                        Some(SensorObservation::OrientedRobot(obs))
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    unreachable!()
+                                }
+                            }
+                        };
+                    } else {
+                        break;
+                    }
+                }
+
+                let mut new_obs = Vec::new();
+                if let Some(observation) = keep_observation {
+                    new_obs.push(observation); // Not adding directly to observation_list to apply faults only once
+                    for fault_model in self.faults.iter_mut() {
+                        match fault_model {
+                            RobotSensorFaultModelType::Python(f) => f.add_faults(
+                                time,
+                                time + robot_seed,
+                                &mut new_obs,
+                                SensorObservation::OrientedRobot(
+                                    OrientedRobotObservation::default(),
+                                ),
+                                node.environment(),
+                            ),
+                            RobotSensorFaultModelType::External(f) => f.add_faults(
+                                time,
+                                time + robot_seed,
+                                &mut new_obs,
+                                SensorObservation::OrientedRobot(
+                                    OrientedRobotObservation::default(),
+                                ),
+                                node.environment(),
+                            ),
+                            RobotSensorFaultModelType::AdditiveObservationCentered(f) => {
+                                let obs_list_len = new_obs.len();
+                                for (i, obs) in new_obs
+                                    .iter_mut()
+                                    .map(|o| {
+                                        if let SensorObservation::OrientedRobot(
+                                            observation,
+                                        ) = o
+                                        {
+                                            observation
+                                        } else {
+                                            unreachable!()
+                                        }
+                                    })
+                                    .enumerate()
+                                {
+                                    let seed =
+                                        time + i as f32 / (100. * obs_list_len as f32);
+                                    let new_values = f.add_faults(
+                                        seed,
+                                        RobotSensorVariablesFaults::mapped_values(
+                                            |variant| match variant {
+                                                RobotSensorVariablesFaults::X => obs.pose.x,
+                                                RobotSensorVariablesFaults::Y => obs.pose.y,
+                                                RobotSensorVariablesFaults::Orientation => {
+                                                    obs.pose.z
+                                                }
+                                                RobotSensorVariablesFaults::R => 0.,
+                                                RobotSensorVariablesFaults::Theta => {
+                                                    obs.pose.z
+                                                }
+                                            },
+                                        ),
+                                        &RobotSensorVariables::mapped_values(|variant| {
+                                            match variant {
+                                                RobotSensorVariables::Orientation => {
+                                                    obs.pose.z
+                                                }
+                                                RobotSensorVariables::R => {
+                                                    obs.pose.fixed_rows::<2>(0).norm()
+                                                }
+                                                RobotSensorVariables::Theta => obs.pose.z,
+                                                RobotSensorVariables::X => obs.pose.x,
+                                                RobotSensorVariables::Y => obs.pose.y,
+                                                RobotSensorVariables::SelfVelocity => {
+                                                    state.velocity.fixed_rows::<2>(0).norm()
+                                                }
+                                                RobotSensorVariables::TargetVelocity => {
+                                                    other_state
+                                                        .velocity
+                                                        .fixed_rows::<2>(0)
+                                                        .norm()
+                                                }
+                                            }
+                                        }),
+                                    );
+                                    if let Some(new_x) =
+                                        new_values.get(&RobotSensorVariablesFaults::X)
+                                    {
+                                        obs.pose.x = *new_x;
+                                    }
+                                    if let Some(new_y) =
+                                        new_values.get(&RobotSensorVariablesFaults::Y)
+                                    {
+                                        obs.pose.y = *new_y;
+                                    }
+                                    let new_r = if let Some(new_r) =
+                                        new_values.get(&RobotSensorVariablesFaults::R)
+                                    {
+                                        *new_r
+                                    } else {
+                                        0.
+                                    };
+                                    let new_theta = if let Some(new_theta) =
+                                        new_values.get(&RobotSensorVariablesFaults::Theta)
+                                    {
+                                        *new_theta
+                                    } else {
+                                        obs.pose.z
+                                    };
+                                    obs.pose.x += new_r * new_theta.cos();
+                                    obs.pose.y += new_r * new_theta.sin();
+                                    if let Some(new_orientation) = new_values
+                                        .get(&RobotSensorVariablesFaults::Orientation)
+                                    {
+                                        obs.pose.z = *new_orientation;
+                                    }
+                                    obs.applied_faults.push(
+                                        RobotSensorFaultModelConfig::AdditiveObservationCentered(
+                                            f.config().clone(),
+                                        ),
+                                    );
+                                }
+                            }
+                            RobotSensorFaultModelType::AdditiveRobotCentered(f) => {
+                                let obs_list_len = new_obs.len();
+                                for (i, obs) in new_obs
+                                    .iter_mut()
+                                    .map(|o| {
+                                        if let SensorObservation::OrientedRobot(
+                                            observation,
+                                        ) = o
+                                        {
+                                            observation
+                                        } else {
+                                            unreachable!()
+                                        }
+                                    })
+                                    .enumerate()
+                                {
+                                    let seed =
+                                        time + i as f32 / (100. * obs_list_len as f32);
+                                    let new_values = f.add_faults(
+                                        seed,
+                                        RobotSensorVariablesFaults::mapped_values(
+                                            |variant| match variant {
+                                                RobotSensorVariablesFaults::X => obs.pose.x,
+                                                RobotSensorVariablesFaults::Y => obs.pose.y,
+                                                RobotSensorVariablesFaults::Orientation => {
+                                                    obs.pose.z
+                                                }
+                                                RobotSensorVariablesFaults::R => {
+                                                    obs.pose.fixed_rows::<2>(0).norm()
+                                                }
+                                                RobotSensorVariablesFaults::Theta => {
+                                                    obs.pose.y.atan2(obs.pose.x)
+                                                }
+                                            },
+                                        ),
+                                        &RobotSensorVariables::mapped_values(|variant| {
+                                            match variant {
+                                                RobotSensorVariables::Orientation => {
+                                                    obs.pose.z
+                                                }
+                                                RobotSensorVariables::R => {
+                                                    obs.pose.fixed_rows::<2>(0).norm()
+                                                }
+                                                RobotSensorVariables::Theta => {
+                                                    obs.pose.y.atan2(obs.pose.x)
+                                                }
+                                                RobotSensorVariables::X => obs.pose.x,
+                                                RobotSensorVariables::Y => obs.pose.y,
+                                                RobotSensorVariables::SelfVelocity => {
+                                                    state.velocity.fixed_rows::<2>(0).norm()
+                                                }
+                                                RobotSensorVariables::TargetVelocity => {
+                                                    other_state
+                                                        .velocity
+                                                        .fixed_rows::<2>(0)
+                                                        .norm()
+                                                }
+                                            }
+                                        }),
+                                    );
+                                    if let Some(new_x) =
+                                        new_values.get(&RobotSensorVariablesFaults::X)
+                                    {
+                                        obs.pose.x = *new_x;
+                                    }
+                                    if let Some(new_y) =
+                                        new_values.get(&RobotSensorVariablesFaults::Y)
+                                    {
+                                        obs.pose.y = *new_y;
+                                    }
+                                    let new_r = if let Some(new_r) =
+                                        new_values.get(&RobotSensorVariablesFaults::R)
+                                    {
+                                        *new_r
+                                    } else {
+                                        obs.pose.fixed_rows::<2>(0).norm()
+                                    };
+                                    let new_theta = if let Some(new_theta) =
+                                        new_values.get(&RobotSensorVariablesFaults::Theta)
+                                    {
+                                        *new_theta
+                                    } else {
+                                        obs.pose.y.atan2(obs.pose.x)
+                                    };
+                                    obs.pose.x = new_r * new_theta.cos();
+                                    obs.pose.y = new_r * new_theta.sin();
+                                    if let Some(new_orientation) = new_values
+                                        .get(&RobotSensorVariablesFaults::Orientation)
+                                    {
+                                        obs.pose.z = *new_orientation;
+                                    }
+                                    obs.applied_faults.push(
+                                        RobotSensorFaultModelConfig::AdditiveRobotCentered(
+                                            f.config().clone(),
+                                        ),
+                                    );
+                                }
+                            }
+                            RobotSensorFaultModelType::Clutter(f) => {
+                                let new_obs_from_clutter =
+                                    f.add_faults(time + robot_seed, robot_seed / 100.);
+                                for (obs_id, obs_params) in new_obs_from_clutter {
+                                    let mut x = obs_params
+                                        .get(&RobotSensorVariablesFaults::X)
+                                        .cloned()
+                                        .unwrap_or(0.);
+                                    let mut y = obs_params
+                                        .get(&RobotSensorVariablesFaults::Y)
+                                        .cloned()
+                                        .unwrap_or(0.);
+                                    let orientation = obs_params
+                                        .get(&RobotSensorVariablesFaults::Orientation)
+                                        .cloned()
+                                        .unwrap_or(0.);
+
+                                    let r = obs_params
+                                        .get(&RobotSensorVariablesFaults::R)
+                                        .cloned()
+                                        .unwrap_or(0.);
+                                    let theta = obs_params
+                                        .get(&RobotSensorVariablesFaults::Theta)
+                                        .cloned()
+                                        .unwrap_or(0.);
+                                    x += r * theta.cos();
+                                    y += r * theta.sin();
+
+                                    let obs = SensorObservation::OrientedRobot(
+                                        OrientedRobotObservation {
+                                            name: obs_id,
+                                            labels: Vec::new(),
+                                            pose: Vector3::new(x, y, orientation),
+                                            applied_faults: vec![
+                                                RobotSensorFaultModelConfig::Clutter(
+                                                    f.config().clone(),
+                                                ),
+                                            ],
+                                        },
+                                    );
+                                    new_obs.push(obs);
+                                }
+                            }
+                            RobotSensorFaultModelType::Misassociation(f) => {
+                                for (i, obs) in new_obs.iter_mut().enumerate() {
+                                    if let SensorObservation::OrientedRobot(observation) =
+                                        obs
+                                    {
+                                        let new_label = f.new_label(
+                                            time + robot_seed + (i as f32) / 1000.,
+                                            observation.name.clone(),
+                                            observation
+                                                .pose
+                                                .fixed_rows::<2>(0)
+                                                .clone_owned(),
+                                            node.environment(),
+                                        );
+                                        observation.name = new_label;
+                                        observation.applied_faults.push(
+                                            RobotSensorFaultModelConfig::Misassociation(
+                                                f.config().clone(),
+                                            ),
+                                        );
+                                    } else {
+                                        unreachable!()
                                     }
                                 }
                             }
-                        } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-                            debug!(
-                                "Observation of node {} was filtered out",
-                                &other_node_name.to_string()
-                            );
+                            RobotSensorFaultModelType::Misdetection(f) => {
+                                new_obs = new_obs
+                                    .iter()
+                                    .enumerate()
+                                    .filter_map(|(i, obs)| {
+                                        if let SensorObservation::OrientedRobot(
+                                            observation,
+                                        ) = obs
+                                        {
+                                            if f.detected(
+                                                time + robot_seed + (i as f32) / 1000.,
+                                            ) {
+                                                Some(SensorObservation::OrientedRobot(
+                                                    observation.clone(),
+                                                ))
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            unreachable!()
+                                        }
+                                    })
+                                    .collect();
+                            }
                         }
-                        observation_list.extend(new_obs);
-                    };
+                    }
+                } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
+                    debug!(
+                        "Observation of node {} was filtered out",
+                        &other_node_name.to_string()
+                    );
                 }
-                Err(e) => {
-                    match e.error_type() {
-                        SimbaErrorTypes::ServiceError(
-                            ServiceError::Unavailable | ServiceError::Closed,
-                        ) => (),
-                        _ => log::error!(
-                            "Error trying to get real state of node {}: {}",
-                            &other_node_name.to_string(),
-                            e.detailed_error()
-                        ),
-                    };
-                }
+                observation_list.extend(new_obs);
             };
         }
         if let Some(p) = self.activation_time.as_mut() {

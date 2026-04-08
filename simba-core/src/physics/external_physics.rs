@@ -21,7 +21,6 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 use crate::gui::{UIComponent, utils::json_config};
 use crate::logger::is_enabled;
 use crate::networking::network::Network;
-use crate::networking::service::HasService;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
@@ -142,17 +141,5 @@ impl Physics for ExternalPhysics {
 impl Recordable<PhysicsRecord> for ExternalPhysics {
     fn record(&self) -> PhysicsRecord {
         self.physics.record()
-    }
-}
-
-impl HasService<GetRealStateReq, GetRealStateResp> for ExternalPhysics {
-    fn handle_service_requests(
-        &mut self,
-        _req: GetRealStateReq,
-        time: f32,
-    ) -> Result<GetRealStateResp, String> {
-        Ok(GetRealStateResp {
-            state: self.state(time).clone(),
-        })
     }
 }

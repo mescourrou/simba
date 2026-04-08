@@ -26,8 +26,6 @@ use crate::{navigators::go_to::GoToMessage, sensors::sensor_manager::SensorTrigg
 
 pub mod network;
 pub mod network_manager;
-pub mod service;
-pub mod service_manager;
 
 /// Errors that can occur while using networking and service communication APIs.
 #[derive(Debug, Clone, PartialEq, PartialOrd)]

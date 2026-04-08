@@ -18,7 +18,6 @@ use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_
 use crate::{
     errors::SimbaResult,
     logger::is_enabled,
-    networking::service::HasService,
     physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord},
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
@@ -161,17 +160,5 @@ impl Recordable<PhysicsRecord> for PythonPhysics {
         // record.clone()
         // StateEstimatorRecord::External(PythonPhysics::record(&self))
         PhysicsRecord::Python(record)
-    }
-}
-
-impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysics {
-    fn handle_service_requests(
-        &mut self,
-        _req: GetRealStateReq,
-        time: f32,
-    ) -> Result<GetRealStateResp, String> {
-        Ok(GetRealStateResp {
-            state: self.state(time),
-        })
     }
 }

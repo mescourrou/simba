@@ -13,7 +13,6 @@ use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 use crate::{
     errors::SimbaResult,
     logger::is_enabled,
-    networking::service::HasService,
     node::Node,
     physics::{external_physics::ExternalPhysicsRecord, robot_models::Command},
     pywrappers::{CommandWrapper, NodeWrapper, StateWrapper},
@@ -63,18 +62,6 @@ impl Physics for PythonPhysicAsyncClient {
 impl Recordable<PhysicsRecord> for PythonPhysicAsyncClient {
     fn record(&self) -> PhysicsRecord {
         self.record.call(()).unwrap()
-    }
-}
-
-impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysicAsyncClient {
-    fn handle_service_requests(
-        &mut self,
-        _req: GetRealStateReq,
-        time: f32,
-    ) -> Result<GetRealStateResp, String> {
-        Ok(GetRealStateResp {
-            state: self.state(time).clone(),
-        })
     }
 }
 

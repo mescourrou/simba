@@ -394,7 +394,7 @@ log:
 log:
   log_level:
     type: Internal
-    options:
+    values:
       - SensorManager
       - NavigatorDetailed
 ```
@@ -560,6 +560,12 @@ log:
 time_analysis:
   output_path: time_performance
   analysis_unit: ms
+```
+
+6. **Did you try only one thread?** Set `optimization.threads` to 1 to disable parallelism and check if it improves performance:
+```yaml
+optimization:
+  threads: 1  # Disable parallelism
 ```
 
 ### Issue: Unrealistic physics behavior

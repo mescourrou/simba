@@ -8,7 +8,6 @@ use super::{State, WorldState, WorldStateRecord};
 use crate::{
     constants::TIME_ROUND,
     errors::SimbaErrorTypes,
-    networking::service_manager::ServiceError,
     physics::robot_models::Command,
     utils::{
         determinist_random_variable::DeterministRandomVariableFactory,
@@ -234,29 +233,17 @@ impl StateEstimator for PerfectEstimator {
         let mut objects_to_delete = Vec::new();
         for (target, state) in &mut self.world_state.objects {
             *state = match node
-                .service_manager()
-                .read()
-                .unwrap()
-                .get_real_state(target, node, time)
+                .get_other_node_physics(target)
             {
-                Err(e) => match e.error_type() {
-                    SimbaErrorTypes::ServiceError(ServiceError::Closed) => {
-                        warn!(
-                            "[{}] {target} does not have physics anymore, no perfect state can be computed: delete target from list!",
-                            node.name()
-                        );
-                        objects_to_delete.push(target.clone());
-                        state.clone()
-                    }
-                    _ => {
-                        panic!(
-                            "[{}] {target} does not have physics, no perfect state can be computed:\n{}",
-                            node.name(),
-                            e.detailed_error()
-                        )
-                    }
-                },
-                Ok(s) => s,
+                None => {
+                    warn!(
+                        "[{}] {target} does not have physics, no perfect state can be computed: delete target from list!",
+                        node.name()
+                    );
+                    objects_to_delete.push(target.clone());
+                    state.clone()
+                }
+                Some(s) => s.read().unwrap().state(time).clone(),
             };
         }
         for obj in objects_to_delete {

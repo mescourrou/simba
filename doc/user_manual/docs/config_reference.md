@@ -59,6 +59,8 @@ The root of your configuration file includes:
 - **`results`**: Result saving configuration
 - **`time_analysis`**: Performance analysis settings
 - **`random_seed`**: Reproducible randomness
+- **`environment`**: Map and environment settings
+- **`optimization`**: Performance optimization settings (e.g., parallel threads)
 - **`robots`**: List of robots to simulate
 - **`computation_units`**: Centralized computing nodes
 - **`scenario`**: Dynamic events
@@ -76,6 +78,8 @@ results:
 random_seed: 42
 environment:
   map_path: my_map.yaml
+optimization:
+  threads: 0
 robots:
   - name: robot1
     navigator: { ... }        # See Navigation Configuration

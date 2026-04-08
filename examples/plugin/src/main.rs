@@ -7,7 +7,6 @@ use simba::errors::SimbaResult;
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::{Navigator, NavigatorRecord};
 use simba::networking::network::Network;
-use simba::networking::service::HasService;
 use simba::node::Node;
 use simba::physics::external_physics::ExternalPhysicsRecord;
 use simba::physics::robot_models::unicycle::UnicycleCommand;
@@ -150,16 +149,6 @@ impl Physics for MyWonderfulPhysics {
     }
 
     fn update_state(&mut self, _time: f32) {}
-}
-
-impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
-    fn handle_service_requests(
-        &mut self,
-        _req: GetRealStateReq,
-        _time: f32,
-    ) -> Result<GetRealStateResp, String> {
-        Err("Unimplemented".to_string())
-    }
 }
 
 impl Recordable<PhysicsRecord> for MyWonderfulPhysics {

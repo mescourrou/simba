@@ -10,20 +10,17 @@ use std::sync::{Arc, Mutex};
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
-    networking::service::HasService,
-    physics::{
+    logger::{InternalLog, is_enabled}, physics::{
         fault_models::fault_model::{
             PhysicsFaultModel, PhysicsFaultModelConfig, make_physics_fault_model_from_config,
         },
         robot_models::{
             Command, RobotModel, RobotModelConfig, make_model_from_config, unicycle::UnicycleConfig,
         },
-    },
-    recordable::Recordable,
-    state_estimators::{State, StateConfig, StateRecord},
-    utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory},
+    }, recordable::Recordable, state_estimators::{State, StateConfig, StateRecord}, utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory}
 };
 use config_checker::*;
+use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -222,7 +219,6 @@ impl InternalPhysics {
     }
 }
 
-use super::{GetRealStateReq, GetRealStateResp};
 use super::{Physics, PhysicsRecord};
 
 impl Physics for InternalPhysics {
@@ -239,6 +235,9 @@ impl Physics for InternalPhysics {
 
     /// Compute the state at the given `time`.
     fn update_state(&mut self, time: f32) {
+        if is_enabled(InternalLog::NodeRunningDetailed) {
+            debug!("Updating internal physics to time {}", time);
+        }
         self.compute_state_until(time);
     }
 
@@ -251,18 +250,6 @@ impl Physics for InternalPhysics {
             self.last_time_update
         );
         self.state.clone()
-    }
-}
-
-impl HasService<GetRealStateReq, GetRealStateResp> for InternalPhysics {
-    fn handle_service_requests(
-        &mut self,
-        _req: GetRealStateReq,
-        time: f32,
-    ) -> Result<GetRealStateResp, String> {
-        Ok(GetRealStateResp {
-            state: self.state(time).clone(),
-        })
     }
 }
 

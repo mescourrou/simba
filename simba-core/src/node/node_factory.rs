@@ -4,8 +4,7 @@
 //! helpers to instantiate runtime nodes from simulator configuration.
 
 use std::{
-    str::FromStr,
-    sync::{Arc, RwLock},
+    collections::{BTreeMap, HashMap}, str::FromStr, sync::{Arc, RwLock}
 };
 
 use config_checker::*;
@@ -26,7 +25,6 @@ use crate::{
     networking::{
         self,
         network::{Network, NetworkConfig},
-        service_manager::ServiceManager,
     },
     node::{Node, NodeMetaData, NodeState},
     physics::{self, PhysicsConfig, PhysicsRecord, internal_physics},
@@ -38,7 +36,7 @@ use crate::{
         StateEstimatorConfig, StateEstimatorRecord, perfect_estimator,
     },
     time_analysis::TimeAnalysisFactory,
-    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory, read_only_lock::RoLock},
 };
 
 /// Type of node instantiated in the simulator.
@@ -975,10 +973,9 @@ impl NodeFactory {
             state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimator_bench.len(),
             )))),
-            // services: Vec::new(),
-            service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
+            other_node_physics: Arc::new(RwLock::new(BTreeMap::new())),
             time_analysis: params
                 .time_analysis_factory
                 .as_mut()
@@ -1010,16 +1007,6 @@ impl NodeFactory {
                     )),
                 })
         }
-
-        let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
-            &node,
-            params.time_cv.clone(),
-        ))));
-        // Services
-        if is_enabled(crate::logger::InternalLog::SetupSteps) {
-            debug!("Setup services");
-        }
-        node.service_manager = service_manager;
 
         Ok(node)
     }
@@ -1070,9 +1057,9 @@ impl NodeFactory {
             state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
                 config.state_estimators.len(),
             )))),
-            service_manager: None,
             node_server: None,
             other_node_names: Vec::new(),
+            other_node_physics: Arc::new(RwLock::new(BTreeMap::new())),
             time_analysis: params
                 .time_analysis_factory
                 .as_mut()
@@ -1104,16 +1091,6 @@ impl NodeFactory {
                     )),
                 })
         }
-
-        let service_manager = Some(Arc::new(RwLock::new(ServiceManager::initialize(
-            &node,
-            params.time_cv.clone(),
-        ))));
-        // Services
-        if is_enabled(crate::logger::InternalLog::SetupSteps) {
-            debug!("Setup services");
-        }
-        node.service_manager = service_manager;
 
         Ok(node)
     }

@@ -40,7 +40,6 @@ use crate::{
     logger::is_enabled,
     navigators::Navigator,
     networking::network::Network,
-    networking::service_manager::ServiceManager,
     physics::Physics,
     recordable::Recordable,
     sensors::sensor_manager::SensorManager,
@@ -118,12 +117,10 @@ pub struct Node {
     /// Additional [`StateEstimator`] to be evaluated.
     pub(self) state_estimator_bench: Option<SharedRwLock<Vec<BenchStateEstimator>>>,
 
-    /// Not really an option, but for delayed initialization
-    pub(self) service_manager: Option<SharedRwLock<ServiceManager>>,
-
     pub(self) node_server: Option<NodeServer>,
 
     pub(self) other_node_names: Vec<String>,
+    pub(self) other_node_physics: SharedRoLock<BTreeMap<String, SharedRoLock<Box<dyn Physics>>>>,
     pub(self) time_analysis: Option<SharedMutex<TimeAnalysisNode>>,
     pub(self) send_records: bool,
 
@@ -140,32 +137,26 @@ impl Node {
     /// Initialize the node after its creation.
     ///
     /// It is used to initialize the sensor manager, which need to know the list of all nodes.
-    pub fn post_creation_init(
+    pub fn post_creation_init<'a>(
         &mut self,
-        service_manager_list: &BTreeMap<String, SharedRwLock<ServiceManager>>,
+        physics_list: SharedRoLock<BTreeMap<String, SharedRoLock<Box<dyn Physics>>>>,
         meta_data_list: SharedRoLock<HashMap<String, SharedRoLock<NodeMetaData>>>,
         initial_time: f32,
     ) -> NodeClient {
         if is_enabled(crate::logger::InternalLog::SetupSteps) {
             debug!("Node post-creation initialization")
         }
-        let service_manager = self.service_manager();
-        service_manager
-            .write()
-            .unwrap()
-            .make_links(service_manager_list, self);
 
-        self.other_node_names = service_manager_list
-            .iter()
-            .filter_map(|n| {
-                if n.0 != &self.node_meta_data.read().unwrap().name {
-                    Some(n.0.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
+        self.other_node_physics = physics_list;
 
+        // Using meta_data_list to get names as only nodes with physics are in physics_list.
+        for name in meta_data_list.read().unwrap().keys() {
+            if name != &self.name() {
+                self.other_node_names.push(name.clone());
+            }
+        }
+
+        // Post init of the modules
         if let Some(physics) = self.physics() {
             physics.write().unwrap().post_init(self).unwrap();
         }
@@ -192,7 +183,7 @@ impl Node {
         if let Some(navigator) = self.navigator() {
             navigator.write().unwrap().post_init(self).unwrap();
         }
-        // services: Vec<SharedRwLock<Box<dyn ServiceInterface>>>>,
+        
         if let Some(controller) = self.controller() {
             controller.write().unwrap().post_init(self).unwrap();
         }
@@ -215,6 +206,7 @@ impl Node {
     ///
     /// ## Arguments
     /// * `time` -- Time to reach.
+    #[cfg(not(feature = "monothreaded"))]
     pub(crate) fn run_next_time_step(&mut self, time: f32, time_cv: &TimeCv) -> SimbaResult<()> {
         self.process_messages();
         self.run_time_step(time, time_cv)
@@ -223,17 +215,8 @@ impl Node {
     /// Process all the messages: one-way (network) and two-way (services).
     ///
     /// Processing messages mean here to transfer all the pending messages from the network to the corresponding modules (physics, state estimator, navigator, controller, sensor manager).
-    pub(crate) fn process_messages(&self) -> usize {
-        let mut nb_msg = 0;
-        nb_msg += self
-            .service_manager
-            .as_ref()
-            .unwrap()
-            .read()
-            .unwrap()
-            .process_requests();
-        nb_msg += self.node_message_client.next_message_time().is_some() as usize;
-        nb_msg
+    pub(crate) fn process_messages(&self) -> bool {
+        self.node_message_client.next_message_time().is_some()
     }
 
     /// Run only one time step.
@@ -252,6 +235,7 @@ impl Node {
     /// The network messages are handled between each steps.
     ///
     /// Then, the node state is saved.
+    #[cfg(not(feature = "monothreaded"))]
     fn run_time_step(&mut self, time: f32, time_cv: &TimeCv) -> SimbaResult<()> {
         if self.node_meta_data.read().unwrap().state != NodeState::Running {
             return Err(SimbaError::new(
@@ -318,6 +302,7 @@ impl Node {
     ///
     /// The method repeatedly processes pending messages while waiting for the
     /// synchronization parity to change.
+    #[cfg(not(feature = "monothreaded"))]
     pub(crate) fn sync_with_others(&mut self, time_cv: &TimeCv, time: f32) {
         let mut lk = time_cv.waiting.lock().unwrap();
         let waiting_parity = *time_cv.intermediate_parity.lock().unwrap();
@@ -337,7 +322,7 @@ impl Node {
         // }
         // std::mem::drop(circulating_messages);
         loop {
-            while self.process_messages() > 0 {
+            while self.process_messages() {
                 *lk -= 1;
                 if is_enabled(crate::logger::InternalLog::NodeSyncDetailed) {
                     debug!("[intermediate wait] Messages to process: handle messages");
@@ -364,7 +349,7 @@ impl Node {
             // }
             // std::mem::drop(circulating_messages);
             time_cv.condvar.notify_all();
-            if self.process_messages() == 0 {
+            if !self.process_messages() {
                 lk = time_cv.condvar.wait(lk).unwrap();
             }
             if waiting_parity != *time_cv.intermediate_parity.lock().unwrap() {
@@ -383,12 +368,6 @@ impl Node {
     ///
     /// It means that the actions linked to each services or messages are executed here.
     pub fn handle_messages(&mut self, time: f32) {
-        self.service_manager
-            .as_ref()
-            .unwrap()
-            .write()
-            .unwrap()
-            .handle_requests(time);
         while let Some((path, message)) = self.node_message_client.try_receive(time) {
             if path
                 == PathKey::from_str(networking::channels::internal::COMMAND)
@@ -463,27 +442,6 @@ impl Node {
                 debug!("Next time after sensor manager: {next_time_step}");
             }
         }
-        // if let Some(network) = &self.network {
-        //     let message_next_time = network.read().unwrap().next_message_time();
-        //     if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-        //         debug!(
-        //             "In node: message_next_time: {}",
-        //             message_next_time.unwrap_or(-1.)
-        //         );
-        //     }
-        //     if let Some(msg_next_time) = message_next_time
-        //         && next_time_step > msg_next_time
-        //         && msg_next_time > min_time_excluded
-        //     {
-        //         next_time_step = msg_next_time;
-        //         if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-        //             debug!("Time step changed with message: {}", next_time_step);
-        //         }
-        //     }
-        //     if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-        //         debug!("Next time after network: {next_time_step}");
-        //     }
-        // }
         if let Some(state_estimator_bench) = &self.state_estimator_bench {
             for state_estimator in state_estimator_bench.read().unwrap().iter() {
                 let next_time = state_estimator
@@ -499,19 +457,6 @@ impl Node {
                 debug!("Next time after state estimator bench: {next_time_step}");
             }
         }
-        let next_time = self
-            .service_manager
-            .as_ref()
-            .unwrap()
-            .read()
-            .unwrap()
-            .next_time();
-        if next_time > min_time_excluded {
-            next_time_step = next_time_step.min(next_time);
-        }
-        if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
-            debug!("Next time after service manager: {next_time_step}");
-        }
         next_time_step = round_precision(next_time_step, TIME_ROUND).unwrap();
         if is_enabled(crate::logger::InternalLog::NodeRunningDetailed) {
             debug!("next_time_step: {}", next_time_step);
@@ -523,7 +468,7 @@ impl Node {
 /// Running steps
 impl Node {
     /// Physics update
-    fn physics_update(&mut self, time: f32) {
+    pub(crate) fn physics_update(&mut self, time: f32) {
         if let Some(physics) = &self.physics {
             physics.write().unwrap().update_state(time);
             let pose = physics.read().unwrap().state(time).pose;
@@ -531,7 +476,7 @@ impl Node {
         }
     }
 
-    fn pre_loop_hooks(&mut self, time: f32) {
+    pub(crate) fn pre_loop_hooks(&mut self, time: f32) {
         if let Some(state_estimator) = self.state_estimator() {
             state_estimator.write().unwrap().pre_loop_hook(self, time);
         }
@@ -552,7 +497,7 @@ impl Node {
         }
     }
 
-    fn prediction_step(&mut self, time: f32) -> bool {
+    pub(crate) fn prediction_step(&mut self, time: f32) -> bool {
         if let Some(state_estimator_bench) = &self.state_estimator_bench() {
             for state_estimator in state_estimator_bench.read().unwrap().iter() {
                 if time
@@ -610,7 +555,7 @@ impl Node {
         }
     }
 
-    fn make_observations(&mut self, time: f32) {
+    pub(crate) fn make_observations(&mut self, time: f32) {
         if let Some(sensor_manager) = &self.sensor_manager() {
             sensor_manager.write().unwrap().handle_messages(time);
             sensor_manager
@@ -620,7 +565,7 @@ impl Node {
         }
     }
 
-    fn correction_step(&mut self, time: f32) {
+    pub(crate) fn correction_step(&mut self, time: f32) {
         if let Some(sensor_manager) = &self.sensor_manager() {
             sensor_manager.write().unwrap().handle_messages(time);
             // Make observations (if it is the right time)
@@ -674,7 +619,7 @@ impl Node {
         }
     }
 
-    fn nav_and_control_step(&mut self, time: f32, do_control_loop: bool) {
+    pub(crate) fn nav_and_control_step(&mut self, time: f32, do_control_loop: bool) {
         if do_control_loop
             || (self.navigator().is_some()
                 && time
@@ -846,9 +791,18 @@ impl Node {
         &self.environment
     }
 
-    /// Get a Arc clone of Service Manager.
-    pub fn service_manager(&self) -> SharedRwLock<ServiceManager> {
-        self.service_manager.as_ref().unwrap().clone()
+    /// Get shared read-only access to the physics module of another node by name.
+    /// Returns `None` if the node name is not found or if the physics module is not available.
+    pub fn get_other_node_physics(&self, node_name: &str) -> Option<SharedRoLock<Box<dyn Physics>>> {
+        self.other_node_physics.read().unwrap().get(node_name).cloned()
+    }
+
+    /// Get shared read-only access to the physics modules of all other nodes.
+    /// The returned map is keyed by node name and contains shared read-only locks to the physics modules.
+    /// The map is maintained by the simulator and updated as nodes are added or removed.
+    /// It allows this node to query the physics state of other nodes for coordination, collision checking, or other purposes.
+    pub fn get_all_node_physics(&self) -> &SharedRoLock<BTreeMap<String, SharedRoLock<Box<dyn Physics>>>> {
+        &self.other_node_physics
     }
 
     /// Get shared read-only access to this node metadata.
@@ -872,9 +826,6 @@ impl Node {
     /// Terminate this node and publish its final state update.
     pub fn kill(&mut self, time: f32) {
         self.node_meta_data.write().unwrap().state = NodeState::Terminated;
-        if let Some(service_manager) = &self.service_manager {
-            service_manager.write().unwrap().unsubscribe_node();
-        }
         self.node_server
             .as_ref()
             .unwrap()

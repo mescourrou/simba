@@ -14,7 +14,7 @@ use std::{
 
 use simba_macros::EnumToString;
 
-use crate::networking::{NetworkError, service_manager::ServiceError};
+use crate::networking::NetworkError;
 
 /// Errors used in Simba.
 ///
@@ -36,8 +36,6 @@ pub enum SimbaErrorTypes {
     PythonError,
     /// An error that occurs during message passing between nodes, modules, etc.
     NetworkError(NetworkError),
-    /// An error that occurs during the call to a service (request or response).
-    ServiceError(ServiceError),
     /// An error that occurs during the call to the [`PluginAPI`](crate::plugin_api::PluginAPI).
     ExternalAPIError,
 }
