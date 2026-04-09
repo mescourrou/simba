@@ -44,14 +44,7 @@ fn main() {
 use std::sync::Arc;
 
 use crate::{
-    controllers::Controller,
-    navigators::Navigator,
-    networking::network::Network,
-    physics::Physics,
-    sensors::{Sensor, fault_models::fault_model::FaultModel, sensor_filters::SensorFilter},
-    simulator::SimulatorConfig,
-    state_estimators::StateEstimator,
-    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
+    context::Context, controllers::Controller, navigators::Navigator, networking::network::Network, physics::Physics, sensors::{Sensor, fault_models::fault_model::FaultModel, sensor_filters::SensorFilter}, simulator::SimulatorConfig, state_estimators::StateEstimator, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory}
 };
 
 /// Trait to link the simulator to the external implementation.
@@ -76,6 +69,7 @@ pub trait PluginAPI: Send + Sync {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn StateEstimator> {
         panic!("The given PluginAPI does not provide a state estimator");
     }
@@ -99,6 +93,7 @@ pub trait PluginAPI: Send + Sync {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn Controller> {
         panic!("The given PluginAPI does not provide a controller");
     }
@@ -122,6 +117,7 @@ pub trait PluginAPI: Send + Sync {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn Navigator> {
         panic!("The given PluginAPI does not provide a navigator");
     }
@@ -145,13 +141,14 @@ pub trait PluginAPI: Send + Sync {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn Physics> {
         panic!("The given PluginAPI does not provide physics");
     }
 
     /// Allow the plugin to check for requests from the simulator and react to them.
     /// This is used at the configuration loading step to allow asynchronous plugins to check for requests, especially [`PythonAPI`](crate::pybinds::PythonAPI).
-    fn check_requests(&self) {}
+    fn check_requests(&self, context: &Context) {}
 
     /// Return the [`Sensor`] to be used by the
     /// [`ExternalSensor`](`crate::sensors::external_sensor::ExternalSensor`).
@@ -164,6 +161,7 @@ pub trait PluginAPI: Send + Sync {
     /// * `_va_factory` - Factory for Determinists random variables to create random variables if needed.
     /// * `network` - Reference to the network, to allow the sensor to send messages if needed.
     /// * `initial_time` - Initial time of the simulation, to allow the sensor to initialize itself with the correct time.
+    /// * `context` - Context for the simulation.
     /// # Return
     /// Returns the [`Sensor`] to use.
     fn get_sensor(
@@ -173,6 +171,7 @@ pub trait PluginAPI: Send + Sync {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn Sensor> {
         panic!("The given PluginAPI does not provide a sensor");
     }
@@ -210,6 +209,7 @@ pub trait PluginAPI: Send + Sync {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn SensorFilter> {
         panic!("The given PluginAPI does not provide a sensor filter");
     }
@@ -233,6 +233,7 @@ pub trait PluginAPI: Send + Sync {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn FaultModel> {
         panic!("The given PluginAPI does not provide a sensor fault model");
     }

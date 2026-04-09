@@ -15,7 +15,7 @@ use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::enum_combobox};
-use crate::utils::{
+use crate::{context::Context, utils::{
     SharedMutex,
     determinist_random_variable::{
         DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -25,7 +25,7 @@ use crate::utils::{
         normal::NormalRandomVariableConfig,
     },
     enum_tools::EnumVariables,
-};
+}};
 
 /// Configuration for the additive fault model.
 ///
@@ -228,6 +228,7 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> AdditiveFault<SVO, SVProp> {
         config: &AdditiveFaultConfig<SVO, SVProp>,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         _initial_time: f32,
+        _context: &Context,
     ) -> Self {
         let mut config = config.clone();
         let distributions = Arc::new(Mutex::new(
@@ -274,6 +275,7 @@ impl<SVO: EnumVariables, SVProp: EnumVariables> AdditiveFault<SVO, SVProp> {
         seed: f32,
         variable_map: HashMap<SVO, f32>,
         proportionnal_map: &HashMap<SVProp, f32>,
+        _context: &Context,
     ) -> HashMap<SVO, f32> {
         let mut variable_map = variable_map;
         let mut diff_map = HashMap::new();

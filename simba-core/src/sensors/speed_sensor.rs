@@ -12,10 +12,11 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
+use crate::context::{self, Context};
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::fault_models::additive::{AdditiveFault, AdditiveFaultConfig};
@@ -30,7 +31,6 @@ use crate::state_estimators::{State, StateRecord};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
-use log::debug;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
@@ -90,11 +90,11 @@ pub enum SpeedSensorFaultModelType {
 
 impl SpeedSensorFaultModelType {
     /// Wraps the post-initialization of fault models that require runtime node context.
-    pub fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
+    pub fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
         match self {
             Self::Additive(_) => Ok(()),
-            Self::Python(f) => f.post_init(node, initial_time),
-            Self::External(f) => f.post_init(node, initial_time),
+            Self::Python(f) => f.post_init(node, initial_time, context),
+            Self::External(f) => f.post_init(node, initial_time, context),
         }
     }
 }
@@ -154,10 +154,11 @@ impl SpeedSensorFilterType {
         &mut self,
         node: &mut crate::node::Node,
         initial_time: f32,
+        context: &Context,
     ) -> crate::errors::SimbaResult<()> {
         match self {
-            Self::Python(f) => f.post_init(node, initial_time),
-            Self::External(f) => f.post_init(node, initial_time),
+            Self::Python(f) => f.post_init(node, initial_time, context),
+            Self::External(f) => f.post_init(node, initial_time, context),
             Self::Range(_) => Ok(()),
         }
     }
@@ -306,7 +307,7 @@ pub struct SpeedObservation {
 }
 
 impl Recordable<SpeedObservationRecord> for SpeedObservation {
-    fn record(&self) -> SpeedObservationRecord {
+    fn record(&self, _context: &Context) -> SpeedObservationRecord {
         SpeedObservationRecord {
             linear_velocity: self.linear_velocity,
             lateral_velocity: self.lateral_velocity,
@@ -358,15 +359,16 @@ impl SpeedSensor {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
         let mut fault_models = Vec::new();
         for fault_config in &config.faults {
             fault_models.push(match &fault_config {
                 SpeedSensorFaultModelConfig::Additive(c) => SpeedSensorFaultModelType::Additive(
-                    AdditiveFault::from_config(c, va_factory, initial_time),
+                    AdditiveFault::from_config(c, va_factory, initial_time, context),
                 ),
                 SpeedSensorFaultModelConfig::Python(c) => SpeedSensorFaultModelType::Python(
-                    PythonFaultModel::from_config(c, global_config, initial_time)?,
+                    PythonFaultModel::from_config(c, global_config, initial_time, context)?,
                 ),
                 SpeedSensorFaultModelConfig::External(c) => {
                     SpeedSensorFaultModelType::External(ExternalFault::from_config(
@@ -375,6 +377,7 @@ impl SpeedSensor {
                         global_config,
                         va_factory,
                         initial_time,
+                        context,
                     )?)
                 }
             });
@@ -384,10 +387,10 @@ impl SpeedSensor {
         for filter_config in &config.filters {
             filters.push(match &filter_config {
                 SpeedSensorFilterConfig::Range(c) => {
-                    SpeedSensorFilterType::Range(RangeFilter::from_config(c, initial_time))
+                    SpeedSensorFilterType::Range(RangeFilter::from_config(c, initial_time, context))
                 }
                 SpeedSensorFilterConfig::Python(c) => SpeedSensorFilterType::Python(
-                    PythonFilter::from_config(c, global_config, initial_time)?,
+                    PythonFilter::from_config(c, global_config, initial_time, context)?,
                 ),
                 SpeedSensorFilterConfig::External(c) => {
                     SpeedSensorFilterType::External(ExternalFilter::from_config(
@@ -396,6 +399,7 @@ impl SpeedSensor {
                         global_config,
                         va_factory,
                         initial_time,
+                        context,
                     )?)
                 }
             });
@@ -418,24 +422,24 @@ impl SpeedSensor {
 use crate::node::Node;
 
 impl Sensor for SpeedSensor {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
+    fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
         self.last_state = node
             .physics()
             .expect("Node with Speed sensor should have Physics")
             .read()
             .unwrap()
-            .state(initial_time)
+            .state(initial_time, context)
             .clone();
         for filter in self.filters.iter_mut() {
-            filter.post_init(node, initial_time)?;
+            filter.post_init(node, initial_time, context)?;
         }
         for fault_model in self.faults.iter_mut() {
-            fault_model.post_init(node, initial_time)?;
+            fault_model.post_init(node, initial_time, context)?;
         }
         Ok(())
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
+    fn get_observations(&mut self, node: &mut Node, time: f32, context: &Context) -> Vec<SensorObservation> {
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
         {
@@ -445,7 +449,7 @@ impl Sensor for SpeedSensor {
             .physics()
             .expect("Node with Speed sensor should have Physics");
         let physic = arc_physic.read().unwrap();
-        let state = physic.state(time);
+        let state = physic.state(time, context);
 
         let obs = SensorObservation::Speed(SpeedObservation {
             linear_velocity: state.velocity.x,
@@ -459,8 +463,8 @@ impl Sensor for SpeedSensor {
         for filter in self.filters.iter() {
             if let Some(obs) = keep_observation {
                 keep_observation = match filter {
-                    SpeedSensorFilterType::Python(f) => f.filter(time, obs, &state, None),
-                    SpeedSensorFilterType::External(f) => f.filter(time, obs, &state, None),
+                    SpeedSensorFilterType::Python(f) => f.filter(time, obs, &state, None, context),
+                    SpeedSensorFilterType::External(f) => f.filter(time, obs, &state, None, context),
                     SpeedSensorFilterType::Range(f) => {
                         if let SensorObservation::Speed(obs) = obs {
                             if f.match_exclusion(&SpeedSensorVariablesFilter::mapped_values(
@@ -497,6 +501,7 @@ impl Sensor for SpeedSensor {
                         &mut observation_list,
                         SensorObservation::Speed(SpeedObservation::default()),
                         node.environment(),
+                        context,
                     ),
                     SpeedSensorFaultModelType::External(f) => f.add_faults(
                         time,
@@ -504,6 +509,7 @@ impl Sensor for SpeedSensor {
                         &mut observation_list,
                         SensorObservation::Speed(SpeedObservation::default()),
                         node.environment(),
+                        context,
                     ),
                     SpeedSensorFaultModelType::Additive(f) => {
                         let obs_list_len = observation_list.len();
@@ -534,6 +540,7 @@ impl Sensor for SpeedSensor {
                                         state.velocity.fixed_rows::<2>(0).norm()
                                     }
                                 }),
+                                context,
                             )
                             .into_iter()
                             .for_each(|(variant, value)| match variant {
@@ -549,8 +556,8 @@ impl Sensor for SpeedSensor {
                     }
                 }
             }
-        } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-            debug!("Speed observation was filtered out");
+        } else {
+            internal!(context, crate::logger::InternalLog::SensorManagerDetailed, "Speed observation was filtered out");
         }
 
         if let Some(p) = self.activation_time.as_mut() {
@@ -571,10 +578,10 @@ impl Sensor for SpeedSensor {
 }
 
 impl Recordable<SensorRecord> for SpeedSensor {
-    fn record(&self) -> SensorRecord {
+    fn record(&self, context: &Context) -> SensorRecord {
         SensorRecord::SpeedSensor(SpeedSensorRecord {
             last_time: self.last_time,
-            last_state: self.last_state.record(),
+            last_state: self.last_state.record(context),
         })
     }
 }

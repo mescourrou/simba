@@ -10,13 +10,13 @@ Your own external sensor filter strategy is made using the
 
 use std::sync::Arc;
 
-use log::debug;
 use simba_macros::config_derives;
 
+use crate::context::Context;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::sensors::sensor_filters::SensorFilter;
 use crate::simulator::SimulatorConfig;
 use crate::utils::macros::external_config;
@@ -65,10 +65,9 @@ impl ExternalFilter {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
         Ok(Self {
             filter: plugin_api
                 .as_ref()
@@ -78,7 +77,7 @@ impl ExternalFilter {
                         "Plugin API not set!".to_string(),
                     )
                 })?
-                .get_sensor_filter(&config.config, global_config, va_factory, initial_time),
+                .get_sensor_filter(&config.config, global_config, va_factory, initial_time, context),
         })
     }
 }
@@ -90,8 +89,8 @@ impl std::fmt::Debug for ExternalFilter {
 }
 
 impl SensorFilter for ExternalFilter {
-    fn post_init(&mut self, node: &mut crate::node::Node, initial_time: f32) -> SimbaResult<()> {
-        self.filter.post_init(node, initial_time)
+    fn post_init(&mut self, node: &mut crate::node::Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+        self.filter.post_init(node, initial_time, context)
     }
 
     fn filter(
@@ -100,8 +99,9 @@ impl SensorFilter for ExternalFilter {
         observation: SensorObservation,
         observer_state: &crate::state_estimators::State,
         observee_state: Option<&crate::state_estimators::State>,
+        context: &Context,
     ) -> Option<SensorObservation> {
         self.filter
-            .filter(time, observation, observer_state, observee_state)
+            .filter(time, observation, observer_state, observee_state, context)
     }
 }

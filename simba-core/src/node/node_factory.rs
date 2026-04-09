@@ -8,7 +8,6 @@ use std::{
 };
 
 use config_checker::*;
-use log::debug;
 use serde::{Deserialize, Serialize};
 use simba_com::pub_sub::{BrokerTrait, PathKey};
 use simba_macros::config_derives;
@@ -17,26 +16,13 @@ use simba_macros::config_derives;
 use crate::gui::{UIComponent, utils::text_singleline_with_apply};
 
 use crate::{
-    controllers::{self, ControllerConfig, ControllerRecord, pid},
-    environment::Environment,
-    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
-    logger::is_enabled,
-    navigators::{self, NavigatorConfig, NavigatorRecord, go_to},
-    networking::{
+    context::Context, controllers::{self, ControllerConfig, ControllerRecord, pid}, environment::Environment, errors::{SimbaError, SimbaErrorTypes, SimbaResult}, internal, navigators::{self, NavigatorConfig, NavigatorRecord, go_to}, networking::{
         self,
         network::{Network, NetworkConfig},
-    },
-    node::{Node, NodeMetaData, NodeState},
-    physics::{self, PhysicsConfig, PhysicsRecord, internal_physics},
-    plugin_api::PluginAPI,
-    sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
-    simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig, TimeCv},
-    state_estimators::{
+    }, node::{Node, NodeMetaData, NodeState}, physics::{self, PhysicsConfig, PhysicsRecord, internal_physics}, plugin_api::PluginAPI, sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord}, simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig, TimeCv}, state_estimators::{
         self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord, State,
         StateEstimatorConfig, StateEstimatorRecord, perfect_estimator,
-    },
-    time_analysis::TimeAnalysisFactory,
-    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory, read_only_lock::RoLock},
+    }, time_analysis::TimeAnalysisFactory, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory, read_only_lock::RoLock}
 };
 
 /// Type of node instantiated in the simulator.
@@ -822,6 +808,8 @@ pub struct MakeNodeParams<'a> {
     pub initial_time: f32,
     /// Shared simulation environment.
     pub environment: Arc<Environment>,
+    /// Simulator context
+    pub context: Context,
 }
 
 /// Factory for creating runtime [`Node`] instances.
@@ -831,10 +819,11 @@ impl NodeFactory {
     fn make_global_channels(
         node_name: &String,
         broker: &SharedRwLock<SimbaBroker>,
+        context: &Context,
     ) -> SimbaResult<SimbaBrokerMultiClient> {
-        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-            debug!("Setup global channels for node '{}'", node_name);
-        }
+        internal!(context, crate::logger::InternalLog::NetworkMessages,
+            "Setup global channels for node '{}'", node_name
+        );
         let mut broker_lock = broker.write().unwrap();
         broker_lock.add_channel(
             PathKey::from_str(networking::channels::internal::COMMAND)
@@ -864,17 +853,15 @@ impl NodeFactory {
                 .clone()
                 .join_str(networking::channels::internal::log::DEBUG),
         );
-        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-            debug!(
-                "Broker channels:\n- {}",
-                broker_lock
-                    .channel_list()
-                    .iter()
-                    .map(|c| c.to_string())
-                    .collect::<Vec<String>>()
-                    .join("\n- ")
-            );
-        }
+        internal!(context, crate::logger::InternalLog::NetworkMessages,
+            "Broker channels:\n- {}",
+            broker_lock
+                .channel_list()
+                .iter()
+                .map(|c| c.to_string())
+                .collect::<Vec<String>>()
+                .join("\n- ")
+        );
         std::mem::drop(broker_lock);
         let mut client = SimbaBrokerMultiClient::new(
             broker.clone(),
@@ -901,7 +888,7 @@ impl NodeFactory {
         let node_type = NodeType::Robot;
         let node_name = params.new_name.unwrap_or(&config.name).to_string();
         // Make global channels
-        let client = Self::make_global_channels(&node_name, params.broker)?;
+        let client = Self::make_global_channels(&node_name, params.broker, &params.context)?;
         let network = Arc::new(RwLock::new(Network::from_config(
             node_name.clone(),
             &config.network,
@@ -918,8 +905,8 @@ impl NodeFactory {
             plugin_api: params.plugin_api,
             va_factory: params.va_factory,
         };
-        let physics = physics::make_physics_from_config(&config.physics, &from_config_args)?;
-        let initial_state = physics.read().unwrap().state(params.initial_time).clone();
+        let physics = physics::make_physics_from_config(&config.physics, &from_config_args, &params.context)?;
+        let initial_state = physics.read().unwrap().state(params.initial_time, &params.context).clone();
         let mut node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
                 name: node_name.clone(),
@@ -932,7 +919,7 @@ impl NodeFactory {
                     NodeState::Created
                 },
                 position: {
-                    let pose = physics.read().unwrap().state(params.initial_time).pose;
+                    let pose = physics.read().unwrap().state(params.initial_time, &params.context).pose;
                     Some([pose.x, pose.y])
                 },
             })),
@@ -943,6 +930,7 @@ impl NodeFactory {
                 params.va_factory,
                 &network,
                 params.initial_time,
+                &params.context,
             )?),
             controller: Some(controllers::make_controller_from_config(
                 &config.controller,
@@ -952,6 +940,7 @@ impl NodeFactory {
                 &config.physics,
                 &network,
                 params.initial_time,
+                &params.context,
             )?),
             physics: Some(physics),
             state_estimator: Some(Arc::new(RwLock::new(
@@ -962,12 +951,14 @@ impl NodeFactory {
                     params.va_factory,
                     &network,
                     params.initial_time,
+                    &params.context,
                 )?,
             ))),
             sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
                 &config.sensor_manager,
                 &from_config_args,
                 &initial_state,
+                &params.context,
             )?))),
             network: Some(network.clone()),
             state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
@@ -1003,6 +994,7 @@ impl NodeFactory {
                             params.va_factory,
                             &network,
                             params.initial_time,
+                            &params.context,
                         )?,
                     )),
                 })
@@ -1018,7 +1010,7 @@ impl NodeFactory {
     ) -> SimbaResult<Node> {
         let node_type = NodeType::ComputationUnit;
         let node_name = params.new_name.unwrap_or(&config.name).to_string();
-        let client = Self::make_global_channels(&node_name, params.broker)?;
+        let client = Self::make_global_channels(&node_name, params.broker, &params.context)?;
         let network = Arc::new(RwLock::new(Network::from_config(
             node_name.clone(),
             &config.network,
@@ -1052,6 +1044,7 @@ impl NodeFactory {
                 &SensorManagerConfig::default(),
                 &from_config_args,
                 &State::default(),
+                &params.context,
             )?))),
             network: Some(network.clone()),
             state_estimator_bench: Some(Arc::new(RwLock::new(Vec::with_capacity(
@@ -1087,6 +1080,7 @@ impl NodeFactory {
                             params.va_factory,
                             &network,
                             params.initial_time,
+                            &params.context,
                         )?,
                     )),
                 })

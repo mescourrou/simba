@@ -74,9 +74,10 @@ impl Check for OptimizationConfig {
         #[cfg(feature = "monothreaded")]
         {
             if self.threads != 1 {
-                use log::warn;
+                use crate::warning;
+                use crate::context::Context;
 
-                warn!(
+                warning!(Context::default(),
                     "The 'monothreaded' feature is enabled, so only 1 thread (no parallelization) is supported, got {} in the configuration (ignoring the 'threads' value)",
                     self.threads
                 );

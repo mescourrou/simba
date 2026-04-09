@@ -10,8 +10,6 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use log::debug;
-use log::warn;
 use regex::Regex;
 use simba_com::{
     pub_sub::{BrokerTrait, Client, PathKey},
@@ -19,17 +17,10 @@ use simba_com::{
 };
 
 use crate::{
-    config::NumberConfig,
-    constants::TIME_ROUND,
-    errors::SimbaResult,
-    logger::{InternalLog, is_enabled},
-    networking::{self, network::Envelope},
-    scenario::config::{
+    config::NumberConfig, constants::TIME_ROUND, context::Context, errors::SimbaResult, info, internal, logger::InternalLog, networking::{self, network::Envelope}, scenario::config::{
         AreaEventTriggerConfig, EventConfig, EventRecord, EventTriggerConfig, EventTypeConfig,
         ProximityEventTriggerConfig, ScenarioConfig, SpawnEventConfig, TimeEventTriggerConfig,
-    },
-    simulator::{RunningParameters, SimbaBroker, Simulator, SimulatorConfig},
-    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
+    }, simulator::{RunningParameters, SimbaBroker, Simulator, SimulatorConfig}, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory}, warning
 };
 
 use crate::networking::network::MessageFlag;
@@ -117,10 +108,10 @@ impl Scenario {
         simulator: &mut Simulator,
         node_states: &HashMap<String, Option<[f32; 2]>>,
         running_parameters: &mut RunningParameters,
+        context: &Context,
     ) -> SimbaResult<()> {
-        if is_enabled(InternalLog::Scenario) {
-            debug!("Check scenario");
-        }
+        let context = context.new_callstack_level("execute_scenario");
+        internal!(context, InternalLog::Scenario, "Check scenario");
         // Time events
         for (_, event) in self
             .time_events
@@ -137,6 +128,7 @@ impl Scenario {
                     occurences: NumberConfig::Num(event.0 as f32),
                 }),
                 running_parameters,
+                &context,
             )?;
         }
         // Other events
@@ -150,6 +142,7 @@ impl Scenario {
                         simulator,
                         time,
                         node_states,
+                        &context,
                     );
                     for nodes in triggering_nodes {
                         self.execute_event(
@@ -159,6 +152,7 @@ impl Scenario {
                             &nodes,
                             &EventTriggerConfig::Proximity(proximity_config.clone()),
                             running_parameters,
+                            &context,
                         )?;
                     }
                 }
@@ -168,6 +162,7 @@ impl Scenario {
                         area_config,
                         simulator,
                         node_states,
+                        &context,
                     );
                     for nodes in triggering_nodes {
                         self.execute_event(
@@ -177,6 +172,7 @@ impl Scenario {
                             &nodes,
                             &EventTriggerConfig::Area(area_config.clone()),
                             running_parameters,
+                            &context,
                         )?;
                     }
                 }
@@ -204,7 +200,9 @@ impl Scenario {
         trigger_variables: &[String],
         trigger: &EventTriggerConfig,
         running_parameters: &mut RunningParameters,
+        context: &Context,
     ) -> SimbaResult<()> {
+        let context = context.new_callstack_level("execute_event");
         let mut event_executed = None;
         match &event.event_type {
             EventTypeConfig::Kill(name) => {
@@ -213,7 +211,7 @@ impl Scenario {
                 use crate::networking;
 
                 let name = Self::replace_variables(name, trigger_variables);
-                log::info!(
+                info!(context,
                     "Executing Kill event for node `{}` triggered by {}",
                     name,
                     trigger,
@@ -222,7 +220,7 @@ impl Scenario {
                     .unwrap()
                     .join_str(name.as_str());
                 if !self.broker.write().unwrap().channel_exists(&command_key) {
-                    warn!(
+                    warning!(context,
                         "Ignoring error while sending Kill message to node `{}`: this node seems to not exist",
                         name
                     );
@@ -251,7 +249,7 @@ impl Scenario {
                 let model_name =
                     Self::replace_variables(&spawn_config.model_name, trigger_variables);
                 let node_name = Self::replace_variables(&spawn_config.node_name, trigger_variables);
-                log::info!(
+                info!(context,
                     "Executing Spawn event for node `{}` of model `{}` triggered by {}",
                     node_name,
                     model_name,
@@ -263,8 +261,9 @@ impl Scenario {
                     &node_name,
                     running_parameters,
                     time,
+                    &context,
                 ) {
-                    warn!(
+                    warning!(context, 
                         "Ignoring error while sending Spawn message for node `{}`: {}",
                         node_name,
                         e.detailed_error()
@@ -305,7 +304,9 @@ impl Scenario {
         area_config: &AreaEventTriggerConfig,
         _simulator: &mut Simulator,
         node_states: &HashMap<String, Option<[f32; 2]>>,
+        context: &Context
     ) -> Vec<Vec<String>> {
+        let context = context.new_callstack_level("area_trigger");
         let mut triggering_nodes = Vec::new();
 
         for (node_name, state) in node_states.iter() {
@@ -327,9 +328,7 @@ impl Scenario {
                         && state[1] >= rect_config.bottom_left.1
                         && state[1] <= rect_config.top_right.1;
                     if inside == rect_config.inside {
-                        if is_enabled(InternalLog::Scenario) {
-                            debug!("Node `{}` triggered an Area event", node_name);
-                        }
+                        internal!(context, InternalLog::Scenario, "Node `{}` triggered an Area event", node_name);
                         triggering_nodes.push(vec![node_name.clone()]);
                     }
                 }
@@ -353,7 +352,9 @@ impl Scenario {
         _simulator: &mut Simulator,
         time: f32,
         node_states: &HashMap<String, Option<[f32; 2]>>,
+        context: &Context,
     ) -> Vec<Vec<String>> {
+        let context = context.new_callstack_level("proximity_trigger");
         let mut triggering_nodes = BTreeSet::new();
 
         let distance_threshold_squared = proximity_config.distance.powi(2);
@@ -395,12 +396,10 @@ impl Scenario {
                     (node1_pos[0] - node2_pos[0]).powi(2) + (node1_pos[1] - node2_pos[1]).powi(2);
                 let inside = distance_squared <= distance_threshold_squared;
                 if inside == proximity_config.inside {
-                    if is_enabled(InternalLog::Scenario) {
-                        debug!(
-                            "Nodes `{}` and `{}` triggered a Proximity event at time {}",
-                            node1_name, node2_name, time
-                        );
-                    }
+                    internal!(context, InternalLog::Scenario,
+                        "Nodes `{}` and `{}` triggered a Proximity event at time {}",
+                        node1_name, node2_name, time
+                    );
                     triggering_nodes.insert(node1_name.clone());
                     triggering_nodes.insert(node2_name.clone());
                 }

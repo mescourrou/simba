@@ -12,8 +12,7 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use crate::{
-    physics::robot_models::{Command, RobotModel},
-    state_estimators::State,
+    context::Context, physics::robot_models::{Command, RobotModel}, state_estimators::State
 };
 
 /// Command struct, to control the robot using velocity in both directions.
@@ -169,7 +168,7 @@ impl Holonomic {
 }
 
 impl RobotModel for Holonomic {
-    fn update_state(&mut self, state: &mut State, command: &Command, dt: f32) {
+    fn update_state(&mut self, state: &mut State, command: &Command, dt: f32, _context: &Context) {
         let command = match command {
             Command::Holonomic(cmd) => cmd,
             _ => panic!("Holonomic robot model needs a Holonomic command"),

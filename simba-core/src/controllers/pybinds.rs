@@ -9,20 +9,12 @@
 
 use std::{str::FromStr, sync::Arc};
 
-use log::debug;
 use pyo3::{prelude::*, types::PyDict};
 use serde_json::Value;
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    controllers::external_controller::ExternalControllerRecord,
-    errors::SimbaResult,
-    logger::is_enabled,
-    node::Node,
-    physics::robot_models::Command,
-    pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
-    recordable::Recordable,
-    utils::python::{call_py_method, call_py_method_void},
+    context::Context, controllers::external_controller::ExternalControllerRecord, errors::SimbaResult, internal, node::Node, physics::robot_models::Command, pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper}, recordable::Recordable, utils::python::{call_py_method, call_py_method_void}
 };
 
 use super::{Controller, ControllerError, ControllerRecord};
@@ -38,30 +30,30 @@ pub struct PythonControllerAsyncClient {
 }
 
 impl Controller for PythonControllerAsyncClient {
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
-        let node_py = NodeWrapper::from_rust(node);
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
+        let node_py = NodeWrapper::from_rust(node, context.clone());
         self.post_init.call(node_py).unwrap()
     }
 
-    fn make_command(&mut self, node: &mut Node, error: &ControllerError, time: f32) -> Command {
-        let node_py = NodeWrapper::from_rust(node);
+    fn make_command(&mut self, node: &mut Node, error: &ControllerError, time: f32, context: &Context) -> Command {
+        let node_py = NodeWrapper::from_rust(node, context.clone());
         self.make_command
             .call((node_py, error.clone(), time))
             .unwrap()
     }
 
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        let node_py = NodeWrapper::from_rust(node);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
+        let node_py = NodeWrapper::from_rust(node, context.clone());
         self.pre_loop_hook.call((node_py, time)).unwrap()
     }
 
-    fn next_time_step(&self) -> Option<f32> {
+    fn next_time_step(&self, _context: &Context) -> Option<f32> {
         self.next_time_step.call(()).unwrap()
     }
 }
 
 impl Recordable<ControllerRecord> for PythonControllerAsyncClient {
-    fn record(&self) -> ControllerRecord {
+    fn record(&self, _context: &Context) -> ControllerRecord {
         self.record.call(()).unwrap()
     }
 }
@@ -83,12 +75,6 @@ impl PythonController {
     ///
     /// The provided `py_model` must implement the [`Controller`] trait.
     pub fn new(py_model: Py<PyAny>) -> PythonController {
-        if is_enabled(crate::logger::InternalLog::API) {
-            Python::attach(|py| {
-                debug!("Model got: {}", py_model.bind(py).dir().unwrap());
-            });
-        }
-
         let (post_init_client, post_init_host) = rfc::make_pair();
         let (make_command_client, make_command_host) = rfc::make_pair();
         let (record_client, record_host) = rfc::make_pair();
@@ -120,34 +106,30 @@ impl PythonController {
     }
 
     /// Polls pending RPC calls and dispatches them to Python implementations.
-    pub fn check_requests(&mut self) {
+    pub fn check_requests(&mut self, context: &Context) {
         self.post_init
             .clone()
-            .try_recv_closure_mut(|node| self.post_init(node));
+            .try_recv_closure_mut(|node| self.post_init(node, context));
         self.make_command
             .clone()
-            .try_recv_closure_mut(|(node, error, time)| self.make_command(node, &error, time));
-        self.record.try_recv_closure(|()| self.record());
+            .try_recv_closure_mut(|(node, error, time)| self.make_command(node, &error, time, context));
+        self.record.try_recv_closure(|()| self.record(context));
         self.pre_loop_hook
             .clone()
-            .try_recv_closure_mut(|(node, time)| self.pre_loop_hook(node, time));
+            .try_recv_closure_mut(|(node, time)| self.pre_loop_hook(node, time, context));
         self.next_time_step
             .clone()
-            .try_recv_closure(|()| self.next_time_step());
+            .try_recv_closure(|()| self.next_time_step(context));
     }
 
-    fn post_init(&mut self, node: NodeWrapper) -> SimbaResult<()> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of post_init");
-        }
+    fn post_init(&mut self, node: NodeWrapper, context: &Context) -> SimbaResult<()> {
+        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of post_init");
         call_py_method_void!(self.model, "post_init", (node,));
         Ok(())
     }
 
-    fn make_command(&mut self, node: NodeWrapper, error: &ControllerError, time: f32) -> Command {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of make_command");
-        }
+    fn make_command(&mut self, node: NodeWrapper, error: &ControllerError, time: f32, context: &Context) -> Command {
+        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of make_command");
         // let node_record = node.record();
         let result = call_py_method!(
             self.model,
@@ -160,10 +142,8 @@ impl PythonController {
         result.to_rust()
     }
 
-    fn record(&self) -> ControllerRecord {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of record");
-        }
+    fn record(&self, context: &Context) -> ControllerRecord {
+        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of record");
         let record_str: String = call_py_method!(self.model, "record", String,);
         let record = ExternalControllerRecord {
             record: Value::from_str(&record_str).expect(
@@ -175,17 +155,13 @@ impl PythonController {
         ControllerRecord::External(record)
     }
 
-    fn pre_loop_hook(&mut self, node: NodeWrapper, time: f32) {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of pre_loop_hook");
-        }
+    fn pre_loop_hook(&mut self, node: NodeWrapper, time: f32, context: &Context) {
+        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of pre_loop_hook");
         call_py_method_void!(self.model, "pre_loop_hook", node, time);
     }
 
-    fn next_time_step(&self) -> Option<f32> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of next_time_step");
-        }
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
+        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of next_time_step");
         call_py_method!(self.model, "next_time_step", Option<f32>,)
     }
 }

@@ -129,35 +129,23 @@ mod tests {
         sync::{Arc, Mutex},
     };
 
-    use log::debug;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
     use simba_com::pub_sub::{MultiClientTrait, PathKey};
 
     use crate::{
-        config::NumberConfig,
-        constants::TIME_ROUND,
-        logger::LogLevel,
-        networking::network::{Envelope, Network, NetworkConfig},
-        node::{Node, node_factory::RobotConfig},
-        physics::robot_models::Command,
-        plugin_api::PluginAPI,
-        recordable::Recordable,
-        sensors::{
+        config::NumberConfig, constants::TIME_ROUND, context::Context, debug, logger::LogLevel, networking::network::{Envelope, Network, NetworkConfig}, node::{Node, node_factory::RobotConfig}, physics::robot_models::Command, plugin_api::PluginAPI, recordable::Recordable, sensors::{
             Observation, SensorConfig,
             robot_sensor::RobotSensorConfig,
             sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
-        },
-        simulator::{SimbaBrokerMultiClient, Simulator, SimulatorConfig},
-        state_estimators::{
+        }, simulator::{SimbaBrokerMultiClient, Simulator, SimulatorConfig}, state_estimators::{
             BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
             WorldState,
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
-        },
-        utils::{
+        }, utils::{
             SharedMutex, SharedRwLock,
             determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
-        },
+        }
     };
 
     #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -180,11 +168,12 @@ mod tests {
             _node: &mut crate::node::Node,
             _observations: &[Observation],
             _time: f32,
+            _context: &Context,
         ) {
         }
 
-        fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-            debug!("Doing pre_loop_hook");
+        fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
+            debug!(context, "Doing pre_loop_hook");
             if node.name() == "node1" {
                 println!("{} Sending message...", node.name());
                 let message = Envelope {
@@ -203,6 +192,7 @@ mod tests {
             node: &mut crate::node::Node,
             _command: Option<Command>,
             time: f32,
+            _context: &Context,
         ) {
             self.last_time = time;
             if node.name() == "node2" {
@@ -215,16 +205,16 @@ mod tests {
             }
         }
 
-        fn next_time_step(&self) -> f32 {
+        fn next_time_step(&self, _context: &Context) -> f32 {
             round_precision(self.last_time + 0.1, TIME_ROUND).unwrap()
         }
-        fn world_state(&self) -> WorldState {
+        fn world_state(&self, _context: &Context) -> WorldState {
             WorldState::new()
         }
     }
 
     impl Recordable<StateEstimatorRecord> for StateEstimatorTest {
-        fn record(&self) -> StateEstimatorRecord {
+        fn record(&self, _context: &Context) -> StateEstimatorRecord {
             StateEstimatorRecord::External(ExternalEstimatorRecord {
                 record: serde_json::to_value(StateEstimatorRecordTest {
                     last_time: self.last_time,
@@ -248,11 +238,12 @@ mod tests {
             _va_factory: &Arc<DeterministRandomVariableFactory>,
             network: &SharedRwLock<Network>,
             initial_time: f32,
+            context: &Context,
         ) -> Box<dyn StateEstimator> {
             network
                 .write()
                 .unwrap()
-                .make_channel(PathKey::from_str("/test").unwrap());
+                .make_channel(PathKey::from_str("/test").unwrap(), context);
             Box::new(StateEstimatorTest {
                 last_time: initial_time,
                 message: self.message.clone(),
@@ -261,20 +252,9 @@ mod tests {
                 message_client: network
                     .write()
                     .unwrap()
-                    .subscribe_to(&[PathKey::from_str("/test").unwrap()], None),
+                    .subscribe_to(&[PathKey::from_str("/test").unwrap()], None, context),
             }) as Box<dyn StateEstimator>
         }
-
-        // fn get_message_handlers(
-        //     &self,
-        //     node: &Node,
-        // ) -> Option<Vec<SharedRwLock<dyn MessageHandler>>>> {
-        //     if node.name() == "node2" {
-        //         Some(vec![self.message_handler.clone()])
-        //     } else {
-        //         None
-        //     }
-        // }
     }
 
     #[test]

@@ -13,7 +13,6 @@
 
 extern crate confy;
 use core::f32;
-use log::{debug, warn};
 use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_com::pub_sub::{MultiClientTrait, PathKey};
@@ -23,14 +22,15 @@ use std::str::FromStr;
 use std::sync::{Arc, RwLock};
 
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::{
     UIComponent,
     utils::{string_checkbox, text_singleline_with_apply},
 };
-use crate::logger::{InternalLog, is_enabled};
-use crate::networking;
+use crate::logger::InternalLog;
+use crate::{internal, networking, warning};
 use crate::networking::network::Envelope;
 use crate::node::Node;
 use crate::node::node_factory::FromConfigArguments;
@@ -342,6 +342,7 @@ impl SensorManager {
         config: &SensorManagerConfig,
         from_config_args: &FromConfigArguments,
         initial_state: &State,
+        context: &Context,
     ) -> SimbaResult<Self> {
         let mut manager = Self::new();
         let sensor_manager_key = PathKey::from_str(networking::channels::internal::NODE)
@@ -353,6 +354,7 @@ impl SensorManager {
             sensor_manager_key
                 .clone()
                 .join_str(Self::OBSERVATION_CHANNEL),
+            context,
         );
         for sensor_config in &config.sensors {
             if sensor_config.triggered {
@@ -360,7 +362,7 @@ impl SensorManager {
                     .network
                     .write()
                     .unwrap()
-                    .make_channel(sensor_manager_key.clone().join_str(&sensor_config.name));
+                    .make_channel(sensor_manager_key.clone().join_str(&sensor_config.name), context);
             }
 
             manager.sensors.push(ManagedSensor {
@@ -374,6 +376,7 @@ impl SensorManager {
                             from_config_args.global_config,
                             from_config_args.va_factory,
                             from_config_args.initial_time,
+                            context,
                         )?) as Box<dyn Sensor>
                     }
                     SensorConfig::Speed(c) => Box::new(SpeedSensor::from_config(
@@ -382,6 +385,7 @@ impl SensorManager {
                         from_config_args.global_config,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
+                        context,
                     )?) as Box<dyn Sensor>,
                     SensorConfig::Displacement(c) => Box::new(DisplacementSensor::from_config(
                         c,
@@ -390,6 +394,7 @@ impl SensorManager {
                         from_config_args.va_factory,
                         from_config_args.initial_time,
                         initial_state,
+                        context,
                     )?) as Box<dyn Sensor>,
                     SensorConfig::GNSS(c) => Box::new(GNSSSensor::from_config(
                         c,
@@ -397,6 +402,7 @@ impl SensorManager {
                         from_config_args.global_config,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
+                        context,
                     )?) as Box<dyn Sensor>,
                     SensorConfig::Robot(c) => Box::new(RobotSensor::from_config(
                         c,
@@ -404,6 +410,7 @@ impl SensorManager {
                         from_config_args.global_config,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
+                        context,
                     )?) as Box<dyn Sensor>,
                     SensorConfig::Scan(c) => Box::new(ScanSensor::from_config(
                         c,
@@ -411,6 +418,7 @@ impl SensorManager {
                         from_config_args.global_config,
                         from_config_args.va_factory,
                         from_config_args.initial_time,
+                        context,
                     )?) as Box<dyn Sensor>,
                     SensorConfig::External(c) => Box::new(ExternalSensor::from_config(
                         c,
@@ -419,6 +427,7 @@ impl SensorManager {
                         from_config_args.va_factory,
                         from_config_args.network,
                         from_config_args.initial_time,
+                        context,
                     )?) as Box<dyn Sensor>,
                 })),
                 triggered: sensor_config.triggered,
@@ -432,14 +441,12 @@ impl SensorManager {
                 .network
                 .write()
                 .unwrap()
-                .subscribe_to(&[sensor_manager_key], None),
+                .subscribe_to(&[sensor_manager_key], None, context),
         );
-        if is_enabled(crate::logger::InternalLog::SensorManager) {
-            debug!(
+        internal!(context, crate::logger::InternalLog::SensorManager,
                 "Sensor Manager subscribed to channel {:?}",
                 manager.message_client.as_ref().unwrap().subscribed_keys()
-            );
-        }
+        );
         manager.next_time = None;
         for sensor in &manager.sensors {
             manager.next_time = Some(
@@ -454,13 +461,13 @@ impl SensorManager {
 
     /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after
     /// the initialization of the modules.
-    pub fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
+    pub fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
         for sensor in &mut self.sensors {
             sensor
                 .sensor
                 .write()
                 .unwrap()
-                .post_init(node, initial_time)?;
+                .post_init(node, initial_time, context)?;
         }
         Ok(())
     }
@@ -471,9 +478,9 @@ impl SensorManager {
     /// observations, and applies trigger messages to targeted sensors.
     ///
     /// This is where distant observations are collected.
-    pub fn handle_messages(&mut self, time: f32) {
+    pub fn handle_messages(&mut self, time: f32, context: &Context) {
         while let Some((path, envelope)) = self.message_client.as_ref().unwrap().try_receive(time) {
-            debug!(
+            internal!(context, crate::logger::InternalLog::SensorManager,
                 "Sensor Manager received message on path {:?} at time {}",
                 path, envelope.timestamp
             );
@@ -487,7 +494,7 @@ impl SensorManager {
                 let obs_list =
                     serde_json::from_value::<Vec<Observation>>(envelope.message.clone()).unwrap();
                 self.last_observations
-                    .extend(obs_list.iter().map(|o| o.record()));
+                    .extend(obs_list.iter().map(|o| o.record(context)));
                 self.distant_observations.extend(obs_list);
                 // Assure that the observations are always in the same order, for determinism:
                 self.distant_observations
@@ -495,12 +502,10 @@ impl SensorManager {
                 // if self.received_observations.len() > 0 {
                 //     self.next_time = Some(time);
                 // }
-                if is_enabled(crate::logger::InternalLog::SensorManager) {
-                    debug!(
-                        "Receive observations from {} at time {}",
-                        envelope.from, envelope.timestamp
-                    );
-                }
+                internal!(context, crate::logger::InternalLog::SensorManager,
+                    "Receive observations from {} at time {}",
+                    envelope.from, envelope.timestamp
+                );
             } else if serde_json::from_value::<SensorTriggerMessage>(envelope.message.clone())
                 .is_ok()
             {
@@ -508,13 +513,13 @@ impl SensorManager {
                 for sensor in &mut self.sensors {
                     if sensor.name == sensor_name {
                         sensor.last_triggered = Some(time);
-                        if is_enabled(crate::logger::InternalLog::SensorManager) {
-                            debug!("Sensor {} triggered at time {}", sensor.name, time);
-                        }
+                        internal!(context, crate::logger::InternalLog::SensorManager,
+                            "Sensor {} triggered at time {}", sensor.name, time
+                        );
                     }
                 }
             } else {
-                warn!(
+                warning!(context,
                     "[Sensor Manager] Received message on unknown type or path {:?}: {:?}",
                     path, envelope.message
                 );
@@ -544,20 +549,18 @@ impl SensorManager {
     ///
     /// Generated observations are stored locally and forwarded to destination nodes
     /// according to each sensor's `send_to` configuration.
-    pub fn make_observations(&mut self, node: &mut Node, time: f32) {
+    pub fn make_observations(&mut self, node: &mut Node, time: f32, context: &Context) {
         self.local_observations.clear();
         self.last_observations.clear();
         let mut min_next_time = None;
         let mut obs_to_send = BTreeMap::new();
         for sensor in &mut self.sensors {
-            if is_enabled(InternalLog::SensorManager) {
-                log::debug!(
-                    "Sensor {} last triggered at {:?} ({})",
-                    sensor.name,
-                    sensor.last_triggered,
-                    sensor.triggered
-                );
-            }
+            internal!(context, InternalLog::SensorManager,
+                "Sensor {} last triggered at {:?} ({})",
+                sensor.name,
+                sensor.last_triggered,
+                sensor.triggered
+            );
             let sensor_observations: Vec<Observation> = if (sensor.triggered
                 && match sensor.last_triggered {
                     Some(t) => (time - t).abs() < TIME_ROUND,
@@ -565,14 +568,14 @@ impl SensorManager {
                 })
                 || (sensor.sensor.read().unwrap().next_time_step() - time).abs() < TIME_ROUND
             {
-                if is_enabled(InternalLog::SensorManager) {
-                    log::debug!("Sensor {} is triggered, getting observations", sensor.name);
-                }
+                internal!(context, InternalLog::SensorManager,
+                    "Sensor {} is triggered, getting observations", sensor.name
+                );
                 sensor
                     .sensor
                     .write()
                     .unwrap()
-                    .get_observations(node, time)
+                    .get_observations(node, time, context)
                     .into_iter()
                     .map(|obs| Observation {
                         sensor_name: sensor.name.clone(),
@@ -626,12 +629,13 @@ impl SensorManager {
                                 message_flags: Vec::new(),
                             },
                             time,
+                            context,
                         );
                 }
             }
         }
         self.last_observations
-            .extend(self.local_observations.iter().map(|o| o.record()));
+            .extend(self.local_observations.iter().map(|o| o.record(context)));
         self.next_time = min_next_time;
     }
 
@@ -648,7 +652,7 @@ impl Default for SensorManager {
 }
 
 impl Recordable<SensorManagerRecord> for SensorManager {
-    fn record(&self) -> SensorManagerRecord {
+    fn record(&self, context: &Context) -> SensorManagerRecord {
         let mut record = SensorManagerRecord {
             next_time: self.next_time,
             sensors: Vec::new(),
@@ -658,7 +662,7 @@ impl Recordable<SensorManagerRecord> for SensorManager {
         for sensor in &self.sensors {
             record.sensors.push(ManagedSensorRecord {
                 name: sensor.name.clone(),
-                record: sensor.sensor.read().unwrap().record(),
+                record: sensor.sensor.read().unwrap().record(context),
                 last_triggered: sensor.last_triggered,
             });
         }

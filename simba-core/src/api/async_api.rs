@@ -11,17 +11,9 @@ use std::{
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    controllers::Controller,
-    errors::SimbaResult,
-    navigators::Navigator,
-    networking::network::Network,
-    physics::Physics,
-    plugin_api::PluginAPI,
-    simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
-    state_estimators::StateEstimator,
-    utils::{
+    context::Context, controllers::Controller, errors::SimbaResult, info, navigators::Navigator, networking::network::Network, physics::Physics, plugin_api::PluginAPI, simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig}, state_estimators::StateEstimator, utils::{
         SharedMutex, SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory,
-    },
+    }, warning
 };
 
 /// Asynchronous API for [`Simulator`] in order to allow running the simulator in a separate thread, and communicate with it through channels. This is a client of [`AsyncApiServer`].
@@ -99,6 +91,7 @@ pub struct AsyncApiRunner {
     keep_alive_rx: SharedMutex<mpsc::Receiver<()>>,
     thread_handle: Option<JoinHandle<()>>,
     running: bool,
+    context: Context,
 }
 
 impl AsyncApiRunner {
@@ -121,6 +114,7 @@ impl AsyncApiRunner {
         let (get_records_call, get_records_host) = rfc::make_pair();
         let (keep_alive_tx, keep_alive_rx) = mpsc::channel();
         let simulator_api = simulator.lock().unwrap().get_async_api();
+        let context = simulator.lock().unwrap().get_context();
         Self {
             public_api: AsyncApi {
                 simulator_api,
@@ -137,6 +131,7 @@ impl AsyncApiRunner {
                 compute_results: Arc::new(results_host),
                 get_records: Arc::new(get_records_host),
             },
+            context,
             simulator,
             keep_alive_rx: Arc::new(Mutex::new(keep_alive_rx)),
             keep_alive_tx,
@@ -166,12 +161,12 @@ impl AsyncApiRunner {
             return;
         }
         self.keep_alive_tx.send(()).unwrap();
-        log::info!("Stop requested...");
+        info!(self.context, "Stop requested...");
         if let Some(handle) = self.thread_handle.take() {
             sleep(Duration::new(0, 200000000));
             if !handle.is_finished() {
                 // Need to find a generic way to stop threads
-                log::warn!("Force stopping AsyncApiRunner thread...");
+                warning!(self.context, "Force stopping AsyncApiRunner thread...");
                 unsafe {
                     libc::pthread_cancel(handle.as_pthread_t());
                 }
@@ -195,6 +190,7 @@ impl AsyncApiRunner {
         let keep_alive_rx = self.keep_alive_rx.clone();
         let simulator_cloned = self.simulator.clone();
         self.running = true;
+        let context = self.context.clone();
         self.thread_handle = Some(thread::spawn(move || {
             println!("AsyncApiRunner thread started");
             let mut need_reset = false;
@@ -240,6 +236,7 @@ impl AsyncApiRunner {
             let run = private_api.run.clone();
             let simulator_arc = simulator_cloned.clone();
             let plugin_api_threaded = plugin_api.clone();
+            let context_threaded = context.clone();
             thread::spawn(move || {
                 while !*stopping.read().unwrap() {
                     run.recv_closure_mut(|request| {
@@ -250,7 +247,7 @@ impl AsyncApiRunner {
                         if let Some(max_time) = request.max_time {
                             simulator.set_max_time(max_time);
                         }
-                        log::info!("Run...");
+                        info!(context_threaded, "Run...");
                         simulator.run()
                     });
                 }
@@ -290,7 +287,7 @@ impl AsyncApiRunner {
             private_api.run.stop_recv();
             private_api.compute_results.stop_recv();
 
-            log::info!("AsyncApiRunner thread exited");
+            info!(context, "AsyncApiRunner thread exited");
         }));
     }
 }
@@ -362,6 +359,7 @@ impl PluginAPI for PluginAsyncAPI {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        _context: &Context,
     ) -> Box<dyn StateEstimator> {
         self.get_state_estimator
             .call(PluginAsyncAPIGetStateEstimatorRequest {
@@ -381,6 +379,7 @@ impl PluginAPI for PluginAsyncAPI {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        _context: &Context,
     ) -> Box<dyn Controller> {
         self.get_controller
             .call(PluginAsyncAPIGetControllerRequest {
@@ -400,6 +399,7 @@ impl PluginAPI for PluginAsyncAPI {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        _context: &Context,
     ) -> Box<dyn Navigator> {
         self.get_navigator
             .call(PluginAsyncAPIGetNavigatorRequest {
@@ -419,6 +419,7 @@ impl PluginAPI for PluginAsyncAPI {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        _context: &Context,
     ) -> Box<dyn Physics> {
         self.get_physics
             .call(PluginAsyncAPIGetPhysicsRequest {

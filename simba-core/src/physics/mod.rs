@@ -161,13 +161,7 @@ impl UIComponent for PhysicsRecord {
 }
 
 use crate::{
-    errors::SimbaResult,
-    node::{Node, node_factory::FromConfigArguments},
-    physics::robot_models::Command,
-    recordable::Recordable,
-    simulator::SimulatorConfig,
-    state_estimators::State,
-    utils::SharedRwLock,
+    context::{self, Context}, errors::SimbaResult, node::{Node, node_factory::FromConfigArguments}, physics::robot_models::Command, recordable::Recordable, simulator::SimulatorConfig, state_estimators::State, utils::SharedRwLock
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -196,7 +190,7 @@ pub trait Physics:
 {
     /// Optional initialization hook called once after node setup.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -206,16 +200,16 @@ pub trait Physics:
     /// ## Arguments
     /// * `command` - Command to apply
     /// * `time` - Current time, when to apply the command.
-    fn apply_command(&mut self, command: &Command, time: f32);
+    fn apply_command(&mut self, command: &Command, time: f32, context: &Context);
 
     /// Update the state to the given time, while keeping the previous command.
-    fn update_state(&mut self, time: f32);
+    fn update_state(&mut self, time: f32, context: &Context);
 
     /// Get the current real state, the groundtruth.
-    fn state(&self, time: f32) -> State;
+    fn state(&self, time: f32, context: &Context) -> State;
 
     /// Optional: return the time of the next time step. Needed if using messages
-    fn next_time_step(&self) -> Option<f32> {
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         None
     }
 }
@@ -228,6 +222,7 @@ pub trait Physics:
 pub fn make_physics_from_config(
     config: &PhysicsConfig,
     from_config_args: &FromConfigArguments,
+    context: &Context,
 ) -> SimbaResult<SharedRwLock<Box<dyn Physics>>> {
     Ok(Arc::new(RwLock::new(match &config {
         PhysicsConfig::Internal(c) => Box::new(internal_physics::InternalPhysics::from_config(
@@ -235,6 +230,7 @@ pub fn make_physics_from_config(
             from_config_args.node_name,
             from_config_args.va_factory,
             from_config_args.initial_time,
+            context,
         )) as Box<dyn Physics>,
         PhysicsConfig::External(c) => Box::new(external_physics::ExternalPhysics::from_config(
             c,
@@ -243,12 +239,14 @@ pub fn make_physics_from_config(
             from_config_args.va_factory,
             from_config_args.network,
             from_config_args.initial_time,
+            context,
         )?),
         PhysicsConfig::Python(c) => Box::new(
             python_physics::PythonPhysics::from_config(
                 c,
                 from_config_args.global_config,
                 from_config_args.initial_time,
+                context,
             )
             .unwrap(),
         ),

@@ -22,9 +22,7 @@ use crate::gui::{
     utils::{enum_combobox, string_combobox},
 };
 use crate::{
-    environment::Environment,
-    node::NodeState,
-    utils::{
+    context::Context, environment::Environment, node::NodeState, utils::{
         SharedMutex,
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -33,7 +31,7 @@ use crate::{
             bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
             uniform::UniformRandomVariableConfig,
         },
-    },
+    }
 };
 
 /// Ordering strategy used to pick replacement labels.
@@ -211,6 +209,7 @@ impl MisassociationFault {
     pub fn from_config(
         config: &MisassociationFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
+        _context: &Context,
     ) -> Self {
         let distribution = Arc::new(Mutex::new(
             va_factory.make_variable(config.distribution.clone()),
@@ -242,6 +241,7 @@ impl MisassociationFault {
         old_label: String,
         position: Vector2<f32>,
         environment: &Arc<Environment>,
+        _context: &Context,
     ) -> String {
         let mut id_list: Vec<(String, Vector2<f32>)> = match &self.source {
             Source::Robots => environment

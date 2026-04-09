@@ -11,9 +11,8 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-#[cfg(feature = "debug_mode")]
-use log::debug;
-use log::warn;
+
+use colored::Colorize;
 
 use crate::pub_sub::{BrokerTrait, Client, PathKey};
 
@@ -124,8 +123,9 @@ where
     fn send(&self, key: &KeyType, message: MessageType, time: f32) {
         if let Some(client) = self.clients.get(key) {
             #[cfg(feature = "debug_mode")]
-            debug!(
-                "Sending message on key {:?} at time {}: {:?}",
+            println!(
+                "[{}] Sending message on key {:?} at time {}: {:?}",
+                "DEBUG".blue(),
                 key, time, message
             );
             client.send(message.clone(), time);
@@ -136,13 +136,18 @@ where
                 .subscribe_to(key, self.node_id.clone(), 0.0)
         {
             #[cfg(feature = "debug_mode")]
-            debug!(
-                "Sending message on key {:?} at time {} with tmp client: {:?}",
+            println!(
+                "[{}] Sending message on key {:?} at time {} with tmp client: {:?}",
+                "DEBUG".blue(),
                 key, time, message
             );
             tmp_client.send(message.clone(), time);
         } else {
-            warn!("Trying to send a message to '{}' that is not created", key);
+            println!(
+                "[{}] Trying to send a message to '{}' that is not created",
+                "WARN".yellow(),
+                key
+            );
         }
     }
 

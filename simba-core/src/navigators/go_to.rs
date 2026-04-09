@@ -16,11 +16,7 @@ use std::{
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
-    errors::SimbaResult,
-    navigators::{Navigator, NavigatorRecord},
-    networking::network::Network,
-    simulator::SimbaBrokerMultiClient,
-    utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff},
+    context::Context, errors::SimbaResult, info, navigators::{Navigator, NavigatorRecord}, networking::network::Network, simulator::SimbaBrokerMultiClient, utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff}
 };
 
 extern crate nalgebra as na;
@@ -268,10 +264,11 @@ impl GoTo {
         config: &GoToConfig,
         network: &SharedRwLock<Network>,
         _initial_time: f32,
+        context: &Context,
     ) -> Self {
         let network = network.write().unwrap();
-        let key = network.make_channel(PathKey::from_str(Self::CHANNEL_NAME).unwrap());
-        let message_client = network.subscribe_to(&[key], None);
+        let key = network.make_channel(PathKey::from_str(Self::CHANNEL_NAME).unwrap(), context);
+        let message_client = network.subscribe_to(&[key], None, context);
         Self {
             target_speed: config.target_speed,
             error: ControllerError::default(),
@@ -288,13 +285,13 @@ use crate::node::Node;
 use crate::state_estimators::WorldState;
 
 impl Navigator for GoTo {
-    fn post_init(&mut self, _node: &mut Node) -> SimbaResult<()> {
+    fn post_init(&mut self, _node: &mut Node, _context: &Context) -> SimbaResult<()> {
         Ok(())
     }
 
     /// Compute the error between the given `state` and the target point.
     ///
-    fn compute_error(&mut self, _robot: &mut Node, world_state: WorldState) -> ControllerError {
+    fn compute_error(&mut self, _robot: &mut Node, world_state: WorldState, _context: &Context) -> ControllerError {
         if world_state.ego.is_none() {
             panic!("StateEstimator should provide an ego estimate for GoTo navigator.")
         }
@@ -341,16 +338,16 @@ impl Navigator for GoTo {
         self.error.clone()
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut Node, time: f32) {
+    fn pre_loop_hook(&mut self, _node: &mut Node, time: f32, context: &Context) {
         while let Some((_, envelope)) = self.message_client.lock().unwrap().try_receive(time) {
             if let Ok(msg) = serde_json::from_value::<GoToMessage>(envelope.message) {
                 self.current_point = msg.target_point;
-                log::info!("Update target point to {:?}", self.current_point);
+                info!(context, "Update target point to {:?}", self.current_point);
             }
         }
     }
 
-    fn next_time_step(&self) -> Option<f32> {
+    fn next_time_step(&self, _context: &Context) -> Option<f32> {
         self.message_client.lock().unwrap().next_message_time()
     }
 }
@@ -358,7 +355,7 @@ impl Navigator for GoTo {
 use crate::recordable::Recordable;
 
 impl Recordable<NavigatorRecord> for GoTo {
-    fn record(&self) -> NavigatorRecord {
+    fn record(&self, _context: &Context) -> NavigatorRecord {
         NavigatorRecord::GoTo(GoToRecord {
             error: self.error.clone(),
             current_point: self.current_point,

@@ -10,16 +10,16 @@ Your own external state estimation strategy is made using the
 
 use std::sync::Arc;
 
-use log::debug;
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
 
 use super::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
+use crate::{context, error, internal};
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
-use crate::logger::is_enabled;
 use crate::networking::network::Network;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
@@ -85,10 +85,9 @@ impl ExternalEstimator {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
         Ok(Self {
             state_estimator: plugin_api
                 .as_ref()
@@ -104,6 +103,7 @@ impl ExternalEstimator {
                     va_factory,
                     network,
                     initial_time,
+                    context,
                 ),
         })
     }
@@ -116,38 +116,38 @@ impl std::fmt::Debug for ExternalEstimator {
 }
 
 impl StateEstimator for ExternalEstimator {
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
-        self.state_estimator.post_init(node)
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
+        self.state_estimator.post_init(node, context)
     }
 
-    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32) {
-        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
-            log::error!("Error trying to update estimate too soon !");
+    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32, context: &Context) {
+        if (time - self.next_time_step(context)).abs() > TIME_ROUND / 2. {
+            error!(context, "Error trying to update estimate too soon !");
             return;
         }
-        self.state_estimator.prediction_step(node, command, time);
+        self.state_estimator.prediction_step(node, command, time, context);
     }
 
-    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32) {
+    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32, context: &Context) {
         self.state_estimator
-            .correction_step(node, observations, time);
+            .correction_step(node, observations, time, context);
     }
 
-    fn world_state(&self) -> WorldState {
-        self.state_estimator.world_state()
+    fn world_state(&self, context: &Context) -> WorldState {
+        self.state_estimator.world_state(context)
     }
 
-    fn next_time_step(&self) -> f32 {
-        round_precision(self.state_estimator.next_time_step(), TIME_ROUND).unwrap()
+    fn next_time_step(&self, context: &Context) -> f32 {
+        round_precision(self.state_estimator.next_time_step(context), TIME_ROUND).unwrap()
     }
 
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        self.state_estimator.pre_loop_hook(node, time);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
+        self.state_estimator.pre_loop_hook(node, time, context);
     }
 }
 
 impl Recordable<StateEstimatorRecord> for ExternalEstimator {
-    fn record(&self) -> StateEstimatorRecord {
-        self.state_estimator.record()
+    fn record(&self, context: &Context) -> StateEstimatorRecord {
+        self.state_estimator.record(context)
     }
 }

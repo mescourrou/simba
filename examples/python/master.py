@@ -30,24 +30,24 @@ class StateEstimator(simba.StateEstimator):
         return 10000000000
     
     def pre_loop_hook(self, node: simba.Node, time: float):
-        print("Master")
+        node.log_info("Master")
         if abs(5 - time) < 0.001:
-            print("Try to send message")
+            node.log_info("Try to send message")
             msg = simba.MessageTypes.GoTo(simba.GoToMessage([10,10]))
             self.client.send("/simba/command/robot1", msg, time)
-            print("Message sent")
+            node.log_info("Message sent")
 
         if abs(20 - time) < 0.001:
-            print("Try to send message")
+            node.log_info("Try to send message")
             msg = simba.MessageTypes.GoTo(simba.GoToMessage([-10,10]))
             self.client.send("/simba/command/robot1", msg, time)
-            print("Message sent")
+            node.log_info("Message sent")
 
         if abs(30 - time) < 0.001:
-            print("Try to send message")
+            node.log_info("Try to send message")
             msg = simba.MessageTypes.GoTo(simba.GoToMessage([-10,-10]))
             self.client.send("/simba/command/robot1", msg, time)
-            print("Message sent")
+            node.log_info("Message sent")
 
 
 class SimulatorAPI(simba.PluginAPI):

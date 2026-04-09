@@ -46,12 +46,12 @@ class StateEstimator(simba.StateEstimator):
                 node.send_message("/simba/nodes/robot2/test", simba.MessageTypes.from_goto(simba.GoToMessage((0, 0))), time)
         else:
             node.send_message("/simba/nodes/robot1/test", simba.MessageTypes.String("Hello from robot2"), time)
-        print(f"{node.name()}: Prediction {self._state}")
+        node.log_info(f"{node.name()}: Prediction {self._state}")
 
     def correction_step(self, node: simba.Node, observations: List[simba.Observation], t: float):
-        print(f"Doing correction step with observations for robot {node.name()}:")
+        node.log_info(f"Doing correction step with observations for robot {node.name()}:")
         self._state += 100
-        print(f"{node.name()}: Correction {self._state}")
+        node.log_info(f"{node.name()}: Correction {self._state}")
 
 
     def next_time_step(self):
@@ -74,7 +74,7 @@ class StateEstimator(simba.StateEstimator):
 
             messages.append((msg[0], msg[1].msg_from, v, msg[1].timestamp))
             msg = self.client.try_receive(time)
-        print(f"Received messages: {messages}")
+        node.log_info(f"Received messages: {messages}")
 
 
 class SimulatorAPI(simba.PluginAPI):

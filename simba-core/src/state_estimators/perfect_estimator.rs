@@ -6,13 +6,10 @@ by the controller should be perfect.
 
 use super::{State, WorldState, WorldStateRecord};
 use crate::{
-    constants::TIME_ROUND,
-    errors::SimbaErrorTypes,
-    physics::robot_models::Command,
-    utils::{
+    constants::TIME_ROUND, context::Context, error, info, physics::robot_models::Command, utils::{
         determinist_random_variable::DeterministRandomVariableFactory,
         periodicity::{Periodicity, PeriodicityConfig},
-    },
+    }, warning
 };
 
 #[cfg(feature = "gui")]
@@ -20,7 +17,6 @@ use crate::gui::{UIComponent, utils::string_checkbox};
 use crate::recordable::Recordable;
 use crate::sensors::Observation;
 use crate::simulator::SimulatorConfig;
-use log::{error, info, warn};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
@@ -182,6 +178,7 @@ impl PerfectEstimator {
         _global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
+        context: &Context,
     ) -> Self {
         let mut world_state = WorldState::new();
         for target in &config.targets {
@@ -212,23 +209,19 @@ use super::{StateEstimator, StateEstimatorRecord};
 use crate::node::Node;
 
 impl StateEstimator for PerfectEstimator {
-    fn prediction_step(&mut self, node: &mut Node, _command: Option<Command>, time: f32) {
-        if (time - self.next_time_step()).abs() > TIME_ROUND / 2. {
-            error!(
-                "Error trying to update estimate too soon! (it is {} but expecting {})",
-                time,
-                self.next_time_step()
-            );
+    fn prediction_step(&mut self, node: &mut Node, _command: Option<Command>, time: f32, context: &Context) {
+        if (time - self.next_time_step(context)).abs() > TIME_ROUND / 2. {
+            error!(context, "Error trying to update estimate too soon! (it is {} but expecting {})", time, self.next_time_step(context));
             return;
         }
-        info!("Doing prediction step");
+        info!(context, "Doing prediction step");
         if let Some(ego) = &mut self.world_state.ego {
             let arc_physic = node
                 .physics()
                 .expect("Node with state_estimator should have physics");
             let physic = arc_physic.read().unwrap();
 
-            *ego = physic.state(time).clone();
+            *ego = physic.state(time, context).clone();
         }
         let mut objects_to_delete = Vec::new();
         for (target, state) in &mut self.world_state.objects {
@@ -236,14 +229,14 @@ impl StateEstimator for PerfectEstimator {
                 .get_other_node_physics(target)
             {
                 None => {
-                    warn!(
+                    warning!(context,
                         "[{}] {target} does not have physics, no perfect state can be computed: delete target from list!",
                         node.name()
                     );
                     objects_to_delete.push(target.clone());
                     state.clone()
                 }
-                Some(s) => s.read().unwrap().state(time).clone(),
+                Some(s) => s.read().unwrap().state(time, context).clone(),
             };
         }
         for obj in objects_to_delete {
@@ -263,13 +256,13 @@ impl StateEstimator for PerfectEstimator {
         self.last_time_prediction = time;
     }
 
-    fn correction_step(&mut self, _node: &mut Node, _observations: &[Observation], _time: f32) {}
+    fn correction_step(&mut self, _node: &mut Node, _observations: &[Observation], _time: f32, _context: &Context) {}
 
-    fn world_state(&self) -> WorldState {
+    fn world_state(&self, _context: &Context) -> WorldState {
         self.world_state.clone()
     }
 
-    fn next_time_step(&self) -> f32 {
+    fn next_time_step(&self, _context: &Context) -> f32 {
         if let Some(period) = &self.prediction_activation {
             period.next_time()
         } else {
@@ -277,13 +270,13 @@ impl StateEstimator for PerfectEstimator {
         }
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {}
+    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32, _context: &Context) {}
 }
 
 impl Recordable<StateEstimatorRecord> for PerfectEstimator {
-    fn record(&self) -> StateEstimatorRecord {
+    fn record(&self, context: &Context) -> StateEstimatorRecord {
         StateEstimatorRecord::Perfect(PerfectEstimatorRecord {
-            world_state: self.world_state.record(),
+            world_state: self.world_state.record(context),
             last_time_prediction: self.last_time_prediction,
         })
     }

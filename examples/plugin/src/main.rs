@@ -1,9 +1,11 @@
 #[allow(unused_variables)]
 use nalgebra::Vector3;
 use serde::{Deserialize, Serialize};
+use simba::context::Context;
 use simba::controllers::external_controller::ExternalControllerRecord;
 use simba::controllers::{Controller, ControllerError, ControllerRecord};
 use simba::errors::SimbaResult;
+use simba::info;
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::{Navigator, NavigatorRecord};
 use simba::networking::network::Network;
@@ -11,7 +13,7 @@ use simba::node::Node;
 use simba::physics::external_physics::ExternalPhysicsRecord;
 use simba::physics::robot_models::unicycle::UnicycleCommand;
 use simba::physics::robot_models::Command;
-use simba::physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
+use simba::physics::{Physics, PhysicsRecord};
 use simba::plugin_api::PluginAPI;
 use simba::recordable::Recordable;
 use simba::sensors::external_sensor::{ExternalObservation, ExternalSensorRecord};
@@ -51,6 +53,7 @@ impl Controller for MyWonderfulController {
         _robot: &mut simba::node::Node,
         _error: &simba::controllers::ControllerError,
         _time: f32,
+        _context: &Context,
     ) -> Command {
         Command::Unicycle(UnicycleCommand {
             left_wheel_speed: 0.,
@@ -58,11 +61,11 @@ impl Controller for MyWonderfulController {
         })
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {}
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32, _context: &Context) {}
 }
 
 impl Recordable<ControllerRecord> for MyWonderfulController {
-    fn record(&self) -> ControllerRecord {
+    fn record(&self, _context: &Context) -> ControllerRecord {
         ControllerRecord::External(ExternalControllerRecord {
             record: serde_json::to_value(MyWonderfulControllerRecord {}).unwrap(),
         })
@@ -93,6 +96,7 @@ impl Navigator for MyWonderfulNavigator {
         &mut self,
         _robot: &mut simba::node::Node,
         _state: WorldState,
+        _context: &Context,
     ) -> ControllerError {
         ControllerError {
             lateral: 0.,
@@ -102,11 +106,11 @@ impl Navigator for MyWonderfulNavigator {
         }
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {}
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32, _context: &Context) {}
 }
 
 impl Recordable<NavigatorRecord> for MyWonderfulNavigator {
-    fn record(&self) -> NavigatorRecord {
+    fn record(&self, _context: &Context) -> NavigatorRecord {
         NavigatorRecord::External(ExternalNavigatorRecord {
             record: serde_json::to_value(MyWonderfulNavigatorRecord {}).unwrap(),
         })
@@ -142,20 +146,20 @@ impl MyWonderfulPhysics {
 }
 
 impl Physics for MyWonderfulPhysics {
-    fn apply_command(&mut self, _command: &Command, _time: f32) {}
+    fn apply_command(&mut self, _command: &Command, _time: f32, _context: &Context) {}
 
-    fn state(&self, _time: f32) -> State {
+    fn state(&self, _time: f32, _context: &Context) -> State {
         self.state.clone()
     }
 
-    fn update_state(&mut self, _time: f32) {}
+    fn update_state(&mut self, _time: f32, _context: &Context) {}
 }
 
 impl Recordable<PhysicsRecord> for MyWonderfulPhysics {
-    fn record(&self) -> PhysicsRecord {
+    fn record(&self, context: &Context) -> PhysicsRecord {
         PhysicsRecord::External(ExternalPhysicsRecord {
             record: serde_json::to_value(MyWonderfulPhysicsRecord {
-                state: self.state.record(),
+                state: self.state.record(context),
             })
             .unwrap(),
         })
@@ -193,6 +197,7 @@ impl StateEstimator for MyWonderfulStateEstimator {
         _robot: &mut simba::node::Node,
         _command: Option<Command>,
         time: f32,
+        _context: &Context,
     ) {
         self.last_prediction = time;
     }
@@ -202,22 +207,23 @@ impl StateEstimator for MyWonderfulStateEstimator {
         _robot: &mut simba::node::Node,
         _observations: &[Observation],
         _time: f32,
+        _context: &Context,
     ) {
     }
 
-    fn next_time_step(&self) -> f32 {
+    fn next_time_step(&self, _context: &Context) -> f32 {
         self.last_prediction + 0.5
     }
 
-    fn world_state(&self) -> WorldState {
+    fn world_state(&self, _context: &Context) -> WorldState {
         WorldState::new()
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {}
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32, _context: &Context) {}
 }
 
 impl Recordable<StateEstimatorRecord> for MyWonderfulStateEstimator {
-    fn record(&self) -> StateEstimatorRecord {
+    fn record(&self, _context: &Context) -> StateEstimatorRecord {
         StateEstimatorRecord::External(ExternalEstimatorRecord {
             record: serde_json::to_value(MyWonderfulStateEstimatorRecord {
                 last_prediction: self.last_prediction,
@@ -259,12 +265,12 @@ impl MyWonderfulSensor {
 }
 
 impl Sensor for MyWonderfulSensor {
-    fn post_init(&mut self, node: &mut Node, _initial_time: f32) -> SimbaResult<()> {
-        println!("Initializing MyWonderfulSensor for node {}", node.name());
+    fn post_init(&mut self, node: &mut Node, _initial_time: f32, context: &Context) -> SimbaResult<()> {
+        info!(context, "Initializing MyWonderfulSensor for node {}", node.name());
         Ok(())
     }
 
-    fn get_observations(&mut self, _node: &mut Node, time: f32) -> Vec<SensorObservation> {
+    fn get_observations(&mut self, _node: &mut Node, time: f32, _context: &Context) -> Vec<SensorObservation> {
         self.last_observation = Some(MyWonderfulSensorObservation { data: time });
         self.last_time = time;
         // Return a custom observation here, but you can return an existing one as well (e.g. SpeedObservation)
@@ -279,7 +285,7 @@ impl Sensor for MyWonderfulSensor {
 }
 
 impl Recordable<SensorRecord> for MyWonderfulSensor {
-    fn record(&self) -> SensorRecord {
+    fn record(&self, _context: &Context) -> SensorRecord {
         SensorRecord::External(ExternalSensorRecord {
             record: serde_json::to_value(self.last_observation.clone()).unwrap(),
         })
@@ -296,6 +302,7 @@ impl PluginAPI for MyWonderfulPlugin {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
+        _context: &Context,
     ) -> Box<dyn Controller> {
         Box::new(MyWonderfulController::from_config(
             serde_json::from_value(config.clone()).unwrap(),
@@ -310,6 +317,7 @@ impl PluginAPI for MyWonderfulPlugin {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
+        _context: &Context,
     ) -> Box<dyn Navigator> {
         Box::new(MyWonderfulNavigator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
@@ -324,6 +332,7 @@ impl PluginAPI for MyWonderfulPlugin {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
+        _context: &Context,
     ) -> Box<dyn Physics> {
         Box::new(MyWonderfulPhysics::from_config(
             serde_json::from_value(config.clone()).unwrap(),
@@ -338,6 +347,7 @@ impl PluginAPI for MyWonderfulPlugin {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
+        _context: &Context,
     ) -> Box<dyn StateEstimator> {
         Box::new(MyWonderfulStateEstimator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
@@ -356,6 +366,7 @@ impl PluginAPI for MyWonderfulPlugin {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
+        _context: &Context,
     ) -> Box<dyn Sensor> {
         Box::new(MyWonderfulSensor::from_config(
             serde_json::from_value(config.clone()).unwrap(),
