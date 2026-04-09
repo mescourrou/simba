@@ -23,6 +23,7 @@ use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
+use crate::context::Context;
 use crate::controllers::ControllerError;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
@@ -196,18 +197,19 @@ pub trait Navigator:
 {
     /// Performs optional one-time initialization when the node starts.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
         Ok(())
     }
 
     /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
-    fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError;
+    fn compute_error(&mut self, node: &mut Node, state: WorldState, context: &Context) -> ControllerError;
 
     /// Executes per-step side effects before controller computation.
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context);
 
     /// Optional: return the time of the next time step. Needed if using messages
-    fn next_time_step(&self) -> Option<f32> {
+    #[allow(unused_variables)]
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         None
     }
 }
@@ -228,6 +230,7 @@ pub fn make_navigator_from_config(
     va_factory: &Arc<DeterministRandomVariableFactory>,
     network: &SharedRwLock<Network>,
     initial_time: f32,
+    context: &Context,
 ) -> SimbaResult<SharedRwLock<Box<dyn Navigator>>> {
     Ok(Arc::new(RwLock::new(match config {
         NavigatorConfig::TrajectoryFollower(c) => Box::new(
@@ -241,13 +244,14 @@ pub fn make_navigator_from_config(
                 va_factory,
                 network,
                 initial_time,
+                context,
             )?) as Box<dyn Navigator>
         }
         NavigatorConfig::Python(c) => Box::new(
-            python_navigator::PythonNavigator::from_config(c, global_config, initial_time).unwrap(),
+            python_navigator::PythonNavigator::from_config(c, global_config, initial_time, context).unwrap(),
         ) as Box<dyn Navigator>,
         NavigatorConfig::GoTo(c) => {
-            Box::new(go_to::GoTo::from_config(c, network, initial_time)) as Box<dyn Navigator>
+            Box::new(go_to::GoTo::from_config(c, network, initial_time, context)) as Box<dyn Navigator>
         }
     })))
 }

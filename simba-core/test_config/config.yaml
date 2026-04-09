@@ -8,7 +8,7 @@ time_analysis:
     type: TraceEventExporter
   output_path: "time_performance"
 results: {} #default results
-max_time: 60.
+max_time: 600.
 random_seed: 85646513.6849618
 environment:
   map_path: "maps/landmarks_square.yaml"

@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
+use simba::context::Context;
 use simba::controllers::ControllerError;
+use simba::info;
 use simba::navigators::external_navigator::ExternalNavigatorRecord;
 use simba::navigators::{Navigator, NavigatorRecord};
 use simba::networking::network::Network;
@@ -38,8 +40,9 @@ impl Navigator for MyWonderfulNavigator {
         &mut self,
         _robot: &mut simba::node::Node,
         _state: WorldState,
+        context: &Context,
     ) -> ControllerError {
-        println!("---Compute error with Rust");
+        info!(context, "---Compute error with Rust");
         ControllerError {
             lateral: 0.,
             longitudinal: 0.,
@@ -48,11 +51,11 @@ impl Navigator for MyWonderfulNavigator {
         }
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32) {}
+    fn pre_loop_hook(&mut self, _node: &mut simba::node::Node, _time: f32, _context: &Context) {}
 }
 
 impl Recordable<NavigatorRecord> for MyWonderfulNavigator {
-    fn record(&self) -> NavigatorRecord {
+    fn record(&self, _context: &Context) -> NavigatorRecord {
         NavigatorRecord::External(ExternalNavigatorRecord {
             record: serde_json::to_value(MyWonderfulNavigatorRecord {}).unwrap(),
         })
@@ -72,6 +75,7 @@ impl PluginAPI for MyWonderfulPlugin {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
+        _context: &Context,
     ) -> Box<dyn Navigator> {
         Box::new(MyWonderfulNavigator::from_config(
             serde_json::from_value(config.clone()).unwrap(),
@@ -87,6 +91,7 @@ impl PluginAPI for MyWonderfulPlugin {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn StateEstimator> {
         self.python_api.get_state_estimator(
             config,
@@ -94,11 +99,12 @@ impl PluginAPI for MyWonderfulPlugin {
             va_factory,
             network,
             initial_time,
+            context,
         )
     }
 
-    fn check_requests(&self) {
-        self.python_api.check_requests();
+    fn check_requests(&self, context: &Context) {
+        self.python_api.check_requests(context);
     }
 }
 

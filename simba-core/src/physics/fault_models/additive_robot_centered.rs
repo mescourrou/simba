@@ -17,16 +17,14 @@ use crate::{
     utils::enum_tools::ToVec,
 };
 use crate::{
-    physics::{fault_models::fault_model::PhysicsFaultModel, robot_models::RobotModelConfig},
-    state_estimators::State,
-    utils::{
+    context::Context, physics::{fault_models::fault_model::PhysicsFaultModel, robot_models::RobotModelConfig}, state_estimators::State, utils::{
         SharedMutex,
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
         },
         distributions::normal::NormalRandomVariableConfig,
         geometry::mod2pi,
-    },
+    }
 };
 
 enum_variables!(
@@ -201,7 +199,7 @@ impl AdditiveRobotCenteredPhysicsFault {
 }
 
 impl PhysicsFaultModel for AdditiveRobotCenteredPhysicsFault {
-    fn add_faults(&self, time: f32, state: &mut State) {
+    fn add_faults(&self, time: f32, state: &mut State, context: &Context) {
         let mut last_time_draw = self.last_time_draw.lock().unwrap();
         let delta_time = time - *last_time_draw;
         let delta_time = if let Some(prop_var) = &self.proportionnal_to {

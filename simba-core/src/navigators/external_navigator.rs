@@ -8,17 +8,17 @@ Your own external navigator strategy is made using the
 [`PluginAPI::get_navigator`] function.
 */
 
-use log::debug;
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
 use std::sync::Arc;
 
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
 use crate::controllers::ControllerError;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::networking::network::Network;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
@@ -86,10 +86,9 @@ impl ExternalNavigator {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
         Ok(Self {
             navigator: plugin_api
                 .as_ref()
@@ -105,6 +104,7 @@ impl ExternalNavigator {
                     va_factory,
                     network,
                     initial_time,
+                    context,
                 ),
         })
     }
@@ -117,27 +117,27 @@ impl std::fmt::Debug for ExternalNavigator {
 }
 
 impl Navigator for ExternalNavigator {
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
-        self.navigator.post_init(node)
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
+        self.navigator.post_init(node, context)
     }
 
-    fn compute_error(&mut self, robot: &mut Node, world_state: WorldState) -> ControllerError {
-        self.navigator.compute_error(robot, world_state)
+    fn compute_error(&mut self, robot: &mut Node, world_state: WorldState, context: &Context) -> ControllerError {
+        self.navigator.compute_error(robot, world_state, context)
     }
 
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        self.navigator.pre_loop_hook(node, time);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
+        self.navigator.pre_loop_hook(node, time, context);
     }
 
-    fn next_time_step(&self) -> Option<f32> {
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         self.navigator
-            .next_time_step()
+            .next_time_step(context)
             .map(|t| round_precision(t, TIME_ROUND).unwrap())
     }
 }
 
 impl Recordable<NavigatorRecord> for ExternalNavigator {
-    fn record(&self) -> NavigatorRecord {
-        self.navigator.record()
+    fn record(&self, context: &Context) -> NavigatorRecord {
+        self.navigator.record(context)
     }
 }

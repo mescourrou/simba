@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, path::Path};
 
-use crate::simulator::SimulatorConfig;
+use crate::{context::Context, error, simulator::SimulatorConfig};
 
 use super::{UIComponent, utils::path_finder};
 
@@ -11,12 +11,12 @@ pub struct Configurator {
 }
 
 impl Configurator {
-    pub fn init(config_path: &String) -> Self {
+    pub fn init(config_path: &String, context: &Context) -> Self {
         let mut save_path = config_path.clone();
         let current_config = match SimulatorConfig::load_from_path(Path::new(&config_path)) {
             Ok(config) => config,
             Err(e) => {
-                log::error!(
+                error!(context,
                     "Impossible to load config at path {}: {}",
                     config_path,
                     e.detailed_error()

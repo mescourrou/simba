@@ -2,16 +2,16 @@
 Module providing the interface to use external Python [`StateEstimator`].
 */
 
-use log::debug;
 use pyo3::prelude::*;
 use pyo3::{Python, pyclass, pymethods};
 
 use super::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::physics::robot_models::Command;
 use crate::pywrappers::{CommandWrapper, NodeWrapper, ObservationWrapper, WorldStateWrapper};
 use crate::recordable::Recordable;
@@ -68,6 +68,7 @@ impl PythonEstimator {
             &PythonEstimatorConfig::default(),
             &SimulatorConfig::default(),
             0.0,
+            &Context::default(),
         )
     }
 
@@ -83,13 +84,14 @@ impl PythonEstimator {
         config: &PythonEstimatorConfig,
         global_config: &SimulatorConfig,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(context, crate::logger::InternalLog::API,
+            "Config given: {:?}", config
+        );
 
         let state_estimator_instance =
-            load_class_from_python_script(config, global_config, initial_time, "State Estimator")?;
+            load_class_from_python_script(config, global_config, initial_time, "State Estimator", context)?;
         Ok(Self {
             state_estimator: state_estimator_instance,
         })
@@ -103,20 +105,20 @@ impl std::fmt::Debug for PythonEstimator {
 }
 
 impl StateEstimator for PythonEstimator {
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of post_init");
-        }
-        let node_py = NodeWrapper::from_rust(node);
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of post_init"
+        );
+        let node_py = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.state_estimator, "post_init", (node_py,));
         Ok(())
     }
 
-    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32) {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of prediction_step");
-        }
-        let node_py = NodeWrapper::from_rust(node);
+    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32, context: &Context) {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of prediction_step"
+        );
+        let node_py = NodeWrapper::from_rust(node, context.clone());
         let command = command.map(|c| CommandWrapper::from_rust(&c));
         call_py_method_void!(
             self.state_estimator,
@@ -127,15 +129,15 @@ impl StateEstimator for PythonEstimator {
         );
     }
 
-    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32) {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of correction_step");
-        }
+    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32, context: &Context) {
+         internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of correction_step"
+        );
         let mut observation_py = Vec::new();
         for obs in observations {
             observation_py.push(ObservationWrapper::from_rust(obs));
         }
-        let node_py = NodeWrapper::from_rust(node);
+        let node_py = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(
             self.state_estimator,
             "correction_step",
@@ -145,37 +147,37 @@ impl StateEstimator for PythonEstimator {
         );
     }
 
-    fn world_state(&self) -> WorldState {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of state");
-        }
+    fn world_state(&self, context: &Context) -> WorldState {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of state"
+        );
         let state = call_py_method!(self.state_estimator, "state", WorldStateWrapper,);
         state.to_rust()
     }
 
-    fn next_time_step(&self) -> f32 {
+    fn next_time_step(&self, context: &Context) -> f32 {
         // PythonStateEstimator::next_time_step(self)
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of next_time_step");
-        }
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of next_time_step"
+        );
         let time = call_py_method!(self.state_estimator, "next_time_step", f32,);
         round_precision(time, TIME_ROUND).unwrap()
     }
 
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of pre_loop_hook");
-        }
-        let node_py = NodeWrapper::from_rust(node);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of pre_loop_hook"
+        );
+        let node_py = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.state_estimator, "pre_loop_hook", node_py, time);
     }
 }
 
 impl Recordable<StateEstimatorRecord> for PythonEstimator {
-    fn record(&self) -> StateEstimatorRecord {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of record");
-        }
+    fn record(&self, context: &Context) -> StateEstimatorRecord {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of record"
+        );
         let record_str: String = Python::attach(|py| {
             match self.state_estimator
                 .bind(py)

@@ -10,15 +10,15 @@ Your own external controller strategy is made using the
 
 use std::sync::Arc;
 
-use log::debug;
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
 
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::networking::network::Network;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
@@ -83,10 +83,9 @@ impl ExternalController {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
         Ok(Self {
             controller: plugin_api
                 .as_ref()
@@ -102,6 +101,7 @@ impl ExternalController {
                     va_factory,
                     network,
                     initial_time,
+                    context,
                 ),
         })
     }
@@ -114,27 +114,27 @@ impl std::fmt::Debug for ExternalController {
 }
 
 impl Controller for ExternalController {
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
-        self.controller.post_init(node)
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
+        self.controller.post_init(node, context)
     }
 
-    fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command {
-        self.controller.make_command(robot, error, time)
+    fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32, context: &Context) -> Command {
+        self.controller.make_command(robot, error, time, context)
     }
 
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        self.controller.pre_loop_hook(node, time);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
+        self.controller.pre_loop_hook(node, time, context);
     }
 
-    fn next_time_step(&self) -> Option<f32> {
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         self.controller
-            .next_time_step()
+            .next_time_step(context)
             .map(|t| round_precision(t, TIME_ROUND).unwrap())
     }
 }
 
 impl Recordable<ControllerRecord> for ExternalController {
-    fn record(&self) -> ControllerRecord {
-        self.controller.record()
+    fn record(&self, context: &Context) -> ControllerRecord {
+        self.controller.record(context)
     }
 }

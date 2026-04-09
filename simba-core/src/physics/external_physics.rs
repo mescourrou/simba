@@ -11,17 +11,16 @@ Your own external physic strategy is made using the
 
 use std::sync::Arc;
 
-use log::debug;
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
 
 use crate::constants::TIME_ROUND;
+use crate::context::{self, Context};
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::networking::network::Network;
-use crate::networking::service::HasService;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
@@ -85,10 +84,9 @@ impl ExternalPhysics {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
         Ok(Self {
             physics: plugin_api
                 .as_ref()
@@ -104,6 +102,7 @@ impl ExternalPhysics {
                     va_factory,
                     network,
                     initial_time,
+                    context,
                 ),
         })
     }
@@ -116,43 +115,31 @@ impl std::fmt::Debug for ExternalPhysics {
 }
 
 impl Physics for ExternalPhysics {
-    fn post_init(&mut self, node: &mut crate::node::Node) -> SimbaResult<()> {
-        self.physics.post_init(node)
+    fn post_init(&mut self, node: &mut crate::node::Node, context: &Context) -> SimbaResult<()> {
+        self.physics.post_init(node, context)
     }
 
-    fn apply_command(&mut self, command: &Command, time: f32) {
-        self.physics.apply_command(command, time);
+    fn apply_command(&mut self, command: &Command, time: f32, context: &Context) {
+        self.physics.apply_command(command, time, context);
     }
 
-    fn state(&self, time: f32) -> State {
-        self.physics.state(time).clone()
+    fn state(&self, time: f32, context: &Context) -> State {
+        self.physics.state(time, context).clone()
     }
 
-    fn update_state(&mut self, time: f32) {
-        self.physics.update_state(time);
+    fn update_state(&mut self, time: f32, context: &Context) {
+        self.physics.update_state(time, context);
     }
 
-    fn next_time_step(&self) -> Option<f32> {
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         self.physics
-            .next_time_step()
+            .next_time_step(context)
             .map(|t| round_precision(t, TIME_ROUND).unwrap())
     }
 }
 
 impl Recordable<PhysicsRecord> for ExternalPhysics {
-    fn record(&self) -> PhysicsRecord {
-        self.physics.record()
-    }
-}
-
-impl HasService<GetRealStateReq, GetRealStateResp> for ExternalPhysics {
-    fn handle_service_requests(
-        &mut self,
-        _req: GetRealStateReq,
-        time: f32,
-    ) -> Result<GetRealStateResp, String> {
-        Ok(GetRealStateResp {
-            state: self.state(time).clone(),
-        })
+    fn record(&self, context: &Context) -> PhysicsRecord {
+        self.physics.record(context)
     }
 }

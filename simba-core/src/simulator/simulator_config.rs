@@ -28,6 +28,58 @@ use crate::{
     constants::TIME_ROUND_DECIMALS, utils::determinist_random_variable::seed_generation_component,
 };
 
+/// Configuration for the simulator optimization settings.
+/// 
+/// These settings can speedup the simulation or not depending on the scenario and the hardware.
+#[config_derives]
+pub struct OptimizationConfig {
+    /// Number of threads to use to run the simulation.
+    /// - If `0`, creates as many threads as there are nodes (+ the main thread).
+    /// - If `1`, runs the simulation in a single thread (no parallelization), which disable synchronization
+    ///   overhead but can be slower for heavy algorithms running on multiple nodes.
+    /// - If `n > 1`, creates a pool of `n` threads to run the simulation.
+    /// 
+    /// `0`, `1` and `n > 1` have different running mecanisms:
+    /// - With `0`, each node is run in a separate thread, and there are synchronization points where threads wait for each other.
+    /// - With `1`, all nodes are run sequentially in the main thread, the synchronization is done sequentially and there is no overhead.
+    /// - With `n > 1`, node steps are distributed in a pool of `n` threads, and the synchronization is done outside of the pool.
+    /// 
+    /// With the `monothreaded` Rust feature, only `1` (no parallelization) is supported (other values are ignored with a warning).
+    pub threads: usize,
+}
+
+impl Default for OptimizationConfig {
+    fn default() -> Self {
+        #[cfg(feature = "monothreaded")]
+        let threads = 1;
+        #[cfg(not(feature = "monothreaded"))]
+        let threads = 0;
+        Self { threads }
+    }
+}
+
+impl Check for OptimizationConfig {
+    fn do_check(&self) -> Result<(), Vec<String>> {
+        #[cfg(not(feature = "monothreaded"))]
+        {
+            Ok(())
+        }
+        #[cfg(feature = "monothreaded")]
+        {
+            if self.threads != 1 {
+                use crate::warning;
+                use crate::context::Context;
+
+                warning!(Context::default(),
+                    "The 'monothreaded' feature is enabled, so only 1 thread (no parallelization) is supported, got {} in the configuration (ignoring the 'threads' value)",
+                    self.threads
+                );
+            }
+            Ok(())
+        }
+    }
+}
+
 /// Scenario configuration for the simulator.
 /// The Simulator configuration is the root of the scenario configuration.
 ///
@@ -120,6 +172,9 @@ pub struct SimulatorConfig {
     /// Global environment settings (maps).
     #[check]
     pub environment: EnvironmentConfig,
+    /// Optimization settings (parallelization, etc.).
+    #[check]
+    pub optimization: OptimizationConfig,
 }
 
 impl Default for SimulatorConfig {
@@ -137,6 +192,7 @@ impl Default for SimulatorConfig {
             max_time: 60.,
             scenario: ScenarioConfig::default(),
             environment: EnvironmentConfig::default(),
+            optimization: OptimizationConfig::default(),
         }
     }
 }

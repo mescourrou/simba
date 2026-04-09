@@ -40,32 +40,6 @@ pub enum LogLevel {
     Internal(Vec<InternalLog>),
 }
 
-impl From<log::LevelFilter> for LogLevel {
-    fn from(level: log::LevelFilter) -> Self {
-        match level {
-            log::LevelFilter::Off => LogLevel::Off,
-            log::LevelFilter::Error => LogLevel::Error,
-            log::LevelFilter::Warn => LogLevel::Warn,
-            log::LevelFilter::Info => LogLevel::Info,
-            log::LevelFilter::Debug => LogLevel::Debug,
-            log::LevelFilter::Trace => LogLevel::Debug,
-        }
-    }
-}
-
-impl From<LogLevel> for log::LevelFilter {
-    fn from(level: LogLevel) -> Self {
-        match level {
-            LogLevel::Off => log::LevelFilter::Off,
-            LogLevel::Error => log::LevelFilter::Error,
-            LogLevel::Warn => log::LevelFilter::Warn,
-            LogLevel::Info => log::LevelFilter::Info,
-            LogLevel::Debug => log::LevelFilter::Debug,
-            LogLevel::Internal(_) => log::LevelFilter::Debug,
-        }
-    }
-}
-
 impl From<LogLevel> for String {
     fn from(level: LogLevel) -> Self {
         match level {
@@ -86,6 +60,28 @@ impl From<LogLevel> for String {
     }
 }
 
+impl PartialOrd for LogLevel {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        let self_value = match self {
+            LogLevel::Off => 0,
+            LogLevel::Error => 1,
+            LogLevel::Warn => 2,
+            LogLevel::Info => 3,
+            LogLevel::Debug => 4,
+            LogLevel::Internal(_) => 5,
+        };
+        let other_value = match other {
+            LogLevel::Off => 0,
+            LogLevel::Error => 1,
+            LogLevel::Warn => 2,
+            LogLevel::Info => 3,
+            LogLevel::Debug => 4,
+            LogLevel::Internal(_) => 5,
+        };
+        self_value.partial_cmp(&other_value)
+    }
+}
+
 /// Internal debug categories used when [`LogLevel::Internal`] is selected.
 #[config_derives]
 pub enum InternalLog {
@@ -95,8 +91,6 @@ pub enum InternalLog {
     NetworkMessages,
     /// Detailed network message logs.
     NetworkMessagesDetailed,
-    /// Service request/response handling logs.
-    ServiceHandling,
     /// Setup phase summary logs.
     SetupSteps,
     /// Detailed setup phase logs.
@@ -233,29 +227,4 @@ impl UIComponent for LoggerConfig {
             });
         });
     }
-}
-
-/// Initializes internal logging filters from a [`LoggerConfig`].
-///
-/// When `config.log_level` is [`LogLevel::Internal`], the provided categories replace the current
-/// in-memory internal filter list.
-pub fn init_log(config: &LoggerConfig) {
-    if let LogLevel::Internal(v) = &config.log_level {
-        *INTERNAL_LOG_LEVEL.write().unwrap() = v.clone();
-    }
-}
-
-/// Returns whether a given internal debug category is currently enabled.
-///
-/// This returns `true` when the exact category is present in the initialized internal list, or
-/// when [`InternalLog::All`] is enabled.
-pub fn is_enabled(internal_level: InternalLog) -> bool {
-    if let InternalLog::All = internal_level {
-        return true;
-    }
-    INTERNAL_LOG_LEVEL
-        .read()
-        .unwrap()
-        .contains(&InternalLog::All)
-        || INTERNAL_LOG_LEVEL.read().unwrap().contains(&internal_level)
 }

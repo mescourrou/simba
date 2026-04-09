@@ -1,46 +1,35 @@
 //! Python bindings for Simba components, including a plugin API bridge backed and the root Python module.
 use std::sync::{Arc, Mutex};
 
-use log::debug;
 use pyo3::prelude::*;
 
 use crate::{
-    controllers::{
+    context::Context, controllers::{
         Controller,
         pybinds::{ControllerWrapper, PythonController},
-    },
-    logger::is_enabled,
-    navigators::{
+    }, internal, navigators::{
         Navigator,
         go_to::GoToMessage,
         pybinds::{NavigatorWrapper, PythonNavigator},
-    },
-    networking::{
+    }, networking::{
         MessageTypes,
         network::{MessageFlag, Network},
-    },
-    physics::{
+    }, physics::{
         Physics,
         pybinds::{PhysicsWrapper, PythonPhysics},
-    },
-    plugin_api::PluginAPI,
-    pywrappers::{
+    }, plugin_api::PluginAPI, pywrappers::{
         CommandWrapper, ControllerErrorWrapper, DisplacementObservationWrapper,
         GNSSObservationWrapper, MultiClientWrapper, NodeWrapper, ObservationWrapper,
         OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper,
         Pose, SensorObservationWrapper, SimulatorWrapper, SpeedObservationWrapper, StateWrapper,
         UnicycleCommandWrapper, Vec2, Vec3, WorldStateWrapper, run_gui,
-    },
-    sensors::sensor_manager::SensorTriggerMessage,
-    simulator::SimulatorConfig,
-    state_estimators::{
+    }, sensors::sensor_manager::SensorTriggerMessage, simulator::SimulatorConfig, state_estimators::{
         StateEstimator,
         pybinds::{PythonStateEstimator, StateEstimatorWrapper},
-    },
-    utils::{
+    }, utils::{
         SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory,
         python::call_py_method,
-    },
+    }
 };
 
 /// Create Python bindings for Simba components and add them to the provided Python module.
@@ -106,18 +95,18 @@ impl PythonAPI {
 }
 
 impl PluginAPI for PythonAPI {
-    fn check_requests(&self) {
+    fn check_requests(&self, context: &Context) {
         for state_estimator in self.state_estimators.lock().unwrap().iter_mut() {
-            state_estimator.check_requests();
+            state_estimator.check_requests(context);
         }
         for controller in self.controllers.lock().unwrap().iter_mut() {
-            controller.check_requests();
+            controller.check_requests(context);
         }
         for navigator in self.navigators.lock().unwrap().iter_mut() {
-            navigator.check_requests();
+            navigator.check_requests(context);
         }
         for physics in self.physics.lock().unwrap().iter_mut() {
-            physics.check_requests();
+            physics.check_requests(context);
         }
     }
 
@@ -128,10 +117,9 @@ impl PluginAPI for PythonAPI {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn StateEstimator> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling Python API");
-        }
+        internal!(context, crate::logger::InternalLog::API, "Calling Python API");
         self.state_estimators
             .lock()
             .unwrap()
@@ -151,9 +139,7 @@ impl PluginAPI for PythonAPI {
                 .unwrap()
                 .get_client(),
         );
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Got api {:?}", st);
-        }
+        internal!(context, crate::logger::InternalLog::API, "Got api {:?}", st);
         st
     }
 
@@ -164,10 +150,9 @@ impl PluginAPI for PythonAPI {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn Controller> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling Python API");
-        }
+        internal!(context, crate::logger::InternalLog::API, "Calling Python API");
         self.controllers
             .lock()
             .unwrap()
@@ -187,9 +172,7 @@ impl PluginAPI for PythonAPI {
                 .unwrap()
                 .get_client(),
         );
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Got api {:?}", st);
-        }
+        internal!(context, crate::logger::InternalLog::API, "Got api {:?}", st);
         st
     }
 
@@ -200,10 +183,9 @@ impl PluginAPI for PythonAPI {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn Navigator> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling Python API");
-        }
+        internal!(context, crate::logger::InternalLog::API, "Calling Python API");
         self.navigators
             .lock()
             .unwrap()
@@ -216,9 +198,7 @@ impl PluginAPI for PythonAPI {
                 initial_time
             )));
         let st = Box::new(self.navigators.lock().unwrap().last().unwrap().get_client());
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Got api {:?}", st);
-        }
+        internal!(context, crate::logger::InternalLog::API, "Got api {:?}", st);
         st
     }
 
@@ -229,10 +209,9 @@ impl PluginAPI for PythonAPI {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> Box<dyn Physics> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling Python API");
-        }
+        internal!(context, crate::logger::InternalLog::API, "Calling Python API");
         self.physics
             .lock()
             .unwrap()
@@ -245,9 +224,7 @@ impl PluginAPI for PythonAPI {
                 initial_time
             )));
         let st = Box::new(self.physics.lock().unwrap().last().unwrap().get_client());
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Got api {:?}", st);
-        }
+        internal!(context, crate::logger::InternalLog::API, "Got api {:?}", st);
         st
     }
 }

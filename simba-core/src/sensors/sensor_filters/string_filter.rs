@@ -12,6 +12,7 @@
 
 use simba_macros::config_derives;
 
+use crate::context::Context;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 
@@ -136,7 +137,7 @@ impl StringFilter {
     ///
     /// All accepted and rejected patterns are compiled as regular expressions.
     /// Invalid regular expressions will panic during construction.
-    pub fn from_config(config: &StringFilterConfig, _initial_time: f32) -> Self {
+    pub fn from_config(config: &StringFilterConfig, _initial_time: f32, _context: &Context) -> Self {
         Self {
             accepted: config
                 .accepted
@@ -197,7 +198,7 @@ mod tests {
             rejected: vec!["robot_.*".to_string()],
             priority_accept: true,
         };
-        let filter = StringFilter::from_config(&config, 0.0);
+        let filter = StringFilter::from_config(&config, 0.0, &Context::default());
         assert!(filter.match_exclusion(&["robot_1".to_string(), "robot_bad".to_string()]));
         assert!(!filter.match_exclusion(&["robot_good".to_string(), "robot_bad".to_string()]));
         assert!(!filter.match_exclusion(&["robot_bad".to_string(), "robot_good".to_string()]));
@@ -211,7 +212,7 @@ mod tests {
             rejected: vec!["robot_bad".to_string()],
             priority_accept: false,
         };
-        let filter = StringFilter::from_config(&config, 0.0);
+        let filter = StringFilter::from_config(&config, 0.0, &Context::default());
         assert!(!filter.match_exclusion(&["robot_1".to_string()]));
         assert!(filter.match_exclusion(&["robot_1".to_string(), "robot_bad".to_string()]));
         assert!(filter.match_exclusion(&["robot_bad".to_string(), "robot_1".to_string()]));
@@ -225,7 +226,7 @@ mod tests {
             rejected: vec!["robot_.*".to_string()],
             priority_accept: true,
         };
-        let filter = StringFilter::from_config(&config, 0.0);
+        let filter = StringFilter::from_config(&config, 0.0, &Context::default());
         assert!(filter.match_exclusion(&["robot_1".to_string()]));
         assert!(filter.match_exclusion(&["robot_bad".to_string()]));
         assert!(!filter.match_exclusion(&["landmark_1".to_string()]));

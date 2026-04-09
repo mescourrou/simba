@@ -5,24 +5,15 @@
 
 use std::{str::FromStr, sync::Arc};
 
-use log::debug;
 use pyo3::{prelude::*, types::PyDict};
 use serde_json::Value;
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    errors::SimbaResult,
-    logger::is_enabled,
-    networking::service::HasService,
-    node::Node,
-    physics::{external_physics::ExternalPhysicsRecord, robot_models::Command},
-    pywrappers::{CommandWrapper, NodeWrapper, StateWrapper},
-    recordable::Recordable,
-    state_estimators::State,
-    utils::python::{call_py_method, call_py_method_void},
+    context::Context, errors::SimbaResult, internal, networking::channels::internal, node::Node, physics::{external_physics::ExternalPhysicsRecord, robot_models::Command}, pywrappers::{CommandWrapper, NodeWrapper, StateWrapper}, recordable::Recordable, state_estimators::State, utils::python::{call_py_method, call_py_method_void}
 };
 
-use super::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
+use super::{Physics, PhysicsRecord};
 
 #[derive(Debug, Clone)]
 /// Async simulator-side physics adapter communicating with Python through RFC channels.
@@ -37,44 +28,32 @@ pub struct PythonPhysicAsyncClient {
 }
 
 impl Physics for PythonPhysicAsyncClient {
-    fn apply_command(&mut self, command: &Command, time: f32) {
+    fn apply_command(&mut self, command: &Command, time: f32, _context: &Context) {
         self.apply_command.call((command.clone(), time)).unwrap()
     }
 
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
-        let pynode = NodeWrapper::from_rust(node);
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
+        let pynode = NodeWrapper::from_rust(node, context.clone());
         self.post_init.call(pynode).unwrap()
     }
 
-    fn state(&self, _time: f32) -> State {
+    fn state(&self, _time: f32, _context: &Context) -> State {
         self.last_state.clone()
     }
 
-    fn update_state(&mut self, time: f32) {
+    fn update_state(&mut self, time: f32, _context: &Context) {
         self.update_state.call(time).unwrap();
         self.last_state = self.state.call(time).unwrap();
     }
 
-    fn next_time_step(&self) -> Option<f32> {
+    fn next_time_step(&self, _context: &Context) -> Option<f32> {
         self.next_time_step.call(()).unwrap()
     }
 }
 
 impl Recordable<PhysicsRecord> for PythonPhysicAsyncClient {
-    fn record(&self) -> PhysicsRecord {
+    fn record(&self, _context: &Context) -> PhysicsRecord {
         self.record.call(()).unwrap()
-    }
-}
-
-impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysicAsyncClient {
-    fn handle_service_requests(
-        &mut self,
-        _req: GetRealStateReq,
-        time: f32,
-    ) -> Result<GetRealStateResp, String> {
-        Ok(GetRealStateResp {
-            state: self.state(time).clone(),
-        })
     }
 }
 
@@ -94,12 +73,6 @@ pub struct PythonPhysics {
 impl PythonPhysics {
     /// Creates a new Python physics bridge from a Python model instance.
     pub fn new(py_model: Py<PyAny>) -> PythonPhysics {
-        if is_enabled(crate::logger::InternalLog::API) {
-            Python::attach(|py| {
-                debug!("Model got: {}", py_model.bind(py).dir().unwrap());
-            });
-        }
-
         let (apply_command_client, apply_command_host) = rfc::make_pair();
         let (post_init_client, post_init_host) = rfc::make_pair();
         let (state_client, state_host) = rfc::make_pair();
@@ -135,37 +108,37 @@ impl PythonPhysics {
     }
 
     /// Processes pending remote calls and dispatches them to Python methods.
-    pub fn check_requests(&mut self) {
+    pub fn check_requests(&mut self, context: &Context) {
         self.apply_command
             .clone()
-            .try_recv_closure_mut(|(command, time)| self.apply_command(&command, time));
+            .try_recv_closure_mut(|(command, time)| self.apply_command(&command, time, context));
         self.post_init
             .clone()
-            .try_recv_closure_mut(|node| self.post_init(node));
+            .try_recv_closure_mut(|node| self.post_init(node, context));
         self.state
             .clone()
-            .try_recv_closure_mut(|time| self.state(time));
+            .try_recv_closure_mut(|time| self.state(time, context));
         self.update_state
             .clone()
-            .try_recv_closure_mut(|time| self.update_state(time));
-        self.record.try_recv_closure(|()| self.record());
+            .try_recv_closure_mut(|time| self.update_state(time, context));
+        self.record.try_recv_closure(|()| self.record(context));
         self.next_time_step
             .clone()
-            .try_recv_closure(|()| self.next_time_step());
+            .try_recv_closure(|()| self.next_time_step(context));
     }
 
-    fn post_init(&mut self, node: NodeWrapper) -> SimbaResult<()> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of post_init");
-        }
+    fn post_init(&mut self, node: NodeWrapper, context: &Context) -> SimbaResult<()> {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of post_init"
+        );
         call_py_method_void!(self.model, "post_init", (node,));
         Ok(())
     }
 
-    fn apply_command(&mut self, command: &Command, time: f32) {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of apply_command");
-        }
+    fn apply_command(&mut self, command: &Command, time: f32, context: &Context) {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of apply_command"
+        );
         call_py_method_void!(
             self.model,
             "apply_command",
@@ -174,26 +147,26 @@ impl PythonPhysics {
         );
     }
 
-    fn update_state(&mut self, time: f32) {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of update_state");
-        }
+    fn update_state(&mut self, time: f32, context: &Context) {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of update_state"
+        );
         call_py_method_void!(self.model, "update_state", (time,));
     }
 
-    fn state(&mut self, time: f32) -> State {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of state");
-        }
+    fn state(&mut self, time: f32, context: &Context) -> State {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of state"
+        );
         // let robot_record = robot.record();
         let state = call_py_method!(self.model, "state", StateWrapper, (time,));
         state.to_rust()
     }
 
-    fn record(&self) -> PhysicsRecord {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of record");
-        }
+    fn record(&self, context: &Context) -> PhysicsRecord {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of record"
+        );
         let record_str: String = call_py_method!(self.model, "record", String,);
         let record = ExternalPhysicsRecord {
             record: Value::from_str(&record_str).expect(
@@ -205,10 +178,10 @@ impl PythonPhysics {
         PhysicsRecord::External(record)
     }
 
-    fn next_time_step(&self) -> Option<f32> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of next_time_step");
-        }
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
+        internal!(context, crate::logger::InternalLog::API,
+            "Calling python implementation of next_time_step"
+        );
         call_py_method!(self.model, "next_time_step", Option<f32>,)
     }
 }

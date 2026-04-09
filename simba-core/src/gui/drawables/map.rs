@@ -1,9 +1,7 @@
 use egui::{Color32, Rect, Shape, Stroke, Vec2};
 
 use crate::{
-    environment::{self, EnvironmentConfig, oriented_landmark::OrientedLandmark},
-    gui::app::PainterInfo,
-    simulator::SimulatorConfig,
+    context::Context, environment::{self, EnvironmentConfig, oriented_landmark::OrientedLandmark}, gui::app::PainterInfo, info, simulator::SimulatorConfig
 };
 
 pub struct Map {
@@ -23,7 +21,7 @@ impl Default for Map {
 }
 
 impl Map {
-    pub fn init(environment_config: &EnvironmentConfig, sim_config: &SimulatorConfig) -> Self {
+    pub fn init(environment_config: &EnvironmentConfig, sim_config: &SimulatorConfig, context: &Context) -> Self {
         let path = &environment_config.map_path;
         let landmarks = if let Some(path) = path {
             environment::Map::load_from_path(&sim_config.base_path.join(path))
@@ -32,7 +30,7 @@ impl Map {
         } else {
             Vec::new()
         };
-        log::info!("Loaded map with {} landmarks", landmarks.len());
+        info!(context, "Loaded map with {} landmarks", landmarks.len());
         Self {
             color: Color32::RED,
             landmarks,

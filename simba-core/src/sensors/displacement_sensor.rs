@@ -13,10 +13,11 @@ use super::{Sensor, SensorObservation, SensorRecord};
 use crate::config::NumberConfig;
 use crate::constants::TIME_ROUND;
 
+use crate::context::Context;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::fault_models::additive::{AdditiveFault, AdditiveFaultConfig};
@@ -32,7 +33,6 @@ use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
-use log::debug;
 use nalgebra::{Matrix3, Vector2};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
@@ -118,10 +118,11 @@ impl DisplacementSensorFaultModelType {
         &mut self,
         node: &mut crate::node::Node,
         initial_time: f32,
+        context: &Context,
     ) -> crate::errors::SimbaResult<()> {
         match self {
-            Self::Python(f) => f.post_init(node, initial_time),
-            Self::External(f) => f.post_init(node, initial_time),
+            Self::Python(f) => f.post_init(node, initial_time, context),
+            Self::External(f) => f.post_init(node, initial_time, context),
             Self::AdditivePreDisplacement(_) | Self::AdditivePostDisplacement(_) => Ok(()),
         }
     }
@@ -171,10 +172,11 @@ impl DisplacementSensorFilterType {
         &mut self,
         node: &mut crate::node::Node,
         initial_time: f32,
+        context: &Context,
     ) -> crate::errors::SimbaResult<()> {
         match self {
-            Self::Python(f) => f.post_init(node, initial_time),
-            Self::External(f) => f.post_init(node, initial_time),
+            Self::Python(f) => f.post_init(node, initial_time, context),
+            Self::External(f) => f.post_init(node, initial_time, context),
             Self::Range(_) => Ok(()),
         }
     }
@@ -335,7 +337,7 @@ pub struct DisplacementObservation {
 }
 
 impl Recordable<DisplacementObservationRecord> for DisplacementObservation {
-    fn record(&self) -> DisplacementObservationRecord {
+    fn record(&self, _context: &Context) -> DisplacementObservationRecord {
         DisplacementObservationRecord {
             translation: self.translation,
             rotation: self.rotation,
@@ -388,18 +390,19 @@ impl DisplacementSensor {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
         initial_state: &State,
+        context: &Context,
     ) -> SimbaResult<Self> {
         let mut fault_models = Vec::new();
         for fault_config in &config.faults {
             fault_models.push(match fault_config {
                 DisplacementSensorFaultModelConfig::AdditivePreDisplacement(cfg) => {
                     DisplacementSensorFaultModelType::AdditivePreDisplacement(
-                        AdditiveFault::from_config(cfg, va_factory, initial_time),
+                        AdditiveFault::from_config(cfg, va_factory, initial_time, context),
                     )
                 }
                 DisplacementSensorFaultModelConfig::AdditivePostDisplacement(cfg) => {
                     DisplacementSensorFaultModelType::AdditivePostDisplacement(
-                        AdditiveFault::from_config(cfg, va_factory, initial_time),
+                        AdditiveFault::from_config(cfg, va_factory, initial_time, context),
                     )
                 }
                 DisplacementSensorFaultModelConfig::Python(cfg) => {
@@ -407,6 +410,7 @@ impl DisplacementSensor {
                         cfg,
                         global_config,
                         initial_time,
+                        context,
                     )?)
                 }
                 DisplacementSensorFaultModelConfig::External(cfg) => {
@@ -416,6 +420,7 @@ impl DisplacementSensor {
                         global_config,
                         va_factory,
                         initial_time,
+                        context,
                     )?)
                 }
             });
@@ -425,13 +430,14 @@ impl DisplacementSensor {
         for filter_config in &config.filters {
             filters.push(match &filter_config {
                 DisplacementSensorFilterConfig::Range(cfg) => {
-                    DisplacementSensorFilterType::Range(RangeFilter::from_config(cfg, initial_time))
+                    DisplacementSensorFilterType::Range(RangeFilter::from_config(cfg, initial_time, context))
                 }
                 DisplacementSensorFilterConfig::Python(cfg) => {
                     DisplacementSensorFilterType::Python(PythonFilter::from_config(
                         cfg,
                         global_config,
                         initial_time,
+                        context,
                     )?)
                 }
                 DisplacementSensorFilterConfig::External(cfg) => {
@@ -441,6 +447,7 @@ impl DisplacementSensor {
                         global_config,
                         va_factory,
                         initial_time,
+                        context,
                     )?)
                 }
             });
@@ -464,24 +471,24 @@ impl DisplacementSensor {
 use crate::node::Node;
 
 impl Sensor for DisplacementSensor {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
+    fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
         self.last_state = node
             .physics()
             .expect("Node with Speed sensor should have Physics")
             .read()
             .unwrap()
-            .state(initial_time)
+            .state(initial_time, context)
             .clone();
         for filter in self.filters.iter_mut() {
-            filter.post_init(node, initial_time)?;
+            filter.post_init(node, initial_time, context)?;
         }
         for fault_model in self.faults.iter_mut() {
-            fault_model.post_init(node, initial_time)?;
+            fault_model.post_init(node, initial_time, context)?;
         }
         Ok(())
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
+    fn get_observations(&mut self, node: &mut Node, time: f32, context: &Context) -> Vec<SensorObservation> {
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
         {
@@ -491,7 +498,7 @@ impl Sensor for DisplacementSensor {
             .physics()
             .expect("Node with Displacement sensor should have Physics");
         let physic = arc_physic.read().unwrap();
-        let state = physic.state(time);
+        let state = physic.state(time, context);
 
         let (tx, ty, r) = if self.lie_movement {
             todo!("Lie movement not implemented yet for DisplacementSensor");
@@ -532,8 +539,8 @@ impl Sensor for DisplacementSensor {
         for filter in self.filters.iter() {
             if let Some(o) = keep_observation {
                 keep_observation = match filter {
-                    DisplacementSensorFilterType::External(f) => f.filter(time, o, &state, None),
-                    DisplacementSensorFilterType::Python(f) => f.filter(time, o, &state, None),
+                    DisplacementSensorFilterType::External(f) => f.filter(time, o, &state, None, context),
+                    DisplacementSensorFilterType::Python(f) => f.filter(time, o, &state, None, context),
                     DisplacementSensorFilterType::Range(f) => {
                         if let SensorObservation::Displacement(obs) = o {
                             if f.match_exclusion(&DisplacementSensorVariablesFilter::mapped_values(
@@ -575,6 +582,7 @@ impl Sensor for DisplacementSensor {
                         &mut observation_list,
                         SensorObservation::Displacement(DisplacementObservation::default()),
                         node.environment(),
+                        context,
                     ),
                     DisplacementSensorFaultModelType::External(f) => f.add_faults(
                         time,
@@ -582,6 +590,7 @@ impl Sensor for DisplacementSensor {
                         &mut observation_list,
                         SensorObservation::Displacement(DisplacementObservation::default()),
                         node.environment(),
+                        context,
                     ),
                     DisplacementSensorFaultModelType::AdditivePreDisplacement(f) => {
                         for obs in observation_list.iter_mut() {
@@ -616,6 +625,7 @@ impl Sensor for DisplacementSensor {
                                             }
                                         }
                                     }),
+                                    context,
                                 );
                                 if let Some(new_x) =
                                     new_values.get(&DisplacementSensorVariablesFaults::X)
@@ -704,6 +714,7 @@ impl Sensor for DisplacementSensor {
                                             }
                                         }
                                     }),
+                                    context,
                                 );
                                 if let Some(new_x) =
                                     new_values.get(&DisplacementSensorVariablesFaults::X)
@@ -743,8 +754,10 @@ impl Sensor for DisplacementSensor {
                     }
                 }
             }
-        } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-            debug!("Displacement observation was filtered out");
+        } else {
+            internal!(context, crate::logger::InternalLog::SensorManagerDetailed,
+                "Displacement observation was filtered out"
+            );
         }
 
         if let Some(p) = self.activation_time.as_mut() {
@@ -765,10 +778,10 @@ impl Sensor for DisplacementSensor {
 }
 
 impl Recordable<SensorRecord> for DisplacementSensor {
-    fn record(&self) -> SensorRecord {
+    fn record(&self, context: &Context) -> SensorRecord {
         SensorRecord::DisplacementSensor(DisplacementSensorRecord {
             last_time: self.last_time,
-            last_state: self.last_state.record(),
+            last_state: self.last_state.record(context),
             lie_movement: self.lie_movement,
         })
     }

@@ -11,11 +11,10 @@ use simba_macros::config_derives;
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use crate::{
-    physics::robot_models::{
+    context::Context, physics::robot_models::{
         holonomic::{Holonomic, HolonomicCommand, HolonomicConfig},
         unicycle::{Unicycle, UnicycleCommand, UnicycleConfig},
-    },
-    state_estimators::State,
+    }, state_estimators::State
 };
 
 pub mod holonomic;
@@ -136,7 +135,7 @@ impl UIComponent for RobotModelConfig {
 /// Trait implemented by all runtime robot kinematic models.
 pub trait RobotModel: std::fmt::Debug + std::marker::Send + std::marker::Sync {
     /// Updates the mutable robot state using the provided command and elapsed time.
-    fn update_state(&mut self, previous_state: &mut State, command: &Command, delta_time: f32);
+    fn update_state(&mut self, previous_state: &mut State, command: &Command, delta_time: f32, context: &Context);
 
     /// Returns the neutral/default command for this model.
     fn default_command(&self) -> Command;

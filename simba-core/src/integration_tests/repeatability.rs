@@ -61,5 +61,85 @@ macro_rules! replication_test {
     };
 }
 
+macro_rules! threading_replication_test {
+    ($config:ident) => {
+        #[test]
+        fn $config() {
+            let nb_threads = [0, 1];
+            let nb_threads_len = nb_threads.len();
+            let nb_replications = 10;
+
+            let mut results: Vec<Vec<Record>> = Vec::new();
+
+            for j in 0..nb_replications {
+                for (i, nb_thread) in nb_threads.into_iter().enumerate() {
+                    print!("Run {}/{}: {} threads ... ", j*nb_threads_len + i + 1, nb_thread, nb_threads_len * nb_replications);
+                    let mut simulator_config = SimulatorConfig::load_from_path(
+                        Path::new(format!("test_config/{}.yaml", stringify!($config)).as_str()),
+                    ).map_err(|e| {
+                        println!("Error while loading config: {}", e.detailed_error());
+                        e
+                    })
+                    .unwrap();
+                    simulator_config.optimization.threads = nb_thread;
+                    let mut simulator = Simulator::from_config(
+                        &simulator_config,
+                        None,
+                    ).map_err(|e| {
+                        println!("Error while creating simulator: {}", e.detailed_error());
+                        e
+                    })
+                    .unwrap();
+    
+                    simulator.run().expect("Error while running simulation");
+    
+                    results.push(simulator.get_records(true));
+                    println!("OK");
+                }
+            }
+
+            let reference_result = &results[0];
+            assert!(!reference_result.is_empty(), "No result recorded !");
+            println!(
+                "Reference last time: {}",
+                reference_result.last().expect("No last record found").time
+            );
+            for (i, result) in results.iter().skip(1).enumerate() {
+                println!(
+                    "Result {} last time: {}",
+                    i + 2,
+                    result.last().expect("No last record found").time
+                );
+                assert_eq!(
+                    result.len(),
+                    reference_result.len(),
+                    "Different number of recorded entries ! (run {})",
+                    i + 2
+                );
+                for (j, ref_result) in reference_result.iter().enumerate() {
+                    let result_as_str = format!("{:?}", result[j]);
+                    let reference_result_as_str = format!("{:?}", ref_result);
+                    assert_eq!(
+                        result_as_str,
+                        reference_result_as_str,
+                        "{result_as_str} != {reference_result_as_str} (run {})",
+                        i + 2
+                    );
+                }
+            }
+        }
+    };
+}
+
 replication_test!(config);
 replication_test!(scenario);
+
+
+#[cfg(not(feature = "monothreaded"))]
+mod threading {
+    use super::*;
+    use crate::simulator::SimulatorConfig;
+
+    threading_replication_test!(config);
+    threading_replication_test!(scenario);
+}

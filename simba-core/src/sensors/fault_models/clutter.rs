@@ -19,14 +19,14 @@ use crate::gui::{
     UIComponent,
     utils::{enum_combobox, text_singleline_with_apply},
 };
-use crate::utils::{
+use crate::{context::Context, utils::{
     SharedMutex,
     determinist_random_variable::{
         DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
     },
     distributions::{poisson::PoissonRandomVariableConfig, uniform::UniformRandomVariableConfig},
     enum_tools::EnumVariables,
-};
+}};
 
 /// Configuration of the clutter fault model.
 ///
@@ -202,6 +202,7 @@ impl<SV: EnumVariables> ClutterFault<SV> {
         config: &ClutterFaultConfig<SV>,
         va_factory: &DeterministRandomVariableFactory,
         _initial_time: f32,
+        _context: &Context,
     ) -> Self {
         let distributions = Arc::new(Mutex::new(
             config
@@ -249,6 +250,7 @@ impl<SV: EnumVariables> ClutterFault<SV> {
         &mut self,
         seed: f32,
         seed_increment: f32,
+        _context: &Context,
     ) -> Vec<(String, HashMap<SV, f32>)> {
         let mut seed = seed;
 

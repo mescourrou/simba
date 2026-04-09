@@ -9,15 +9,12 @@ use std::{fmt::Debug, sync::Arc};
 use simba_macros::config_derives;
 
 use crate::{
-    errors::SimbaResult,
-    physics::{
+    context::Context, errors::SimbaResult, physics::{
         fault_models::additive_robot_centered::{
             AdditiveRobotCenteredPhysicsFault, AdditiveRobotCenteredPhysicsFaultConfig,
         },
         robot_models::RobotModelConfig,
-    },
-    state_estimators::State,
-    utils::determinist_random_variable::DeterministRandomVariableFactory,
+    }, state_estimators::State, utils::determinist_random_variable::DeterministRandomVariableFactory
 };
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
@@ -178,10 +175,11 @@ pub fn make_physics_fault_model_from_config(
 /// Trait implemented by all physics fault models.
 pub trait PhysicsFaultModel: Debug + Sync + Send {
     /// Optional initialization hook called once before simulation steps.
-    fn post_init(&mut self, _node: &mut crate::node::Node) -> SimbaResult<()> {
+    #[allow(unused_variables)]
+    fn post_init(&mut self, _node: &mut crate::node::Node, context: &Context) -> SimbaResult<()> {
         Ok(())
     }
 
     /// Applies physics faults to the mutable state at the provided simulation time.
-    fn add_faults(&self, time: f32, state: &mut State);
+    fn add_faults(&self, time: f32, state: &mut State, context: &Context);
 }

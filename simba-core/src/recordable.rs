@@ -3,6 +3,8 @@ The Recordable module defines the [`Recordable`] trait which provides method
 to save the state of a struct to be analysed afterward (or during with GUI).
 */
 
+use crate::context::Context;
+
 /// Trait providing save state method.
 ///
 /// The generic `RecordType` is the Record which is produced.
@@ -14,5 +16,5 @@ to save the state of a struct to be analysed afterward (or during with GUI).
 /// analysis.
 pub trait Recordable<RecordType> {
     /// Generate the current state Record.
-    fn record(&self) -> RecordType;
+    fn record(&self, context: &Context) -> RecordType;
 }

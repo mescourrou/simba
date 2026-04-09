@@ -13,11 +13,7 @@ pub mod python_controller;
 pub mod pybinds;
 
 use crate::{
-    errors::SimbaResult,
-    networking::network::Network,
-    physics::{PhysicsConfig, robot_models::Command},
-    recordable::Recordable,
-    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
+    context::Context, errors::SimbaResult, networking::network::Network, physics::{PhysicsConfig, robot_models::Command}, recordable::Recordable, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory}
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -190,7 +186,7 @@ pub trait Controller:
 {
     /// Performs optional one-time initialization when the node starts, before entering simulation loop.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -203,13 +199,14 @@ pub trait Controller:
     ///
     /// ## Return
     /// Command to apply to the [`Physics`](crate::physics::Physics).
-    fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command;
+    fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32, context: &Context) -> Command;
 
     /// Executes per-step side effects before command computation.
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context);
 
     /// Optional: return the time of the next time step. Needed if using messages
-    fn next_time_step(&self) -> Option<f32> {
+    #[allow(unused_variables)]
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         None
     }
 }
@@ -232,10 +229,11 @@ pub fn make_controller_from_config(
     physics_config: &PhysicsConfig,
     network: &SharedRwLock<Network>,
     initial_time: f32,
+    context: &Context,
 ) -> SimbaResult<SharedRwLock<Box<dyn Controller>>> {
     Ok(Arc::new(RwLock::new(match config {
         ControllerConfig::PID(c) => {
-            Box::new(pid::PID::from_config(c, physics_config, initial_time)) as Box<dyn Controller>
+            Box::new(pid::PID::from_config(c, physics_config, initial_time, context)) as Box<dyn Controller>
         }
         ControllerConfig::External(c) => {
             Box::new(external_controller::ExternalController::from_config(
@@ -245,10 +243,11 @@ pub fn make_controller_from_config(
                 va_factory,
                 network,
                 initial_time,
+                context,
             )?) as Box<dyn Controller>
         }
         ControllerConfig::Python(c) => Box::new(
-            python_controller::PythonController::from_config(c, global_config, initial_time)
+            python_controller::PythonController::from_config(c, global_config, initial_time, context)
                 .unwrap(),
         ) as Box<dyn Controller>,
     })))

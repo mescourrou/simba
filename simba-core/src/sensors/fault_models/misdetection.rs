@@ -8,12 +8,12 @@ use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::utils::{
+use crate::{context::Context, utils::{
     determinist_random_variable::DeterministRandomVariableFactory,
     distributions::bernouilli::{
         BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable,
     },
-};
+}};
 
 /// Configuration of the misdetection fault model.
 ///
@@ -115,6 +115,7 @@ impl MisdetectionFault {
         config: &MisdetectionFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
         _initial_time: f32,
+        _context: &Context,
     ) -> Self {
         Self {
             apparition: DeterministBernouilliRandomVariable::from_config(
@@ -128,7 +129,7 @@ impl MisdetectionFault {
     /// Returns whether the observation is detected for the provided sampling seed.
     ///
     /// Returns `true` when the Bernoulli sample is `1`, and `false` otherwise.
-    pub fn detected(&mut self, seed: f32) -> bool {
+    pub fn detected(&mut self, seed: f32, _context: &Context) -> bool {
         self.apparition.generate(seed)[0] > 0. // = 1
     }
 
