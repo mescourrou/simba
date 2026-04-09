@@ -186,6 +186,7 @@ pub(crate) struct RunningParameters {
     end_time_step_syncs: Vec<Arc<Mutex<bool>>>,
     running_nodes_names: Vec<String>,
     nb_threads: usize,
+    last_sim_time: f32,
 }
 
 struct NodeSyncParams {
@@ -267,6 +268,7 @@ pub struct Simulator {
     scenario: SharedMutex<Scenario>,
     plugin_api: Option<Arc<dyn PluginAPI>>,
     environment: Arc<Environment>,
+    last_sim_time: f32,
 }
 
 impl Simulator {
@@ -307,6 +309,7 @@ impl Simulator {
             plugin_api: None,
             environment: Arc::new(Environment::default()),
             max_threads,
+            last_sim_time: -1.,
         }
     }
 
@@ -351,6 +354,7 @@ impl Simulator {
         self.environment.clear_meta_data();
         self.nodes = Vec::new();
         self.time_cv = Arc::new(TimeCv::new());
+        self.last_sim_time = -1.;
         let config = self.config.clone();
         self.common_time = Arc::new(RwLock::new(f32::INFINITY));
         self.max_threads = config.optimization.threads;
@@ -706,6 +710,7 @@ impl Simulator {
     pub fn run(&mut self) -> SimbaResult<()> {
         let mut running_parameters = RunningParameters {
             max_time: self.config.max_time,
+            last_sim_time: self.last_sim_time,
             nb_nodes: Arc::new(RwLock::new(0)),
             finishing_cv: Arc::new((Mutex::new(0usize), Condvar::new())),
             barrier: Arc::new(Barrier::new(1)),
@@ -740,7 +745,7 @@ impl Simulator {
                 THREAD_NAMES.write().unwrap().push(node.name());
                 drop(thread_ids);
             }
-            let mut previous_time = -1.;
+            let mut previous_time = self.last_sim_time;
             loop {
                 let mut time = f32::INFINITY;
                 // if *node_sync_params.time_cv.force_finish.lock().unwrap() {
@@ -990,6 +995,7 @@ impl Simulator {
         }
 
         let max_time = running_parameters.max_time;
+        let last_sim_time = running_parameters.last_sim_time;
         let time_cv = self.time_cv.clone();
         let async_api_server = self.async_api_server.clone();
         let common_time_clone = self.common_time.clone();
@@ -1008,6 +1014,7 @@ impl Simulator {
             let ret = Self::run_one_node(
                 node,
                 max_time,
+                last_sim_time,
                 async_api_server,
                 NodeSyncParams {
                     nb_nodes,
@@ -1315,6 +1322,7 @@ impl Simulator {
     fn run_one_node(
         mut node: Node,
         max_time: f32,
+        last_sim_time: f32,
         async_api_server: Option<SimulatorAsyncApiServer>,
         node_sync_params: NodeSyncParams,
     ) -> SimbaResult<Option<Node>> {
@@ -1332,7 +1340,7 @@ impl Simulator {
         thread_ids.push(thread::current().id());
         THREAD_NAMES.write().unwrap().push(node.name());
         drop(thread_ids);
-        let mut next_time = -1.;
+        let mut next_time = last_sim_time;
         node_sync_params.barrier.wait();
         node_sync_params.barrier.wait();
         loop {
@@ -1522,6 +1530,8 @@ impl Simulator {
 
     fn end_of_time_step_procedure(&mut self, node_states: &HashMap<String, Option<[f32; 2]>>, running_parameters: &mut RunningParameters) -> SimbaResult<()> {
         let current_time = *TIME.read().unwrap();
+        running_parameters.last_sim_time = current_time;
+        self.last_sim_time = current_time;
         if let Err(e) = self.process_records(Some(current_time)) {
             log::error!(
                 "Error in processing records at time {}: {}",
