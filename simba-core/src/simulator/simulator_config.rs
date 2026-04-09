@@ -37,8 +37,12 @@ pub struct OptimizationConfig {
     /// - If `0`, creates as many threads as there are nodes (+ the main thread).
     /// - If `1`, runs the simulation in a single thread (no parallelization), which disable synchronization
     ///   overhead but can be slower for heavy algorithms running on multiple nodes.
+    /// - If `n > 1`, creates a pool of `n` threads to run the simulation.
     /// 
-    /// For now, only `1` (no parallelization) or `0` (1 thread per node) are supported.
+    /// `0`, `1` and `n > 1` have different running mecanisms:
+    /// - With `0`, each node is run in a separate thread, and there are synchronization points where threads wait for each other.
+    /// - With `1`, all nodes are run sequentially in the main thread, the synchronization is done sequentially and there is no overhead.
+    /// - With `n > 1`, node steps are distributed in a pool of `n` threads, and the synchronization is done outside of the pool.
     /// 
     /// With the `monothreaded` Rust feature, only `1` (no parallelization) is supported (other values are ignored with a warning).
     pub threads: usize,
@@ -58,18 +62,7 @@ impl Check for OptimizationConfig {
     fn do_check(&self) -> Result<(), Vec<String>> {
         #[cfg(not(feature = "monothreaded"))]
         {
-            let mut errors = Vec::new();
-            if self.threads > 1 {
-                errors.push(format!(
-                    "Only 0 (1 thread per node) and 1 (no parallelization) are supported for now, got {}",
-                    self.threads
-                ));
-            }
-            if errors.is_empty() {
-                Ok(())
-            } else {
-                Err(errors)
-            }
+            Ok(())
         }
         #[cfg(feature = "monothreaded")]
         {
