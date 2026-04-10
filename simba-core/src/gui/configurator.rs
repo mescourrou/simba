@@ -23,7 +23,8 @@ impl Configurator {
         let current_config = match SimulatorConfig::load_from_path(Path::new(&config_path)) {
             Ok(config) => config,
             Err(e) => {
-                error!(context,
+                error!(
+                    context,
                     "Impossible to load config at path {}: {}",
                     config_path,
                     e.detailed_error()

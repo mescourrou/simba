@@ -143,7 +143,10 @@ impl Check for PIDConfig {
     fn do_check(&self) -> Result<(), Vec<String>> {
         let mut errs = Vec::new();
         if self.robot_model.is_none() {
-            warning!(Context::default(), "No model given to PID controller, will use physics' one or default");
+            warning!(
+                Context::default(),
+                "No model given to PID controller, will use physics' one or default"
+            );
             return Ok(());
         }
         let canonical_config = Self::default_from_model(self.robot_model.as_ref().unwrap());
@@ -517,14 +520,18 @@ impl PID {
                 config_clone.robot_model = Some(model.clone());
                 if config_clone.do_check().is_err() {
                     config_clone = PIDConfig::default_from_model(model);
-                    warning!(context,
+                    warning!(
+                        context,
                         "No model given in PID Config and gains given mismatch physics model ({}) => resetting gains",
                         model
                     );
                 }
             } else {
                 config_clone = PIDConfig::default();
-                warning!(context, "No model given in PID Config... using default one and resetting gains");
+                warning!(
+                    context,
+                    "No model given in PID Config... using default one and resetting gains"
+                );
             }
         }
         PID {
@@ -555,7 +562,13 @@ use crate::controllers::ControllerError;
 use crate::node::Node;
 
 impl Controller for PID {
-    fn make_command(&mut self, _robot: &mut Node, error: &ControllerError, time: f32, _context: &Context) -> Command {
+    fn make_command(
+        &mut self,
+        _robot: &mut Node,
+        error: &ControllerError,
+        time: f32,
+        _context: &Context,
+    ) -> Command {
         let dt = time - self.last_command_time;
         assert!(
             dt > 0.,

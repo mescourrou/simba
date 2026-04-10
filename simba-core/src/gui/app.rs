@@ -9,11 +9,22 @@ use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AUTHORS, VERSION, api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner}, constants::{TIME_ROUND, TIME_ROUND_DECIMALS}, context::Context, error, errors::{SimbaError, SimbaErrorTypes}, gui::{
+    AUTHORS, VERSION,
+    api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
+    constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
+    context::Context,
+    error,
+    errors::{SimbaError, SimbaErrorTypes},
+    gui::{
         UIComponent,
         drawables::popup::Popup,
         panels::{broker::BrokerPanel, virtual_nodes::VirtualNodesPanel},
-    }, info, node::node_factory::NodeRecord, plugin_api::PluginAPI, simulator::{Record, SimbaBroker, Simulator, SimulatorConfig}, utils::{SharedMutex, SharedRoLock, maths::round_precision, numbers::OrderedF32}
+    },
+    info,
+    node::node_factory::NodeRecord,
+    plugin_api::PluginAPI,
+    simulator::{Record, SimbaBroker, Simulator, SimulatorConfig},
+    utils::{SharedMutex, SharedRoLock, maths::round_precision, numbers::OrderedF32},
 };
 
 use super::{
@@ -142,7 +153,13 @@ impl Default for PrivateParams {
     fn default() -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
-        let context = server.lock().unwrap().get_simulator().lock().unwrap().get_context();
+        let context = server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .get_context();
         server.lock().unwrap().run(None);
         Self {
             server,
@@ -195,7 +212,13 @@ impl Default for SimbaApp {
     fn default() -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
-        let context = server.lock().unwrap().get_simulator().lock().unwrap().get_context();
+        let context = server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .get_context();
         server.lock().unwrap().run(None);
         Self {
             config_path: "".to_owned(),
@@ -245,7 +268,13 @@ impl SimbaApp {
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
-        let context = server.lock().unwrap().get_simulator().lock().unwrap().get_context();
+        let context = server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .get_context();
         server.lock().unwrap().run(plugin_api.clone());
         let mut n = Self {
             p: PrivateParams {
@@ -320,7 +349,11 @@ impl SimbaApp {
                         });
                 }
                 Err(e) => {
-                    error!(self.p.context, "Error loading config: {}", e.detailed_error());
+                    error!(
+                        self.p.context,
+                        "Error loading config: {}",
+                        e.detailed_error()
+                    );
                 }
             }
             if load_results {
@@ -442,7 +475,10 @@ impl SimbaApp {
                         drawables::robot::Robot::init(new_config, config),
                     );
                 } else {
-                    error!(self.p.context, "Received record for unknown robot {}", n.name);
+                    error!(
+                        self.p.context,
+                        "Received record for unknown robot {}", n.name
+                    );
                 }
             }
         }

@@ -121,7 +121,11 @@ impl Trajectory {
         while (projected_point - pt2).norm() < 1e-6 {
             if self.current_segment + 1 == self.point_list.nrows() {
                 if !self.do_loop {
-                    internal!(context, crate::logger::InternalLog::NavigatorDetailed, "No loop so give last point");
+                    internal!(
+                        context,
+                        crate::logger::InternalLog::NavigatorDetailed,
+                        "No loop so give last point"
+                    );
                     return ((pt1, pt2), pt2, true);
                 } else {
                     self.current_segment = 0;

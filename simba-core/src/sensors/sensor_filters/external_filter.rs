@@ -67,7 +67,12 @@ impl ExternalFilter {
         initial_time: f32,
         context: &Context,
     ) -> SimbaResult<Self> {
-        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
         Ok(Self {
             filter: plugin_api
                 .as_ref()
@@ -77,7 +82,13 @@ impl ExternalFilter {
                         "Plugin API not set!".to_string(),
                     )
                 })?
-                .get_sensor_filter(&config.config, global_config, va_factory, initial_time, context),
+                .get_sensor_filter(
+                    &config.config,
+                    global_config,
+                    va_factory,
+                    initial_time,
+                    context,
+                ),
         })
     }
 }
@@ -89,7 +100,12 @@ impl std::fmt::Debug for ExternalFilter {
 }
 
 impl SensorFilter for ExternalFilter {
-    fn post_init(&mut self, node: &mut crate::node::Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         self.filter.post_init(node, initial_time, context)
     }
 

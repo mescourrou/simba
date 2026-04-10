@@ -15,17 +15,20 @@ use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::enum_combobox};
-use crate::{context::Context, utils::{
-    SharedMutex,
-    determinist_random_variable::{
-        DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
+use crate::{
+    context::Context,
+    utils::{
+        SharedMutex,
+        determinist_random_variable::{
+            DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
+        },
+        distributions::{
+            bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
+            normal::NormalRandomVariableConfig,
+        },
+        enum_tools::EnumVariables,
     },
-    distributions::{
-        bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
-        normal::NormalRandomVariableConfig,
-    },
-    enum_tools::EnumVariables,
-}};
+};
 
 /// Configuration for the additive fault model.
 ///

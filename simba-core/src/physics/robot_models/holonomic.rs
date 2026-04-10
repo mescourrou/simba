@@ -9,11 +9,13 @@ use nalgebra::SMatrix;
 use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
+use crate::{
+    context::Context,
+    physics::robot_models::{Command, RobotModel},
+    state_estimators::State,
+};
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
-use crate::{
-    context::Context, physics::robot_models::{Command, RobotModel}, state_estimators::State
-};
 
 /// Command struct, to control the robot using velocity in both directions.
 ///

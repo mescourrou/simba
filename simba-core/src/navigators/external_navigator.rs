@@ -5,12 +5,11 @@ To make your own external navigator strategy, the simulator should
 be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external navigator strategy is made using the
-[`PluginAPI::get_navigator`] function.
+[`crate::plugin_api::PluginAPI::get_navigator`] function.
 */
 
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
-use std::sync::Arc;
 
 use crate::constants::TIME_ROUND;
 use crate::context::Context;
@@ -19,16 +18,12 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::internal;
-use crate::networking::network::Network;
+use crate::node::node_factory::FromConfigArguments;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
-use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
-use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
-};
 
 use super::{Navigator, NavigatorRecord};
 use serde_derive::{Deserialize, Serialize};
@@ -70,27 +65,24 @@ pub struct ExternalNavigator {
 impl ExternalNavigator {
     /// Creates a new [`ExternalNavigator`] from the given config.
     ///
-    /// <div class="warning">The `plugin_api` is required here !</div>
+    /// <div class="warning">The `plugin_api` in `from_config_params` is required here !</div>
     ///
     ///  ## Arguments
     /// * `config` -- Scenario config of the External navigator.
-    /// * `plugin_api` -- Required [`PluginAPI`] implementation.
-    /// * `global_config` -- Simulator config.
-    /// * `va_factory` -- Factory for Determinists random variables
-    /// * `network` -- Shared reference to the network, for navigators using messages.
-    /// * `initial_time` -- Initial node time.
+    /// * `from_config_params` -- Parameters required to create the navigator from config, including the required `plugin_api`.
     pub fn from_config(
         config: &ExternalNavigatorConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        va_factory: &Arc<DeterministRandomVariableFactory>,
-        network: &SharedRwLock<Network>,
-        initial_time: f32,
-        context: &Context,
+        from_config_params: &FromConfigArguments,
     ) -> SimbaResult<Self> {
-        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
+        internal!(
+            from_config_params.context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
         Ok(Self {
-            navigator: plugin_api
+            navigator: from_config_params
+                .plugin_api
                 .as_ref()
                 .ok_or_else(|| {
                     SimbaError::new(
@@ -100,11 +92,11 @@ impl ExternalNavigator {
                 })?
                 .get_navigator(
                     &config.config,
-                    global_config,
-                    va_factory,
-                    network,
-                    initial_time,
-                    context,
+                    from_config_params.global_config,
+                    from_config_params.va_factory,
+                    from_config_params.network,
+                    from_config_params.initial_time,
+                    from_config_params.context,
                 ),
         })
     }
@@ -121,7 +113,12 @@ impl Navigator for ExternalNavigator {
         self.navigator.post_init(node, context)
     }
 
-    fn compute_error(&mut self, robot: &mut Node, world_state: WorldState, context: &Context) -> ControllerError {
+    fn compute_error(
+        &mut self,
+        robot: &mut Node,
+        world_state: WorldState,
+        context: &Context,
+    ) -> ControllerError {
         self.navigator.compute_error(robot, world_state, context)
     }
 

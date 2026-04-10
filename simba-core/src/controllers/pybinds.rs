@@ -14,7 +14,15 @@ use serde_json::Value;
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    context::Context, controllers::external_controller::ExternalControllerRecord, errors::SimbaResult, internal, node::Node, physics::robot_models::Command, pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper}, recordable::Recordable, utils::python::{call_py_method, call_py_method_void}
+    context::Context,
+    controllers::external_controller::ExternalControllerRecord,
+    errors::SimbaResult,
+    internal,
+    node::Node,
+    physics::robot_models::Command,
+    pywrappers::{CommandWrapper, ControllerErrorWrapper, NodeWrapper},
+    recordable::Recordable,
+    utils::python::{call_py_method, call_py_method_void},
 };
 
 use super::{Controller, ControllerError, ControllerRecord};
@@ -35,7 +43,13 @@ impl Controller for PythonControllerAsyncClient {
         self.post_init.call(node_py).unwrap()
     }
 
-    fn make_command(&mut self, node: &mut Node, error: &ControllerError, time: f32, context: &Context) -> Command {
+    fn make_command(
+        &mut self,
+        node: &mut Node,
+        error: &ControllerError,
+        time: f32,
+        context: &Context,
+    ) -> Command {
         let node_py = NodeWrapper::from_rust(node, context.clone());
         self.make_command
             .call((node_py, error.clone(), time))
@@ -115,7 +129,9 @@ impl PythonController {
             .try_recv_closure_mut(|node| self.post_init(node, context));
         self.make_command
             .clone()
-            .try_recv_closure_mut(|(node, error, time)| self.make_command(node, &error, time, context));
+            .try_recv_closure_mut(|(node, error, time)| {
+                self.make_command(node, &error, time, context)
+            });
         self.record.try_recv_closure(|()| self.record(context));
         self.pre_loop_hook
             .clone()
@@ -126,13 +142,27 @@ impl PythonController {
     }
 
     fn post_init(&mut self, node: NodeWrapper, context: &Context) -> SimbaResult<()> {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of post_init");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of post_init"
+        );
         call_py_method_void!(self.model, "post_init", (node,));
         Ok(())
     }
 
-    fn make_command(&mut self, node: NodeWrapper, error: &ControllerError, time: f32, context: &Context) -> Command {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of make_command");
+    fn make_command(
+        &mut self,
+        node: NodeWrapper,
+        error: &ControllerError,
+        time: f32,
+        context: &Context,
+    ) -> Command {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of make_command"
+        );
         // let node_record = node.record();
         let result = call_py_method!(
             self.model,
@@ -146,7 +176,11 @@ impl PythonController {
     }
 
     fn record(&self, context: &Context) -> ControllerRecord {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of record");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of record"
+        );
         let record_str: String = call_py_method!(self.model, "record", String,);
         let record = ExternalControllerRecord {
             record: Value::from_str(&record_str).expect(
@@ -159,12 +193,20 @@ impl PythonController {
     }
 
     fn pre_loop_hook(&mut self, node: NodeWrapper, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of pre_loop_hook");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of pre_loop_hook"
+        );
         call_py_method_void!(self.model, "pre_loop_hook", node, time);
     }
 
     fn next_time_step(&self, context: &Context) -> Option<f32> {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of next_time_step");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of next_time_step"
+        );
         call_py_method!(self.model, "next_time_step", Option<f32>,)
     }
 }

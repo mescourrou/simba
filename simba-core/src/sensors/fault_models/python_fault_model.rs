@@ -10,10 +10,17 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 
 use crate::{
-    context::Context, environment::Environment, errors::SimbaResult, node::Node, pywrappers::{NodeWrapper, SensorObservationWrapper}, sensors::{SensorObservation, fault_models::fault_model::FaultModel}, simulator::SimulatorConfig, utils::{
+    context::Context,
+    environment::Environment,
+    errors::SimbaResult,
+    node::Node,
+    pywrappers::{NodeWrapper, SensorObservationWrapper},
+    sensors::{SensorObservation, fault_models::fault_model::FaultModel},
+    simulator::SimulatorConfig,
+    utils::{
         macros::python_class_config,
         python::{call_py_method, call_py_method_void, load_class_from_python_script},
-    }
+    },
 };
 
 python_class_config!(
@@ -44,14 +51,24 @@ impl PythonFaultModel {
         _initial_time: f32,
         context: &Context,
     ) -> SimbaResult<Self> {
-        let instance =
-            load_class_from_python_script(config, global_config, _initial_time, "Fault Model", context)?;
+        let instance = load_class_from_python_script(
+            config,
+            global_config,
+            _initial_time,
+            "Fault Model",
+            context,
+        )?;
         Ok(Self { instance })
     }
 }
 
 impl FaultModel for PythonFaultModel {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         let py_node = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.instance, "post_init", py_node, initial_time);
         Ok(())
@@ -64,7 +81,7 @@ impl FaultModel for PythonFaultModel {
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
         _environment: &Arc<Environment>,
-        context: &Context,
+        _context: &Context,
     ) {
         let py_obs_list: Vec<SensorObservationWrapper> = obs_list
             .iter()

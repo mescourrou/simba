@@ -7,9 +7,6 @@
 //! - [`InternalLog`] for fine-grained internal debug categories,
 //! - [`LoggerConfig`] to configure logging from simulator configuration,
 //! - helper functions to initialize and query internal log flags.
-
-use std::sync::RwLock;
-
 use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
@@ -20,8 +17,6 @@ use crate::{
     },
     simulator::SimulatorConfig,
 };
-
-static INTERNAL_LOG_LEVEL: RwLock<Vec<InternalLog>> = RwLock::new(Vec::new());
 
 /// Global logging level configuration.
 #[config_derives(tag_content)]

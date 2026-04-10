@@ -65,8 +65,11 @@ impl ExternalFault {
         initial_time: f32,
         context: &Context,
     ) -> SimbaResult<Self> {
-        internal!(context, crate::logger::InternalLog::API,
-            "Config given: {:?}", config
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
         );
         Ok(Self {
             fault: plugin_api
@@ -77,7 +80,13 @@ impl ExternalFault {
                         "Plugin API not set!".to_string(),
                     )
                 })?
-                .get_sensor_fault(&config.config, global_config, va_factory, initial_time, context),
+                .get_sensor_fault(
+                    &config.config,
+                    global_config,
+                    va_factory,
+                    initial_time,
+                    context,
+                ),
         })
     }
 }
@@ -102,7 +111,12 @@ impl FaultModel for ExternalFault {
             .add_faults(time, seed, obs_list, obs_type, environment, context);
     }
 
-    fn post_init(&mut self, node: &mut crate::node::Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         self.fault.post_init(node, initial_time, context)
     }
 }

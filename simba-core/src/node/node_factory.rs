@@ -4,7 +4,9 @@
 //! helpers to instantiate runtime nodes from simulator configuration.
 
 use std::{
-    collections::{BTreeMap, HashMap}, str::FromStr, sync::{Arc, RwLock}
+    collections::BTreeMap,
+    str::FromStr,
+    sync::{Arc, RwLock},
 };
 
 use config_checker::*;
@@ -16,13 +18,27 @@ use simba_macros::config_derives;
 use crate::gui::{UIComponent, utils::text_singleline_with_apply};
 
 use crate::{
-    context::Context, controllers::{self, ControllerConfig, ControllerRecord, pid}, environment::Environment, errors::{SimbaError, SimbaErrorTypes, SimbaResult}, internal, navigators::{self, NavigatorConfig, NavigatorRecord, go_to}, networking::{
+    context::Context,
+    controllers::{self, ControllerConfig, ControllerRecord, pid},
+    environment::Environment,
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    internal,
+    navigators::{self, NavigatorConfig, NavigatorRecord, go_to},
+    networking::{
         self,
         network::{Network, NetworkConfig},
-    }, node::{Node, NodeMetaData, NodeState}, physics::{self, PhysicsConfig, PhysicsRecord, internal_physics}, plugin_api::PluginAPI, sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord}, simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig, TimeCv}, state_estimators::{
+    },
+    node::{Node, NodeMetaData, NodeState},
+    physics::{self, PhysicsConfig, PhysicsRecord, internal_physics},
+    plugin_api::PluginAPI,
+    sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
+    simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig, TimeCv},
+    state_estimators::{
         self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord, State,
         StateEstimatorConfig, StateEstimatorRecord, perfect_estimator,
-    }, time_analysis::TimeAnalysisFactory, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory, read_only_lock::RoLock}
+    },
+    time_analysis::TimeAnalysisFactory,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 /// Type of node instantiated in the simulator.
@@ -821,8 +837,11 @@ impl NodeFactory {
         broker: &SharedRwLock<SimbaBroker>,
         context: &Context,
     ) -> SimbaResult<SimbaBrokerMultiClient> {
-        internal!(context, crate::logger::InternalLog::NetworkMessages,
-            "Setup global channels for node '{}'", node_name
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
+            "Setup global channels for node '{}'",
+            node_name
         );
         let mut broker_lock = broker.write().unwrap();
         broker_lock.add_channel(
@@ -853,7 +872,9 @@ impl NodeFactory {
                 .clone()
                 .join_str(networking::channels::internal::log::DEBUG),
         );
-        internal!(context, crate::logger::InternalLog::NetworkMessages,
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
             "Broker channels:\n- {}",
             broker_lock
                 .channel_list()
@@ -904,10 +925,15 @@ impl NodeFactory {
             node_name: &node_name,
             plugin_api: params.plugin_api,
             va_factory: params.va_factory,
+            context: &params.context,
         };
-        let physics = physics::make_physics_from_config(&config.physics, &from_config_args, &params.context)?;
-        let initial_state = physics.read().unwrap().state(params.initial_time, &params.context).clone();
-        let mut node = Node {
+        let physics = physics::make_physics_from_config(&config.physics, &from_config_args)?;
+        let initial_state = physics
+            .read()
+            .unwrap()
+            .state(params.initial_time, &params.context)
+            .clone();
+        let node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
                 name: node_name.clone(),
                 node_type,
@@ -919,39 +945,28 @@ impl NodeFactory {
                     NodeState::Created
                 },
                 position: {
-                    let pose = physics.read().unwrap().state(params.initial_time, &params.context).pose;
+                    let pose = physics
+                        .read()
+                        .unwrap()
+                        .state(params.initial_time, &params.context)
+                        .pose;
                     Some([pose.x, pose.y])
                 },
             })),
             navigator: Some(navigators::make_navigator_from_config(
                 &config.navigator,
-                params.plugin_api,
-                params.global_config,
-                params.va_factory,
-                &network,
-                params.initial_time,
-                &params.context,
+                &from_config_args,
             )?),
             controller: Some(controllers::make_controller_from_config(
                 &config.controller,
-                params.plugin_api,
-                params.global_config,
-                params.va_factory,
+                &from_config_args,
                 &config.physics,
-                &network,
-                params.initial_time,
-                &params.context,
             )?),
             physics: Some(physics),
             state_estimator: Some(Arc::new(RwLock::new(
                 state_estimators::make_state_estimator_from_config(
                     &config.state_estimator,
-                    params.plugin_api,
-                    params.global_config,
-                    params.va_factory,
-                    &network,
-                    params.initial_time,
-                    &params.context,
+                    &from_config_args,
                 )?,
             ))),
             sensor_manager: Some(Arc::new(RwLock::new(SensorManager::from_config(
@@ -989,12 +1004,7 @@ impl NodeFactory {
                     state_estimator: Arc::new(RwLock::new(
                         state_estimators::make_state_estimator_from_config(
                             &state_estimator_config.config,
-                            params.plugin_api,
-                            params.global_config,
-                            params.va_factory,
-                            &network,
-                            params.initial_time,
-                            &params.context,
+                            &from_config_args,
                         )?,
                     )),
                 })
@@ -1026,8 +1036,9 @@ impl NodeFactory {
             node_name: &node_name,
             plugin_api: params.plugin_api,
             va_factory: params.va_factory,
+            context: &params.context,
         };
-        let mut node = Node {
+        let node = Node {
             node_meta_data: Arc::new(RwLock::new(NodeMetaData {
                 name: node_name.clone(),
                 node_type,
@@ -1075,12 +1086,7 @@ impl NodeFactory {
                     state_estimator: Arc::new(RwLock::new(
                         state_estimators::make_state_estimator_from_config(
                             &state_estimator_config.config,
-                            params.plugin_api,
-                            params.global_config,
-                            params.va_factory,
-                            &network,
-                            params.initial_time,
-                            &params.context,
+                            &from_config_args,
                         )?,
                     )),
                 })
@@ -1127,6 +1133,8 @@ pub struct FromConfigArguments<'a> {
     pub network: &'a SharedRwLock<Network>,
     /// Initial simulation time.
     pub initial_time: f32,
+    /// Simulator context.
+    pub context: &'a Context,
 }
 
 #[cfg(test)]

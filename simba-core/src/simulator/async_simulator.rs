@@ -13,7 +13,13 @@ use pyo3::Python;
 use crate::{
     api::async_api::{
         AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner, PluginAsyncAPI,
-    }, context::Context, errors::SimbaResult, internal, plugin_api::PluginAPI, simulator::{Record, Simulator, SimulatorConfig}, utils::{SharedMutex, SharedRoLock, SharedRwLock}
+    },
+    context::Context,
+    errors::SimbaResult,
+    internal,
+    plugin_api::PluginAPI,
+    simulator::{Record, Simulator, SimulatorConfig},
+    utils::{SharedMutex, SharedRoLock, SharedRwLock},
 };
 
 /// High-level asynchronous simulator facade.
@@ -43,7 +49,13 @@ impl AsyncSimulator {
         Simulator::init_environment();
 
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
-        let context = server.lock().unwrap().get_simulator().lock().unwrap().get_context();
+        let context = server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .get_context();
         let api = server.lock().unwrap().get_api();
         let sim = Self {
             server,

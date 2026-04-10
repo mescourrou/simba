@@ -5,10 +5,8 @@ To make your own external controller strategy, the simulator should
 be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external controller strategy is made using the
-[`PluginAPI::get_controller`] function.
+[`crate::plugin_api::PluginAPI::get_controller`] function.
 */
-
-use std::sync::Arc;
 
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
@@ -19,16 +17,12 @@ use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::internal;
-use crate::networking::network::Network;
+use crate::node::node_factory::FromConfigArguments;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
-use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
-};
 
 use super::{Controller, ControllerError, ControllerRecord};
 use serde_derive::{Deserialize, Serialize};
@@ -69,25 +63,24 @@ pub struct ExternalController {
 impl ExternalController {
     /// Creates a new [`ExternalController`] from the given config.
     ///
-    /// <div class="warning">The `plugin_api` is required here !</div>
+    /// <div class="warning">The `plugin_api` in `from_config_params` is required here !</div>
     ///
     ///  ## Arguments
     /// * `config` -- Scenario config of the External controller.
-    /// * `plugin_api` -- Required [`PluginAPI`] implementation.
-    /// * `global_config` -- Simulator config.
-    /// * `_va_factory` -- Factory for Determinists random variables
+    /// * `from_config_params` -- Parameters required to create the controller from config, including the required `plugin_api`
     pub fn from_config(
         config: &ExternalControllerConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        va_factory: &Arc<DeterministRandomVariableFactory>,
-        network: &SharedRwLock<Network>,
-        initial_time: f32,
-        context: &Context,
+        from_config_params: &FromConfigArguments,
     ) -> SimbaResult<Self> {
-        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
+        internal!(
+            from_config_params.context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
         Ok(Self {
-            controller: plugin_api
+            controller: from_config_params
+                .plugin_api
                 .as_ref()
                 .ok_or_else(|| {
                     SimbaError::new(
@@ -97,11 +90,11 @@ impl ExternalController {
                 })?
                 .get_controller(
                     &config.config,
-                    global_config,
-                    va_factory,
-                    network,
-                    initial_time,
-                    context,
+                    from_config_params.global_config,
+                    from_config_params.va_factory,
+                    from_config_params.network,
+                    from_config_params.initial_time,
+                    from_config_params.context,
                 ),
         })
     }
@@ -118,7 +111,13 @@ impl Controller for ExternalController {
         self.controller.post_init(node, context)
     }
 
-    fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32, context: &Context) -> Command {
+    fn make_command(
+        &mut self,
+        robot: &mut Node,
+        error: &ControllerError,
+        time: f32,
+        context: &Context,
+    ) -> Command {
         self.controller.make_command(robot, error, time, context)
     }
 

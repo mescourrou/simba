@@ -19,14 +19,19 @@ use crate::gui::{
     UIComponent,
     utils::{enum_combobox, text_singleline_with_apply},
 };
-use crate::{context::Context, utils::{
-    SharedMutex,
-    determinist_random_variable::{
-        DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
+use crate::{
+    context::Context,
+    utils::{
+        SharedMutex,
+        determinist_random_variable::{
+            DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
+        },
+        distributions::{
+            poisson::PoissonRandomVariableConfig, uniform::UniformRandomVariableConfig,
+        },
+        enum_tools::EnumVariables,
     },
-    distributions::{poisson::PoissonRandomVariableConfig, uniform::UniformRandomVariableConfig},
-    enum_tools::EnumVariables,
-}};
+};
 
 /// Configuration of the clutter fault model.
 ///

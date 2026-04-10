@@ -160,7 +160,11 @@ impl<SV: EnumVariables> RangeFilter<SV> {
     /// * `config` - Filter configuration to instantiate.
     /// * `_initial_time` - Initial simulation time (currently unused).
     /// * `_context` - Shared simulation context (currently unused in this constructor).
-    pub fn from_config(config: &RangeFilterConfig<SV>, _initial_time: f32, _context: &Context) -> Self {
+    pub fn from_config(
+        config: &RangeFilterConfig<SV>,
+        _initial_time: f32,
+        _context: &Context,
+    ) -> Self {
         Self {
             config: config.clone(),
         }

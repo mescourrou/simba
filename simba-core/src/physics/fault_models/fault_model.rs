@@ -9,12 +9,16 @@ use std::{fmt::Debug, sync::Arc};
 use simba_macros::config_derives;
 
 use crate::{
-    context::Context, errors::SimbaResult, physics::{
+    context::Context,
+    errors::SimbaResult,
+    physics::{
         fault_models::additive_robot_centered::{
             AdditiveRobotCenteredPhysicsFault, AdditiveRobotCenteredPhysicsFaultConfig,
         },
         robot_models::RobotModelConfig,
-    }, state_estimators::State, utils::determinist_random_variable::DeterministRandomVariableFactory
+    },
+    state_estimators::State,
+    utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};

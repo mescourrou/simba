@@ -86,10 +86,20 @@ impl PythonNavigator {
         initial_time: f32,
         context: &Context,
     ) -> SimbaResult<Self> {
-        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
 
-        let navigator_instance =
-            load_class_from_python_script(config, global_config, initial_time, "Navigator", context)?;
+        let navigator_instance = load_class_from_python_script(
+            config,
+            global_config,
+            initial_time,
+            "Navigator",
+            context,
+        )?;
         Ok(Self {
             navigator: navigator_instance,
         })
@@ -104,14 +114,27 @@ impl std::fmt::Debug for PythonNavigator {
 
 impl Navigator for PythonNavigator {
     fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of post_init");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of post_init"
+        );
         let node_py = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.navigator, "post_init", (node_py,));
         Ok(())
     }
 
-    fn compute_error(&mut self, node: &mut Node, state: WorldState, context: &Context) -> ControllerError {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of compute_error");
+    fn compute_error(
+        &mut self,
+        node: &mut Node,
+        state: WorldState,
+        context: &Context,
+    ) -> ControllerError {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of compute_error"
+        );
         let node_py = NodeWrapper::from_rust(node, context.clone());
         let result = call_py_method!(
             self.navigator,
@@ -124,20 +147,32 @@ impl Navigator for PythonNavigator {
     }
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of pre_loop_hook");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of pre_loop_hook"
+        );
         let node_py = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.navigator, "pre_loop_hook", node_py, time);
     }
 
     fn next_time_step(&self, context: &Context) -> Option<f32> {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of next_time_step");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of next_time_step"
+        );
         call_py_method!(self.navigator, "next_time_step", Option<f32>,)
     }
 }
 
 impl Recordable<NavigatorRecord> for PythonNavigator {
     fn record(&self, context: &Context) -> NavigatorRecord {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of record");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of record"
+        );
         let record_str = call_py_method!(self.navigator, "record", String,);
         let record = PythonNavigatorRecord {
             record: Value::from_str(&record_str).expect(

@@ -22,7 +22,10 @@ use crate::gui::{
     utils::{enum_combobox, string_combobox},
 };
 use crate::{
-    context::Context, environment::Environment, node::NodeState, utils::{
+    context::Context,
+    environment::Environment,
+    node::NodeState,
+    utils::{
         SharedMutex,
         determinist_random_variable::{
             DeterministRandomVariable, DeterministRandomVariableFactory, RandomVariableTypeConfig,
@@ -31,7 +34,7 @@ use crate::{
             bernouilli::{BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable},
             uniform::UniformRandomVariableConfig,
         },
-    }
+    },
 };
 
 /// Ordering strategy used to pick replacement labels.

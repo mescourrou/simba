@@ -30,7 +30,6 @@ use crate::gui::{
     utils::{string_checkbox, text_singleline_with_apply},
 };
 use crate::logger::InternalLog;
-use crate::{internal, networking, warning};
 use crate::networking::network::Envelope;
 use crate::node::Node;
 use crate::node::node_factory::FromConfigArguments;
@@ -40,6 +39,7 @@ use crate::sensors::scan_sensor::ScanSensor;
 use crate::simulator::SimbaBrokerMultiClient;
 use crate::state_estimators::State;
 use crate::utils::SharedRwLock;
+use crate::{internal, networking, warning};
 use crate::{recordable::Recordable, simulator::SimulatorConfig};
 
 use super::gnss_sensor::GNSSSensor;
@@ -358,11 +358,10 @@ impl SensorManager {
         );
         for sensor_config in &config.sensors {
             if sensor_config.triggered {
-                from_config_args
-                    .network
-                    .write()
-                    .unwrap()
-                    .make_channel(sensor_manager_key.clone().join_str(&sensor_config.name), context);
+                from_config_args.network.write().unwrap().make_channel(
+                    sensor_manager_key.clone().join_str(&sensor_config.name),
+                    context,
+                );
             }
 
             manager.sensors.push(ManagedSensor {
@@ -436,16 +435,16 @@ impl SensorManager {
         }
 
         // Subscribe to all channels of the sensor manager, to receive both observations and trigger messages:
-        manager.message_client = Some(
-            from_config_args
-                .network
-                .write()
-                .unwrap()
-                .subscribe_to(&[sensor_manager_key], None, context),
-        );
-        internal!(context, crate::logger::InternalLog::SensorManager,
-                "Sensor Manager subscribed to channel {:?}",
-                manager.message_client.as_ref().unwrap().subscribed_keys()
+        manager.message_client = Some(from_config_args.network.write().unwrap().subscribe_to(
+            &[sensor_manager_key],
+            None,
+            context,
+        ));
+        internal!(
+            context,
+            crate::logger::InternalLog::SensorManager,
+            "Sensor Manager subscribed to channel {:?}",
+            manager.message_client.as_ref().unwrap().subscribed_keys()
         );
         manager.next_time = None;
         for sensor in &manager.sensors {
@@ -466,7 +465,12 @@ impl SensorManager {
     /// * `node` - Node owning the sensors.
     /// * `initial_time` - Initial simulation time used by sensor initialization hooks.
     /// * `context` - Shared simulation context used for logging.
-    pub fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+    pub fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         for sensor in &mut self.sensors {
             sensor
                 .sensor
@@ -489,9 +493,12 @@ impl SensorManager {
     /// * `context` - Shared simulation context used for sensor-manager logs.
     pub fn handle_messages(&mut self, time: f32, context: &Context) {
         while let Some((path, envelope)) = self.message_client.as_ref().unwrap().try_receive(time) {
-            internal!(context, crate::logger::InternalLog::SensorManager,
+            internal!(
+                context,
+                crate::logger::InternalLog::SensorManager,
                 "Sensor Manager received message on path {:?} at time {}",
-                path, envelope.timestamp
+                path,
+                envelope.timestamp
             );
             if path
                 == self
@@ -511,9 +518,12 @@ impl SensorManager {
                 // if self.received_observations.len() > 0 {
                 //     self.next_time = Some(time);
                 // }
-                internal!(context, crate::logger::InternalLog::SensorManager,
+                internal!(
+                    context,
+                    crate::logger::InternalLog::SensorManager,
                     "Receive observations from {} at time {}",
-                    envelope.from, envelope.timestamp
+                    envelope.from,
+                    envelope.timestamp
                 );
             } else if serde_json::from_value::<SensorTriggerMessage>(envelope.message.clone())
                 .is_ok()
@@ -522,15 +532,21 @@ impl SensorManager {
                 for sensor in &mut self.sensors {
                     if sensor.name == sensor_name {
                         sensor.last_triggered = Some(time);
-                        internal!(context, crate::logger::InternalLog::SensorManager,
-                            "Sensor {} triggered at time {}", sensor.name, time
+                        internal!(
+                            context,
+                            crate::logger::InternalLog::SensorManager,
+                            "Sensor {} triggered at time {}",
+                            sensor.name,
+                            time
                         );
                     }
                 }
             } else {
-                warning!(context,
+                warning!(
+                    context,
                     "[Sensor Manager] Received message on unknown type or path {:?}: {:?}",
-                    path, envelope.message
+                    path,
+                    envelope.message
                 );
             }
         }
@@ -569,7 +585,9 @@ impl SensorManager {
         let mut min_next_time = None;
         let mut obs_to_send = BTreeMap::new();
         for sensor in &mut self.sensors {
-            internal!(context, InternalLog::SensorManager,
+            internal!(
+                context,
+                InternalLog::SensorManager,
                 "Sensor {} last triggered at {:?} ({})",
                 sensor.name,
                 sensor.last_triggered,
@@ -582,8 +600,11 @@ impl SensorManager {
                 })
                 || (sensor.sensor.read().unwrap().next_time_step() - time).abs() < TIME_ROUND
             {
-                internal!(context, InternalLog::SensorManager,
-                    "Sensor {} is triggered, getting observations", sensor.name
+                internal!(
+                    context,
+                    InternalLog::SensorManager,
+                    "Sensor {} is triggered, getting observations",
+                    sensor.name
                 );
                 sensor
                     .sensor

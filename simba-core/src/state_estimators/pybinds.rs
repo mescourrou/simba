@@ -12,10 +12,19 @@ use pyo3::{prelude::*, types::PyDict};
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    constants::TIME_ROUND, context::Context, errors::SimbaResult, internal, networking::channels::internal, node::Node, physics::robot_models::Command, pywrappers::{CommandWrapper, NodeWrapper, ObservationWrapper, WorldStateWrapper}, recordable::Recordable, sensors::Observation, utils::{
+    constants::TIME_ROUND,
+    context::Context,
+    errors::SimbaResult,
+    internal,
+    node::Node,
+    physics::robot_models::Command,
+    pywrappers::{CommandWrapper, NodeWrapper, ObservationWrapper, WorldStateWrapper},
+    recordable::Recordable,
+    sensors::Observation,
+    utils::{
         maths::round_precision,
         python::{call_py_method, call_py_method_void},
-    }
+    },
 };
 
 use super::{
@@ -44,8 +53,16 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
         self.post_init.call(node_py).unwrap()
     }
 
-    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+    fn prediction_step(
+        &mut self,
+        node: &mut Node,
+        command: Option<Command>,
+        time: f32,
+        context: &Context,
+    ) {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Start prediction step from async client"
         );
         let node_py = NodeWrapper::from_rust(node, context.clone());
@@ -59,8 +76,16 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
             .unwrap()
     }
 
-    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+    fn correction_step(
+        &mut self,
+        node: &mut Node,
+        observations: &[Observation],
+        time: f32,
+        context: &Context,
+    ) {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Start correction step from async client"
         );
         let node_py = NodeWrapper::from_rust(node, context.clone());
@@ -74,21 +99,27 @@ impl StateEstimator for PythonStateEstimatorAsyncClient {
     }
 
     fn next_time_step(&self, context: &Context) -> f32 {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Get next time step from async client"
         );
         self.next_time_step.call(()).unwrap()
     }
 
     fn world_state(&self, context: &Context) -> WorldState {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Get state from async client"
         );
         self.state.call(()).unwrap()
     }
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Start pre loop hook from async client"
         );
         let node_py = NodeWrapper::from_rust(node, context.clone());
@@ -222,29 +253,49 @@ impl PythonStateEstimator {
         self.next_time_step
             .clone()
             .try_recv_closure_mut(|()| self.next_time_step(context));
-        self.record.clone().try_recv_closure_mut(|()| self.record(context));
-        self.pre_loop_hook
+        self.record
             .clone()
-            .try_recv_closure_mut(|request| self.pre_loop_hook(request.node, request.time, context));
+            .try_recv_closure_mut(|()| self.record(context));
+        self.pre_loop_hook.clone().try_recv_closure_mut(|request| {
+            self.pre_loop_hook(request.node, request.time, context)
+        });
     }
 
     fn post_init(&mut self, node: NodeWrapper, context: &Context) -> SimbaResult<()> {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of post_init"
         );
         call_py_method_void!(self.model, "post_init", (node,));
         Ok(())
     }
 
-    fn prediction_step(&mut self, node: NodeWrapper, command: Option<CommandWrapper>, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+    fn prediction_step(
+        &mut self,
+        node: NodeWrapper,
+        command: Option<CommandWrapper>,
+        time: f32,
+        context: &Context,
+    ) {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of prediction_step"
         );
         call_py_method_void!(self.model, "prediction_step", node, command, time);
     }
 
-    fn correction_step(&mut self, node: NodeWrapper, observations: &Vec<Observation>, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+    fn correction_step(
+        &mut self,
+        node: NodeWrapper,
+        observations: &Vec<Observation>,
+        time: f32,
+        context: &Context,
+    ) {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of correction_step"
         );
         let mut observation_py = Vec::new();
@@ -255,7 +306,9 @@ impl PythonStateEstimator {
     }
 
     fn world_state(&self, context: &Context) -> WorldState {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of state"
         );
         let state = call_py_method!(self.model, "state", WorldStateWrapper,);
@@ -264,7 +317,9 @@ impl PythonStateEstimator {
 
     fn next_time_step(&self, context: &Context) -> f32 {
         // PythonStateEstimator::next_time_step(self)
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of next_time_step"
         );
         let time = call_py_method!(self.model, "next_time_step", f32,);
@@ -272,7 +327,9 @@ impl PythonStateEstimator {
     }
 
     fn record(&self, context: &Context) -> StateEstimatorRecord {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of record"
         );
         let record_str: String = call_py_method!(self.model, "record", String,);
@@ -287,7 +344,9 @@ impl PythonStateEstimator {
     }
 
     fn pre_loop_hook(&mut self, node: NodeWrapper, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of pre_loop_hook"
         );
         call_py_method_void!(self.model, "pre_loop_hook", node, time);

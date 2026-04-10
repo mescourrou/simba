@@ -88,10 +88,20 @@ impl PythonController {
         initial_time: f32,
         context: &Context,
     ) -> SimbaResult<Self> {
-        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
 
-        let controller_instance =
-            load_class_from_python_script(config, global_config, initial_time, "Controller", context)?;
+        let controller_instance = load_class_from_python_script(
+            config,
+            global_config,
+            initial_time,
+            "Controller",
+            context,
+        )?;
         Ok(Self {
             controller: controller_instance,
         })
@@ -106,14 +116,28 @@ impl std::fmt::Debug for PythonController {
 
 impl Controller for PythonController {
     fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of post_init");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of post_init"
+        );
         let py_node = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.controller, "post_init", (py_node,));
         Ok(())
     }
 
-    fn make_command(&mut self, node: &mut Node, error: &ControllerError, time: f32, context: &Context) -> Command {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of make_command");
+    fn make_command(
+        &mut self,
+        node: &mut Node,
+        error: &ControllerError,
+        time: f32,
+        context: &Context,
+    ) -> Command {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of make_command"
+        );
         let node_py = NodeWrapper::from_rust(node, context.clone());
         let result = call_py_method!(
             self.controller,
@@ -127,20 +151,32 @@ impl Controller for PythonController {
     }
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of pre_loop_hook");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of pre_loop_hook"
+        );
         let node_py = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.controller, "pre_loop_hook", node_py, time);
     }
 
     fn next_time_step(&self, context: &Context) -> Option<f32> {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of next_time_step");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of next_time_step"
+        );
         call_py_method!(self.controller, "next_time_step", Option<f32>,)
     }
 }
 
 impl Recordable<ControllerRecord> for PythonController {
     fn record(&self, context: &Context) -> ControllerRecord {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of record");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of record"
+        );
         let record_str: String = call_py_method!(self.controller, "record", String,);
         let record = PythonControllerRecord {
             record: Value::from_str(&record_str).expect(

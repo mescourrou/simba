@@ -29,17 +29,30 @@ use std::path::Path;
 use crate::api::async_api::PluginAsyncAPI;
 
 use crate::{
-    context::Context, controllers::{ControllerError, pybinds::ControllerWrapper}, debug, error, info, navigators::pybinds::NavigatorWrapper, networking::{
+    context::Context,
+    controllers::{ControllerError, pybinds::ControllerWrapper},
+    debug, error, info,
+    navigators::pybinds::NavigatorWrapper,
+    networking::{
         MessageTypes,
         network::{Envelope, MessageFlag, Network},
-    }, node::Node, physics::{
+    },
+    node::Node,
+    physics::{
         pybinds::PhysicsWrapper,
         robot_models::{Command, holonomic::HolonomicCommand, unicycle::UnicycleCommand},
-    }, plugin_api::PluginAPI, pybinds::PythonAPI, sensors::{
+    },
+    plugin_api::PluginAPI,
+    pybinds::PythonAPI,
+    sensors::{
         Observation, SensorObservation, displacement_sensor::DisplacementObservation,
         gnss_sensor::GNSSObservation, oriented_landmark_sensor::OrientedLandmarkObservation,
         robot_sensor::OrientedRobotObservation, speed_sensor::SpeedObservation,
-    }, simulator::{AsyncSimulator, SimbaBrokerMultiClient, Simulator}, state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper}, utils::occupancy_grid::OccupancyGrid, warning
+    },
+    simulator::{AsyncSimulator, SimbaBrokerMultiClient, Simulator},
+    state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
+    utils::occupancy_grid::OccupancyGrid,
+    warning,
 };
 
 #[derive(Clone, Debug)]
@@ -1111,7 +1124,10 @@ impl NodeWrapper {
                 timestamp: time,
                 message_flags: flags,
             };
-            network.write().unwrap().send_to(key, msg, time, &self.context);
+            network
+                .write()
+                .unwrap()
+                .send_to(key, msg, time, &self.context);
             Ok(())
         } else {
             Err(PyErr::new::<PyTypeError, _>("No network on this node"))
@@ -1126,7 +1142,10 @@ impl NodeWrapper {
                 .iter()
                 .map(|t| PathKey::from_str(t.as_str()).unwrap())
                 .collect::<Vec<PathKey>>();
-            let client = network.write().unwrap().subscribe_to(&keys, None, &self.context);
+            let client = network
+                .write()
+                .unwrap()
+                .subscribe_to(&keys, None, &self.context);
             Ok(MultiClientWrapper::from_rust(client))
         } else {
             Err(PyErr::new::<PyTypeError, _>("No network on this node"))
@@ -1144,18 +1163,22 @@ impl NodeWrapper {
         }
     }
 
+    /// Log an info message using the simulator's logging system.
     pub fn log_info(&self, message: String) {
         info!(self.context, "{}", message);
     }
 
+    /// Log a warning message using the simulator's logging system.
     pub fn log_warning(&self, message: String) {
         warning!(self.context, "{}", message);
     }
 
+    /// Log an error message using the simulator's logging system.
     pub fn log_error(&self, message: String) {
         error!(self.context, "{}", message);
     }
 
+    /// Log a debug message using the simulator's logging system.
     pub fn log_debug(&self, message: String) {
         debug!(self.context, "{}", message);
     }

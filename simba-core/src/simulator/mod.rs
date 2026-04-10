@@ -34,8 +34,8 @@ use results::ResultSavingData;
 pub use results::{ResultConfig, ResultSaveMode, Results};
 
 mod simulator_config;
-pub use simulator_config::SimulatorConfig;
 pub use simulator_config::OptimizationConfig;
+pub use simulator_config::SimulatorConfig;
 
 mod async_simulator;
 use async_simulator::SimulatorAsyncApiServer;
@@ -61,10 +61,8 @@ use crate::{
     constants::TIME_ROUND,
     environment::Environment,
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
-    logger::{LoggerConfig},
-    networking::{
-        network::Envelope, network_manager::NetworkManager,
-    },
+    logger::LoggerConfig,
+    networking::{network::Envelope, network_manager::NetworkManager},
     node::{
         Node, NodeState,
         node_factory::{
@@ -97,7 +95,7 @@ use std::default::Default;
 use std::fs::{self, File};
 use std::io::prelude::*;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
-use std::thread::{self, ThreadId};
+use std::thread;
 
 /// One time record of a node. The record is the state of the node with the
 /// associated time.
@@ -378,10 +376,19 @@ impl Simulator {
 
         // Create robots
         for robot_config in &config.robots {
-            self.add_robot(robot_config, &config, self.force_send_results, 0., &self.context.clone())?;
+            self.add_robot(
+                robot_config,
+                &config,
+                self.force_send_results,
+                0.,
+                &self.context.clone(),
+            )?;
             let node = self.nodes.last().unwrap();
             if let Some(physics) = node.physics() {
-                self.physics_list.write().unwrap().insert(node.name().clone(), physics);
+                self.physics_list
+                    .write()
+                    .unwrap()
+                    .insert(node.name().clone(), physics);
             }
         }
         // Create computation units
@@ -395,7 +402,10 @@ impl Simulator {
             )?;
             let node = self.nodes.last().unwrap();
             if let Some(physics) = node.physics() {
-                self.physics_list.write().unwrap().insert(node.name().clone(), physics);
+                self.physics_list
+                    .write()
+                    .unwrap()
+                    .insert(node.name().clone(), physics);
             }
         }
 
@@ -483,9 +493,11 @@ impl Simulator {
         if config_version[0] != env!("CARGO_PKG_VERSION_MAJOR").parse::<usize>().unwrap()
             || config_version[1] != env!("CARGO_PKG_VERSION_MINOR").parse::<usize>().unwrap()
         {
-            warning!(Context::default(),
+            warning!(
+                Context::default(),
                 "Config major version ({}) differs from software version ({})",
-                config.version, VERSION
+                config.version,
+                VERSION
             );
         }
         self.config = config.clone();
@@ -581,7 +593,10 @@ impl Simulator {
         initial_time: f32,
         context: &Context,
     ) -> SimbaResult<()> {
-        let context = context.new_callstack_level(&format!("add_computation_unit({})", computation_unit_config.name));
+        let context = context.new_callstack_level(&format!(
+            "add_computation_unit({})",
+            computation_unit_config.name
+        ));
         let new_node = NodeFactory::make_computation_unit(
             computation_unit_config,
             &mut MakeNodeParams {
@@ -672,7 +687,11 @@ impl Simulator {
 
         let mut error = None;
         if cfg!(feature = "monothreaded") || self.max_threads == 1 {
-            let mut node_contexts = self.nodes.iter().map(|node| (node.name(), context.new_node_context(node.name()))).collect::<HashMap<_, _>>();
+            let mut node_contexts = self
+                .nodes
+                .iter()
+                .map(|node| (node.name(), context.new_node_context(node.name())))
+                .collect::<HashMap<_, _>>();
             for node in self.nodes.iter_mut() {
                 if node.state() != NodeState::Running {
                     return Err(SimbaError::new(
@@ -692,11 +711,19 @@ impl Simulator {
                 //     break;
                 // }
                 for node in self.nodes.iter_mut() {
-                    match node.next_time_step(previous_time + TIME_ROUND / 2., &node_contexts[&node.name()]) {
+                    match node.next_time_step(
+                        previous_time + TIME_ROUND / 2.,
+                        &node_contexts[&node.name()],
+                    ) {
                         Ok(t) => {
                             if t < time {
                                 time = t;
-                                internal!(node_contexts[&node.name()], crate::logger::InternalLog::NodeSyncDetailed, "Node {} set next_time to {time}", node.name());
+                                internal!(
+                                    node_contexts[&node.name()],
+                                    crate::logger::InternalLog::NodeSyncDetailed,
+                                    "Node {} set next_time to {time}",
+                                    node.name()
+                                );
                             }
                         }
                         Err(e) => {
@@ -708,7 +735,11 @@ impl Simulator {
                 if error.is_some() {
                     break;
                 }
-                internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Got next_time: {time}");
+                internal!(
+                    context,
+                    crate::logger::InternalLog::NodeSyncDetailed,
+                    "Got next_time: {time}"
+                );
 
                 if let Some(async_api_server) = &self.async_api_server {
                     async_api_server.update_time(time);
@@ -721,14 +752,16 @@ impl Simulator {
                     break;
                 }
 
-
                 info!(context, "Run time {}", time);
                 for node in self.nodes.iter_mut() {
                     node.process_messages();
                     node.physics_update(time, &node_contexts[&node.name()]);
                 }
                 let node_states = self.node_states();
-                if let Err(e) = self.network_manager.process_messages(&node_states, &context) {
+                if let Err(e) = self
+                    .network_manager
+                    .process_messages(&node_states, &context)
+                {
                     error = Some(e);
                     break;
                 }
@@ -738,7 +771,10 @@ impl Simulator {
                     }
                     node.pre_loop_hooks(time, &node_contexts[&node.name()]);
                 }
-                if let Err(e) = self.network_manager.process_messages(&node_states, &context) {
+                if let Err(e) = self
+                    .network_manager
+                    .process_messages(&node_states, &context)
+                {
                     error = Some(e);
                     break;
                 }
@@ -749,7 +785,10 @@ impl Simulator {
                     }
                     do_control_loops.push(node.prediction_step(time, &node_contexts[&node.name()]));
                 }
-                if let Err(e) = self.network_manager.process_messages(&node_states, &context) {
+                if let Err(e) = self
+                    .network_manager
+                    .process_messages(&node_states, &context)
+                {
                     error = Some(e);
                     break;
                 }
@@ -759,7 +798,10 @@ impl Simulator {
                     }
                     node.make_observations(time, &node_contexts[&node.name()]);
                 }
-                if let Err(e) = self.network_manager.process_messages(&node_states, &context) {
+                if let Err(e) = self
+                    .network_manager
+                    .process_messages(&node_states, &context)
+                {
                     error = Some(e);
                     break;
                 }
@@ -770,11 +812,16 @@ impl Simulator {
                     node.correction_step(time, &node_contexts[&node.name()]);
                 }
 
-                if let Err(e) = self.network_manager.process_messages(&node_states, &context) {
+                if let Err(e) = self
+                    .network_manager
+                    .process_messages(&node_states, &context)
+                {
                     error = Some(e);
                     break;
                 }
-                for (node, do_control_loop) in self.nodes.iter_mut().zip(do_control_loops.into_iter()) {
+                for (node, do_control_loop) in
+                    self.nodes.iter_mut().zip(do_control_loops.into_iter())
+                {
                     if node.process_messages() {
                         node.handle_messages(time, &node_contexts[&node.name()]);
                     }
@@ -784,11 +831,16 @@ impl Simulator {
                     }
                 }
 
-                internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "End of time step");
-
+                internal!(
+                    context,
+                    crate::logger::InternalLog::NodeSyncDetailed,
+                    "End of time step"
+                );
 
                 let node_states = self.node_states();
-                if let Err(e) = self.end_of_time_step_procedure(&node_states, &mut running_parameters, &context) {
+                if let Err(e) =
+                    self.end_of_time_step_procedure(&node_states, &mut running_parameters, &context)
+                {
                     error = Some(e);
                     break;
                 }
@@ -803,7 +855,7 @@ impl Simulator {
                             node: node.record(&node_contexts[&node.name()]),
                         });
                     }
-                    
+
                     if node.process_messages() {
                         node.handle_messages(time, &node_contexts[&node.name()]);
                     }
@@ -823,227 +875,267 @@ impl Simulator {
                 previous_time = time;
             }
         } else {
-        #[cfg(not(feature = "monothreaded"))]
-        {
-            if self.max_threads == 0 {
-                while let Some(node) = self.nodes.pop() {
-                    let node_context = context.new_node_context(node.name());
-                    self.spawn_node(node, &mut running_parameters, &node_context)?;
-                }
-        
-                running_parameters.barrier.wait();
-                running_parameters.barrier.remove_one();
-                if let Err(e) = self.simulator_spin(&mut running_parameters) {
-                    error!(context, "Error in simulator spin: {}", e.detailed_error());
-                    error = Some(e);
-                    *self.time_cv.force_finish.lock().unwrap() = true;
-                }
-        
-                for handle in running_parameters.handles.drain(0..) {
-                    match handle.join().unwrap() {
-                        Err(e) => error = Some(e),
-                        Ok(node) => {
-                            if let Some(n) = node {
-                                self.nodes.push(n)
-                            }
-                        }
-                    };
-                }
-            } else {
-                use scoped_threadpool::Pool;
-
-                let mut pool = Pool::new(self.max_threads as u32);
-                let mut node_contexts = self.nodes.iter().map(|node| (node.name(), context.new_node_context(node.name()))).collect::<HashMap<_, _>>();
-                for node in self.nodes.iter_mut() {
-                    if node.state() != NodeState::Running {
-                        return Err(SimbaError::new(
-                            SimbaErrorTypes::ImplementationError,
-                            format!(
-                                "Node {} not in Running state at start of run_one_node",
-                                node.name()
-                            ),
-                        ));
+            #[cfg(not(feature = "monothreaded"))]
+            {
+                if self.max_threads == 0 {
+                    while let Some(node) = self.nodes.pop() {
+                        let node_context = context.new_node_context(node.name());
+                        self.spawn_node(node, &mut running_parameters, &node_context)?;
                     }
-                    info!(node_contexts[&node.name()], "Start node {}", node.name());
-                }
-                let mut previous_time = self.last_sim_time;
-                loop {
-                    let mut time = f32::INFINITY;
-                    // if *node_sync_params.time_cv.force_finish.lock().unwrap() {
-                    //     break;
-                    // }
+
+                    running_parameters.barrier.wait();
+                    running_parameters.barrier.remove_one();
+                    if let Err(e) = self.simulator_spin(&mut running_parameters) {
+                        error!(context, "Error in simulator spin: {}", e.detailed_error());
+                        error = Some(e);
+                        *self.time_cv.force_finish.lock().unwrap() = true;
+                    }
+
+                    for handle in running_parameters.handles.drain(0..) {
+                        match handle.join().unwrap() {
+                            Err(e) => error = Some(e),
+                            Ok(node) => {
+                                if let Some(n) = node {
+                                    self.nodes.push(n)
+                                }
+                            }
+                        };
+                    }
+                } else {
+                    use scoped_threadpool::Pool;
+
+                    let mut pool = Pool::new(self.max_threads as u32);
+                    let mut node_contexts = self
+                        .nodes
+                        .iter()
+                        .map(|node| (node.name(), context.new_node_context(node.name())))
+                        .collect::<HashMap<_, _>>();
                     for node in self.nodes.iter_mut() {
-                        match node.next_time_step(previous_time + TIME_ROUND / 2., &node_contexts[&node.name()]) {
-                            Ok(t) => {
-                                if t < time {
-                                    time = t;
-                                    internal!(node_contexts[&node.name()], crate::logger::InternalLog::NodeSyncDetailed, "Node {} set next_time to {time}", node.name());
+                        if node.state() != NodeState::Running {
+                            return Err(SimbaError::new(
+                                SimbaErrorTypes::ImplementationError,
+                                format!(
+                                    "Node {} not in Running state at start of run_one_node",
+                                    node.name()
+                                ),
+                            ));
+                        }
+                        info!(node_contexts[&node.name()], "Start node {}", node.name());
+                    }
+                    let mut previous_time = self.last_sim_time;
+                    loop {
+                        let mut time = f32::INFINITY;
+                        // if *node_sync_params.time_cv.force_finish.lock().unwrap() {
+                        //     break;
+                        // }
+                        for node in self.nodes.iter_mut() {
+                            match node.next_time_step(
+                                previous_time + TIME_ROUND / 2.,
+                                &node_contexts[&node.name()],
+                            ) {
+                                Ok(t) => {
+                                    if t < time {
+                                        time = t;
+                                        internal!(
+                                            node_contexts[&node.name()],
+                                            crate::logger::InternalLog::NodeSyncDetailed,
+                                            "Node {} set next_time to {time}",
+                                            node.name()
+                                        );
+                                    }
+                                }
+                                Err(e) => {
+                                    error = Some(e);
+                                    break;
                                 }
                             }
-                            Err(e) => {
-                                error = Some(e);
-                                break;
+                        }
+                        if error.is_some() {
+                            break;
+                        }
+                        internal!(
+                            context,
+                            crate::logger::InternalLog::NodeSyncDetailed,
+                            "Got next_time: {time}"
+                        );
+
+                        if let Some(async_api_server) = &self.async_api_server {
+                            async_api_server.update_time(time);
+                        }
+                        self.context.update_time(time);
+                        for context in node_contexts.values_mut() {
+                            context.update_time(time);
+                        }
+                        if time > running_parameters.max_time {
+                            break;
+                        }
+
+                        info!(context, "Run time {}", time);
+                        pool.scoped(|scope| {
+                            for node in self.nodes.iter_mut() {
+                                let node_context = node_contexts[&node.name()].clone();
+                                scope.execute(move || {
+                                    node.process_messages();
+                                    node.physics_update(time, &node_context);
+                                });
                             }
-                        }
-                    }
-                    if error.is_some() {
-                        break;
-                    }
-                    internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Got next_time: {time}");
-
-                    if let Some(async_api_server) = &self.async_api_server {
-                        async_api_server.update_time(time);
-                    }
-                    self.context.update_time(time);
-                    for context in node_contexts.values_mut() {
-                        context.update_time(time);
-                    }
-                    if time > running_parameters.max_time {
-                        break;
-                    }
-
-
-                    info!(context, "Run time {}", time);
-                    pool.scoped(|scope| {
-                        for node in self.nodes.iter_mut() {
-                            let node_context = node_contexts[&node.name()].clone();
-                            scope.execute(move || {
-                                node.process_messages();
-                                node.physics_update(time, &node_context);
-                            });
-                        }
-                    });
-                    let node_states = self.node_states();
-                    if let Err(e) = self.network_manager.process_messages(&node_states, &context) {
-                        error = Some(e);
-                        break;
-                    }
-                    pool.scoped(|scope| {
-                        for node in self.nodes.iter_mut() {
-                            let node_context = node_contexts[&node.name()].clone();
-                            scope.execute(move || {
-                                if node.process_messages() {
-                                    node.handle_messages(time, &node_context);
-                                }
-                                node.pre_loop_hooks(time, &node_context);
-                            });
-                        }
-                    });
-                    if let Err(e) = self.network_manager.process_messages(&node_states, &context) {
-                        error = Some(e);
-                        break;
-                    }
-                    let mut do_control_loops = Vec::new();
-                    pool.scoped(|scope| {
-                        let (tx, rx) = std::sync::mpsc::channel();
-                        let node_len = self.nodes.len();
-                        for (i, node) in self.nodes.iter_mut().enumerate() {
-                            do_control_loops.push(false);
-                            let node_context = node_contexts[&node.name()].clone();
-                            let tx = tx.clone();
-                            scope.execute(move || {
-                                if node.process_messages() {
-                                    node.handle_messages(time, &node_context);
-                                }
-                                tx.send((i, node.prediction_step(time, &node_context))).unwrap();
-                            });
-                        }
-                        for (i, do_or_do_not) in rx.iter().take(node_len) {
-                            do_control_loops[i] = do_or_do_not;
-                        }
-                    });
-                    if let Err(e) = self.network_manager.process_messages(&node_states, &context) {
-                        error = Some(e);
-                        break;
-                    }
-                    pool.scoped(|scope| {
-                        for node in self.nodes.iter_mut() {
-                            let node_context = node_contexts[&node.name()].clone();
-                            scope.execute(move || {
-                                if node.process_messages() {
-                                    node.handle_messages(time, &node_context);
-                                }
-                                node.make_observations(time, &node_context);
-                            });
-                        }
-                    });
-                    if let Err(e) = self.network_manager.process_messages(&node_states, &context) {
-                        error = Some(e);
-                        break;
-                    }
-                    pool.scoped(|scope| {
-                        for node in self.nodes.iter_mut() {
-                            let node_context = node_contexts[&node.name()].clone();
-                            scope.execute(move || {
-                                if node.process_messages() {
-                                    node.handle_messages(time, &node_context);
-                                }
-                                node.correction_step(time, &node_context);
-                            });
-                        }
-                    });
-
-                    if let Err(e) = self.network_manager.process_messages(&node_states, &context) {
-                        error = Some(e);
-                        break;
-                    }
-
-                    pool.scoped(|scope| {
-                        for (node, do_control_loop) in self.nodes.iter_mut().zip(do_control_loops.into_iter()) {
-                            let node_context = node_contexts[&node.name()].clone();
-                            scope.execute(move || {
-                                if node.process_messages() {
-                                    node.handle_messages(time, &node_context);
-                                }
-                                node.nav_and_control_step(time, do_control_loop, &node_context);
-                                if node.process_messages() {
-                                    node.handle_messages(time, &node_context);
-                                }
-                            });
-                        }
-                    });
-
-                    internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "End of time step");
-
-
-                    let node_states = self.node_states();
-                    if let Err(e) = self.end_of_time_step_procedure(&node_states, &mut running_parameters, &context) {
-                        error = Some(e);
-                        break;
-                    }
-
-                    let mut to_remove = Vec::new();
-                    for (i, node) in self.nodes.iter_mut().enumerate() {
-                        if node.send_records()
-                            && let Some(async_api_server) = &self.async_api_server
+                        });
+                        let node_states = self.node_states();
+                        if let Err(e) = self
+                            .network_manager
+                            .process_messages(&node_states, &context)
                         {
-                            async_api_server.send_record(&Record {
-                                time,
-                                node: node.record(&node_contexts[&node.name()]),
-                            });
+                            error = Some(e);
+                            break;
                         }
-                        
-                        if node.process_messages() {
-                            node.handle_messages(time, &node_contexts[&node.name()]);
+                        pool.scoped(|scope| {
+                            for node in self.nodes.iter_mut() {
+                                let node_context = node_contexts[&node.name()].clone();
+                                scope.execute(move || {
+                                    if node.process_messages() {
+                                        node.handle_messages(time, &node_context);
+                                    }
+                                    node.pre_loop_hooks(time, &node_context);
+                                });
+                            }
+                        });
+                        if let Err(e) = self
+                            .network_manager
+                            .process_messages(&node_states, &context)
+                        {
+                            error = Some(e);
+                            break;
                         }
-                        if node.state() == NodeState::Zombie {
-                            info!(context, "Killing node {}", node.name());
+                        let mut do_control_loops = Vec::new();
+                        pool.scoped(|scope| {
+                            let (tx, rx) = std::sync::mpsc::channel();
+                            let node_len = self.nodes.len();
+                            for (i, node) in self.nodes.iter_mut().enumerate() {
+                                do_control_loops.push(false);
+                                let node_context = node_contexts[&node.name()].clone();
+                                let tx = tx.clone();
+                                scope.execute(move || {
+                                    if node.process_messages() {
+                                        node.handle_messages(time, &node_context);
+                                    }
+                                    tx.send((i, node.prediction_step(time, &node_context)))
+                                        .unwrap();
+                                });
+                            }
+                            for (i, do_or_do_not) in rx.iter().take(node_len) {
+                                do_control_loops[i] = do_or_do_not;
+                            }
+                        });
+                        if let Err(e) = self
+                            .network_manager
+                            .process_messages(&node_states, &context)
+                        {
+                            error = Some(e);
+                            break;
+                        }
+                        pool.scoped(|scope| {
+                            for node in self.nodes.iter_mut() {
+                                let node_context = node_contexts[&node.name()].clone();
+                                scope.execute(move || {
+                                    if node.process_messages() {
+                                        node.handle_messages(time, &node_context);
+                                    }
+                                    node.make_observations(time, &node_context);
+                                });
+                            }
+                        });
+                        if let Err(e) = self
+                            .network_manager
+                            .process_messages(&node_states, &context)
+                        {
+                            error = Some(e);
+                            break;
+                        }
+                        pool.scoped(|scope| {
+                            for node in self.nodes.iter_mut() {
+                                let node_context = node_contexts[&node.name()].clone();
+                                scope.execute(move || {
+                                    if node.process_messages() {
+                                        node.handle_messages(time, &node_context);
+                                    }
+                                    node.correction_step(time, &node_context);
+                                });
+                            }
+                        });
+
+                        if let Err(e) = self
+                            .network_manager
+                            .process_messages(&node_states, &context)
+                        {
+                            error = Some(e);
+                            break;
+                        }
+
+                        pool.scoped(|scope| {
+                            for (node, do_control_loop) in
+                                self.nodes.iter_mut().zip(do_control_loops.into_iter())
+                            {
+                                let node_context = node_contexts[&node.name()].clone();
+                                scope.execute(move || {
+                                    if node.process_messages() {
+                                        node.handle_messages(time, &node_context);
+                                    }
+                                    node.nav_and_control_step(time, do_control_loop, &node_context);
+                                    if node.process_messages() {
+                                        node.handle_messages(time, &node_context);
+                                    }
+                                });
+                            }
+                        });
+
+                        internal!(
+                            context,
+                            crate::logger::InternalLog::NodeSyncDetailed,
+                            "End of time step"
+                        );
+
+                        let node_states = self.node_states();
+                        if let Err(e) = self.end_of_time_step_procedure(
+                            &node_states,
+                            &mut running_parameters,
+                            &context,
+                        ) {
+                            error = Some(e);
+                            break;
+                        }
+
+                        let mut to_remove = Vec::new();
+                        for (i, node) in self.nodes.iter_mut().enumerate() {
+                            if node.send_records()
+                                && let Some(async_api_server) = &self.async_api_server
+                            {
+                                async_api_server.send_record(&Record {
+                                    time,
+                                    node: node.record(&node_contexts[&node.name()]),
+                                });
+                            }
+
                             if node.process_messages() {
                                 node.handle_messages(time, &node_contexts[&node.name()]);
                             }
-                            node.kill(time);
-                            self.physics_list.write().unwrap().remove(&node.name());
-                            to_remove.push(i);
+                            if node.state() == NodeState::Zombie {
+                                info!(context, "Killing node {}", node.name());
+                                if node.process_messages() {
+                                    node.handle_messages(time, &node_contexts[&node.name()]);
+                                }
+                                node.kill(time);
+                                self.physics_list.write().unwrap().remove(&node.name());
+                                to_remove.push(i);
+                            }
                         }
+                        for i in to_remove.into_iter().rev() {
+                            self.nodes.remove(i);
+                        }
+                        previous_time = time;
                     }
-                    for i in to_remove.into_iter().rev() {
-                        self.nodes.remove(i);
-                    }
-                    previous_time = time;
                 }
             }
-        }}
-
+        }
 
         if let Some(e) = error {
             self.process_records(None, &context).map_err(|e2| {
@@ -1076,7 +1168,8 @@ impl Simulator {
                 initial_time: time,
                 broker: &self.network_manager.broker(),
                 environment: self.environment.clone(),
-                context: context.new_callstack_level(&format!("spawn_node_from_name({})", node_name)),
+                context: context
+                    .new_callstack_level(&format!("spawn_node_from_name({})", node_name)),
             },
         )?;
         let meta_data = node.meta_data();
@@ -1084,8 +1177,11 @@ impl Simulator {
         self.environment.insert_meta_data(name.clone(), meta_data);
 
         node.set_state(NodeState::Running);
-        
-        self.physics_list.write().unwrap().insert(node.name().clone(), node.physics().unwrap());
+
+        self.physics_list
+            .write()
+            .unwrap()
+            .insert(node.name().clone(), node.physics().unwrap());
 
         self.node_apis.insert(
             name.clone(),
@@ -1093,17 +1189,17 @@ impl Simulator {
                 self.physics_list.clone(),
                 self.environment.get_meta_data().clone(),
                 time,
-                &context,
+                context,
             ),
         );
         if cfg!(feature = "monothreaded") || running_parameters.nb_threads == 1 {
             self.nodes.push(node);
-             Ok(())
+            Ok(())
         } else {
             #[cfg(feature = "monothreaded")]
             panic!("spawn_node_from_name should not be called in monothreaded mode");
             #[cfg(not(feature = "monothreaded"))]
-            self.spawn_node(node, running_parameters, &context)
+            self.spawn_node(node, running_parameters, context)
         }
     }
 
@@ -1126,7 +1222,12 @@ impl Simulator {
                 ),
             ));
         }
-        internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Spawning node {}", node.name());
+        internal!(
+            context,
+            crate::logger::InternalLog::NodeSyncDetailed,
+            "Spawning node {}",
+            node.name()
+        );
 
         let max_time = running_parameters.max_time;
         let last_sim_time = running_parameters.last_sim_time;
@@ -1168,7 +1269,9 @@ impl Simulator {
                     // Increase finishing nodes only if the node is still existing
                     // as in case of zombie, the total number of node has been decreased.
                     *finishing_cv_clone.0.lock().unwrap() += 1;
-                    internal!(context, crate::logger::InternalLog::NodeSyncDetailed, 
+                    internal!(
+                        context,
+                        crate::logger::InternalLog::NodeSyncDetailed,
                         "Node {} finished: {} nodes finished",
                         node.name(),
                         *finishing_cv_clone.0.lock().unwrap(),
@@ -1239,7 +1342,8 @@ impl Simulator {
             }
             unreachable!("Result file should not be empty if records exist");
         }
-        info!(self.context, 
+        info!(
+            self.context,
             "Saving results to {}",
             filename.to_str().unwrap_or_default()
         );
@@ -1335,7 +1439,11 @@ impl Simulator {
             taf.save_results(&context);
         }
 
-        internal!(context, crate::logger::InternalLog::NodeRunning, "Collecting results");
+        internal!(
+            context,
+            crate::logger::InternalLog::NodeRunning,
+            "Collecting results"
+        );
         let mut new_records = Vec::new();
         if let Some(async_api) = &self.async_api {
             while let Ok(record) = async_api.records.lock().unwrap().try_recv() {
@@ -1348,7 +1456,8 @@ impl Simulator {
         if let Some(filename) = filename {
             let filename = self.config.base_path.as_ref().join(filename);
 
-            info!(context, 
+            info!(
+                context,
                 "Saving results to {}",
                 filename.to_str().unwrap_or_default()
             );
@@ -1436,8 +1545,15 @@ impl Simulator {
     /// ## Arguments
     /// * `filename` - Path to the JSON result file.
     /// * `context` - Shared simulation context used for load/deserialization logging.
-    pub fn deserialize_results_from_file(filename: &Path, context: &Context) -> SimbaResult<Results> {
-        info!(context, "Loading results from file `{}`", filename.to_str().unwrap());
+    pub fn deserialize_results_from_file(
+        filename: &Path,
+        context: &Context,
+    ) -> SimbaResult<Results> {
+        info!(
+            context,
+            "Loading results from file `{}`",
+            filename.to_str().unwrap()
+        );
         let mut recording_file = File::open(filename).expect("Impossible to open record file");
         let mut content = String::new();
         recording_file
@@ -1482,19 +1598,35 @@ impl Simulator {
                 break;
             }
             next_time = node.next_time_step(next_time + TIME_ROUND / 2., &context)?;
-            internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Got next_time: {next_time}");
-            internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Get common time (next_time is {next_time})");
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeSyncDetailed,
+                "Got next_time: {next_time}"
+            );
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeSyncDetailed,
+                "Get common time (next_time is {next_time})"
+            );
             {
                 let mut unlocked_common_time = node_sync_params.common_time.write().unwrap();
                 if *unlocked_common_time > next_time {
                     *unlocked_common_time = next_time;
-                    internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Set common time");
+                    internal!(
+                        context,
+                        crate::logger::InternalLog::NodeSyncDetailed,
+                        "Set common time"
+                    );
                 }
-            }    
+            }
             node_sync_params.barrier.wait();
 
             next_time = *node_sync_params.common_time.read().unwrap();
-            internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Barrier... final next_time is {next_time}");
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeSyncDetailed,
+                "Barrier... final next_time is {next_time}"
+            );
             node_sync_params.barrier.wait();
             *node_sync_params.common_time.write().unwrap() = f32::INFINITY;
             node_sync_params.barrier.wait();
@@ -1507,7 +1639,11 @@ impl Simulator {
             }
 
             node.run_next_time_step(next_time, &node_sync_params.time_cv, &context)?;
-            internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "End of time step wait");
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeSyncDetailed,
+                "End of time step wait"
+            );
             if node.send_records()
                 && let Some(async_api_server) = &async_api_server
             {
@@ -1516,7 +1652,11 @@ impl Simulator {
                     node: node.record(&context),
                 });
             }
-            internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "End of time step sync");
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeSyncDetailed,
+                "End of time step sync"
+            );
 
             node_sync_params
                 .end_time_step_sync
@@ -1529,7 +1669,11 @@ impl Simulator {
             //     lk = node_sync_params.time_cv.condvar.wait(lk).unwrap();
             // }
             // std::mem::drop(lk);
-            internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Wait at final barrier");
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeSyncDetailed,
+                "Wait at final barrier"
+            );
             node_sync_params.barrier.wait();
             if node.process_messages() {
                 node.handle_messages(next_time, &context);
@@ -1542,7 +1686,11 @@ impl Simulator {
                 *node_sync_params.nb_nodes.write().unwrap() -= 1;
                 node_sync_params.time_cv.condvar.notify_all();
                 node.kill(next_time);
-                node_sync_params.physics_list.write().unwrap().remove(&node.name());
+                node_sync_params
+                    .physics_list
+                    .write()
+                    .unwrap()
+                    .remove(&node.name());
                 node_sync_params.barrier.remove_one();
                 return Ok(None);
             }
@@ -1565,7 +1713,9 @@ impl Simulator {
                     < *running_parameters.nb_nodes.read().unwrap()
                 && !*time_cv.force_finish.lock().unwrap()
             {
-                internal!(context, crate::logger::InternalLog::NodeSyncDetailed,
+                internal!(
+                    context,
+                    crate::logger::InternalLog::NodeSyncDetailed,
                     "Simulator spin waiting... (waiting_nodes: {}, nb_nodes: {}, finishing_nodes: {}, end_procedure_waiting: {})",
                     *lk,
                     *running_parameters.nb_nodes.read().unwrap(),
@@ -1578,7 +1728,9 @@ impl Simulator {
                 return Ok(());
             }
 
-            internal!(context, crate::logger::InternalLog::NodeSyncDetailed,
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeSyncDetailed,
                 "Simulator spin continue... (waiting_nodes: {}, nb_nodes: {}, finishing_nodes: {}, end_procedure_waiting: {})",
                 *lk,
                 *running_parameters.nb_nodes.read().unwrap(),
@@ -1602,7 +1754,9 @@ impl Simulator {
             }
 
             if time_end_procedure {
-                internal!(context, crate::logger::InternalLog::NodeSyncDetailed,
+                internal!(
+                    context,
+                    crate::logger::InternalLog::NodeSyncDetailed,
                     "Time step end procedure... (nb_nodes: {}, finishing_nodes: {})",
                     *running_parameters.nb_nodes.read().unwrap(),
                     *running_parameters.finishing_cv.0.lock().unwrap()
@@ -1613,22 +1767,28 @@ impl Simulator {
                 }
                 running_parameters.barrier.remove_one();
             } else {
-                self.network_manager.process_messages(&node_states, &context).unwrap();
+                self.network_manager
+                    .process_messages(&node_states, &context)
+                    .unwrap();
             }
             if *running_parameters.finishing_cv.0.lock().unwrap()
                 >= *running_parameters.nb_nodes.read().unwrap()
             {
-                internal!(context, crate::logger::InternalLog::NodeSyncDetailed,
+                internal!(
+                    context,
+                    crate::logger::InternalLog::NodeSyncDetailed,
                     "All nodes finishing... (nb_nodes: {}, finishing_nodes: {})",
                     *running_parameters.nb_nodes.read().unwrap(),
                     *running_parameters.finishing_cv.0.lock().unwrap()
                 );
                 return Ok(());
             }
-            internal!(context, crate::logger::InternalLog::NodeSyncDetailed,
-                    "End of simulator spin loop... (nb_nodes: {}, finishing_nodes: {})",
-                    *running_parameters.nb_nodes.read().unwrap(),
-                    *running_parameters.finishing_cv.0.lock().unwrap()
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeSyncDetailed,
+                "End of simulator spin loop... (nb_nodes: {}, finishing_nodes: {})",
+                *running_parameters.nb_nodes.read().unwrap(),
+                *running_parameters.finishing_cv.0.lock().unwrap()
             );
             // Finishing time step procedure
             *lk = 0;
@@ -1638,7 +1798,12 @@ impl Simulator {
         }
     }
 
-    fn end_of_time_step_procedure(&mut self, node_states: &HashMap<String, Option<[f32; 2]>>, running_parameters: &mut RunningParameters, context: &Context) -> SimbaResult<()> {
+    fn end_of_time_step_procedure(
+        &mut self,
+        node_states: &HashMap<String, Option<[f32; 2]>>,
+        running_parameters: &mut RunningParameters,
+        context: &Context,
+    ) -> SimbaResult<()> {
         let current_time = context.get_time().expect("Simulator context has no time!!");
         running_parameters.last_sim_time = current_time;
         self.last_sim_time = current_time;
@@ -1655,9 +1820,11 @@ impl Simulator {
         scenario
             .lock()
             .unwrap()
-            .execute_scenario(current_time, self, &node_states, running_parameters, &context)
+            .execute_scenario(self, node_states, running_parameters, context)
             .unwrap();
-        self.network_manager.process_messages(&node_states, &context).unwrap();
+        self.network_manager
+            .process_messages(node_states, context)
+            .unwrap();
         Ok(())
     }
 

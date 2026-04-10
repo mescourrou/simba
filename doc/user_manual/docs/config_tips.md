@@ -24,7 +24,7 @@ This guide provides best practices, common patterns, and troubleshooting advice 
 Two robots that coordinate through communication:
 
 ```yaml
-version: 1.6.0
+version: 1.8.0
 max_time: 30.0
 
 robots:
@@ -113,7 +113,7 @@ robots:
 Configure realistic sensor noise and faults at startup:
 
 ```yaml
-version: 1.6.0
+version: 1.8.0
 max_time: 20.0
 environment:
   map_path: maps/landmarks.yaml
@@ -189,7 +189,7 @@ robots:
 One computation unit receives sensor data from all robots and performs centralized state estimation:
 
 ```yaml
-version: 1.6.0
+version: 1.8.0
 max_time: 20.0
 environment:
   map_path: maps/landmarks.yaml
@@ -265,7 +265,7 @@ computation_units:
 Specify the correct version matching your simulator to get a warning when using different major versions:
 
 ```yaml
-version: 1.6.0  # Match your installed SiMBA version
+version: 1.8.0  # Match your installed SiMBA version
 ```
 
 Check with: `simba-cmd --version`
@@ -300,7 +300,7 @@ Enable auto-completion in your editor:
 
 ```yaml
 # yaml-language-server: $schema=../config.schema.json
-version: 1.6.0
+version: 1.8.0
 ```
 
 This provides:
@@ -595,7 +595,7 @@ physics:
 ### For Detailed Analysis
 
 ```yaml
-version: 1.6.0
+version: 1.8.0
 max_time: 10.0  # Shorter simulation
 
 log:

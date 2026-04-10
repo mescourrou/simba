@@ -219,7 +219,12 @@ impl Network {
             key.prepend_str(&self.from)
                 .prepend_str(channels::internal::NODE)
         };
-        internal!(context, crate::logger::InternalLog::NetworkMessages, "Creating channel '{}'", key);
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
+            "Creating channel '{}'",
+            key
+        );
         self.broker.write().unwrap().add_channel(key.clone());
         key
     }
@@ -241,7 +246,13 @@ impl Network {
                 .prepend_str(channels::internal::NODE)
         };
         let range = self.range;
-        internal!(context, crate::logger::InternalLog::NetworkMessages, "Creating channel '{}' with range {}", key, range);
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
+            "Creating channel '{}' with range {}",
+            key,
+            range
+        );
         self.broker
             .write()
             .unwrap()
@@ -283,7 +294,9 @@ impl Network {
                     .join_str(&self.from),
             )
         });
-        internal!(context, crate::logger::InternalLog::NetworkMessages, 
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
             "Subscribe to '{:?}'\nChannels: {}",
             keys,
             self.broker
@@ -330,7 +343,12 @@ impl Network {
             )
         });
         // but subscribe to the channel with 0 reception delay.
-        internal!(context, crate::logger::InternalLog::NetworkMessages, "Subscribe instantaneous to '{:?}'", keys);
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
+            "Subscribe instantaneous to '{:?}'",
+            keys
+        );
         self.broker
             .write()
             .unwrap()
@@ -354,7 +372,14 @@ impl Network {
     /// * `message` - Message envelope to publish.
     /// * `time` - Simulation timestamp used by the broker.
     /// * `context` - Shared simulation context used for network logging.
-    pub fn send_to_node(&self, recipient: String, channel: PathKey, message: Envelope, time: f32, context: &Context) {
+    pub fn send_to_node(
+        &self,
+        recipient: String,
+        channel: PathKey,
+        message: Envelope,
+        time: f32,
+        context: &Context,
+    ) {
         let key = if channel.absolute() {
             channel
         } else {
@@ -368,7 +393,13 @@ impl Network {
                 .unwrap()
                 .subscribe_to(&key, self.from.clone(), self.reception_delay)
         {
-            internal!(context, crate::logger::InternalLog::NetworkMessages, "Sending message to '{}': {:?}", key, message);
+            internal!(
+                context,
+                crate::logger::InternalLog::NetworkMessages,
+                "Sending message to '{}': {:?}",
+                key,
+                message
+            );
             tmp_client.send(message, time);
         }
     }
@@ -396,7 +427,13 @@ impl Network {
                 .unwrap()
                 .subscribe_to(&key, self.from.clone(), self.reception_delay)
         {
-            internal!(context, crate::logger::InternalLog::NetworkMessages, "Sending message to '{}': {:?}", key, message);
+            internal!(
+                context,
+                crate::logger::InternalLog::NetworkMessages,
+                "Sending message to '{}': {:?}",
+                key,
+                message
+            );
             tmp_client.send(message, time);
         }
     }

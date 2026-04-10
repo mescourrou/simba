@@ -6,7 +6,9 @@
 //!
 //! The module provides [`SensorFilter`]: Base trait for all custom filter implementations
 
-use crate::{context::Context, errors::SimbaResult, sensors::SensorObservation, state_estimators::State};
+use crate::{
+    context::Context, errors::SimbaResult, sensors::SensorObservation, state_estimators::State,
+};
 
 pub mod external_filter;
 pub mod python_filter;
@@ -23,7 +25,12 @@ pub trait SensorFilter: Send + Sync + std::fmt::Debug {
     /// Called once at simulation before starting the simulation loop to allow filters to set up internal state, validate configurations,
     /// or perform any needed interactions with the node. This is optional; default implementation does nothing.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut crate::node::Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         Ok(())
     }
     /// Applies the filter to an observation and decides whether to keep or exclude it. The observation can be modified.

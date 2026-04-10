@@ -4,32 +4,43 @@ use std::sync::{Arc, Mutex};
 use pyo3::prelude::*;
 
 use crate::{
-    context::Context, controllers::{
+    context::Context,
+    controllers::{
         Controller,
         pybinds::{ControllerWrapper, PythonController},
-    }, internal, navigators::{
+    },
+    internal,
+    navigators::{
         Navigator,
         go_to::GoToMessage,
         pybinds::{NavigatorWrapper, PythonNavigator},
-    }, networking::{
+    },
+    networking::{
         MessageTypes,
         network::{MessageFlag, Network},
-    }, physics::{
+    },
+    physics::{
         Physics,
         pybinds::{PhysicsWrapper, PythonPhysics},
-    }, plugin_api::PluginAPI, pywrappers::{
+    },
+    plugin_api::PluginAPI,
+    pywrappers::{
         CommandWrapper, ControllerErrorWrapper, DisplacementObservationWrapper,
         GNSSObservationWrapper, MultiClientWrapper, NodeWrapper, ObservationWrapper,
         OrientedLandmarkObservationWrapper, OrientedRobotObservationWrapper, PluginAPIWrapper,
         Pose, SensorObservationWrapper, SimulatorWrapper, SpeedObservationWrapper, StateWrapper,
         UnicycleCommandWrapper, Vec2, Vec3, WorldStateWrapper, run_gui,
-    }, sensors::sensor_manager::SensorTriggerMessage, simulator::SimulatorConfig, state_estimators::{
+    },
+    sensors::sensor_manager::SensorTriggerMessage,
+    simulator::SimulatorConfig,
+    state_estimators::{
         StateEstimator,
         pybinds::{PythonStateEstimator, StateEstimatorWrapper},
-    }, utils::{
+    },
+    utils::{
         SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory,
         python::call_py_method,
-    }
+    },
 };
 
 /// Create Python bindings for Simba components and add them to the provided Python module.
@@ -119,7 +130,11 @@ impl PluginAPI for PythonAPI {
         initial_time: f32,
         context: &Context,
     ) -> Box<dyn StateEstimator> {
-        internal!(context, crate::logger::InternalLog::API, "Calling Python API");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling Python API"
+        );
         self.state_estimators
             .lock()
             .unwrap()
@@ -152,7 +167,11 @@ impl PluginAPI for PythonAPI {
         initial_time: f32,
         context: &Context,
     ) -> Box<dyn Controller> {
-        internal!(context, crate::logger::InternalLog::API, "Calling Python API");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling Python API"
+        );
         self.controllers
             .lock()
             .unwrap()
@@ -185,7 +204,11 @@ impl PluginAPI for PythonAPI {
         initial_time: f32,
         context: &Context,
     ) -> Box<dyn Navigator> {
-        internal!(context, crate::logger::InternalLog::API, "Calling Python API");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling Python API"
+        );
         self.navigators
             .lock()
             .unwrap()
@@ -211,7 +234,11 @@ impl PluginAPI for PythonAPI {
         initial_time: f32,
         context: &Context,
     ) -> Box<dyn Physics> {
-        internal!(context, crate::logger::InternalLog::API, "Calling Python API");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling Python API"
+        );
         self.physics
             .lock()
             .unwrap()

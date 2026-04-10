@@ -11,9 +11,20 @@ use std::{
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    context::Context, controllers::Controller, errors::SimbaResult, info, navigators::Navigator, networking::network::Network, physics::Physics, plugin_api::PluginAPI, simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig}, state_estimators::StateEstimator, utils::{
+    context::Context,
+    controllers::Controller,
+    errors::SimbaResult,
+    info,
+    navigators::Navigator,
+    networking::network::Network,
+    physics::Physics,
+    plugin_api::PluginAPI,
+    simulator::{Record, Simulator, SimulatorAsyncApi, SimulatorConfig},
+    state_estimators::StateEstimator,
+    utils::{
         SharedMutex, SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory,
-    }, warning
+    },
+    warning,
 };
 
 /// Asynchronous API for [`Simulator`] in order to allow running the simulator in a separate thread, and communicate with it through channels. This is a client of [`AsyncApiServer`].

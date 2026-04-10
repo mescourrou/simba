@@ -161,7 +161,14 @@ impl UIComponent for PhysicsRecord {
 }
 
 use crate::{
-    context::Context, errors::SimbaResult, node::{Node, node_factory::FromConfigArguments}, physics::robot_models::Command, recordable::Recordable, simulator::SimulatorConfig, state_estimators::State, utils::SharedRwLock
+    context::Context,
+    errors::SimbaResult,
+    node::{Node, node_factory::FromConfigArguments},
+    physics::robot_models::Command,
+    recordable::Recordable,
+    simulator::SimulatorConfig,
+    state_estimators::State,
+    utils::SharedRwLock,
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -183,10 +190,7 @@ pub struct GetRealStateResp {
 
 /// Physics simulation trait.
 pub trait Physics:
-    std::fmt::Debug
-    + std::marker::Send
-    + std::marker::Sync
-    + Recordable<PhysicsRecord>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<PhysicsRecord>
 {
     /// Optional initialization hook called once after node setup.
     #[allow(unused_variables)]
@@ -229,7 +233,6 @@ pub trait Physics:
 pub fn make_physics_from_config(
     config: &PhysicsConfig,
     from_config_args: &FromConfigArguments,
-    context: &Context,
 ) -> SimbaResult<SharedRwLock<Box<dyn Physics>>> {
     Ok(Arc::new(RwLock::new(match &config {
         PhysicsConfig::Internal(c) => Box::new(internal_physics::InternalPhysics::from_config(
@@ -237,23 +240,18 @@ pub fn make_physics_from_config(
             from_config_args.node_name,
             from_config_args.va_factory,
             from_config_args.initial_time,
-            context,
+            from_config_args.context,
         )) as Box<dyn Physics>,
         PhysicsConfig::External(c) => Box::new(external_physics::ExternalPhysics::from_config(
             c,
-            from_config_args.plugin_api,
-            from_config_args.global_config,
-            from_config_args.va_factory,
-            from_config_args.network,
-            from_config_args.initial_time,
-            context,
+            from_config_args,
         )?),
         PhysicsConfig::Python(c) => Box::new(
             python_physics::PythonPhysics::from_config(
                 c,
                 from_config_args.global_config,
                 from_config_args.initial_time,
-                context,
+                from_config_args.context,
             )
             .unwrap(),
         ),

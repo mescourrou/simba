@@ -10,10 +10,13 @@
 use crate::gui::{UIComponent, utils::path_finder};
 
 use crate::{
-    context::Context, navigators::{
+    context::Context,
+    navigators::{
         Navigator, NavigatorRecord,
         trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
-    }, simulator::SimulatorConfig, utils::geometry::{mod2pi, smallest_theta_diff}
+    },
+    simulator::SimulatorConfig,
+    utils::geometry::{mod2pi, smallest_theta_diff},
 };
 
 extern crate nalgebra as na;
@@ -328,7 +331,12 @@ impl Navigator for TrajectoryFollower {
     /// 3. Compute the orientation of the point to orient the robot to the projected point.
     /// 4. Compute the lateral error
     /// 5. Compute the velocity error
-    fn compute_error(&mut self, _robot: &mut Node, world_state: WorldState, context: &Context) -> ControllerError {
+    fn compute_error(
+        &mut self,
+        _robot: &mut Node,
+        world_state: WorldState,
+        context: &Context,
+    ) -> ControllerError {
         if world_state.ego.is_none() {
             panic!(
                 "StateEstimator should provide an ego estimate for TrajectoryFollower navigator."

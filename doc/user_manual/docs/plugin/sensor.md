@@ -57,7 +57,7 @@ impl Sensor for MyWonderfulSensor {
         _initial_time: f32,
         context: &simba::context::Context,
     ) -> SimbaResult<()> {
-        simba::context::info!(context, "Initializing MyWonderfulSensor for node {}", node.name());
+        simba::info!(context, "Initializing MyWonderfulSensor for node {}", node.name());
         Ok(())
     }
 

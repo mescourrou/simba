@@ -12,7 +12,15 @@ use serde::{Deserialize, Serialize};
 use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
 use crate::{
-    config::NumberConfig, constants::TIME_ROUND, context::Context, errors::SimbaResult, internal, node::Node, plugin_api::PluginAPI, recordable::Recordable, sensors::{
+    config::NumberConfig,
+    constants::TIME_ROUND,
+    context::Context,
+    errors::SimbaResult,
+    internal,
+    node::Node,
+    plugin_api::PluginAPI,
+    recordable::Recordable,
+    sensors::{
         Sensor, SensorObservation, SensorRecord,
         fault_models::{
             additive::{AdditiveFault, AdditiveFaultConfig},
@@ -28,12 +36,15 @@ use crate::{
             python_filter::{PythonFilter, PythonFilterConfig},
             range_filter::{RangeFilter, RangeFilterConfig},
         },
-    }, simulator::SimulatorConfig, state_estimators::State, utils::{
+    },
+    simulator::SimulatorConfig,
+    state_estimators::State,
+    utils::{
         determinist_random_variable::DeterministRandomVariableFactory,
         enum_tools::EnumVariables,
         geometry::{is_angle_inside, segments_intersection},
         periodicity::{Periodicity, PeriodicityConfig},
-    }
+    },
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -658,9 +669,9 @@ impl ScanSensor {
         let mut filters = Vec::new();
         for filter_config in &config.filters {
             filters.push(match filter_config {
-                ScanSensorFilterConfig::Range(cfg) => {
-                    ScanSensorFilterType::Range(RangeFilter::from_config(cfg, initial_time, context))
-                }
+                ScanSensorFilterConfig::Range(cfg) => ScanSensorFilterType::Range(
+                    RangeFilter::from_config(cfg, initial_time, context),
+                ),
                 ScanSensorFilterConfig::Python(cfg) => ScanSensorFilterType::Python(
                     PythonFilter::from_config(cfg, global_config, initial_time, context)?,
                 ),
@@ -693,7 +704,12 @@ impl ScanSensor {
 }
 
 impl Sensor for ScanSensor {
-    fn post_init(&mut self, _node: &mut Node, _initial_time: f32, context: &Context) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        _node: &mut Node,
+        _initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         for filter in &mut self.filters {
             filter.post_init(_node, _initial_time, context)?;
         }
@@ -710,7 +726,12 @@ impl Sensor for ScanSensor {
             .unwrap_or(f32::INFINITY)
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32, context: &Context) -> Vec<SensorObservation> {
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation> {
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
         {
@@ -758,12 +779,21 @@ impl Sensor for ScanSensor {
             })
             .collect::<Vec<_>>();
 
-        if context.is_internal_log_level_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-            internal!(context, crate::logger::InternalLog::SensorManagerDetailed, "Scan Sensor - Observable landmarks:");
+        if context.is_internal_log_level_enabled(crate::logger::InternalLog::SensorManagerDetailed)
+        {
+            internal!(
+                context,
+                crate::logger::InternalLog::SensorManagerDetailed,
+                "Scan Sensor - Observable landmarks:"
+            );
             for (l, angle1, angle2, _, _) in &observable_landmarks {
-                internal!(context, crate::logger::InternalLog::SensorManagerDetailed,
+                internal!(
+                    context,
+                    crate::logger::InternalLog::SensorManagerDetailed,
                     "- Landmark {}: angle range [{:.2}, {:.2}]",
-                    l.id, angle1, angle2
+                    l.id,
+                    angle1,
+                    angle2
                 );
             }
         }
@@ -931,7 +961,7 @@ impl Sensor for ScanSensor {
                                         }
                                     }
                                 }),
-                                context, 
+                                context,
                             );
                             let mut addition_vector = Vector3::zeros();
                             if let Some(x) = adding_values.get(&ScanSensorVariablesGlobalFaults::X)
@@ -1019,7 +1049,7 @@ impl Sensor for ScanSensor {
                                             }
                                         }
                                     }),
-                                    context
+                                    context,
                                 );
                                 let mut d = if let Some(new_r) =
                                     new_values.get(&ScanSensorVariablesPointFaults::R)
@@ -1180,8 +1210,11 @@ impl Sensor for ScanSensor {
                             })
                             .enumerate()
                         {
-                            let new_obs_from_clutter =
-                                f.add_faults(time, i as f32 / (1000. * obs_list_len as f32), context);
+                            let new_obs_from_clutter = f.add_faults(
+                                time,
+                                i as f32 / (1000. * obs_list_len as f32),
+                                context,
+                            );
                             for (_, obs_params) in new_obs_from_clutter {
                                 let mut x = obs_params
                                     .get(&ScanSensorVariablesPointFaults::X)
@@ -1258,18 +1291,21 @@ impl Sensor for ScanSensor {
                                     obs.radial_velocities.push(v);
                                 }
                             }
-                            obs.applied_faults.push(
-                                ScanSensorFaultModelConfig::PointMisdetection(
+                            obs.applied_faults
+                                .push(ScanSensorFaultModelConfig::PointMisdetection(
                                     f.config().clone(),
-                                ),
-                            );
+                                ));
                         }
                     }
                 }
             }
             observations
         } else {
-            internal!(context, crate::logger::InternalLog::SensorManagerDetailed, "Scan Observation filtered out");
+            internal!(
+                context,
+                crate::logger::InternalLog::SensorManagerDetailed,
+                "Scan Observation filtered out"
+            );
             Vec::new()
         }
     }

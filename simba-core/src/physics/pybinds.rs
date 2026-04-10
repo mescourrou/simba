@@ -10,7 +10,15 @@ use serde_json::Value;
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    context::Context, errors::SimbaResult, internal, networking::channels::internal, node::Node, physics::{external_physics::ExternalPhysicsRecord, robot_models::Command}, pywrappers::{CommandWrapper, NodeWrapper, StateWrapper}, recordable::Recordable, state_estimators::State, utils::python::{call_py_method, call_py_method_void}
+    context::Context,
+    errors::SimbaResult,
+    internal,
+    node::Node,
+    physics::{external_physics::ExternalPhysicsRecord, robot_models::Command},
+    pywrappers::{CommandWrapper, NodeWrapper, StateWrapper},
+    recordable::Recordable,
+    state_estimators::State,
+    utils::python::{call_py_method, call_py_method_void},
 };
 
 use super::{Physics, PhysicsRecord};
@@ -131,7 +139,9 @@ impl PythonPhysics {
     }
 
     fn post_init(&mut self, node: NodeWrapper, context: &Context) -> SimbaResult<()> {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of post_init"
         );
         call_py_method_void!(self.model, "post_init", (node,));
@@ -139,7 +149,9 @@ impl PythonPhysics {
     }
 
     fn apply_command(&mut self, command: &Command, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of apply_command"
         );
         call_py_method_void!(
@@ -151,14 +163,18 @@ impl PythonPhysics {
     }
 
     fn update_state(&mut self, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of update_state"
         );
         call_py_method_void!(self.model, "update_state", (time,));
     }
 
     fn state(&mut self, time: f32, context: &Context) -> State {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of state"
         );
         // let robot_record = robot.record();
@@ -167,7 +183,9 @@ impl PythonPhysics {
     }
 
     fn record(&self, context: &Context) -> PhysicsRecord {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of record"
         );
         let record_str: String = call_py_method!(self.model, "record", String,);
@@ -182,7 +200,9 @@ impl PythonPhysics {
     }
 
     fn next_time_step(&self, context: &Context) -> Option<f32> {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of next_time_step"
         );
         call_py_method!(self.model, "next_time_step", Option<f32>,)

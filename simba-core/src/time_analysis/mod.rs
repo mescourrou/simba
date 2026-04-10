@@ -23,7 +23,8 @@ use std::collections::BTreeMap;
 use std::time;
 
 use crate::{
-    context::Context, errors::SimbaResult, info, time_analysis::time_analysis_config::AnalysisUnit, utils::SharedMutex
+    context::Context, errors::SimbaResult, info, time_analysis::time_analysis_config::AnalysisUnit,
+    utils::SharedMutex,
 };
 
 /// Node for the time analysis. It represents a block of code to analyse,
@@ -147,7 +148,11 @@ impl TimeAnalysisFactory {
     /// * `context` - Shared simulation context used for reporting logs.
     pub fn save_results(&self, context: &Context) {
         let path = Path::new(self.config.output_path.as_str());
-        info!(context, "Saving Time Analysis results to {}", path.to_str().unwrap());
+        info!(
+            context,
+            "Saving Time Analysis results to {}",
+            path.to_str().unwrap()
+        );
         self.exporter.export(self, path);
         self.real_time_analysis(path);
     }
