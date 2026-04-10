@@ -38,11 +38,15 @@ use {
 };
 
 use crate::{
-    context::Context, errors::SimbaResult, node::Node, recordable::Recordable, sensors::{
+    context::Context,
+    errors::SimbaResult,
+    node::Node,
+    recordable::Recordable,
+    sensors::{
         displacement_sensor::{DisplacementObservation, DisplacementObservationRecord},
         external_sensor::{ExternalObservation, ExternalObservationRecord},
         scan_sensor::{ScanObservation, ScanObservationRecord},
-    }
+    },
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -170,7 +174,9 @@ impl Recordable<SensorObservationRecord> for SensorObservation {
                 SensorObservationRecord::OrientedLandmark(o.record(context))
             }
             SensorObservation::Speed(o) => SensorObservationRecord::Speed(o.record(context)),
-            SensorObservation::Displacement(o) => SensorObservationRecord::Displacement(o.record(context)),
+            SensorObservation::Displacement(o) => {
+                SensorObservationRecord::Displacement(o.record(context))
+            }
             SensorObservation::GNSS(o) => SensorObservationRecord::GNSS(o.record(context)),
             SensorObservation::OrientedRobot(o) => {
                 SensorObservationRecord::OrientedRobot(o.record(context))
@@ -433,7 +439,12 @@ pub trait Sensor:
     /// Initialize the [`Sensor`]. Should be called at the beginning of the run, after
     /// the initialization of the modules.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -447,7 +458,12 @@ pub trait Sensor:
     /// ## Return
     /// List of [`SensorObservation`]s, could be empty if no [`Sensor`] provided observation
     /// at this `time`.
-    fn get_observations(&mut self, node: &mut Node, time: f32, context: &Context) -> Vec<SensorObservation>;
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation>;
 
     /// Get the time of the next observation to trigger the next call to `get_observations`.
     /// This allows the sensor to have a custom observation period, or to trigger observations at specific times.

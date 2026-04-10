@@ -10,14 +10,20 @@ use std::sync::{Arc, Mutex};
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
-    context::Context, internal, logger::InternalLog, physics::{
+    context::Context,
+    internal,
+    logger::InternalLog,
+    physics::{
         fault_models::fault_model::{
             PhysicsFaultModel, PhysicsFaultModelConfig, make_physics_fault_model_from_config,
         },
         robot_models::{
             Command, RobotModel, RobotModelConfig, make_model_from_config, unicycle::UnicycleConfig,
         },
-    }, recordable::Recordable, state_estimators::{State, StateConfig, StateRecord}, utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory}
+    },
+    recordable::Recordable,
+    state_estimators::{State, StateConfig, StateRecord},
+    utils::{SharedMutex, determinist_random_variable::DeterministRandomVariableFactory},
 };
 use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
@@ -222,27 +228,34 @@ impl InternalPhysics {
 use super::{Physics, PhysicsRecord};
 
 impl Physics for InternalPhysics {
-    fn post_init(&mut self, node: &mut crate::node::Node, context: &Context) -> crate::errors::SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        context: &Context,
+    ) -> crate::errors::SimbaResult<()> {
         for fault in self.faults.lock().unwrap().iter_mut() {
             fault.post_init(node, context)?;
         }
         Ok(())
     }
     /// Apply the given `command` perfectly.
-    fn apply_command(&mut self, command: &Command, _time: f32, context: &Context) {
+    fn apply_command(&mut self, command: &Command, _time: f32, _context: &Context) {
         self.current_command = command.clone();
     }
 
     /// Compute the state at the given `time`.
     fn update_state(&mut self, time: f32, context: &Context) {
-        internal!(context, InternalLog::NodeRunningDetailed,
-            "Updating internal physics to time {}", time
+        internal!(
+            context,
+            InternalLog::NodeRunningDetailed,
+            "Updating internal physics to time {}",
+            time
         );
         self.compute_state_until(time, context);
     }
 
     /// Return the current state. Do not compute the state again.
-    fn state(&self, time: f32, context: &Context) -> State {
+    fn state(&self, time: f32, _context: &Context) -> State {
         assert!(
             time == self.last_time_update,
             "State should be requested at the same time as the last update: {} != {}",

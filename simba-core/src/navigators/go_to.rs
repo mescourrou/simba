@@ -16,7 +16,13 @@ use std::{
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
-    context::Context, errors::SimbaResult, info, navigators::{Navigator, NavigatorRecord}, networking::network::Network, simulator::SimbaBrokerMultiClient, utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff}
+    context::Context,
+    errors::SimbaResult,
+    info,
+    navigators::{Navigator, NavigatorRecord},
+    networking::network::Network,
+    simulator::SimbaBrokerMultiClient,
+    utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff},
 };
 
 extern crate nalgebra as na;
@@ -291,7 +297,12 @@ impl Navigator for GoTo {
 
     /// Compute the error between the given `state` and the target point.
     ///
-    fn compute_error(&mut self, _robot: &mut Node, world_state: WorldState, _context: &Context) -> ControllerError {
+    fn compute_error(
+        &mut self,
+        _robot: &mut Node,
+        world_state: WorldState,
+        _context: &Context,
+    ) -> ControllerError {
         if world_state.ego.is_none() {
             panic!("StateEstimator should provide an ego estimate for GoTo navigator.")
         }

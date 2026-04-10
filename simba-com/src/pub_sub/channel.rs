@@ -160,7 +160,11 @@ impl<
             while let Ok(message) = receiver.try_recv() {
                 if message.1 < 0. {
                     #[cfg(feature = "debug_mode")]
-                    println!("[{}][Channel {}] Receive end-client message", "DEBUG".blue(), self.name);
+                    println!(
+                        "[{}][Channel {}] Receive end-client message",
+                        "DEBUG".blue(),
+                        self.name
+                    );
                     dead_clients.insert((from_id.clone(), *receiver_id));
                     continue;
                 }

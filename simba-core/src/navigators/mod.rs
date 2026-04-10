@@ -28,8 +28,7 @@ use crate::controllers::ControllerError;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::string_combobox};
-use crate::networking::network::Network;
-use crate::plugin_api::PluginAPI;
+use crate::node::node_factory::FromConfigArguments;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
 
@@ -187,7 +186,6 @@ impl UIComponent for NavigatorRecord {
 use crate::node::Node;
 use crate::recordable::Recordable;
 use crate::utils::SharedRwLock;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 
@@ -207,7 +205,12 @@ pub trait Navigator:
     /// * `node` - Reference to the node to access modules.
     /// * `state` - Estimated world state used by the navigator.
     /// * `context` - Shared simulation context used for logging and communication metadata.
-    fn compute_error(&mut self, node: &mut Node, state: WorldState, context: &Context) -> ControllerError;
+    fn compute_error(
+        &mut self,
+        node: &mut Node,
+        state: WorldState,
+        context: &Context,
+    ) -> ControllerError;
 
     /// Executes per-step side effects before controller computation.
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context);
@@ -231,33 +234,33 @@ pub trait Navigator:
 /// * `context` - Shared simulation context used for logging and call tracing during construction.
 pub fn make_navigator_from_config(
     config: &NavigatorConfig,
-    plugin_api: &Option<Arc<dyn PluginAPI>>,
-    global_config: &SimulatorConfig,
-    va_factory: &Arc<DeterministRandomVariableFactory>,
-    network: &SharedRwLock<Network>,
-    initial_time: f32,
-    context: &Context,
+    from_config_params: &FromConfigArguments,
 ) -> SimbaResult<SharedRwLock<Box<dyn Navigator>>> {
     Ok(Arc::new(RwLock::new(match config {
-        NavigatorConfig::TrajectoryFollower(c) => Box::new(
-            trajectory_follower::TrajectoryFollower::from_config(c, global_config, initial_time),
-        ) as Box<dyn Navigator>,
-        NavigatorConfig::External(c) => {
-            Box::new(external_navigator::ExternalNavigator::from_config(
+        NavigatorConfig::TrajectoryFollower(c) => {
+            Box::new(trajectory_follower::TrajectoryFollower::from_config(
                 c,
-                plugin_api,
-                global_config,
-                va_factory,
-                network,
-                initial_time,
-                context,
-            )?) as Box<dyn Navigator>
+                from_config_params.global_config,
+                from_config_params.initial_time,
+            )) as Box<dyn Navigator>
         }
-        NavigatorConfig::Python(c) => Box::new(
-            python_navigator::PythonNavigator::from_config(c, global_config, initial_time, context).unwrap(),
+        NavigatorConfig::External(c) => Box::new(
+            external_navigator::ExternalNavigator::from_config(c, from_config_params)?,
         ) as Box<dyn Navigator>,
-        NavigatorConfig::GoTo(c) => {
-            Box::new(go_to::GoTo::from_config(c, network, initial_time, context)) as Box<dyn Navigator>
-        }
+        NavigatorConfig::Python(c) => Box::new(
+            python_navigator::PythonNavigator::from_config(
+                c,
+                from_config_params.global_config,
+                from_config_params.initial_time,
+                from_config_params.context,
+            )
+            .unwrap(),
+        ) as Box<dyn Navigator>,
+        NavigatorConfig::GoTo(c) => Box::new(go_to::GoTo::from_config(
+            c,
+            from_config_params.network,
+            from_config_params.initial_time,
+            from_config_params.context,
+        )) as Box<dyn Navigator>,
     })))
 }

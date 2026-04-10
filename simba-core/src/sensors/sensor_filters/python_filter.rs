@@ -7,10 +7,17 @@
 use pyo3::prelude::*;
 
 use crate::{
-    context::Context, errors::SimbaResult, node::Node, pywrappers::{NodeWrapper, SensorObservationWrapper, StateWrapper}, sensors::{SensorObservation, sensor_filters::SensorFilter}, simulator::SimulatorConfig, state_estimators::State, utils::{
+    context::Context,
+    errors::SimbaResult,
+    node::Node,
+    pywrappers::{NodeWrapper, SensorObservationWrapper, StateWrapper},
+    sensors::{SensorObservation, sensor_filters::SensorFilter},
+    simulator::SimulatorConfig,
+    state_estimators::State,
+    utils::{
         macros::python_class_config,
         python::{call_py_method, call_py_method_void, load_class_from_python_script},
-    }
+    },
 };
 
 python_class_config!(
@@ -44,7 +51,12 @@ impl PythonFilter {
 }
 
 impl SensorFilter for PythonFilter {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         let py_node = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.instance, "post_init", py_node, initial_time);
         Ok(())
@@ -56,7 +68,7 @@ impl SensorFilter for PythonFilter {
         observation: SensorObservation,
         observer_state: &State,
         observee_state: Option<&State>,
-        context: &Context,
+        _context: &Context,
     ) -> Option<SensorObservation> {
         let py_observation = SensorObservationWrapper::from_rust(&observation);
         let py_observer_state = StateWrapper::from_rust(observer_state);

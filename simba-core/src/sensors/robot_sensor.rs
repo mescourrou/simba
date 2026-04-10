@@ -505,8 +505,7 @@ impl RobotSensor {
                 }
                 RobotSensorFaultModelConfig::Misassociation(cfg) => {
                     RobotSensorFaultModelType::Misassociation(MisassociationFault::from_config(
-                        cfg, va_factory,
-                        context,
+                        cfg, va_factory, context,
                     ))
                 }
                 RobotSensorFaultModelConfig::Python(cfg) => RobotSensorFaultModelType::Python(
@@ -528,15 +527,15 @@ impl RobotSensor {
         let mut filters = Vec::new();
         for filter_config in &config.filters {
             filters.push(match &filter_config {
-                RobotSensorFilterConfig::Range(cfg) => {
-                    RobotSensorFilterType::Range(RangeFilter::from_config(cfg, initial_time, context))
-                }
+                RobotSensorFilterConfig::Range(cfg) => RobotSensorFilterType::Range(
+                    RangeFilter::from_config(cfg, initial_time, context),
+                ),
                 RobotSensorFilterConfig::Id(cfg) => {
                     RobotSensorFilterType::Id(StringFilter::from_config(cfg, initial_time, context))
                 }
-                RobotSensorFilterConfig::Label(cfg) => {
-                    RobotSensorFilterType::Label(StringFilter::from_config(cfg, initial_time, context))
-                }
+                RobotSensorFilterConfig::Label(cfg) => RobotSensorFilterType::Label(
+                    StringFilter::from_config(cfg, initial_time, context),
+                ),
                 RobotSensorFilterConfig::Python(cfg) => RobotSensorFilterType::Python(
                     PythonFilter::from_config(cfg, global_config, initial_time, context)?,
                 ),
@@ -571,7 +570,12 @@ impl RobotSensor {
 use crate::node::Node;
 
 impl Sensor for RobotSensor {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> crate::errors::SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> crate::errors::SimbaResult<()> {
         for filter in self.filters.iter_mut() {
             filter.post_init(node, initial_time, context)?;
         }
@@ -581,14 +585,23 @@ impl Sensor for RobotSensor {
         Ok(())
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32, context: &Context) -> Vec<SensorObservation> {
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
         {
             return observation_list;
         }
-        internal!(context, crate::logger::InternalLog::SensorManagerDetailed, "Start looking for nodes");
+        internal!(
+            context,
+            crate::logger::InternalLog::SensorManagerDetailed,
+            "Start looking for nodes"
+        );
         let state = if let Some(arc_physics) = node.physics() {
             let physics = arc_physics.read().unwrap();
             physics.state(time, context).clone()
@@ -598,15 +611,35 @@ impl Sensor for RobotSensor {
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
-        internal!(context, crate::logger::InternalLog::SensorManagerDetailed, "Rotation matrix: {}", rotation_matrix);
+        internal!(
+            context,
+            crate::logger::InternalLog::SensorManagerDetailed,
+            "Rotation matrix: {}",
+            rotation_matrix
+        );
 
-        for (i, (other_node_name, other_node_physics)) in node.get_all_node_physics().read().unwrap().iter().enumerate() {
+        for (i, (other_node_name, other_node_physics)) in node
+            .get_all_node_physics()
+            .read()
+            .unwrap()
+            .iter()
+            .enumerate()
+        {
             if other_node_name == &node.name() {
                 continue;
             }
-            internal!(context, crate::logger::InternalLog::SensorManagerDetailed, "Sensing node {}", other_node_name);
+            internal!(
+                context,
+                crate::logger::InternalLog::SensorManagerDetailed,
+                "Sensing node {}",
+                other_node_name
+            );
 
-            let other_state = other_node_physics.read().unwrap().state(time, context).clone();
+            let other_state = other_node_physics
+                .read()
+                .unwrap()
+                .state(time, context)
+                .clone();
             if node.environment().is_target_observable(
                 &other_state.pose.fixed_rows::<2>(0).clone_owned(),
                 Some(0.),
@@ -616,8 +649,7 @@ impl Sensor for RobotSensor {
                 Some(node.name().clone()),
                 context,
             ) {
-                let robot_seed =
-                    (i as f32) / (100. * (time - self.last_time.unwrap_or(-1.)));
+                let robot_seed = (i as f32) / (100. * (time - self.last_time.unwrap_or(-1.)));
                 let pose = rotation_matrix.transpose() * (other_state.pose - state.pose);
                 let labels = node
                     .meta_data_list()
@@ -686,10 +718,7 @@ impl Sensor for RobotSensor {
                                                     state.velocity.fixed_rows::<2>(0).norm()
                                                 }
                                                 RobotSensorVariablesFilter::TargetVelocity => {
-                                                    other_state
-                                                        .velocity
-                                                        .fixed_rows::<2>(0)
-                                                        .norm()
+                                                    other_state.velocity.fixed_rows::<2>(0).norm()
                                                 }
                                             }
                                         }),
@@ -738,10 +767,7 @@ impl Sensor for RobotSensor {
                                 for (i, obs) in new_obs
                                     .iter_mut()
                                     .map(|o| {
-                                        if let SensorObservation::OrientedRobot(
-                                            observation,
-                                        ) = o
-                                        {
+                                        if let SensorObservation::OrientedRobot(observation) = o {
                                             observation
                                         } else {
                                             unreachable!()
@@ -749,28 +775,23 @@ impl Sensor for RobotSensor {
                                     })
                                     .enumerate()
                                 {
-                                    let seed =
-                                        time + i as f32 / (100. * obs_list_len as f32);
+                                    let seed = time + i as f32 / (100. * obs_list_len as f32);
                                     let new_values = f.add_faults(
                                         seed,
-                                        RobotSensorVariablesFaults::mapped_values(
-                                            |variant| match variant {
+                                        RobotSensorVariablesFaults::mapped_values(|variant| {
+                                            match variant {
                                                 RobotSensorVariablesFaults::X => obs.pose.x,
                                                 RobotSensorVariablesFaults::Y => obs.pose.y,
                                                 RobotSensorVariablesFaults::Orientation => {
                                                     obs.pose.z
                                                 }
                                                 RobotSensorVariablesFaults::R => 0.,
-                                                RobotSensorVariablesFaults::Theta => {
-                                                    obs.pose.z
-                                                }
-                                            },
-                                        ),
-                                        &RobotSensorVariables::mapped_values(|variant| {
-                                            match variant {
-                                                RobotSensorVariables::Orientation => {
-                                                    obs.pose.z
-                                                }
+                                                RobotSensorVariablesFaults::Theta => obs.pose.z,
+                                            }
+                                        }),
+                                        &RobotSensorVariables::mapped_values(
+                                            |variant| match variant {
+                                                RobotSensorVariables::Orientation => obs.pose.z,
                                                 RobotSensorVariables::R => {
                                                     obs.pose.fixed_rows::<2>(0).norm()
                                                 }
@@ -781,13 +802,10 @@ impl Sensor for RobotSensor {
                                                     state.velocity.fixed_rows::<2>(0).norm()
                                                 }
                                                 RobotSensorVariables::TargetVelocity => {
-                                                    other_state
-                                                        .velocity
-                                                        .fixed_rows::<2>(0)
-                                                        .norm()
+                                                    other_state.velocity.fixed_rows::<2>(0).norm()
                                                 }
-                                            }
-                                        }),
+                                            },
+                                        ),
                                         context,
                                     );
                                     if let Some(new_x) =
@@ -816,8 +834,8 @@ impl Sensor for RobotSensor {
                                     };
                                     obs.pose.x += new_r * new_theta.cos();
                                     obs.pose.y += new_r * new_theta.sin();
-                                    if let Some(new_orientation) = new_values
-                                        .get(&RobotSensorVariablesFaults::Orientation)
+                                    if let Some(new_orientation) =
+                                        new_values.get(&RobotSensorVariablesFaults::Orientation)
                                     {
                                         obs.pose.z = *new_orientation;
                                     }
@@ -833,10 +851,7 @@ impl Sensor for RobotSensor {
                                 for (i, obs) in new_obs
                                     .iter_mut()
                                     .map(|o| {
-                                        if let SensorObservation::OrientedRobot(
-                                            observation,
-                                        ) = o
-                                        {
+                                        if let SensorObservation::OrientedRobot(observation) = o {
                                             observation
                                         } else {
                                             unreachable!()
@@ -844,12 +859,11 @@ impl Sensor for RobotSensor {
                                     })
                                     .enumerate()
                                 {
-                                    let seed =
-                                        time + i as f32 / (100. * obs_list_len as f32);
+                                    let seed = time + i as f32 / (100. * obs_list_len as f32);
                                     let new_values = f.add_faults(
                                         seed,
-                                        RobotSensorVariablesFaults::mapped_values(
-                                            |variant| match variant {
+                                        RobotSensorVariablesFaults::mapped_values(|variant| {
+                                            match variant {
                                                 RobotSensorVariablesFaults::X => obs.pose.x,
                                                 RobotSensorVariablesFaults::Y => obs.pose.y,
                                                 RobotSensorVariablesFaults::Orientation => {
@@ -861,13 +875,11 @@ impl Sensor for RobotSensor {
                                                 RobotSensorVariablesFaults::Theta => {
                                                     obs.pose.y.atan2(obs.pose.x)
                                                 }
-                                            },
-                                        ),
-                                        &RobotSensorVariables::mapped_values(|variant| {
-                                            match variant {
-                                                RobotSensorVariables::Orientation => {
-                                                    obs.pose.z
-                                                }
+                                            }
+                                        }),
+                                        &RobotSensorVariables::mapped_values(
+                                            |variant| match variant {
+                                                RobotSensorVariables::Orientation => obs.pose.z,
                                                 RobotSensorVariables::R => {
                                                     obs.pose.fixed_rows::<2>(0).norm()
                                                 }
@@ -880,13 +892,10 @@ impl Sensor for RobotSensor {
                                                     state.velocity.fixed_rows::<2>(0).norm()
                                                 }
                                                 RobotSensorVariables::TargetVelocity => {
-                                                    other_state
-                                                        .velocity
-                                                        .fixed_rows::<2>(0)
-                                                        .norm()
+                                                    other_state.velocity.fixed_rows::<2>(0).norm()
                                                 }
-                                            }
-                                        }),
+                                            },
+                                        ),
                                         context,
                                     );
                                     if let Some(new_x) =
@@ -915,8 +924,8 @@ impl Sensor for RobotSensor {
                                     };
                                     obs.pose.x = new_r * new_theta.cos();
                                     obs.pose.y = new_r * new_theta.sin();
-                                    if let Some(new_orientation) = new_values
-                                        .get(&RobotSensorVariablesFaults::Orientation)
+                                    if let Some(new_orientation) =
+                                        new_values.get(&RobotSensorVariablesFaults::Orientation)
                                     {
                                         obs.pose.z = *new_orientation;
                                     }
@@ -972,16 +981,11 @@ impl Sensor for RobotSensor {
                             }
                             RobotSensorFaultModelType::Misassociation(f) => {
                                 for (i, obs) in new_obs.iter_mut().enumerate() {
-                                    if let SensorObservation::OrientedRobot(observation) =
-                                        obs
-                                    {
+                                    if let SensorObservation::OrientedRobot(observation) = obs {
                                         let new_label = f.new_label(
                                             time + robot_seed + (i as f32) / 1000.,
                                             observation.name.clone(),
-                                            observation
-                                                .pose
-                                                .fixed_rows::<2>(0)
-                                                .clone_owned(),
+                                            observation.pose.fixed_rows::<2>(0).clone_owned(),
                                             node.environment(),
                                             context,
                                         );
@@ -1001,10 +1005,7 @@ impl Sensor for RobotSensor {
                                     .iter()
                                     .enumerate()
                                     .filter_map(|(i, obs)| {
-                                        if let SensorObservation::OrientedRobot(
-                                            observation,
-                                        ) = obs
-                                        {
+                                        if let SensorObservation::OrientedRobot(observation) = obs {
                                             if f.detected(
                                                 time + robot_seed + (i as f32) / 1000.,
                                                 context,
@@ -1024,7 +1025,12 @@ impl Sensor for RobotSensor {
                         }
                     }
                 } else {
-                    internal!(context, crate::logger::InternalLog::SensorManagerDetailed, "Observation of node {} was filtered out", &other_node_name.to_string());
+                    internal!(
+                        context,
+                        crate::logger::InternalLog::SensorManagerDetailed,
+                        "Observation of node {} was filtered out",
+                        &other_node_name.to_string()
+                    );
                 }
                 observation_list.extend(new_obs);
             };

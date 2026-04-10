@@ -5,10 +5,8 @@ To make your own external state estimation strategy, the simulator should
 be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external state estimation strategy is made using the
-[`PluginAPI::get_state_estimator`] function.
+[`crate::plugin_api::PluginAPI::get_state_estimator`] function.
 */
-
-use std::sync::Arc;
 
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
@@ -16,20 +14,16 @@ use simba_macros::config_derives;
 use super::{StateEstimator, WorldState};
 use crate::constants::TIME_ROUND;
 use crate::context::Context;
-use crate::{context, error, internal};
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
-use crate::networking::network::Network;
+use crate::node::node_factory::FromConfigArguments;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
-use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
-};
+use crate::{error, internal};
 
 use super::StateEstimatorRecord;
 use crate::sensors::Observation;
@@ -71,25 +65,24 @@ pub struct ExternalEstimator {
 impl ExternalEstimator {
     /// Creates a new [`ExternalEstimator`] from the given config.
     ///
-    /// <div class="warning">The `plugin_api` is required here !</div>
+    /// <div class="warning">The `plugin_api` in `from_config_params` is required here !</div>
     ///
     ///  ## Arguments
     /// * `config` -- Scenario config of the External estimator.
-    /// * `plugin_api` -- Required [`PluginAPI`] implementation.
-    /// * `global_config` -- Simulator config.
-    /// * `_va_factory` -- Factory for Determinists random variables.
+    /// * `from_config_params` -- Parameters required to create the estimator from config, including the required `plugin_api`
     pub fn from_config(
         config: &ExternalEstimatorConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        va_factory: &Arc<DeterministRandomVariableFactory>,
-        network: &SharedRwLock<Network>,
-        initial_time: f32,
-        context: &Context,
+        from_config_params: &FromConfigArguments,
     ) -> SimbaResult<Self> {
-        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
+        internal!(
+            from_config_params.context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
         Ok(Self {
-            state_estimator: plugin_api
+            state_estimator: from_config_params
+                .plugin_api
                 .as_ref()
                 .ok_or_else(|| {
                     SimbaError::new(
@@ -99,11 +92,11 @@ impl ExternalEstimator {
                 })?
                 .get_state_estimator(
                     &config.config,
-                    global_config,
-                    va_factory,
-                    network,
-                    initial_time,
-                    context,
+                    from_config_params.global_config,
+                    from_config_params.va_factory,
+                    from_config_params.network,
+                    from_config_params.initial_time,
+                    from_config_params.context,
                 ),
         })
     }
@@ -120,15 +113,28 @@ impl StateEstimator for ExternalEstimator {
         self.state_estimator.post_init(node, context)
     }
 
-    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32, context: &Context) {
+    fn prediction_step(
+        &mut self,
+        node: &mut Node,
+        command: Option<Command>,
+        time: f32,
+        context: &Context,
+    ) {
         if (time - self.next_time_step(context)).abs() > TIME_ROUND / 2. {
             error!(context, "Error trying to update estimate too soon !");
             return;
         }
-        self.state_estimator.prediction_step(node, command, time, context);
+        self.state_estimator
+            .prediction_step(node, command, time, context);
     }
 
-    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32, context: &Context) {
+    fn correction_step(
+        &mut self,
+        node: &mut Node,
+        observations: &[Observation],
+        time: f32,
+        context: &Context,
+    ) {
         self.state_estimator
             .correction_step(node, observations, time, context);
     }

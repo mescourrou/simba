@@ -19,7 +19,6 @@ List of parameters:
 			- `type`: All  
 			- `type`: NetworkMessages  
 			- `type`: NetworkMessagesDetailed  
-			- `type`: ServiceHandling  
 			- `type`: SetupSteps  
 			- `type`: SetupStepsDetailed  
 			- `type`: SensorManager  
@@ -307,3 +306,5 @@ List of parameters:
 			- `type`: Kill => String
 `environment`: [EnvironmentConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/environment/mod/struct.EnvironmentConfig.html)
 	`map_path`: String, Optional
+`optimization`: [OptimizationConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/simulator/simulator_config/struct.OptimizationConfig.html)
+	`threads`: usize

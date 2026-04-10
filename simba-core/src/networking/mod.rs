@@ -7,16 +7,9 @@
 //! # Communication models
 //!
 //! 1. One-way messaging
-//!    Nodes send messages through [`Network::send_to`](network::Network::send_to) using
-//!    `channels`. Messages are stored in time-ordered
-//!    buffers and delivered when simulation time reaches their timestamp. Delivery happens during
-//!    sync periods. Range are checked
-//!    during simulator forwarding messages, in [`NetworkManager`](network_manager::NetworkManager)
-//!    and messages are dropped if the target node is out of range at the time of sending.
-//! 2. Request/response services
-//!    Nodes expose and consume services using [`Service`](service::Service) and
-//!    [`ServiceClient`](service::ServiceClient). A client sends a request to a remote node and
-//!    waits for the response, while the server handles pending requests during sync periods.
+//!    Nodes send messages through [`Network::send_to`](network::Network::send_to) using the
+//!    `pub_sub` system of `simba_com`. Other nodes can subscribe to these messages using the same system, and
+//!    receive them with the configured `reception_delay`.
 
 use pyo3::{pyclass, pymethods};
 use serde::{Deserialize, Serialize};
@@ -134,18 +127,31 @@ mod tests {
     use simba_com::pub_sub::{MultiClientTrait, PathKey};
 
     use crate::{
-        config::NumberConfig, constants::TIME_ROUND, context::Context, debug, logger::LogLevel, networking::network::{Envelope, Network, NetworkConfig}, node::{Node, node_factory::RobotConfig}, physics::robot_models::Command, plugin_api::PluginAPI, recordable::Recordable, sensors::{
+        config::NumberConfig,
+        constants::TIME_ROUND,
+        context::Context,
+        debug,
+        logger::LogLevel,
+        networking::network::{Envelope, Network, NetworkConfig},
+        node::{Node, node_factory::RobotConfig},
+        physics::robot_models::Command,
+        plugin_api::PluginAPI,
+        recordable::Recordable,
+        sensors::{
             Observation, SensorConfig,
             robot_sensor::RobotSensorConfig,
             sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
-        }, simulator::{SimbaBrokerMultiClient, Simulator, SimulatorConfig}, state_estimators::{
+        },
+        simulator::{SimbaBrokerMultiClient, Simulator, SimulatorConfig},
+        state_estimators::{
             BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig, StateEstimatorRecord,
             WorldState,
             external_estimator::{ExternalEstimatorConfig, ExternalEstimatorRecord},
-        }, utils::{
+        },
+        utils::{
             SharedMutex, SharedRwLock,
             determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
-        }
+        },
     };
 
     #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -249,10 +255,11 @@ mod tests {
                 message: self.message.clone(),
                 last_from: self.last_from.clone(),
                 last_message: self.last_message.clone(),
-                message_client: network
-                    .write()
-                    .unwrap()
-                    .subscribe_to(&[PathKey::from_str("/test").unwrap()], None, context),
+                message_client: network.write().unwrap().subscribe_to(
+                    &[PathKey::from_str("/test").unwrap()],
+                    None,
+                    context,
+                ),
             }) as Box<dyn StateEstimator>
         }
     }

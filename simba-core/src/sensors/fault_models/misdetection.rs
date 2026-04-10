@@ -8,12 +8,15 @@ use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::{context::Context, utils::{
-    determinist_random_variable::DeterministRandomVariableFactory,
-    distributions::bernouilli::{
-        BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable,
+use crate::{
+    context::Context,
+    utils::{
+        determinist_random_variable::DeterministRandomVariableFactory,
+        distributions::bernouilli::{
+            BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable,
+        },
     },
-}};
+};
 
 /// Configuration of the misdetection fault model.
 ///

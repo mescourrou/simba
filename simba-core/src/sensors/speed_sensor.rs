@@ -95,7 +95,12 @@ impl SpeedSensorFaultModelType {
     /// * `node` - Node owning the sensor.
     /// * `initial_time` - Initial simulation time for model setup.
     /// * `context` - Shared simulation context used for logging.
-    pub fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+    pub fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         match self {
             Self::Additive(_) => Ok(()),
             Self::Python(f) => f.post_init(node, initial_time, context),
@@ -427,7 +432,12 @@ impl SpeedSensor {
 use crate::node::Node;
 
 impl Sensor for SpeedSensor {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         self.last_state = node
             .physics()
             .expect("Node with Speed sensor should have Physics")
@@ -444,7 +454,12 @@ impl Sensor for SpeedSensor {
         Ok(())
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32, context: &Context) -> Vec<SensorObservation> {
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation> {
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
         {
@@ -469,7 +484,9 @@ impl Sensor for SpeedSensor {
             if let Some(obs) = keep_observation {
                 keep_observation = match filter {
                     SpeedSensorFilterType::Python(f) => f.filter(time, obs, &state, None, context),
-                    SpeedSensorFilterType::External(f) => f.filter(time, obs, &state, None, context),
+                    SpeedSensorFilterType::External(f) => {
+                        f.filter(time, obs, &state, None, context)
+                    }
                     SpeedSensorFilterType::Range(f) => {
                         if let SensorObservation::Speed(obs) = obs {
                             if f.match_exclusion(&SpeedSensorVariablesFilter::mapped_values(
@@ -552,17 +569,18 @@ impl Sensor for SpeedSensor {
                                 SpeedSensorVariablesFaults::W => obs.angular_velocity += value,
                                 SpeedSensorVariablesFaults::V => obs.linear_velocity += value,
                             });
-                            obs.applied_faults.push(
-                                SpeedSensorFaultModelConfig::Additive(
-                                    f.config().clone(),
-                                ),
-                            );
+                            obs.applied_faults
+                                .push(SpeedSensorFaultModelConfig::Additive(f.config().clone()));
                         }
                     }
                 }
             }
         } else {
-            internal!(context, crate::logger::InternalLog::SensorManagerDetailed, "Speed observation was filtered out");
+            internal!(
+                context,
+                crate::logger::InternalLog::SensorManagerDetailed,
+                "Speed observation was filtered out"
+            );
         }
 
         if let Some(p) = self.activation_time.as_mut() {

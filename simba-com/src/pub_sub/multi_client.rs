@@ -11,7 +11,6 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-
 use colored::Colorize;
 
 use crate::pub_sub::{BrokerTrait, Client, PathKey};
@@ -126,7 +125,9 @@ where
             println!(
                 "[{}] Sending message on key {:?} at time {}: {:?}",
                 "DEBUG".blue(),
-                key, time, message
+                key,
+                time,
+                message
             );
             client.send(message.clone(), time);
         } else if let Some(tmp_client) =
@@ -139,7 +140,9 @@ where
             println!(
                 "[{}] Sending message on key {:?} at time {} with tmp client: {:?}",
                 "DEBUG".blue(),
-                key, time, message
+                key,
+                time,
+                message
             );
             tmp_client.send(message.clone(), time);
         } else {

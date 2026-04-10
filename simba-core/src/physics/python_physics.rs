@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::{Python, pyclass, pymethods};
 use serde_json::Value;
 
-use crate::context::{self, Context};
+use crate::context::Context;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
 use crate::internal;
@@ -85,8 +85,11 @@ impl PythonPhysics {
         initial_time: f32,
         context: &Context,
     ) -> SimbaResult<Self> {
-        internal!(context, crate::logger::InternalLog::API,
-            "Config given: {:?}", config
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
         );
 
         let physics_instance =
@@ -105,15 +108,23 @@ impl std::fmt::Debug for PythonPhysics {
 
 impl Physics for PythonPhysics {
     fn post_init(&mut self, node: &mut crate::node::Node, context: &Context) -> SimbaResult<()> {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of post_init"
         );
-        call_py_method_void!(self.physics, "post_init", (NodeWrapper::from_rust(node, context.clone()),));
+        call_py_method_void!(
+            self.physics,
+            "post_init",
+            (NodeWrapper::from_rust(node, context.clone()),)
+        );
         Ok(())
     }
 
     fn apply_command(&mut self, command: &Command, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of apply_command"
         );
         // let robot_record = robot.record();
@@ -126,14 +137,18 @@ impl Physics for PythonPhysics {
     }
 
     fn update_state(&mut self, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of update_state"
         );
         call_py_method_void!(self.physics, "update_state", (time,));
     }
 
     fn state(&self, time: f32, context: &Context) -> State {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of state"
         );
         let state = call_py_method!(self.physics, "state", StateWrapper, (time,));
@@ -141,7 +156,9 @@ impl Physics for PythonPhysics {
     }
 
     fn next_time_step(&self, context: &Context) -> Option<f32> {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of next_time_step"
         );
         call_py_method!(self.physics, "next_time_step", Option<f32>,)
@@ -150,7 +167,9 @@ impl Physics for PythonPhysics {
 
 impl Recordable<PhysicsRecord> for PythonPhysics {
     fn record(&self, context: &Context) -> PhysicsRecord {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of record"
         );
         let record_str: String = call_py_method!(self.physics, "record", String,);

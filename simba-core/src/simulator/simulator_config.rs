@@ -29,7 +29,7 @@ use crate::{
 };
 
 /// Configuration for the simulator optimization settings.
-/// 
+///
 /// These settings can speedup the simulation or not depending on the scenario and the hardware.
 #[config_derives]
 pub struct OptimizationConfig {
@@ -38,12 +38,12 @@ pub struct OptimizationConfig {
     /// - If `1`, runs the simulation in a single thread (no parallelization), which disable synchronization
     ///   overhead but can be slower for heavy algorithms running on multiple nodes.
     /// - If `n > 1`, creates a pool of `n` threads to run the simulation.
-    /// 
+    ///
     /// `0`, `1` and `n > 1` have different running mecanisms:
     /// - With `0`, each node is run in a separate thread, and there are synchronization points where threads wait for each other.
     /// - With `1`, all nodes are run sequentially in the main thread, the synchronization is done sequentially and there is no overhead.
     /// - With `n > 1`, node steps are distributed in a pool of `n` threads, and the synchronization is done outside of the pool.
-    /// 
+    ///
     /// With the `monothreaded` Rust feature, only `1` (no parallelization) is supported (other values are ignored with a warning).
     pub threads: usize,
 }
@@ -67,10 +67,11 @@ impl Check for OptimizationConfig {
         #[cfg(feature = "monothreaded")]
         {
             if self.threads != 1 {
-                use crate::warning;
                 use crate::context::Context;
+                use crate::warning;
 
-                warning!(Context::default(),
+                warning!(
+                    Context::default(),
                     "The 'monothreaded' feature is enabled, so only 1 thread (no parallelization) is supported, got {} in the configuration (ignoring the 'threads' value)",
                     self.threads
                 );
@@ -86,7 +87,7 @@ impl Check for OptimizationConfig {
 /// # Example
 ///
 /// ```yaml
-/// version: 1.6.0
+/// version: 1.8.0
 /// max_time: 10.0
 /// log:
 ///   log_level:

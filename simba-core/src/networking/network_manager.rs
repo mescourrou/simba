@@ -77,7 +77,11 @@ impl NetworkManager {
         context: &Context,
     ) -> SimbaResult<()> {
         let context = context.new_callstack_level("process_messages");
-        internal!(context, crate::logger::InternalLog::NetworkMessages, "Processing messages");
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
+            "Processing messages"
+        );
         self.broker
             .write()
             .unwrap()

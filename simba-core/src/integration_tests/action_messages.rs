@@ -4,16 +4,26 @@ use std::{
 };
 
 use crate::{
-    constants::TIME_ROUND, context::Context, logger::LogLevel, navigators::{
+    constants::TIME_ROUND,
+    context::Context,
+    logger::LogLevel,
+    navigators::{
         NavigatorConfig, go_to::GoToConfig, trajectory_follower::TrajectoryFollowerConfig,
-    }, networking::network::Network, node::node_factory::{NodeRecord, RobotConfig}, plugin_api::PluginAPI, sensors::{
+    },
+    networking::network::Network,
+    node::node_factory::{NodeRecord, RobotConfig},
+    plugin_api::PluginAPI,
+    sensors::{
         SensorConfig,
         robot_sensor::RobotSensorConfig,
         sensor_manager::{ManagedSensorConfig, SensorManagerConfig},
-    }, simulator::{ResultConfig, Simulator, SimulatorConfig}, state_estimators::{
+    },
+    simulator::{ResultConfig, Simulator, SimulatorConfig},
+    state_estimators::{
         BenchStateEstimatorConfig, StateEstimator, StateEstimatorConfig,
         external_estimator::ExternalEstimatorConfig, perfect_estimator::PerfectEstimatorConfig,
-    }, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory}
+    },
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 struct PluginAPITest<SE: StateEstimator + 'static> {
@@ -28,7 +38,7 @@ impl<SE: StateEstimator> PluginAPI for PluginAPITest<SE> {
         _va_factory: &Arc<DeterministRandomVariableFactory>,
         _network: &SharedRwLock<Network>,
         _initial_time: f32,
-        context: &Context,
+        _context: &Context,
     ) -> Box<dyn StateEstimator> {
         // let se = std::mem::replace(&mut *self.se.lock().unwrap(), None)
         //     .expect("StateEstimator already taken");
@@ -48,10 +58,18 @@ mod kill_node {
     use simba_com::pub_sub::PathKey;
 
     use crate::{
-        constants::TIME_ROUND, context::Context, networking::network::{Envelope, MessageFlag}, node::Node, physics::robot_models::Command, recordable::Recordable, sensors::Observation, state_estimators::{
+        constants::TIME_ROUND,
+        context::Context,
+        networking::network::{Envelope, MessageFlag},
+        node::Node,
+        physics::robot_models::Command,
+        recordable::Recordable,
+        sensors::Observation,
+        state_estimators::{
             StateEstimator, StateEstimatorRecord, WorldState,
             external_estimator::ExternalEstimatorRecord,
-        }, utils::maths::round_precision
+        },
+        utils::maths::round_precision,
     };
 
     #[derive(Debug, Clone)]
@@ -92,7 +110,7 @@ mod kill_node {
             _node: &mut crate::node::Node,
             _command: Option<Command>,
             time: f32,
-            context: &Context,
+            _context: &Context,
         ) {
             self.last_time = time;
         }
@@ -186,13 +204,24 @@ mod trigger_sensor {
     use simba_com::pub_sub::PathKey;
 
     use crate::{
-        constants::TIME_ROUND, context::Context, info, networking::network::{Envelope, Network}, node::Node, physics::robot_models::Command, plugin_api::PluginAPI, recordable::Recordable, sensors::{Observation, sensor_manager::SensorTriggerMessage}, simulator::SimulatorConfig, state_estimators::{
+        constants::TIME_ROUND,
+        context::Context,
+        info,
+        networking::network::{Envelope, Network},
+        node::Node,
+        physics::robot_models::Command,
+        plugin_api::PluginAPI,
+        recordable::Recordable,
+        sensors::{Observation, sensor_manager::SensorTriggerMessage},
+        simulator::SimulatorConfig,
+        state_estimators::{
             StateEstimator, StateEstimatorRecord, WorldState,
             external_estimator::ExternalEstimatorRecord,
-        }, utils::{
+        },
+        utils::{
             SharedMutex, SharedRwLock,
             determinist_random_variable::DeterministRandomVariableFactory, maths::round_precision,
-        }
+        },
     };
     use std::{collections::VecDeque, str::FromStr, sync::Arc};
 

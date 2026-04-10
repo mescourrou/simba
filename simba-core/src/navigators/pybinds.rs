@@ -15,7 +15,16 @@ use serde_json::Value;
 use simba_com::rfc::{self, RemoteFunctionCall, RemoteFunctionCallHost};
 
 use crate::{
-    context::Context, controllers::ControllerError, errors::SimbaResult, internal, navigators::external_navigator::ExternalNavigatorRecord, node::Node, pywrappers::{ControllerErrorWrapper, NodeWrapper, WorldStateWrapper}, recordable::Recordable, state_estimators::WorldState, utils::python::{call_py_method, call_py_method_void}
+    context::Context,
+    controllers::ControllerError,
+    errors::SimbaResult,
+    internal,
+    navigators::external_navigator::ExternalNavigatorRecord,
+    node::Node,
+    pywrappers::{ControllerErrorWrapper, NodeWrapper, WorldStateWrapper},
+    recordable::Recordable,
+    state_estimators::WorldState,
+    utils::python::{call_py_method, call_py_method_void},
 };
 
 use super::{Navigator, NavigatorRecord};
@@ -41,7 +50,12 @@ impl Navigator for PythonNavigatorAsyncClient {
         self.post_init.call(node_py).unwrap()
     }
 
-    fn compute_error(&mut self, node: &mut Node, world_state: WorldState, context: &Context) -> ControllerError {
+    fn compute_error(
+        &mut self,
+        node: &mut Node,
+        world_state: WorldState,
+        context: &Context,
+    ) -> ControllerError {
         let node_py = NodeWrapper::from_rust(node, context.clone());
         self.compute_error.call((node_py, world_state)).unwrap()
     }
@@ -130,13 +144,26 @@ impl PythonNavigator {
     }
 
     fn post_init(&mut self, node: NodeWrapper, context: &Context) -> SimbaResult<()> {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of post_init");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of post_init"
+        );
         call_py_method_void!(self.model, "post_init", (node,));
         Ok(())
     }
 
-    fn compute_error(&mut self, node: NodeWrapper, state: &WorldState, context: &Context) -> ControllerError {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of compute_error");
+    fn compute_error(
+        &mut self,
+        node: NodeWrapper,
+        state: &WorldState,
+        context: &Context,
+    ) -> ControllerError {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of compute_error"
+        );
         let result = call_py_method!(
             self.model,
             "compute_error",
@@ -147,7 +174,11 @@ impl PythonNavigator {
     }
 
     fn record(&self, context: &Context) -> NavigatorRecord {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of record");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of record"
+        );
         let record_str: String = call_py_method!(self.model, "record", String,);
         NavigatorRecord::External(ExternalNavigatorRecord {
             record: Value::from_str(&record_str).expect(
@@ -157,12 +188,20 @@ impl PythonNavigator {
     }
 
     fn pre_loop_hook(&mut self, node: NodeWrapper, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of pre_loop_hook");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of pre_loop_hook"
+        );
         call_py_method_void!(self.model, "pre_loop_hook", node, time);
     }
 
     fn next_time_step(&self, context: &Context) -> Option<f32> {
-        internal!(context, crate::logger::InternalLog::API, "Calling python implementation of next_time_step");
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of next_time_step"
+        );
         call_py_method!(self.model, "next_time_step", Option<f32>,)
     }
 }

@@ -13,7 +13,12 @@ pub mod python_controller;
 pub mod pybinds;
 
 use crate::{
-    context::Context, errors::SimbaResult, networking::network::Network, physics::{PhysicsConfig, robot_models::Command}, recordable::Recordable, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory}
+    context::Context,
+    errors::SimbaResult,
+    node::node_factory::FromConfigArguments,
+    physics::{PhysicsConfig, robot_models::Command},
+    recordable::Recordable,
+    utils::SharedRwLock,
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -22,7 +27,7 @@ use crate::{
 };
 use std::sync::{Arc, RwLock};
 
-use crate::{plugin_api::PluginAPI, simulator::SimulatorConfig};
+use crate::simulator::SimulatorConfig;
 
 use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
@@ -200,7 +205,13 @@ pub trait Controller:
     ///
     /// ## Return
     /// Command to apply to the [`Physics`](crate::physics::Physics).
-    fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32, context: &Context) -> Command;
+    fn make_command(
+        &mut self,
+        robot: &mut Node,
+        error: &ControllerError,
+        time: f32,
+        context: &Context,
+    ) -> Command;
 
     /// Executes per-step side effects before command computation.
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context);
@@ -225,32 +236,27 @@ pub trait Controller:
 /// * `context` - Shared simulation context used for logging and call tracing during construction.
 pub fn make_controller_from_config(
     config: &ControllerConfig,
-    plugin_api: &Option<Arc<dyn PluginAPI>>,
-    global_config: &SimulatorConfig,
-    va_factory: &Arc<DeterministRandomVariableFactory>,
+    from_config_params: &FromConfigArguments,
     physics_config: &PhysicsConfig,
-    network: &SharedRwLock<Network>,
-    initial_time: f32,
-    context: &Context,
 ) -> SimbaResult<SharedRwLock<Box<dyn Controller>>> {
     Ok(Arc::new(RwLock::new(match config {
-        ControllerConfig::PID(c) => {
-            Box::new(pid::PID::from_config(c, physics_config, initial_time, context)) as Box<dyn Controller>
-        }
-        ControllerConfig::External(c) => {
-            Box::new(external_controller::ExternalController::from_config(
-                c,
-                plugin_api,
-                global_config,
-                va_factory,
-                network,
-                initial_time,
-                context,
-            )?) as Box<dyn Controller>
-        }
+        ControllerConfig::PID(c) => Box::new(pid::PID::from_config(
+            c,
+            physics_config,
+            from_config_params.initial_time,
+            from_config_params.context,
+        )) as Box<dyn Controller>,
+        ControllerConfig::External(c) => Box::new(
+            external_controller::ExternalController::from_config(c, from_config_params)?,
+        ) as Box<dyn Controller>,
         ControllerConfig::Python(c) => Box::new(
-            python_controller::PythonController::from_config(c, global_config, initial_time, context)
-                .unwrap(),
+            python_controller::PythonController::from_config(
+                c,
+                from_config_params.global_config,
+                from_config_params.initial_time,
+                from_config_params.context,
+            )
+            .unwrap(),
         ) as Box<dyn Controller>,
     })))
 }

@@ -1,13 +1,19 @@
 //! Context module, which defines the [`Context`] struct that is passed to every function of the simulator, providing tools for logging and other contextual information.
 
-use std::{collections::HashSet, sync::{Arc, RwLock}};
+use std::{
+    collections::HashSet,
+    sync::{Arc, RwLock},
+};
 
 use colored::Colorize;
 
-use crate::{logger::{InternalLog, LogLevel, LoggerConfig}, time_analysis, utils::SharedRwLock};
+use crate::{
+    logger::{InternalLog, LogLevel, LoggerConfig},
+    utils::SharedRwLock,
+};
 
 /// Context struct, which is passed to every function of the simulator.
-/// 
+///
 /// Contains tools for logging.
 #[derive(Clone, Debug)]
 pub struct Context {
@@ -50,8 +56,12 @@ impl Context {
             callstack: Vec::new(),
             enabled_loglevel: Arc::new(RwLock::new(log_config.log_level.clone())),
             current_sim_time: time.map(|x| Arc::new(RwLock::new(x))),
-            included_nodes: Arc::new(RwLock::new(log_config.included_nodes.iter().map(|s| s.clone()).collect())),
-            excluded_nodes: Arc::new(RwLock::new(log_config.excluded_nodes.iter().map(|s| s.clone()).collect())),
+            included_nodes: Arc::new(RwLock::new(
+                log_config.included_nodes.iter().cloned().collect(),
+            )),
+            excluded_nodes: Arc::new(RwLock::new(
+                log_config.excluded_nodes.iter().cloned().collect(),
+            )),
         }
     }
 
@@ -62,9 +72,9 @@ impl Context {
             let mut excluded_nodes = self.excluded_nodes.write().unwrap();
             *self.enabled_loglevel.write().unwrap() = log_config.log_level.clone();
             included_nodes.clear();
-            included_nodes.extend(log_config.included_nodes.iter().map(|s| s.clone()));
+            included_nodes.extend(log_config.included_nodes.iter().cloned());
             excluded_nodes.clear();
-            excluded_nodes.extend(log_config.excluded_nodes.iter().map(|s| s.clone()));
+            excluded_nodes.extend(log_config.excluded_nodes.iter().cloned());
         }
         info!(self, "Log level updated to {:?}", log_config.log_level);
     }
@@ -111,13 +121,24 @@ impl Context {
         } else {
             String::new()
         };
-        format!("{}[{}]{} {}", time_str, self.node_name.cyan(), callstack_str, message)
+        format!(
+            "{}[{}]{} {}",
+            time_str,
+            self.node_name.cyan(),
+            callstack_str,
+            message
+        )
     }
 
     /// Logs a message with the given log level, including the node name and callstack for context.
     /// The message will only be logged if the log level is enabled in the context's configuration
     pub fn log(&self, level: LogLevel, message: &str) {
-        if self.excluded_nodes.read().unwrap().contains(&self.node_name) {
+        if self
+            .excluded_nodes
+            .read()
+            .unwrap()
+            .contains(&self.node_name)
+        {
             return;
         }
         {
@@ -132,10 +153,26 @@ impl Context {
         }
         match level {
             LogLevel::Off => (),
-            LogLevel::Error => eprintln!("[{}]{}", "ERROR".red(), self.format_log_line(message, false)),
-            LogLevel::Warn => eprintln!("[{}]{}", "WARN ".yellow(), self.format_log_line(message, false)),
-            LogLevel::Info => println!("[{}]{}", "INFO ".green(), self.format_log_line(message, false)),
-            LogLevel::Debug => println!("[{}]{}", "DEBUG".blue(), self.format_log_line(message, false)),
+            LogLevel::Error => eprintln!(
+                "[{}]{}",
+                "ERROR".red(),
+                self.format_log_line(message, false)
+            ),
+            LogLevel::Warn => eprintln!(
+                "[{}]{}",
+                "WARN ".yellow(),
+                self.format_log_line(message, false)
+            ),
+            LogLevel::Info => println!(
+                "[{}]{}",
+                "INFO ".green(),
+                self.format_log_line(message, false)
+            ),
+            LogLevel::Debug => println!(
+                "[{}]{}",
+                "DEBUG".blue(),
+                self.format_log_line(message, false)
+            ),
             LogLevel::Internal(l) => {
                 if let LogLevel::Internal(enabled_list) = &*enabled_loglevel {
                     let matched_category = if enabled_list.contains(&InternalLog::All) {
@@ -151,7 +188,12 @@ impl Context {
                         matched_category
                     };
                     if let Some(category) = matched_category {
-                        println!("[{}][{}]{}", "INTNL".magenta(), category.to_string().magenta(), self.format_log_line(message, true));
+                        println!(
+                            "[{}][{}]{}",
+                            "INTNL".magenta(),
+                            category.to_string().magenta(),
+                            self.format_log_line(message, true)
+                        );
                     }
                 } else {
                     unreachable!()
@@ -160,19 +202,26 @@ impl Context {
         }
     }
 
+    /// Check if the given internal log category is enabled in the context's configuration.
+    /// If the "All" category is enabled, this function will return true regardless of the given category.
     pub fn is_internal_log_level_enabled(&self, level: InternalLog) -> bool {
         let enabled_loglevel = self.enabled_loglevel.read().unwrap();
-        if let LogLevel::Internal(enabled_list) = &*enabled_loglevel && (enabled_list.contains(&InternalLog::All) || enabled_list.contains(&level)) {
+        if let LogLevel::Internal(enabled_list) = &*enabled_loglevel
+            && (enabled_list.contains(&InternalLog::All) || enabled_list.contains(&level))
+        {
             true
         } else {
             false
         }
     }
 
+    /// Check if at least one of the given internal log categories is enabled in the context's configuration.
+    /// If the "All" category is enabled, this function will return true regardless of the given categories.
     pub fn are_internal_log_level_enabled(&self, levels: &[InternalLog]) -> bool {
         let enabled_loglevel = self.enabled_loglevel.read().unwrap();
         if let LogLevel::Internal(enabled_list) = &*enabled_loglevel {
-            enabled_list.contains(&InternalLog::All) || levels.iter().any(|level| enabled_list.contains(level))
+            enabled_list.contains(&InternalLog::All)
+                || levels.iter().any(|level| enabled_list.contains(level))
         } else {
             false
         }
@@ -204,6 +253,7 @@ impl Context {
     }
 }
 
+/// Macro for logging an error message with the "Error" log level.
 #[macro_export]
 macro_rules! error {
     ($context: expr, $($arg:tt)+) => ({
@@ -212,6 +262,7 @@ macro_rules! error {
 }
 pub use error;
 
+/// Macro for logging a warning message with the "Warn" log level (uses stderr).
 #[macro_export]
 macro_rules! warning {
     ($context: expr, $($arg:tt)+) => ({
@@ -220,6 +271,7 @@ macro_rules! warning {
 }
 pub use warning;
 
+/// Macro for logging an informational message with the "Info" log level.
 #[macro_export]
 macro_rules! info {
     ($context: expr, $($arg:tt)+) => ({
@@ -228,6 +280,7 @@ macro_rules! info {
 }
 pub use info;
 
+/// Macro for logging a debug message with the "Debug" log level (only for external logs, not internal category logs).
 #[macro_export]
 macro_rules! debug {
     ($context: expr, $($arg:tt)+) => ({
@@ -236,6 +289,7 @@ macro_rules! debug {
 }
 pub use debug;
 
+/// Macro for logging an internal message with the "Internal" log level and given categories separated by spaces (at least one should be enabled so that the message is logged).
 #[macro_export]
 macro_rules! internal {
     ($context: expr, $($category: expr)+, $($arg:tt)+) => ({

@@ -86,12 +86,20 @@ impl PythonEstimator {
         initial_time: f32,
         context: &Context,
     ) -> SimbaResult<Self> {
-        internal!(context, crate::logger::InternalLog::API,
-            "Config given: {:?}", config
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
         );
 
-        let state_estimator_instance =
-            load_class_from_python_script(config, global_config, initial_time, "State Estimator", context)?;
+        let state_estimator_instance = load_class_from_python_script(
+            config,
+            global_config,
+            initial_time,
+            "State Estimator",
+            context,
+        )?;
         Ok(Self {
             state_estimator: state_estimator_instance,
         })
@@ -106,7 +114,9 @@ impl std::fmt::Debug for PythonEstimator {
 
 impl StateEstimator for PythonEstimator {
     fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of post_init"
         );
         let node_py = NodeWrapper::from_rust(node, context.clone());
@@ -114,8 +124,16 @@ impl StateEstimator for PythonEstimator {
         Ok(())
     }
 
-    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+    fn prediction_step(
+        &mut self,
+        node: &mut Node,
+        command: Option<Command>,
+        time: f32,
+        context: &Context,
+    ) {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of prediction_step"
         );
         let node_py = NodeWrapper::from_rust(node, context.clone());
@@ -129,8 +147,16 @@ impl StateEstimator for PythonEstimator {
         );
     }
 
-    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32, context: &Context) {
-         internal!(context, crate::logger::InternalLog::API,
+    fn correction_step(
+        &mut self,
+        node: &mut Node,
+        observations: &[Observation],
+        time: f32,
+        context: &Context,
+    ) {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of correction_step"
         );
         let mut observation_py = Vec::new();
@@ -148,7 +174,9 @@ impl StateEstimator for PythonEstimator {
     }
 
     fn world_state(&self, context: &Context) -> WorldState {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of state"
         );
         let state = call_py_method!(self.state_estimator, "state", WorldStateWrapper,);
@@ -157,7 +185,9 @@ impl StateEstimator for PythonEstimator {
 
     fn next_time_step(&self, context: &Context) -> f32 {
         // PythonStateEstimator::next_time_step(self)
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of next_time_step"
         );
         let time = call_py_method!(self.state_estimator, "next_time_step", f32,);
@@ -165,7 +195,9 @@ impl StateEstimator for PythonEstimator {
     }
 
     fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of pre_loop_hook"
         );
         let node_py = NodeWrapper::from_rust(node, context.clone());
@@ -175,7 +207,9 @@ impl StateEstimator for PythonEstimator {
 
 impl Recordable<StateEstimatorRecord> for PythonEstimator {
     fn record(&self, context: &Context) -> StateEstimatorRecord {
-        internal!(context, crate::logger::InternalLog::API,
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
             "Calling python implementation of record"
         );
         let record_str: String = Python::attach(|py| {

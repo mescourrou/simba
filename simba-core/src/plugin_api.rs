@@ -13,6 +13,10 @@ impl PluginAPI for MyPlugin {
         &self,
         config: &serde_json::Value,
         global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+        network: &SharedRwLock<Network>,
+        initial_time: f32,
+        context: &Context,
     ) -> Box<dyn StateEstimator> {
         Box::new(MyFilter::from_config(
             &serde_json::from_value(config.value.clone())
@@ -44,7 +48,15 @@ fn main() {
 use std::sync::Arc;
 
 use crate::{
-    context::Context, controllers::Controller, navigators::Navigator, networking::network::Network, physics::Physics, sensors::{Sensor, fault_models::fault_model::FaultModel, sensor_filters::SensorFilter}, simulator::SimulatorConfig, state_estimators::StateEstimator, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory}
+    context::Context,
+    controllers::Controller,
+    navigators::Navigator,
+    networking::network::Network,
+    physics::Physics,
+    sensors::{Sensor, fault_models::fault_model::FaultModel, sensor_filters::SensorFilter},
+    simulator::SimulatorConfig,
+    state_estimators::StateEstimator,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 /// Trait to link the simulator to the external implementation.
@@ -58,6 +70,10 @@ pub trait PluginAPI: Send + Sync {
     ///   is given using [`serde_json::Value`]. It should be converted by the
     ///   external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
+    /// * `va_factory` - Factory for Determinists random variables to create random variables.
+    /// * `network` - Reference to the network, to allow the state estimator to send messages or create channels.
+    /// * `initial_time` - Initial time of the simulation (or the time of creation).
+    /// * `context` - Context for the simulation, to allow the state estimator to log.
     ///
     /// # Return
     ///
@@ -82,6 +98,10 @@ pub trait PluginAPI: Send + Sync {
     ///   is given using [`serde_json::Value`]. It should be converted by the
     ///   external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
+    /// * `va_factory` - Factory for Determinists random variables to create random variables.
+    /// * `network` - Reference to the network, to allow the controller to send messages or create channels.
+    /// * `initial_time` - Initial time of the simulation (or the time of creation).
+    /// * `context` - Context for the simulation, to allow the controller to log.
     ///
     /// # Return
     ///
@@ -106,6 +126,10 @@ pub trait PluginAPI: Send + Sync {
     ///   is given using [`serde_json::Value`]. It should be converted by the
     ///   external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
+    /// * `va_factory` - Factory for Determinists random variables to create random variables.
+    /// * `network` - Reference to the network, to allow the navigator to send messages or create channels.
+    /// * `initial_time` - Initial time of the simulation (or the time of creation).
+    /// * `context` - Context for the simulation, to allow the navigator to log.
     ///
     /// # Return
     ///
@@ -130,6 +154,10 @@ pub trait PluginAPI: Send + Sync {
     ///   is given using [`serde_json::Value`]. It should be converted by the
     ///   external plugin to the specific configuration.
     /// * `global_config` - Full configuration of the simulator.
+    /// * `va_factory` - Factory for Determinists random variables to create random variables.
+    /// * `network` - Reference to the network, to allow the physics to send messages or create channels.
+    /// * `initial_time` - Initial time of the simulation (or the time of creation).
+    /// * `context` - Context for the simulation, to allow the physics to log. 
     ///
     /// # Return
     ///
@@ -161,7 +189,7 @@ pub trait PluginAPI: Send + Sync {
     /// * `_va_factory` - Factory for Determinists random variables to create random variables if needed.
     /// * `network` - Reference to the network, to allow the sensor to send messages if needed.
     /// * `initial_time` - Initial time of the simulation, to allow the sensor to initialize itself with the correct time.
-    /// * `context` - Context for the simulation.
+    /// * `context` - Context for the simulation, to allow the sensor to log.
     /// # Return
     /// Returns the [`Sensor`] to use.
     fn get_sensor(
@@ -199,6 +227,7 @@ pub trait PluginAPI: Send + Sync {
     /// * `global_config` - Full configuration of the simulator.
     /// * `va_factory` - Factory for Determinists random variables.
     /// * `initial_time` - Initial time of the simulation.
+    /// * `context` - Context for the simulation, to allow the sensor filter to log.
     ///
     /// # Return
     ///
@@ -224,6 +253,8 @@ pub trait PluginAPI: Send + Sync {
     /// * `global_config` - Full configuration of the simulator.
     /// * `va_factory` - Factory for Determinists random variables.
     /// * `initial_time` - Initial time of the simulation.
+    /// * `context` - Context for the simulation, to allow the sensor fault to log.
+    /// 
     /// # Return
     ///
     /// Returns the [`FaultModel`] to use.

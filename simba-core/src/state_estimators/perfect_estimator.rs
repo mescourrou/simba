@@ -6,10 +6,15 @@ by the controller should be perfect.
 
 use super::{State, WorldState, WorldStateRecord};
 use crate::{
-    constants::TIME_ROUND, context::Context, error, info, physics::robot_models::Command, utils::{
+    constants::TIME_ROUND,
+    context::Context,
+    error, info,
+    physics::robot_models::Command,
+    utils::{
         determinist_random_variable::DeterministRandomVariableFactory,
         periodicity::{Periodicity, PeriodicityConfig},
-    }, warning
+    },
+    warning,
 };
 
 #[cfg(feature = "gui")]
@@ -178,7 +183,7 @@ impl PerfectEstimator {
         _global_config: &SimulatorConfig,
         va_factory: &DeterministRandomVariableFactory,
         initial_time: f32,
-        context: &Context,
+        _context: &Context,
     ) -> Self {
         let mut world_state = WorldState::new();
         for target in &config.targets {
@@ -209,9 +214,20 @@ use super::{StateEstimator, StateEstimatorRecord};
 use crate::node::Node;
 
 impl StateEstimator for PerfectEstimator {
-    fn prediction_step(&mut self, node: &mut Node, _command: Option<Command>, time: f32, context: &Context) {
+    fn prediction_step(
+        &mut self,
+        node: &mut Node,
+        _command: Option<Command>,
+        time: f32,
+        context: &Context,
+    ) {
         if (time - self.next_time_step(context)).abs() > TIME_ROUND / 2. {
-            error!(context, "Error trying to update estimate too soon! (it is {} but expecting {})", time, self.next_time_step(context));
+            error!(
+                context,
+                "Error trying to update estimate too soon! (it is {} but expecting {})",
+                time,
+                self.next_time_step(context)
+            );
             return;
         }
         info!(context, "Doing prediction step");
@@ -225,11 +241,10 @@ impl StateEstimator for PerfectEstimator {
         }
         let mut objects_to_delete = Vec::new();
         for (target, state) in &mut self.world_state.objects {
-            *state = match node
-                .get_other_node_physics(target)
-            {
+            *state = match node.get_other_node_physics(target) {
                 None => {
-                    warning!(context,
+                    warning!(
+                        context,
                         "[{}] {target} does not have physics, no perfect state can be computed: delete target from list!",
                         node.name()
                     );
@@ -256,7 +271,14 @@ impl StateEstimator for PerfectEstimator {
         self.last_time_prediction = time;
     }
 
-    fn correction_step(&mut self, _node: &mut Node, _observations: &[Observation], _time: f32, _context: &Context) {}
+    fn correction_step(
+        &mut self,
+        _node: &mut Node,
+        _observations: &[Observation],
+        _time: f32,
+        _context: &Context,
+    ) {
+    }
 
     fn world_state(&self, _context: &Context) -> WorldState {
         self.world_state.clone()

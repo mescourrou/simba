@@ -265,12 +265,26 @@ impl MyWonderfulSensor {
 }
 
 impl Sensor for MyWonderfulSensor {
-    fn post_init(&mut self, node: &mut Node, _initial_time: f32, context: &Context) -> SimbaResult<()> {
-        info!(context, "Initializing MyWonderfulSensor for node {}", node.name());
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        _initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
+        info!(
+            context,
+            "Initializing MyWonderfulSensor for node {}",
+            node.name()
+        );
         Ok(())
     }
 
-    fn get_observations(&mut self, _node: &mut Node, time: f32, _context: &Context) -> Vec<SensorObservation> {
+    fn get_observations(
+        &mut self,
+        _node: &mut Node,
+        time: f32,
+        _context: &Context,
+    ) -> Vec<SensorObservation> {
         self.last_observation = Some(MyWonderfulSensorObservation { data: time });
         self.last_time = time;
         // Return a custom observation here, but you can return an existing one as well (e.g. SpeedObservation)

@@ -429,9 +429,9 @@ impl DisplacementSensor {
         let mut filters = Vec::new();
         for filter_config in &config.filters {
             filters.push(match &filter_config {
-                DisplacementSensorFilterConfig::Range(cfg) => {
-                    DisplacementSensorFilterType::Range(RangeFilter::from_config(cfg, initial_time, context))
-                }
+                DisplacementSensorFilterConfig::Range(cfg) => DisplacementSensorFilterType::Range(
+                    RangeFilter::from_config(cfg, initial_time, context),
+                ),
                 DisplacementSensorFilterConfig::Python(cfg) => {
                     DisplacementSensorFilterType::Python(PythonFilter::from_config(
                         cfg,
@@ -471,7 +471,12 @@ impl DisplacementSensor {
 use crate::node::Node;
 
 impl Sensor for DisplacementSensor {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         self.last_state = node
             .physics()
             .expect("Node with Speed sensor should have Physics")
@@ -488,7 +493,12 @@ impl Sensor for DisplacementSensor {
         Ok(())
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32, context: &Context) -> Vec<SensorObservation> {
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation> {
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
         {
@@ -519,8 +529,7 @@ impl Sensor for DisplacementSensor {
                 1.,
             );
 
-            let local_displacement = rotation_matrix
-                .transform_vector(&Vector2::new(dx, dy));
+            let local_displacement = rotation_matrix.transform_vector(&Vector2::new(dx, dy));
 
             (local_displacement.x, local_displacement.y, dtheta)
         };
@@ -539,8 +548,12 @@ impl Sensor for DisplacementSensor {
         for filter in self.filters.iter() {
             if let Some(o) = keep_observation {
                 keep_observation = match filter {
-                    DisplacementSensorFilterType::External(f) => f.filter(time, o, &state, None, context),
-                    DisplacementSensorFilterType::Python(f) => f.filter(time, o, &state, None, context),
+                    DisplacementSensorFilterType::External(f) => {
+                        f.filter(time, o, &state, None, context)
+                    }
+                    DisplacementSensorFilterType::Python(f) => {
+                        f.filter(time, o, &state, None, context)
+                    }
                     DisplacementSensorFilterType::Range(f) => {
                         if let SensorObservation::Displacement(obs) = o {
                             if f.match_exclusion(&DisplacementSensorVariablesFilter::mapped_values(
@@ -755,7 +768,9 @@ impl Sensor for DisplacementSensor {
                 }
             }
         } else {
-            internal!(context, crate::logger::InternalLog::SensorManagerDetailed,
+            internal!(
+                context,
+                crate::logger::InternalLog::SensorManagerDetailed,
                 "Displacement observation was filtered out"
             );
         }

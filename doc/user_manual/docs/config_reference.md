@@ -68,7 +68,7 @@ The root of your configuration file includes:
 ## Configuration File Structure
 
 ```yaml
-version: 1.6.0
+version: 1.8.0
 max_time: 100.0
 log:
   log_level: Info

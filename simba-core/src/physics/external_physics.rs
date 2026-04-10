@@ -5,32 +5,26 @@ To make your own external physic strategy, the simulator should
 be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external physic strategy is made using the
-[`PluginAPI::get_physics`] function.
+[`crate::plugin_api::PluginAPI::get_physics`] function.
 
 */
-
-use std::sync::Arc;
 
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
 
 use crate::constants::TIME_ROUND;
-use crate::context::{self, Context};
+use crate::context::Context;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
 use crate::internal;
-use crate::networking::network::Network;
+use crate::node::node_factory::FromConfigArguments;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
-use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
-use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
-};
 
 use serde_derive::{Deserialize, Serialize};
 
@@ -59,7 +53,7 @@ external_record_python_methods!(
 ExternalPhysicsRecord,
 );
 
-use super::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord};
+use super::{Physics, PhysicsRecord};
 
 /// External physics strategy, which does the bridge with your own strategy.
 pub struct ExternalPhysics {
@@ -70,25 +64,24 @@ pub struct ExternalPhysics {
 impl ExternalPhysics {
     /// Creates a new [`ExternalPhysics`] from the given config.
     ///
-    /// <div class="warning">The `plugin_api` is required here !</div>
+    /// <div class="warning">The `plugin_api` in `from_config_params` is required here !</div>
     ///
     ///  ## Arguments
     /// * `config` -- Scenario config of the External physics.
-    /// * `plugin_api` -- Required [`PluginAPI`] implementation.
-    /// * `global_config` -- Simulator config.
-    /// * `_va_factory` -- Factory for Determinists random variables
+    /// * `from_config_params` -- Parameters required to create the physics from config, including the required `plugin_api`.
     pub fn from_config(
         config: &ExternalPhysicsConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        va_factory: &Arc<DeterministRandomVariableFactory>,
-        network: &SharedRwLock<Network>,
-        initial_time: f32,
-        context: &Context,
+        from_config_params: &FromConfigArguments,
     ) -> SimbaResult<Self> {
-        internal!(context, crate::logger::InternalLog::API, "Config given: {:?}", config);
+        internal!(
+            from_config_params.context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
         Ok(Self {
-            physics: plugin_api
+            physics: from_config_params
+                .plugin_api
                 .as_ref()
                 .ok_or_else(|| {
                     SimbaError::new(
@@ -98,11 +91,11 @@ impl ExternalPhysics {
                 })?
                 .get_physics(
                     &config.config,
-                    global_config,
-                    va_factory,
-                    network,
-                    initial_time,
-                    context,
+                    from_config_params.global_config,
+                    from_config_params.va_factory,
+                    from_config_params.network,
+                    from_config_params.initial_time,
+                    from_config_params.context,
                 ),
         })
     }

@@ -73,26 +73,30 @@ macro_rules! threading_replication_test {
 
             for j in 0..nb_replications {
                 for (i, nb_thread) in nb_threads.into_iter().enumerate() {
-                    print!("Run {}/{}: {} threads ... ", j*nb_threads_len + i + 1, nb_thread, nb_threads_len * nb_replications);
-                    let mut simulator_config = SimulatorConfig::load_from_path(
-                        Path::new(format!("test_config/{}.yaml", stringify!($config)).as_str()),
-                    ).map_err(|e| {
+                    print!(
+                        "Run {}/{}: {} threads ... ",
+                        j * nb_threads_len + i + 1,
+                        nb_thread,
+                        nb_threads_len * nb_replications
+                    );
+                    let mut simulator_config = SimulatorConfig::load_from_path(Path::new(
+                        format!("test_config/{}.yaml", stringify!($config)).as_str(),
+                    ))
+                    .map_err(|e| {
                         println!("Error while loading config: {}", e.detailed_error());
                         e
                     })
                     .unwrap();
                     simulator_config.optimization.threads = nb_thread;
-                    let mut simulator = Simulator::from_config(
-                        &simulator_config,
-                        None,
-                    ).map_err(|e| {
-                        println!("Error while creating simulator: {}", e.detailed_error());
-                        e
-                    })
-                    .unwrap();
-    
+                    let mut simulator = Simulator::from_config(&simulator_config, None)
+                        .map_err(|e| {
+                            println!("Error while creating simulator: {}", e.detailed_error());
+                            e
+                        })
+                        .unwrap();
+
                     simulator.run().expect("Error while running simulation");
-    
+
                     results.push(simulator.get_records(true));
                     println!("OK");
                 }
@@ -133,7 +137,6 @@ macro_rules! threading_replication_test {
 
 replication_test!(config);
 replication_test!(scenario);
-
 
 #[cfg(not(feature = "monothreaded"))]
 mod threading {

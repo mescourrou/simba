@@ -9,7 +9,7 @@ use super::fault_models::fault_model::FaultModel;
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
-use crate::context::{self, Context};
+use crate::context::Context;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
@@ -582,9 +582,9 @@ impl OrientedLandmarkSensor {
                         context,
                     ))
                 }
-                OrientedLandmarkSensorFilterConfig::Id(c) => {
-                    OrientedLandmarkSensorFilterType::Id(StringFilter::from_config(c, initial_time, context))
-                }
+                OrientedLandmarkSensorFilterConfig::Id(c) => OrientedLandmarkSensorFilterType::Id(
+                    StringFilter::from_config(c, initial_time, context),
+                ),
                 OrientedLandmarkSensorFilterConfig::Label(c) => {
                     OrientedLandmarkSensorFilterType::Label(StringFilter::from_config(
                         c,
@@ -632,7 +632,12 @@ impl OrientedLandmarkSensor {
 use crate::node::Node;
 
 impl Sensor for OrientedLandmarkSensor {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> crate::errors::SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> crate::errors::SimbaResult<()> {
         for filter in self.filters.iter_mut() {
             filter.post_init(node, initial_time, context)?;
         }
@@ -642,7 +647,12 @@ impl Sensor for OrientedLandmarkSensor {
         Ok(())
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32, context: &Context) -> Vec<SensorObservation> {
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
@@ -1050,9 +1060,11 @@ impl Sensor for OrientedLandmarkSensor {
                                         context,
                                     );
                                     observation.id = new_label.parse().unwrap_or(observation.id);
-                                    observation.applied_faults.push(OrientedLandmarkSensorFaultModelConfig::Misassociation(
-                                        f.config().clone()
-                                    ));
+                                    observation.applied_faults.push(
+                                        OrientedLandmarkSensorFaultModelConfig::Misassociation(
+                                            f.config().clone(),
+                                        ),
+                                    );
                                 } else {
                                     unreachable!()
                                 }
@@ -1064,7 +1076,10 @@ impl Sensor for OrientedLandmarkSensor {
                                 .enumerate()
                                 .filter_map(|(i, obs)| {
                                     if let SensorObservation::OrientedLandmark(observation) = obs {
-                                        if f.detected(time + landmark_seed + (i as f32) / 1000., context) {
+                                        if f.detected(
+                                            time + landmark_seed + (i as f32) / 1000.,
+                                            context,
+                                        ) {
                                             Some(SensorObservation::OrientedLandmark(
                                                 observation.clone(),
                                             ))
@@ -1080,7 +1095,9 @@ impl Sensor for OrientedLandmarkSensor {
                     }
                 }
             } else {
-                internal!(context, crate::logger::InternalLog::SensorManagerDetailed,
+                internal!(
+                    context,
+                    crate::logger::InternalLog::SensorManagerDetailed,
                     "Observation {i} of landmark {} was filtered out",
                     landmark.id
                 );

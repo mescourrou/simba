@@ -20,10 +20,9 @@ use std::collections::{BTreeMap, HashMap};
 use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::context::{self, Context};
+use crate::context::Context;
 use crate::environment::Environment;
 use crate::errors::{SimbaError, SimbaErrorTypes};
-use crate::{internal, networking};
 use crate::networking::network::MessageFlag;
 use crate::physics::robot_models::Command;
 use crate::simulator::SimbaBrokerMultiClient;
@@ -45,6 +44,7 @@ use crate::{
     state_estimators::{BenchStateEstimator, BenchStateEstimatorRecord, StateEstimator},
     utils::maths::round_precision,
 };
+use crate::{internal, networking};
 
 /// Mode State machine.
 ///
@@ -135,7 +135,7 @@ impl Node {
     /// Initialize the node after its creation.
     ///
     /// It is used to initialize the sensor manager, which need to know the list of all nodes.
-    pub fn post_creation_init<'a>(
+    pub fn post_creation_init(
         &mut self,
         physics_list: SharedRoLock<BTreeMap<String, SharedRoLock<Box<dyn Physics>>>>,
         meta_data_list: SharedRoLock<HashMap<String, SharedRoLock<NodeMetaData>>>,
@@ -143,7 +143,11 @@ impl Node {
         context: &Context,
     ) -> NodeClient {
         let context = context.new_callstack_level("post_creation_init");
-        internal!(context, crate::logger::InternalLog::SetupSteps, "Node post-creation initialization");
+        internal!(
+            context,
+            crate::logger::InternalLog::SetupSteps,
+            "Node post-creation initialization"
+        );
 
         self.other_node_physics = physics_list;
 
@@ -159,7 +163,11 @@ impl Node {
             physics.write().unwrap().post_init(self, &context).unwrap();
         }
         if let Some(state_estimator) = self.state_estimator() {
-            state_estimator.write().unwrap().post_init(self, &context).unwrap();
+            state_estimator
+                .write()
+                .unwrap()
+                .post_init(self, &context)
+                .unwrap();
         }
         if let Some(state_estimator_bench) = self.state_estimator_bench.clone() {
             for state_estimator in state_estimator_bench.read().unwrap().iter() {
@@ -179,11 +187,19 @@ impl Node {
                 .unwrap();
         }
         if let Some(navigator) = self.navigator() {
-            navigator.write().unwrap().post_init(self, &context).unwrap();
+            navigator
+                .write()
+                .unwrap()
+                .post_init(self, &context)
+                .unwrap();
         }
-        
+
         if let Some(controller) = self.controller() {
-            controller.write().unwrap().post_init(self, &context).unwrap();
+            controller
+                .write()
+                .unwrap()
+                .post_init(self, &context)
+                .unwrap();
         }
 
         let (node_server, node_client) =
@@ -205,7 +221,12 @@ impl Node {
     /// ## Arguments
     /// * `time` -- Time to reach.
     #[cfg(not(feature = "monothreaded"))]
-    pub(crate) fn run_next_time_step(&mut self, time: f32, time_cv: &TimeCv, context: &Context) -> SimbaResult<()> {
+    pub(crate) fn run_next_time_step(
+        &mut self,
+        time: f32,
+        time_cv: &TimeCv,
+        context: &Context,
+    ) -> SimbaResult<()> {
         self.process_messages();
         self.run_time_step(time, time_cv, context)
     }
@@ -256,34 +277,51 @@ impl Node {
         self.pre_loop_hooks(time, &context);
 
         self.handle_messages(time, &context);
-        internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Pre prediction step wait");
+        internal!(
+            context,
+            crate::logger::InternalLog::NodeSyncDetailed,
+            "Pre prediction step wait"
+        );
         self.sync_with_others(time_cv, time, &context);
 
         let do_control_loop = self.prediction_step(time, &context);
 
-        
         self.handle_messages(time, &context);
-        internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Post prediction step wait");
+        internal!(
+            context,
+            crate::logger::InternalLog::NodeSyncDetailed,
+            "Post prediction step wait"
+        );
         self.sync_with_others(time_cv, time, &context);
 
         self.make_observations(time, &context);
-        
 
         self.handle_messages(time, &context);
-        internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Post observation wait");
+        internal!(
+            context,
+            crate::logger::InternalLog::NodeSyncDetailed,
+            "Post observation wait"
+        );
         self.sync_with_others(time_cv, time, &context);
 
         self.correction_step(time, &context);
 
         self.handle_messages(time, &context);
-        internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Post correction step wait");
+        internal!(
+            context,
+            crate::logger::InternalLog::NodeSyncDetailed,
+            "Post correction step wait"
+        );
         self.sync_with_others(time_cv, time, &context);
 
         self.nav_and_control_step(time, do_control_loop, &context);
-        
 
         self.handle_messages(time, &context);
-        internal!(context, crate::logger::InternalLog::NodeSyncDetailed, "Pre-save wait");
+        internal!(
+            context,
+            crate::logger::InternalLog::NodeSyncDetailed,
+            "Pre-save wait"
+        );
         self.sync_with_others(time_cv, time, &context);
 
         Ok(())
@@ -299,14 +337,19 @@ impl Node {
         let mut lk = time_cv.waiting.lock().unwrap();
         let waiting_parity = *time_cv.intermediate_parity.lock().unwrap();
         *lk += 1;
-        internal!(context, crate::logger::InternalLog::NodeSyncDetailed,
-            "Increase intermediate waiting nodes: {}", *lk
+        internal!(
+            context,
+            crate::logger::InternalLog::NodeSyncDetailed,
+            "Increase intermediate waiting nodes: {}",
+            *lk
         );
-        
+
         loop {
             while self.process_messages() {
                 *lk -= 1;
-                internal!(context, crate::logger::InternalLog::NodeSyncDetailed,
+                internal!(
+                    context,
+                    crate::logger::InternalLog::NodeSyncDetailed,
                     "Messages to process: handle messages"
                 );
                 self.handle_messages(time, &context);
@@ -317,13 +360,18 @@ impl Node {
                 lk = time_cv.condvar.wait(lk).unwrap();
             }
             if waiting_parity != *time_cv.intermediate_parity.lock().unwrap() {
-                internal!(context, crate::logger::InternalLog::NodeSyncDetailed,
+                internal!(
+                    context,
+                    crate::logger::InternalLog::NodeSyncDetailed,
                     "End wait"
                 );
                 return;
             }
-            internal!(context, crate::logger::InternalLog::NodeSyncDetailed,
-                "New loop: waiting = {}", *lk
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeSyncDetailed,
+                "New loop: waiting = {}",
+                *lk
             );
         }
     }
@@ -350,7 +398,10 @@ impl Node {
             }
         }
         if let Some(sensor_manager) = &self.sensor_manager() {
-            sensor_manager.write().unwrap().handle_messages(time, &context);
+            sensor_manager
+                .write()
+                .unwrap()
+                .handle_messages(time, context);
         }
     }
 
@@ -367,7 +418,9 @@ impl Node {
             if next_time > min_time_excluded {
                 next_time_step = next_time_step.min(next_time);
             }
-            internal!(context, crate::logger::InternalLog::NodeRunningDetailed,
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeRunningDetailed,
                 "Next time after state estimator: {next_time_step}"
             );
         }
@@ -377,7 +430,9 @@ impl Node {
             if next_time > min_time_excluded {
                 next_time_step = next_time_step.min(next_time);
             }
-            internal!(context, crate::logger::InternalLog::NodeRunningDetailed,
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeRunningDetailed,
                 "Next time after navigator: {next_time_step}"
             );
         }
@@ -387,7 +442,9 @@ impl Node {
             if next_time > min_time_excluded {
                 next_time_step = next_time_step.min(next_time);
             }
-            internal!(context, crate::logger::InternalLog::NodeRunningDetailed,
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeRunningDetailed,
                 "Next time after controller: {next_time_step}"
             );
         }
@@ -397,10 +454,11 @@ impl Node {
             if next_time > min_time_excluded {
                 next_time_step = next_time_step.min(next_time);
             }
-            internal!(context, crate::logger::InternalLog::NodeRunningDetailed,
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeRunningDetailed,
                 "Next time after physics: {next_time_step}"
             );
-            
         }
 
         if let Some(sensor_manager) = &self.sensor_manager {
@@ -412,7 +470,9 @@ impl Node {
             if next_time > min_time_excluded {
                 next_time_step = next_time_step.min(next_time);
             }
-            internal!(context, crate::logger::InternalLog::NodeRunningDetailed,
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeRunningDetailed,
                 "Next time after sensor manager: {next_time_step}"
             );
         }
@@ -427,12 +487,16 @@ impl Node {
                     next_time_step = next_time_step.min(next_time);
                 }
             }
-            internal!(context, crate::logger::InternalLog::NodeRunningDetailed,
+            internal!(
+                context,
+                crate::logger::InternalLog::NodeRunningDetailed,
                 "Next time after state estimator bench: {next_time_step}"
             );
         }
         next_time_step = round_precision(next_time_step, TIME_ROUND).unwrap();
-        internal!(context, crate::logger::InternalLog::NodeRunningDetailed,
+        internal!(
+            context,
+            crate::logger::InternalLog::NodeRunningDetailed,
             "next_time_step: {next_time_step}"
         );
         Ok(next_time_step)
@@ -454,7 +518,10 @@ impl Node {
     pub(crate) fn pre_loop_hooks(&mut self, time: f32, context: &Context) {
         let context = context.new_callstack_level("pre_loop_hooks");
         if let Some(state_estimator) = self.state_estimator() {
-            state_estimator.write().unwrap().pre_loop_hook(self, time, &context);
+            state_estimator
+                .write()
+                .unwrap()
+                .pre_loop_hook(self, time, &context);
         }
         if let Some(state_estimator_bench) = self.state_estimator_bench.clone() {
             for state_estimator in state_estimator_bench.read().unwrap().iter() {
@@ -466,10 +533,16 @@ impl Node {
             }
         }
         if let Some(controller) = self.controller() {
-            controller.write().unwrap().pre_loop_hook(self, time, &context);
+            controller
+                .write()
+                .unwrap()
+                .pre_loop_hook(self, time, &context);
         }
         if let Some(navigator) = self.navigator() {
-            navigator.write().unwrap().pre_loop_hook(self, time, &context);
+            navigator
+                .write()
+                .unwrap()
+                .pre_loop_hook(self, time, &context);
         }
     }
 
@@ -519,7 +592,7 @@ impl Node {
                 self,
                 self.current_command.clone(),
                 time,
-                &context
+                &context,
             );
             if let Some(time_analysis) = &self.time_analysis {
                 time_analysis
@@ -536,7 +609,10 @@ impl Node {
     pub(crate) fn make_observations(&mut self, time: f32, context: &Context) {
         let context = context.new_callstack_level("make_observations");
         if let Some(sensor_manager) = &self.sensor_manager() {
-            sensor_manager.write().unwrap().handle_messages(time, &context);
+            sensor_manager
+                .write()
+                .unwrap()
+                .handle_messages(time, &context);
             sensor_manager
                 .write()
                 .unwrap()
@@ -547,11 +623,17 @@ impl Node {
     pub(crate) fn correction_step(&mut self, time: f32, context: &Context) {
         let context = context.new_callstack_level("correction_step");
         if let Some(sensor_manager) = &self.sensor_manager() {
-            sensor_manager.write().unwrap().handle_messages(time, &context);
+            sensor_manager
+                .write()
+                .unwrap()
+                .handle_messages(time, &context);
             // Make observations (if it is the right time)
             let observations = sensor_manager.write().unwrap().get_observations();
-            internal!(context, crate::logger::InternalLog::SensorManager,
-                "Got {} observations", observations.len()
+            internal!(
+                context,
+                crate::logger::InternalLog::SensorManager,
+                "Got {} observations",
+                observations.len()
             );
             if !observations.is_empty() {
                 // Treat the observations
@@ -562,10 +644,12 @@ impl Node {
                             "control_loop_state_estimator_correction_step".to_string(),
                         )
                     });
-                    state_estimator
-                        .write()
-                        .unwrap()
-                        .correction_step(self, &observations, time, &context);
+                    state_estimator.write().unwrap().correction_step(
+                        self,
+                        &observations,
+                        time,
+                        &context,
+                    );
                     if let Some(time_analysis) = &self.time_analysis {
                         time_analysis
                             .lock()
@@ -599,7 +683,12 @@ impl Node {
         }
     }
 
-    pub(crate) fn nav_and_control_step(&mut self, time: f32, do_control_loop: bool, context: &Context) {
+    pub(crate) fn nav_and_control_step(
+        &mut self,
+        time: f32,
+        do_control_loop: bool,
+        context: &Context,
+    ) {
         let context = context.new_callstack_level("nav_and_control_step");
         if do_control_loop
             || (self.navigator().is_some()
@@ -774,15 +863,24 @@ impl Node {
 
     /// Get shared read-only access to the physics module of another node by name.
     /// Returns `None` if the node name is not found or if the physics module is not available.
-    pub fn get_other_node_physics(&self, node_name: &str) -> Option<SharedRoLock<Box<dyn Physics>>> {
-        self.other_node_physics.read().unwrap().get(node_name).cloned()
+    pub fn get_other_node_physics(
+        &self,
+        node_name: &str,
+    ) -> Option<SharedRoLock<Box<dyn Physics>>> {
+        self.other_node_physics
+            .read()
+            .unwrap()
+            .get(node_name)
+            .cloned()
     }
 
     /// Get shared read-only access to the physics modules of all other nodes.
     /// The returned map is keyed by node name and contains shared read-only locks to the physics modules.
     /// The map is maintained by the simulator and updated as nodes are added or removed.
     /// It allows this node to query the physics state of other nodes for coordination, collision checking, or other purposes.
-    pub fn get_all_node_physics(&self) -> &SharedRoLock<BTreeMap<String, SharedRoLock<Box<dyn Physics>>>> {
+    pub fn get_all_node_physics(
+        &self,
+    ) -> &SharedRoLock<BTreeMap<String, SharedRoLock<Box<dyn Physics>>>> {
         &self.other_node_physics
     }
 
@@ -833,9 +931,27 @@ impl Node {
             name: meta_data.name.clone(),
             model_name: meta_data.model_name.clone(),
             labels: meta_data.labels.clone(),
-            navigator: self.navigator.as_ref().unwrap().read().unwrap().record(&context),
-            controller: self.controller.as_ref().unwrap().read().unwrap().record(&context),
-            physics: self.physics.as_ref().unwrap().read().unwrap().record(&context),
+            navigator: self
+                .navigator
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .record(&context),
+            controller: self
+                .controller
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .record(&context),
+            physics: self
+                .physics
+                .as_ref()
+                .unwrap()
+                .read()
+                .unwrap()
+                .record(&context),
             state_estimator: self
                 .state_estimator
                 .as_ref()
@@ -881,7 +997,12 @@ impl Node {
         let mut record = ComputationUnitRecord {
             name: meta_data.name.clone(),
             state_estimators: Vec::new(),
-            sensor_manager: self.sensor_manager().unwrap().read().unwrap().record(&context),
+            sensor_manager: self
+                .sensor_manager()
+                .unwrap()
+                .read()
+                .unwrap()
+                .record(&context),
             labels: meta_data.labels.clone(),
             model_name: meta_data.model_name.clone(),
         };

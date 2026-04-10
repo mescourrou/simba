@@ -410,9 +410,9 @@ impl GNSSSensor {
         let mut filters = Vec::new();
         for filter_config in &config.filters {
             filters.push(match &filter_config {
-                GNSSSensorFilterConfig::Range(config) => {
-                    GNSSSensorFilterType::Range(RangeFilter::from_config(config, initial_time, context))
-                }
+                GNSSSensorFilterConfig::Range(config) => GNSSSensorFilterType::Range(
+                    RangeFilter::from_config(config, initial_time, context),
+                ),
                 GNSSSensorFilterConfig::Python(config) => GNSSSensorFilterType::Python(
                     PythonFilter::from_config(config, global_config, initial_time, context)?,
                 ),
@@ -445,7 +445,12 @@ impl GNSSSensor {
 use crate::node::Node;
 
 impl Sensor for GNSSSensor {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> crate::errors::SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> crate::errors::SimbaResult<()> {
         for filter in self.filters.iter_mut() {
             filter.post_init(node, initial_time, context)?;
         }
@@ -455,7 +460,12 @@ impl Sensor for GNSSSensor {
         Ok(())
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32, context: &Context) -> Vec<SensorObservation> {
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation> {
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
         {
@@ -693,7 +703,11 @@ impl Sensor for GNSSSensor {
                 }
             }
         } else {
-            internal!(context, crate::logger::InternalLog::SensorManagerDetailed, "GNSS Observation was filtered out");
+            internal!(
+                context,
+                crate::logger::InternalLog::SensorManagerDetailed,
+                "GNSS Observation was filtered out"
+            );
         }
 
         if let Some(p) = self.activation_time.as_mut() {
