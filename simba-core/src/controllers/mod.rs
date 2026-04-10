@@ -196,6 +196,7 @@ pub trait Controller:
     /// * `robot` - Reference to the robot to access modules.
     /// * `error` - Error to be corrected.
     /// * `time` - Current time.
+    /// * `context` - Shared simulation context used for logging and communication metadata.
     ///
     /// ## Return
     /// Command to apply to the [`Physics`](crate::physics::Physics).
@@ -221,6 +222,7 @@ pub trait Controller:
 /// * `physics_config` - Physics configuration to transmit to the controller and infer the robot model from.
 /// * `network` - Shared reference to the network, for controllers using messages.
 /// * `initial_time` - Initial node time.
+/// * `context` - Shared simulation context used for logging and call tracing during construction.
 pub fn make_controller_from_config(
     config: &ControllerConfig,
     plugin_api: &Option<Arc<dyn PluginAPI>>,

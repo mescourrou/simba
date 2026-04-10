@@ -11,6 +11,13 @@ pub struct Configurator {
 }
 
 impl Configurator {
+    /// Initialize a configurator from an existing simulator config file path.
+    ///
+    /// If loading fails, a default configuration is used and the error is logged.
+    ///
+    /// ## Arguments
+    /// * `config_path` - Path to the config file to preload.
+    /// * `context` - Shared simulation context used for error logging.
     pub fn init(config_path: &String, context: &Context) -> Self {
         let mut save_path = config_path.clone();
         let current_config = match SimulatorConfig::load_from_path(Path::new(&config_path)) {
@@ -32,6 +39,9 @@ impl Configurator {
         }
     }
 
+    /// Show the interactive configurator window.
+    ///
+    /// Returns `true` when the window requests closing.
     pub fn show(&mut self, _ui: &mut egui::Ui, ctx: &egui::Context) -> bool {
         let mut closing = false;
         egui::Window::new("Configurator").show(ctx, |ui| {

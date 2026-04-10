@@ -137,6 +137,12 @@ impl StringFilter {
     ///
     /// All accepted and rejected patterns are compiled as regular expressions.
     /// Invalid regular expressions will panic during construction.
+    /// `_context` is currently unused and kept for API consistency.
+    ///
+    /// ## Arguments
+    /// * `config` - Filter configuration to instantiate.
+    /// * `_initial_time` - Initial simulation time (currently unused).
+    /// * `_context` - Shared simulation context (currently unused in this constructor).
     pub fn from_config(config: &StringFilterConfig, _initial_time: f32, _context: &Context) -> Self {
         Self {
             accepted: config

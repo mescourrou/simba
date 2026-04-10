@@ -108,6 +108,9 @@ impl PythonPhysics {
     }
 
     /// Processes pending remote calls and dispatches them to Python methods.
+    ///
+    /// ## Arguments
+    /// * `context` - Shared simulation context used for logging and call tracing.
     pub fn check_requests(&mut self, context: &Context) {
         self.apply_command
             .clone()

@@ -128,6 +128,15 @@ impl Environment {
     /// Get the list of landmarks that are in range from the given position.
     /// For widthed landmarks, they are returned if they are in the observation circle or intersect it.
     /// The intersection points are also returned, which can be extremities of the landmark of intersection with the observation circle.
+    /// 
+    /// ## Arguments
+    /// * `position` - The position of the observer.
+    /// * `max_distance` - The maximum distance at which landmarks can be observed.
+    /// * `cache_key` - Optional cache key to use for caching landmarks in range, to optimize repeated visibility checks from the same position and distance.
+    /// * `context` - Shared simulation context used for logging and call tracing during the visibility check (update the cache).
+     ///
+     /// ## Returns
+     /// A vector of landmarks in range, with their observed pose and width (if partially observed) and in the map frame, and the intersection points with the observation circle when they are not fully visible.
     fn landmarks_in_range(
         &self,
         position: &Vector2<f32>,
@@ -206,6 +215,8 @@ impl Environment {
     /// * `position` - The position of the observer.
     /// * `observer_height` - The height of the observer, used for obstruction checks. If None, no obstruction checks are performed (equivalent to xray mode).
     /// * `max_distance` - The maximum distance at which landmarks can be observed.
+    /// * `cache_key` - Optional cache key to use for caching landmarks in range, to optimize repeated visibility checks from the same position and distance.
+    /// * `context` - Shared simulation context used for logging and call tracing during the visibility check.
     ///
     /// # Returns
     /// A vector of observed landmarks, with their observed pose and width (if partially observed) and in the map frame.
@@ -450,6 +461,15 @@ impl Environment {
     /// Visibility is constrained by `max_distance` and by occlusions from landmarks with
     /// sufficient height. If either `target_height` or `observer_height` is `None`, obstruction
     /// checks are skipped (x-ray behavior).
+    /// 
+    /// ## Arguments
+    /// * `target_position` - The position of the target to observe.
+    /// * `target_height` - The height of the target, used for obstruction checks. If None, no obstruction checks are performed for the target (x-ray mode).
+    /// * `observer_position` - The position of the observer.
+    /// * `observer_height` - The height of the observer, used for obstruction checks. If None, no obstruction checks are performed for the observer (x-ray mode).
+    /// * `max_distance` - The maximum distance at which the target can be observed.
+    /// * `cache_key` - Optional cache key to use for caching landmarks in range, to optimize repeated visibility checks from the same position and distance.
+    /// * `context` - Shared simulation context used for logging and call tracing during the visibility check.
     pub fn is_target_observable(
         &self,
         target_position: &Vector2<f32>,

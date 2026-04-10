@@ -208,6 +208,10 @@ impl Network {
     ///
     /// Relative paths are namespaced under the current node internal prefix
     /// [`channels::internal::NODE`].
+    ///
+    /// ## Arguments
+    /// * `key` - Channel key to create (relative or absolute).
+    /// * `context` - Shared simulation context used for network logging.
     pub fn make_channel_internal(&self, key: PathKey, context: &Context) -> PathKey {
         let key = if key.absolute() {
             key
@@ -225,6 +229,10 @@ impl Network {
     /// Relative paths are namespaced under the current node internal prefix
     /// [`channels::internal::NODE`]. When `self.range > 0.0`, message delivery is filtered by
     /// Euclidean distance.
+    ///
+    /// ## Arguments
+    /// * `key` - Channel key to create (relative or absolute).
+    /// * `context` - Shared simulation context used for network logging.
     pub fn make_channel(&self, key: PathKey, context: &Context) -> PathKey {
         let key = if key.absolute() {
             key
@@ -254,6 +262,11 @@ impl Network {
     /// Subscribes a multi-client to the provided channels using the configured reception delay.
     ///
     /// If `multi_client` is `None`, a new [`SimbaBrokerMultiClient`] is created and returned.
+    ///
+    /// ## Arguments
+    /// * `keys` - Channel keys to subscribe to.
+    /// * `multi_client` - Optional existing client to extend.
+    /// * `context` - Shared simulation context used for network logging.
     pub fn subscribe_to(
         &self,
         keys: &[PathKey],
@@ -294,6 +307,11 @@ impl Network {
     ///
     /// This is useful for control paths that must be handled immediately. If `multi_client` is
     /// `None`, a new [`SimbaBrokerMultiClient`] is created first.
+    ///
+    /// ## Arguments
+    /// * `keys` - Channel keys to subscribe to.
+    /// * `multi_client` - Optional existing client to extend.
+    /// * `context` - Shared simulation context used for network logging.
     pub fn subscribe_to_instantaneous(
         &self,
         keys: &[PathKey],
@@ -329,6 +347,13 @@ impl Network {
     /// Sends `message` to a specific recipient node on `channel` at simulation `time`.
     ///
     /// If `channel` is relative, it is prefixed with the recipient node internal namespace.
+    ///
+    /// ## Arguments
+    /// * `recipient` - Target node name.
+    /// * `channel` - Destination channel key (relative or absolute).
+    /// * `message` - Message envelope to publish.
+    /// * `time` - Simulation timestamp used by the broker.
+    /// * `context` - Shared simulation context used for network logging.
     pub fn send_to_node(&self, recipient: String, channel: PathKey, message: Envelope, time: f32, context: &Context) {
         let key = if channel.absolute() {
             channel
@@ -351,6 +376,12 @@ impl Network {
     /// Sends `message` to this node-scoped `channel` at simulation `time`.
     ///
     /// If `channel` is relative, it is prefixed with this node internal namespace.
+    ///
+    /// ## Arguments
+    /// * `channel` - Destination channel key (relative or absolute).
+    /// * `message` - Message envelope to publish.
+    /// * `time` - Simulation timestamp used by the broker.
+    /// * `context` - Shared simulation context used for network logging.
     pub fn send_to(&self, channel: PathKey, message: Envelope, time: f32, context: &Context) {
         let key = if channel.absolute() {
             channel

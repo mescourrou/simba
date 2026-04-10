@@ -461,6 +461,11 @@ impl SensorManager {
 
     /// Initialize the [`Sensor`]s. Should be called at the beginning of the run, after
     /// the initialization of the modules.
+    ///
+    /// ## Arguments
+    /// * `node` - Node owning the sensors.
+    /// * `initial_time` - Initial simulation time used by sensor initialization hooks.
+    /// * `context` - Shared simulation context used for logging.
     pub fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
         for sensor in &mut self.sensors {
             sensor
@@ -478,6 +483,10 @@ impl SensorManager {
     /// observations, and applies trigger messages to targeted sensors.
     ///
     /// This is where distant observations are collected.
+    ///
+    /// ## Arguments
+    /// * `time` - Current simulation time upper-bound for message retrieval.
+    /// * `context` - Shared simulation context used for sensor-manager logs.
     pub fn handle_messages(&mut self, time: f32, context: &Context) {
         while let Some((path, envelope)) = self.message_client.as_ref().unwrap().try_receive(time) {
             internal!(context, crate::logger::InternalLog::SensorManager,
@@ -549,6 +558,11 @@ impl SensorManager {
     ///
     /// Generated observations are stored locally and forwarded to destination nodes
     /// according to each sensor's `send_to` configuration.
+    ///
+    /// ## Arguments
+    /// * `node` - Node owning the sensors and network handle.
+    /// * `time` - Current simulation time used to decide which sensors should emit.
+    /// * `context` - Shared simulation context used for sensor-manager logs.
     pub fn make_observations(&mut self, node: &mut Node, time: f32, context: &Context) {
         self.local_observations.clear();
         self.last_observations.clear();

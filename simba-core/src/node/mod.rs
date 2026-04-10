@@ -331,6 +331,10 @@ impl Node {
     /// Handle all pending service and network messages up to `time`.
     ///
     /// It means that the actions linked to each services or messages are executed here.
+    ///
+    /// ## Arguments
+    /// * `time` - Current simulation time upper-bound for message processing.
+    /// * `context` - Shared simulation context used for logging.
     pub fn handle_messages(&mut self, time: f32, context: &Context) {
         while let Some((path, message)) = self.node_message_client.try_receive(time) {
             if path
@@ -351,6 +355,10 @@ impl Node {
     }
 
     /// Computes the next time step, using state estimator, sensors and received messages.
+    ///
+    /// ## Arguments
+    /// * `min_time_excluded` - Lower bound: candidate times must be strictly greater than this value.
+    /// * `context` - Shared simulation context used for logging and scoped call tracing.
     pub fn next_time_step(&self, min_time_excluded: f32, context: &Context) -> SimbaResult<f32> {
         let context = context.new_callstack_level("next_time_step");
         let mut next_time_step = f32::INFINITY;

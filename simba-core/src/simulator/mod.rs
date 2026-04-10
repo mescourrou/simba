@@ -1432,6 +1432,10 @@ impl Simulator {
     }
 
     /// Deserialize persisted simulator results from a JSON file.
+    ///
+    /// ## Arguments
+    /// * `filename` - Path to the JSON result file.
+    /// * `context` - Shared simulation context used for load/deserialization logging.
     pub fn deserialize_results_from_file(filename: &Path, context: &Context) -> SimbaResult<Results> {
         info!(context, "Loading results from file `{}`", filename.to_str().unwrap());
         let mut recording_file = File::open(filename).expect("Impossible to open record file");

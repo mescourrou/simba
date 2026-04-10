@@ -442,6 +442,7 @@ pub trait Sensor:
     /// ## Arguments
     /// * `node` - Reference to the node to access the modules.
     /// * `time` - Time at which the observations are taken.
+    /// * `context` - Shared simulation context used for logging and communication metadata.
     ///
     /// ## Return
     /// List of [`SensorObservation`]s, could be empty if no [`Sensor`] provided observation

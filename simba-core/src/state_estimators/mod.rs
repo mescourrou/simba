@@ -627,6 +627,15 @@ impl UIComponent for StateEstimatorRecord {
 }
 
 /// Build the appropriate [`StateEstimator`] from a configuration.
+///
+/// ## Arguments
+/// * `config` - State-estimator configuration.
+/// * `plugin_api` - Optional plugin API used by external/python estimators.
+/// * `global_config` - Global simulator configuration.
+/// * `va_factory` - Random variables factory for deterministic behavior.
+/// * `network` - Shared reference to the network, for estimators using messages.
+/// * `initial_time` - Initial node time.
+/// * `context` - Shared simulation context used for logging and call tracing during construction.
 pub fn make_state_estimator_from_config(
     config: &StateEstimatorConfig,
     plugin_api: &Option<Arc<dyn PluginAPI>>,
@@ -687,6 +696,7 @@ pub trait StateEstimator:
     /// * `command` -- Command sent to the physics. Can be None at the first step or with
     ///   non-physical nodes (Computation Units).
     /// * `time` -- Time to reach.
+    /// * `context` -- Simulation context.
     fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32, context: &Context);
 
     /// Correction step of the state estimator.

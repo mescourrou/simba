@@ -106,6 +106,9 @@ impl PythonController {
     }
 
     /// Polls pending RPC calls and dispatches them to Python implementations.
+    ///
+    /// ## Arguments
+    /// * `context` - Shared simulation context used for logging and call tracing.
     pub fn check_requests(&mut self, context: &Context) {
         self.post_init
             .clone()

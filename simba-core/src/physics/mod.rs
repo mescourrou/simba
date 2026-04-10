@@ -161,7 +161,7 @@ impl UIComponent for PhysicsRecord {
 }
 
 use crate::{
-    context::{self, Context}, errors::SimbaResult, node::{Node, node_factory::FromConfigArguments}, physics::robot_models::Command, recordable::Recordable, simulator::SimulatorConfig, state_estimators::State, utils::SharedRwLock
+    context::Context, errors::SimbaResult, node::{Node, node_factory::FromConfigArguments}, physics::robot_models::Command, recordable::Recordable, simulator::SimulatorConfig, state_estimators::State, utils::SharedRwLock
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -200,15 +200,21 @@ pub trait Physics:
     /// ## Arguments
     /// * `command` - Command to apply
     /// * `time` - Current time, when to apply the command.
+    /// * `context` - Shared simulation context used for logging and communication metadata.
     fn apply_command(&mut self, command: &Command, time: f32, context: &Context);
 
     /// Update the state to the given time, while keeping the previous command.
+    ///
+    /// `context` can be used for logging or diagnostics during integration.
     fn update_state(&mut self, time: f32, context: &Context);
 
     /// Get the current real state, the groundtruth.
+    ///
+    /// `context` can be used for logging or diagnostics while retrieving the state.
     fn state(&self, time: f32, context: &Context) -> State;
 
     /// Optional: return the time of the next time step. Needed if using messages
+    #[allow(unused_variables)]
     fn next_time_step(&self, context: &Context) -> Option<f32> {
         None
     }
@@ -217,8 +223,9 @@ pub trait Physics:
 /// Helper function to create a physics from the given configuration.
 ///
 /// ## Arguments
-/// - `config`: The configuration of the physics.
-/// - `from_config_args`: Additional arguments needed to create the physics, such as the robot name, random variable factory, initial time, plugin API, global config and network.
+/// * `config` - Physics configuration.
+/// * `from_config_args` - Additional constructor dependencies (node name, plugin API, global config, random-variable factory, network, and initial time).
+/// * `context` - Shared simulation context used for logging and call tracing during construction.
 pub fn make_physics_from_config(
     config: &PhysicsConfig,
     from_config_args: &FromConfigArguments,

@@ -142,6 +142,9 @@ impl TimeAnalysisFactory {
 
     /// Save the time results analysis to the file specified in the config.
     /// Execute the real time analysis to save a more readable report of the results, with statistics such as mean, median, etc. for each profile. The report is saved in the same path as the results, with the extension `.report.csv`.
+    ///
+    /// ## Arguments
+    /// * `context` - Shared simulation context used for reporting logs.
     pub fn save_results(&self, context: &Context) {
         let path = Path::new(self.config.output_path.as_str());
         info!(context, "Saving Time Analysis results to {}", path.to_str().unwrap());

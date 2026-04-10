@@ -153,6 +153,13 @@ pub struct RangeFilter<SV: EnumVariables> {
 
 impl<SV: EnumVariables> RangeFilter<SV> {
     /// Build a range filter from its configuration.
+    ///
+    /// `_context` is currently unused and kept for API consistency.
+    ///
+    /// ## Arguments
+    /// * `config` - Filter configuration to instantiate.
+    /// * `_initial_time` - Initial simulation time (currently unused).
+    /// * `_context` - Shared simulation context (currently unused in this constructor).
     pub fn from_config(config: &RangeFilterConfig<SV>, _initial_time: f32, _context: &Context) -> Self {
         Self {
             config: config.clone(),

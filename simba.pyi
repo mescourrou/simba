@@ -257,6 +257,18 @@ class Node:
     
     def make_channel(self, topic: str) -> None:
         raise NotImplementedError()
+
+    def log_info(self, message: str) -> None:
+        raise NotImplementedError()
+
+    def log_warning(self, message: str) -> None:
+        raise NotImplementedError()
+
+    def log_error(self, message: str) -> None:
+        raise NotImplementedError()
+
+    def log_debug(self, message: str) -> None:
+        raise NotImplementedError()
     
 class Client:
     def subscribe(self, key: str) -> None:
@@ -293,7 +305,7 @@ class StateEstimator:
     def record(self) -> str:
         raise NotImplementedError()
 
-    def prediction_step(self, node: Node, command: Command, time: float):
+    def prediction_step(self, node: Node, command: Command | None, time: float):
         raise NotImplementedError()
 
     def correction_step(self, node: Node, observations: List[Observation], time: float):

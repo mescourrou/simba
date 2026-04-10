@@ -12,7 +12,7 @@ use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
 
-use crate::context::{self, Context};
+use crate::context::Context;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
@@ -90,6 +90,11 @@ pub enum SpeedSensorFaultModelType {
 
 impl SpeedSensorFaultModelType {
     /// Wraps the post-initialization of fault models that require runtime node context.
+    ///
+    /// ## Arguments
+    /// * `node` - Node owning the sensor.
+    /// * `initial_time` - Initial simulation time for model setup.
+    /// * `context` - Shared simulation context used for logging.
     pub fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()> {
         match self {
             Self::Additive(_) => Ok(()),

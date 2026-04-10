@@ -201,7 +201,12 @@ pub trait Navigator:
         Ok(())
     }
 
-    /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
+    /// Compute the error ([`ControllerError`]) between the given `state` and the planned path.
+    ///
+    /// ## Arguments
+    /// * `node` - Reference to the node to access modules.
+    /// * `state` - Estimated world state used by the navigator.
+    /// * `context` - Shared simulation context used for logging and communication metadata.
     fn compute_error(&mut self, node: &mut Node, state: WorldState, context: &Context) -> ControllerError;
 
     /// Executes per-step side effects before controller computation.
@@ -217,12 +222,13 @@ pub trait Navigator:
 /// Helper function to create a navigator from the given configuration.
 ///
 /// ## Arguments
-/// - `config`: The configuration of the navigator.
-/// - `plugin_api`: The plugin API, to be used by the navigator.
-/// - `global_config`: The global configuration of the simulator.
-/// - `va_factory`: Random variables factory for determinist behavior.
-/// - `network`: Shared reference to the network, for navigators using messages.
-/// - `initial_time`: Initial node time.
+/// * `config` - Navigator configuration.
+/// * `plugin_api` - Optional plugin API used by external/python navigators.
+/// * `global_config` - Global simulator configuration.
+/// * `va_factory` - Random variables factory for deterministic behavior.
+/// * `network` - Shared reference to the network, for navigators using messages.
+/// * `initial_time` - Initial node time.
+/// * `context` - Shared simulation context used for logging and call tracing during construction.
 pub fn make_navigator_from_config(
     config: &NavigatorConfig,
     plugin_api: &Option<Arc<dyn PluginAPI>>,
