@@ -5,30 +5,24 @@ To make your own external controller strategy, the simulator should
 be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external controller strategy is made using the
-[`PluginAPI::get_controller`] function.
+[`crate::plugin_api::PluginAPI::get_controller`] function.
 */
 
-use std::sync::Arc;
-
-use log::debug;
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
 
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
-use crate::logger::is_enabled;
-use crate::networking::network::Network;
+use crate::internal;
+use crate::node::node_factory::FromConfigArguments;
 use crate::physics::robot_models::Command;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
-use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
-use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
-};
 
 use super::{Controller, ControllerError, ControllerRecord};
 use serde_derive::{Deserialize, Serialize};
@@ -69,26 +63,24 @@ pub struct ExternalController {
 impl ExternalController {
     /// Creates a new [`ExternalController`] from the given config.
     ///
-    /// <div class="warning">The `plugin_api` is required here !</div>
+    /// <div class="warning">The `plugin_api` in `from_config_params` is required here !</div>
     ///
     ///  ## Arguments
     /// * `config` -- Scenario config of the External controller.
-    /// * `plugin_api` -- Required [`PluginAPI`] implementation.
-    /// * `global_config` -- Simulator config.
-    /// * `_va_factory` -- Factory for Determinists random variables
+    /// * `from_config_params` -- Parameters required to create the controller from config, including the required `plugin_api`
     pub fn from_config(
         config: &ExternalControllerConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        va_factory: &Arc<DeterministRandomVariableFactory>,
-        network: &SharedRwLock<Network>,
-        initial_time: f32,
+        from_config_params: &FromConfigArguments,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(
+            from_config_params.context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
         Ok(Self {
-            controller: plugin_api
+            controller: from_config_params
+                .plugin_api
                 .as_ref()
                 .ok_or_else(|| {
                     SimbaError::new(
@@ -98,10 +90,11 @@ impl ExternalController {
                 })?
                 .get_controller(
                     &config.config,
-                    global_config,
-                    va_factory,
-                    network,
-                    initial_time,
+                    from_config_params.global_config,
+                    from_config_params.va_factory,
+                    from_config_params.network,
+                    from_config_params.initial_time,
+                    from_config_params.context,
                 ),
         })
     }
@@ -114,27 +107,33 @@ impl std::fmt::Debug for ExternalController {
 }
 
 impl Controller for ExternalController {
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
-        self.controller.post_init(node)
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
+        self.controller.post_init(node, context)
     }
 
-    fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command {
-        self.controller.make_command(robot, error, time)
+    fn make_command(
+        &mut self,
+        robot: &mut Node,
+        error: &ControllerError,
+        time: f32,
+        context: &Context,
+    ) -> Command {
+        self.controller.make_command(robot, error, time, context)
     }
 
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        self.controller.pre_loop_hook(node, time);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
+        self.controller.pre_loop_hook(node, time, context);
     }
 
-    fn next_time_step(&self) -> Option<f32> {
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         self.controller
-            .next_time_step()
+            .next_time_step(context)
             .map(|t| round_precision(t, TIME_ROUND).unwrap())
     }
 }
 
 impl Recordable<ControllerRecord> for ExternalController {
-    fn record(&self) -> ControllerRecord {
-        self.controller.record()
+    fn record(&self, context: &Context) -> ControllerRecord {
+        self.controller.record(context)
     }
 }

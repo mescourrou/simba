@@ -18,14 +18,14 @@ use std::fmt;
 use std::str::FromStr;
 
 use config_checker::*;
-use log::debug;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
 use serde_json::Value;
 use simba_com::pub_sub::{BrokerTrait, BrokerTraitExtended, PathKey};
 use simba_macros::config_derives;
 
-use crate::logger::is_enabled;
+use crate::context::Context;
+use crate::internal;
 use crate::networking::channels;
 use crate::simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig};
 use crate::utils::SharedRwLock;
@@ -208,16 +208,23 @@ impl Network {
     ///
     /// Relative paths are namespaced under the current node internal prefix
     /// [`channels::internal::NODE`].
-    pub fn make_channel_internal(&self, key: PathKey) -> PathKey {
+    ///
+    /// ## Arguments
+    /// * `key` - Channel key to create (relative or absolute).
+    /// * `context` - Shared simulation context used for network logging.
+    pub fn make_channel_internal(&self, key: PathKey, context: &Context) -> PathKey {
         let key = if key.absolute() {
             key
         } else {
             key.prepend_str(&self.from)
                 .prepend_str(channels::internal::NODE)
         };
-        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-            debug!("Creating channel '{}'", key);
-        }
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
+            "Creating channel '{}'",
+            key
+        );
         self.broker.write().unwrap().add_channel(key.clone());
         key
     }
@@ -227,7 +234,11 @@ impl Network {
     /// Relative paths are namespaced under the current node internal prefix
     /// [`channels::internal::NODE`]. When `self.range > 0.0`, message delivery is filtered by
     /// Euclidean distance.
-    pub fn make_channel(&self, key: PathKey) -> PathKey {
+    ///
+    /// ## Arguments
+    /// * `key` - Channel key to create (relative or absolute).
+    /// * `context` - Shared simulation context used for network logging.
+    pub fn make_channel(&self, key: PathKey, context: &Context) -> PathKey {
         let key = if key.absolute() {
             key
         } else {
@@ -235,9 +246,13 @@ impl Network {
                 .prepend_str(channels::internal::NODE)
         };
         let range = self.range;
-        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-            debug!("Creating channel '{}' with range {}", key, range);
-        }
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
+            "Creating channel '{}' with range {}",
+            key,
+            range
+        );
         self.broker
             .write()
             .unwrap()
@@ -258,10 +273,16 @@ impl Network {
     /// Subscribes a multi-client to the provided channels using the configured reception delay.
     ///
     /// If `multi_client` is `None`, a new [`SimbaBrokerMultiClient`] is created and returned.
+    ///
+    /// ## Arguments
+    /// * `keys` - Channel keys to subscribe to.
+    /// * `multi_client` - Optional existing client to extend.
+    /// * `context` - Shared simulation context used for network logging.
     pub fn subscribe_to(
         &self,
         keys: &[PathKey],
         multi_client: Option<SimbaBrokerMultiClient>,
+        context: &Context,
     ) -> SimbaBrokerMultiClient {
         let mut multi_client = multi_client.unwrap_or_else(|| {
             SimbaBrokerMultiClient::new(
@@ -273,20 +294,20 @@ impl Network {
                     .join_str(&self.from),
             )
         });
-        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-            debug!("Subscribe to '{:?}'", keys);
-            debug!(
-                "Channels: {}",
-                self.broker
-                    .read()
-                    .unwrap()
-                    .channel_list()
-                    .iter()
-                    .map(|k| k.to_string())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            );
-        }
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
+            "Subscribe to '{:?}'\nChannels: {}",
+            keys,
+            self.broker
+                .read()
+                .unwrap()
+                .channel_list()
+                .iter()
+                .map(|k| k.to_string())
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
         self.broker
             .write()
             .unwrap()
@@ -299,10 +320,16 @@ impl Network {
     ///
     /// This is useful for control paths that must be handled immediately. If `multi_client` is
     /// `None`, a new [`SimbaBrokerMultiClient`] is created first.
+    ///
+    /// ## Arguments
+    /// * `keys` - Channel keys to subscribe to.
+    /// * `multi_client` - Optional existing client to extend.
+    /// * `context` - Shared simulation context used for network logging.
     pub fn subscribe_to_instantaneous(
         &self,
         keys: &[PathKey],
         multi_client: Option<SimbaBrokerMultiClient>,
+        context: &Context,
     ) -> SimbaBrokerMultiClient {
         // Create a multiclient with the usual reception delay to be able to add other channels with the usual reception delay later if needed
         let mut multi_client = multi_client.unwrap_or_else(|| {
@@ -316,9 +343,12 @@ impl Network {
             )
         });
         // but subscribe to the channel with 0 reception delay.
-        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-            debug!("Subscribe instantaneous to '{:?}'", keys);
-        }
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
+            "Subscribe instantaneous to '{:?}'",
+            keys
+        );
         self.broker
             .write()
             .unwrap()
@@ -335,7 +365,21 @@ impl Network {
     /// Sends `message` to a specific recipient node on `channel` at simulation `time`.
     ///
     /// If `channel` is relative, it is prefixed with the recipient node internal namespace.
-    pub fn send_to_node(&self, recipient: String, channel: PathKey, message: Envelope, time: f32) {
+    ///
+    /// ## Arguments
+    /// * `recipient` - Target node name.
+    /// * `channel` - Destination channel key (relative or absolute).
+    /// * `message` - Message envelope to publish.
+    /// * `time` - Simulation timestamp used by the broker.
+    /// * `context` - Shared simulation context used for network logging.
+    pub fn send_to_node(
+        &self,
+        recipient: String,
+        channel: PathKey,
+        message: Envelope,
+        time: f32,
+        context: &Context,
+    ) {
         let key = if channel.absolute() {
             channel
         } else {
@@ -349,9 +393,13 @@ impl Network {
                 .unwrap()
                 .subscribe_to(&key, self.from.clone(), self.reception_delay)
         {
-            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                debug!("Sending message to '{}': {:?}", key, message);
-            }
+            internal!(
+                context,
+                crate::logger::InternalLog::NetworkMessages,
+                "Sending message to '{}': {:?}",
+                key,
+                message
+            );
             tmp_client.send(message, time);
         }
     }
@@ -359,7 +407,13 @@ impl Network {
     /// Sends `message` to this node-scoped `channel` at simulation `time`.
     ///
     /// If `channel` is relative, it is prefixed with this node internal namespace.
-    pub fn send_to(&self, channel: PathKey, message: Envelope, time: f32) {
+    ///
+    /// ## Arguments
+    /// * `channel` - Destination channel key (relative or absolute).
+    /// * `message` - Message envelope to publish.
+    /// * `time` - Simulation timestamp used by the broker.
+    /// * `context` - Shared simulation context used for network logging.
+    pub fn send_to(&self, channel: PathKey, message: Envelope, time: f32, context: &Context) {
         let key = if channel.absolute() {
             channel
         } else {
@@ -373,9 +427,13 @@ impl Network {
                 .unwrap()
                 .subscribe_to(&key, self.from.clone(), self.reception_delay)
         {
-            if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-                debug!("Sending message to '{}': {:?}", key, message);
-            }
+            internal!(
+                context,
+                crate::logger::InternalLog::NetworkMessages,
+                "Sending message to '{}': {:?}",
+                key,
+                message
+            );
             tmp_client.send(message, time);
         }
     }

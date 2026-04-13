@@ -2,7 +2,7 @@
 Module providing different strategies for the state estimation.
 
 To use an external state estimator (in Rust), use [`external_estimator`]
-and implement a specification for [`PluginAPI`].
+and implement a specification for [`crate::plugin_api::PluginAPI`].
 
 ## How to create a new (internal) state estimation strategy
 To create a new state estimation strategy, here are the required steps.
@@ -344,7 +344,7 @@ impl Default for State {
 }
 
 impl Recordable<StateRecord> for State {
-    fn record(&self) -> StateRecord {
+    fn record(&self, _context: &Context) -> StateRecord {
         StateRecord {
             pose: {
                 let mut ve = [0., 0., 0.];
@@ -456,12 +456,18 @@ impl WorldState {
 }
 
 impl Recordable<WorldStateRecord> for WorldState {
-    fn record(&self) -> WorldStateRecord {
+    fn record(&self, context: &Context) -> WorldStateRecord {
         WorldStateRecord {
-            ego: self.ego.as_ref().map(|s| s.record()),
-            landmarks: BTreeMap::from_iter(self.landmarks.iter().map(|(id, s)| (*id, s.record()))),
+            ego: self.ego.as_ref().map(|s| s.record(context)),
+            landmarks: BTreeMap::from_iter(
+                self.landmarks
+                    .iter()
+                    .map(|(id, s)| (*id, s.record(context))),
+            ),
             objects: BTreeMap::from_iter(
-                self.objects.iter().map(|(id, s)| (id.clone(), s.record())),
+                self.objects
+                    .iter()
+                    .map(|(id, s)| (id.clone(), s.record(context))),
             ),
             occupancy_grid: self.occupancy_grid.clone(),
         }
@@ -473,17 +479,15 @@ use crate::gui::{
     UIComponent,
     utils::{string_combobox, text_singleline_with_apply},
 };
+use crate::simulator::SimulatorConfig;
+use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
-use crate::utils::geometry::mod2pi;
-use crate::utils::occupancy_grid::OccupancyGrid;
+use crate::{context::Context, utils::geometry::mod2pi};
 use crate::{errors::SimbaResult, node::Node};
-use crate::{networking::network::Network, simulator::SimulatorConfig};
+use crate::{node::node_factory::FromConfigArguments, utils::occupancy_grid::OccupancyGrid};
 use crate::{
     physics::robot_models::Command, utils::determinist_random_variable::RandomVariableTypeConfig,
-};
-use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
 };
 use crate::{recordable::Recordable, utils::SharedRwLock};
 
@@ -627,35 +631,40 @@ impl UIComponent for StateEstimatorRecord {
 }
 
 /// Build the appropriate [`StateEstimator`] from a configuration.
+///
+/// ## Arguments
+/// * `config` - State-estimator configuration.
+/// * `plugin_api` - Optional plugin API used by external/python estimators.
+/// * `global_config` - Global simulator configuration.
+/// * `va_factory` - Random variables factory for deterministic behavior.
+/// * `network` - Shared reference to the network, for estimators using messages.
+/// * `initial_time` - Initial node time.
+/// * `context` - Shared simulation context used for logging and call tracing during construction.
 pub fn make_state_estimator_from_config(
     config: &StateEstimatorConfig,
-    plugin_api: &Option<Arc<dyn PluginAPI>>,
-    global_config: &SimulatorConfig,
-    va_factory: &Arc<DeterministRandomVariableFactory>,
-    network: &SharedRwLock<Network>,
-    initial_time: f32,
+    from_config_params: &FromConfigArguments,
 ) -> SimbaResult<Box<dyn StateEstimator>> {
     Ok(match config {
         StateEstimatorConfig::Perfect(c) => {
             Box::new(perfect_estimator::PerfectEstimator::from_config(
                 c,
-                global_config,
-                va_factory,
-                initial_time,
+                from_config_params.global_config,
+                from_config_params.va_factory,
+                from_config_params.initial_time,
+                from_config_params.context,
             )) as Box<dyn StateEstimator>
         }
-        StateEstimatorConfig::External(c) => {
-            Box::new(external_estimator::ExternalEstimator::from_config(
-                c,
-                plugin_api,
-                global_config,
-                va_factory,
-                network,
-                initial_time,
-            )?) as Box<dyn StateEstimator>
-        }
+        StateEstimatorConfig::External(c) => Box::new(
+            external_estimator::ExternalEstimator::from_config(c, from_config_params)?,
+        ) as Box<dyn StateEstimator>,
         StateEstimatorConfig::Python(c) => Box::new(
-            python_estimator::PythonEstimator::from_config(c, global_config, initial_time).unwrap(),
+            python_estimator::PythonEstimator::from_config(
+                c,
+                from_config_params.global_config,
+                from_config_params.initial_time,
+                from_config_params.context,
+            )
+            .unwrap(),
         ) as Box<dyn StateEstimator>,
     })
 }
@@ -670,7 +679,7 @@ pub trait StateEstimator:
     ///
     /// This step is called before the beginning of the simulation loop so all features are not available.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -684,7 +693,14 @@ pub trait StateEstimator:
     /// * `command` -- Command sent to the physics. Can be None at the first step or with
     ///   non-physical nodes (Computation Units).
     /// * `time` -- Time to reach.
-    fn prediction_step(&mut self, node: &mut Node, command: Option<Command>, time: f32);
+    /// * `context` -- Simulation context.
+    fn prediction_step(
+        &mut self,
+        node: &mut Node,
+        command: Option<Command>,
+        time: f32,
+        context: &Context,
+    );
 
     /// Correction step of the state estimator.
     ///
@@ -696,17 +712,24 @@ pub trait StateEstimator:
     ///   other modules.
     /// * `observations` -- Observation vector.
     /// * `time` -- Current time.
-    fn correction_step(&mut self, node: &mut Node, observations: &[Observation], time: f32);
+    /// * `context` -- Simulation context.
+    fn correction_step(
+        &mut self,
+        node: &mut Node,
+        observations: &[Observation],
+        time: f32,
+        context: &Context,
+    );
 
     /// Return the current estimated state.
-    fn world_state(&self) -> WorldState;
+    fn world_state(&self, context: &Context) -> WorldState;
 
     /// Return the next prediction step time. The correction step
     /// is called for each observation.
-    fn next_time_step(&self) -> f32;
+    fn next_time_step(&self, context: &Context) -> f32;
 
     /// Hook called before each simulation loop iteration, just after the Physics update.
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context);
 }
 
 /// Allow to run a list of [`StateEstimator`] outside of the simulation control loop.

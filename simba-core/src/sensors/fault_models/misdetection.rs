@@ -8,10 +8,13 @@ use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::utils::{
-    determinist_random_variable::DeterministRandomVariableFactory,
-    distributions::bernouilli::{
-        BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable,
+use crate::{
+    context::Context,
+    utils::{
+        determinist_random_variable::DeterministRandomVariableFactory,
+        distributions::bernouilli::{
+            BernouilliRandomVariableConfig, DeterministBernouilliRandomVariable,
+        },
     },
 };
 
@@ -106,6 +109,7 @@ impl UIComponent for MisdetectionFaultConfig {
 #[derive(Debug)]
 pub struct MisdetectionFault {
     apparition: DeterministBernouilliRandomVariable,
+    config: MisdetectionFaultConfig,
 }
 
 impl MisdetectionFault {
@@ -114,20 +118,32 @@ impl MisdetectionFault {
         config: &MisdetectionFaultConfig,
         va_factory: &DeterministRandomVariableFactory,
         _initial_time: f32,
+        _context: &Context,
     ) -> Self {
         Self {
             apparition: DeterministBernouilliRandomVariable::from_config(
                 va_factory.global_seed(),
                 config.apparition.clone(),
             ),
+            config: config.clone(),
         }
     }
 
     /// Returns whether the observation is detected for the provided sampling seed.
     ///
     /// Returns `true` when the Bernoulli sample is `1`, and `false` otherwise.
-    pub fn detected(&mut self, seed: f32) -> bool {
+    /// The `_context` parameter is currently unused and kept for API consistency.
+    ///
+    /// ## Arguments
+    /// * `seed` - Sampling seed forwarded to the internal random variable.
+    /// * `_context` - Shared simulation context (currently unused in this model).
+    pub fn detected(&mut self, seed: f32, _context: &Context) -> bool {
         self.apparition.generate(seed)[0] > 0. // = 1
+    }
+
+    /// Returns the configuration of this fault model.
+    pub fn config(&self) -> &MisdetectionFaultConfig {
+        &self.config
     }
 }
 

@@ -7,13 +7,13 @@
 
 use std::sync::Arc;
 
-use log::debug;
 use simba_macros::config_derives;
 
+use crate::context::Context;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::sensors::fault_models::fault_model::FaultModel;
 use crate::simulator::SimulatorConfig;
 use crate::utils::macros::external_config;
@@ -63,10 +63,14 @@ impl ExternalFault {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
         Ok(Self {
             fault: plugin_api
                 .as_ref()
@@ -76,7 +80,13 @@ impl ExternalFault {
                         "Plugin API not set!".to_string(),
                     )
                 })?
-                .get_sensor_fault(&config.config, global_config, va_factory, initial_time),
+                .get_sensor_fault(
+                    &config.config,
+                    global_config,
+                    va_factory,
+                    initial_time,
+                    context,
+                ),
         })
     }
 }
@@ -95,12 +105,18 @@ impl FaultModel for ExternalFault {
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,
         environment: &Arc<crate::environment::Environment>,
+        context: &Context,
     ) {
         self.fault
-            .add_faults(time, seed, obs_list, obs_type, environment);
+            .add_faults(time, seed, obs_list, obs_type, environment, context);
     }
 
-    fn post_init(&mut self, node: &mut crate::node::Node, initial_time: f32) -> SimbaResult<()> {
-        self.fault.post_init(node, initial_time)
+    fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
+        self.fault.post_init(node, initial_time, context)
     }
 }

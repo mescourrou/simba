@@ -5,15 +5,15 @@ use std::ffi::{CStr, CString};
 use std::fmt::Debug;
 use std::fs;
 
-use log::debug;
 use pyo3::call::PyCallArgs;
 use pyo3::ffi::c_str;
 use pyo3::{PyClass, prelude::*};
 use pyo3::{PyResult, Python};
 use serde::{Deserialize, Serialize};
 
+use crate::context::Context;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
-use crate::logger::is_enabled;
+use crate::info;
 use crate::simulator::SimulatorConfig;
 
 /// Ensure that the Python virtual environment's site-packages are included in sys.path.
@@ -82,11 +82,6 @@ pub fn ensure_venv_pyo3(py: Python<'_>) -> PyResult<()> {
             // Use addsitedir for proper processing of .pth files
             site.call_method1("addsitedir", (cand.as_str(),))?;
         }
-    }
-
-    if is_enabled(crate::logger::InternalLog::API) {
-        let path: Vec<String> = sys.getattr("path")?.extract()?;
-        debug!("Python sys.path after env injection: {:?}", path);
     }
     Ok(())
 }
@@ -188,6 +183,7 @@ pub fn load_class_from_python_script<T: PythonClassConfig>(
     global_config: &SimulatorConfig,
     initial_time: f32,
     log_info: &str,
+    context: &Context,
 ) -> SimbaResult<Py<PyAny>> {
     let json_config = serde_json::to_string(&config)
         .unwrap_or_else(|_| format!("Error during converting Python {} config to json", log_info));
@@ -215,7 +211,7 @@ pub fn load_class_from_python_script<T: PythonClassConfig>(
 
         let script = PyModule::from_code(py, &python_script, c_str!(""), c_str!(""))?;
         let class: Py<PyAny> = script.getattr(config.class_name().as_str())?.into();
-        log::info!("Load {log_info} class {} ...", config.class_name());
+        info!(context, "Load {log_info} class {} ...", config.class_name());
 
         let res = class.call(py, (config_dict, initial_time), None);
         let instance = match res {

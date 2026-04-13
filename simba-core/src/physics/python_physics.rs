@@ -4,22 +4,21 @@ Module providing the interface to use external Python [`Physics`].
 
 use std::str::FromStr;
 
-use log::debug;
 use pyo3::prelude::*;
 use pyo3::{Python, pyclass, pymethods};
 use serde_json::Value;
 
+use crate::context::Context;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
+use crate::internal;
 use crate::physics::robot_models::Command;
 use crate::pywrappers::NodeWrapper;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
 use crate::{
     errors::SimbaResult,
-    logger::is_enabled,
-    networking::service::HasService,
-    physics::{GetRealStateReq, GetRealStateResp, Physics, PhysicsRecord},
+    physics::{Physics, PhysicsRecord},
     pywrappers::{CommandWrapper, StateWrapper},
     recordable::Recordable,
     simulator::SimulatorConfig,
@@ -70,6 +69,7 @@ impl PythonPhysics {
             &PythonPhysicsConfig::default(),
             &SimulatorConfig::default(),
             0.0,
+            &Context::default(),
         )
     }
 
@@ -83,13 +83,17 @@ impl PythonPhysics {
         config: &PythonPhysicsConfig,
         global_config: &SimulatorConfig,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
 
         let physics_instance =
-            load_class_from_python_script(config, global_config, initial_time, "Physics")?;
+            load_class_from_python_script(config, global_config, initial_time, "Physics", context)?;
         Ok(Self {
             physics: physics_instance,
         })
@@ -103,18 +107,26 @@ impl std::fmt::Debug for PythonPhysics {
 }
 
 impl Physics for PythonPhysics {
-    fn post_init(&mut self, node: &mut crate::node::Node) -> SimbaResult<()> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of post_init");
-        }
-        call_py_method_void!(self.physics, "post_init", (NodeWrapper::from_rust(node),));
+    fn post_init(&mut self, node: &mut crate::node::Node, context: &Context) -> SimbaResult<()> {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of post_init"
+        );
+        call_py_method_void!(
+            self.physics,
+            "post_init",
+            (NodeWrapper::from_rust(node, context.clone()),)
+        );
         Ok(())
     }
 
-    fn apply_command(&mut self, command: &Command, time: f32) {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of apply_command");
-        }
+    fn apply_command(&mut self, command: &Command, time: f32, context: &Context) {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of apply_command"
+        );
         // let robot_record = robot.record();
         call_py_method_void!(
             self.physics,
@@ -124,34 +136,42 @@ impl Physics for PythonPhysics {
         );
     }
 
-    fn update_state(&mut self, time: f32) {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of update_state");
-        }
+    fn update_state(&mut self, time: f32, context: &Context) {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of update_state"
+        );
         call_py_method_void!(self.physics, "update_state", (time,));
     }
 
-    fn state(&self, time: f32) -> State {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of state");
-        }
+    fn state(&self, time: f32, context: &Context) -> State {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of state"
+        );
         let state = call_py_method!(self.physics, "state", StateWrapper, (time,));
         state.to_rust()
     }
 
-    fn next_time_step(&self) -> Option<f32> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of next_time_step");
-        }
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of next_time_step"
+        );
         call_py_method!(self.physics, "next_time_step", Option<f32>,)
     }
 }
 
 impl Recordable<PhysicsRecord> for PythonPhysics {
-    fn record(&self) -> PhysicsRecord {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of record");
-        }
+    fn record(&self, context: &Context) -> PhysicsRecord {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of record"
+        );
         let record_str: String = call_py_method!(self.physics, "record", String,);
         let record = PythonPhysicsRecord {
             record: Value::from_str(&record_str).expect(
@@ -161,17 +181,5 @@ impl Recordable<PhysicsRecord> for PythonPhysics {
         // record.clone()
         // StateEstimatorRecord::External(PythonPhysics::record(&self))
         PhysicsRecord::Python(record)
-    }
-}
-
-impl HasService<GetRealStateReq, GetRealStateResp> for PythonPhysics {
-    fn handle_service_requests(
-        &mut self,
-        _req: GetRealStateReq,
-        time: f32,
-    ) -> Result<GetRealStateResp, String> {
-        Ok(GetRealStateResp {
-            state: self.state(time),
-        })
     }
 }

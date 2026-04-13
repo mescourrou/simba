@@ -16,7 +16,7 @@ use std::{
 };
 
 #[cfg(feature = "debug_mode")]
-use log::debug;
+use colored::Colorize;
 
 use crate::pub_sub::{SharedMutex, client::Client};
 
@@ -123,8 +123,9 @@ impl<
             .unwrap()
             .insert((node_id.clone(), id), to_client_tx);
         #[cfg(feature = "debug_mode")]
-        debug!(
-            "[Channel {}] New client with id {} for node {:?}. Total clients: {}",
+        println!(
+            "[{}][Channel {}] New client with id {} for node {:?}. Total clients: {}",
+            "DEBUG".blue(),
             self.name,
             id,
             node_id,
@@ -159,7 +160,11 @@ impl<
             while let Ok(message) = receiver.try_recv() {
                 if message.1 < 0. {
                     #[cfg(feature = "debug_mode")]
-                    debug!("[Channel {}] Receive end-client message", self.name);
+                    println!(
+                        "[{}][Channel {}] Receive end-client message",
+                        "DEBUG".blue(),
+                        self.name
+                    );
                     dead_clients.insert((from_id.clone(), *receiver_id));
                     continue;
                 }
@@ -182,9 +187,12 @@ impl<
                 // Avoid sending the message back to the sender
                 if &from_id == to_id && *sender_id == from_sender_id {
                     #[cfg(feature = "debug_mode")]
-                    debug!(
-                        "[Channel {}] Not sending message back to the sender ({:?} to {:?})",
-                        self.name, from_id, to_id
+                    println!(
+                        "[{}][Channel {}] Not sending message back to the sender ({:?} to {:?})",
+                        "DEBUG".blue(),
+                        self.name,
+                        from_id,
+                        to_id
                     );
                     continue;
                 }
@@ -201,16 +209,22 @@ impl<
                         dead_clients.insert((to_id.clone(), *sender_id));
                     } else {
                         #[cfg(feature = "debug_mode")]
-                        debug!(
-                            "[Channel {}] Message from {:?} to {:?} sent",
-                            self.name, from_id, to_id
+                        println!(
+                            "[{}][Channel {}] Message from {:?} to {:?} sent",
+                            "DEBUG".blue(),
+                            self.name,
+                            from_id,
+                            to_id
                         );
                     }
                 } else {
                     #[cfg(feature = "debug_mode")]
-                    debug!(
-                        "[Channel {}] Message from {:?} to {:?} not sent due to condition",
-                        self.name, from_id, to_id
+                    println!(
+                        "[{}][Channel {}] Message from {:?} to {:?} not sent due to condition",
+                        "DEBUG".blue(),
+                        self.name,
+                        from_id,
+                        to_id
                     );
                 }
             }
@@ -220,18 +234,21 @@ impl<
         }
         #[cfg(feature = "debug_mode")]
         {
-            debug!(
-                "[Channel {}] Removing {} dead clients from channel",
+            println!(
+                "[{}][Channel {}] Removing {} dead clients from channel",
+                "DEBUG".blue(),
                 self.name,
                 dead_clients.len()
             );
-            debug!(
-                "[Channel {}] Current receiver list: {:?}",
+            println!(
+                "[{}][Channel {}] Current receiver list: {:?}",
+                "DEBUG".blue(),
                 self.name,
                 receivers.keys()
             );
-            debug!(
-                "[Channel {}] Current sender list: {:?}",
+            println!(
+                "[{}][Channel {}] Current sender list: {:?}",
+                "DEBUG".blue(),
                 self.name,
                 senders.keys()
             );
@@ -240,9 +257,12 @@ impl<
         // Remove the dead clients
         for (key, sender_id) in dead_clients.into_iter() {
             #[cfg(feature = "debug_mode")]
-            debug!(
-                "[Channel {}] Removing client {:?} with sender id {} from channel",
-                self.name, key, sender_id
+            println!(
+                "[{}][Channel {}] Removing client {:?} with sender id {} from channel",
+                "DEBUG".blue(),
+                self.name,
+                key,
+                sender_id
             );
             // Remove receivers
             let _ = receivers

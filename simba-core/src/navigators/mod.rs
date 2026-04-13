@@ -23,12 +23,12 @@ use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
+use crate::context::Context;
 use crate::controllers::ControllerError;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::string_combobox};
-use crate::networking::network::Network;
-use crate::plugin_api::PluginAPI;
+use crate::node::node_factory::FromConfigArguments;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
 
@@ -186,7 +186,6 @@ impl UIComponent for NavigatorRecord {
 use crate::node::Node;
 use crate::recordable::Recordable;
 use crate::utils::SharedRwLock;
-use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 #[cfg(feature = "gui")]
 use crate::utils::enum_tools::ToVec;
 
@@ -196,18 +195,29 @@ pub trait Navigator:
 {
     /// Performs optional one-time initialization when the node starts.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
         Ok(())
     }
 
-    /// Compute the error ([`ControllerError`]) between the given `state` to the planned path.
-    fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError;
+    /// Compute the error ([`ControllerError`]) between the given `state` and the planned path.
+    ///
+    /// ## Arguments
+    /// * `node` - Reference to the node to access modules.
+    /// * `state` - Estimated world state used by the navigator.
+    /// * `context` - Shared simulation context used for logging and communication metadata.
+    fn compute_error(
+        &mut self,
+        node: &mut Node,
+        state: WorldState,
+        context: &Context,
+    ) -> ControllerError;
 
     /// Executes per-step side effects before controller computation.
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context);
 
     /// Optional: return the time of the next time step. Needed if using messages
-    fn next_time_step(&self) -> Option<f32> {
+    #[allow(unused_variables)]
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         None
     }
 }
@@ -215,39 +225,42 @@ pub trait Navigator:
 /// Helper function to create a navigator from the given configuration.
 ///
 /// ## Arguments
-/// - `config`: The configuration of the navigator.
-/// - `plugin_api`: The plugin API, to be used by the navigator.
-/// - `global_config`: The global configuration of the simulator.
-/// - `va_factory`: Random variables factory for determinist behavior.
-/// - `network`: Shared reference to the network, for navigators using messages.
-/// - `initial_time`: Initial node time.
+/// * `config` - Navigator configuration.
+/// * `plugin_api` - Optional plugin API used by external/python navigators.
+/// * `global_config` - Global simulator configuration.
+/// * `va_factory` - Random variables factory for deterministic behavior.
+/// * `network` - Shared reference to the network, for navigators using messages.
+/// * `initial_time` - Initial node time.
+/// * `context` - Shared simulation context used for logging and call tracing during construction.
 pub fn make_navigator_from_config(
     config: &NavigatorConfig,
-    plugin_api: &Option<Arc<dyn PluginAPI>>,
-    global_config: &SimulatorConfig,
-    va_factory: &Arc<DeterministRandomVariableFactory>,
-    network: &SharedRwLock<Network>,
-    initial_time: f32,
+    from_config_params: &FromConfigArguments,
 ) -> SimbaResult<SharedRwLock<Box<dyn Navigator>>> {
     Ok(Arc::new(RwLock::new(match config {
-        NavigatorConfig::TrajectoryFollower(c) => Box::new(
-            trajectory_follower::TrajectoryFollower::from_config(c, global_config, initial_time),
-        ) as Box<dyn Navigator>,
-        NavigatorConfig::External(c) => {
-            Box::new(external_navigator::ExternalNavigator::from_config(
+        NavigatorConfig::TrajectoryFollower(c) => {
+            Box::new(trajectory_follower::TrajectoryFollower::from_config(
                 c,
-                plugin_api,
-                global_config,
-                va_factory,
-                network,
-                initial_time,
-            )?) as Box<dyn Navigator>
+                from_config_params.global_config,
+                from_config_params.initial_time,
+            )) as Box<dyn Navigator>
         }
-        NavigatorConfig::Python(c) => Box::new(
-            python_navigator::PythonNavigator::from_config(c, global_config, initial_time).unwrap(),
+        NavigatorConfig::External(c) => Box::new(
+            external_navigator::ExternalNavigator::from_config(c, from_config_params)?,
         ) as Box<dyn Navigator>,
-        NavigatorConfig::GoTo(c) => {
-            Box::new(go_to::GoTo::from_config(c, network, initial_time)) as Box<dyn Navigator>
-        }
+        NavigatorConfig::Python(c) => Box::new(
+            python_navigator::PythonNavigator::from_config(
+                c,
+                from_config_params.global_config,
+                from_config_params.initial_time,
+                from_config_params.context,
+            )
+            .unwrap(),
+        ) as Box<dyn Navigator>,
+        NavigatorConfig::GoTo(c) => Box::new(go_to::GoTo::from_config(
+            c,
+            from_config_params.network,
+            from_config_params.initial_time,
+            from_config_params.context,
+        )) as Box<dyn Navigator>,
     })))
 }

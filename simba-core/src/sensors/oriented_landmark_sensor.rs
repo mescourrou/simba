@@ -9,10 +9,11 @@ use super::fault_models::fault_model::FaultModel;
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::fault_models::additive::{AdditiveFault, AdditiveFaultConfig};
@@ -35,7 +36,6 @@ use crate::utils::enum_tools::EnumVariables;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use serde_derive::{Deserialize, Serialize};
 
-use log::debug;
 extern crate nalgebra as na;
 use na::Vector3;
 use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
@@ -63,7 +63,7 @@ enum_variables!(
     R, "r", "range", "d", "distance";
     Filter, Faults:
     "Relative bearing of the landmark."
-    Theta, "theta";
+    Theta, "theta", "bearing";
     Filter, Faults:
     "Width of the landmark."
     Width, "width";
@@ -138,10 +138,11 @@ impl OrientedLandmarkSensorFaultModelType {
         &mut self,
         node: &mut crate::node::Node,
         initial_time: f32,
+        context: &Context,
     ) -> crate::errors::SimbaResult<()> {
         match self {
-            Self::Python(f) => f.post_init(node, initial_time),
-            Self::External(f) => f.post_init(node, initial_time),
+            Self::Python(f) => f.post_init(node, initial_time, context),
+            Self::External(f) => f.post_init(node, initial_time, context),
             Self::AdditiveRobotCentered(_)
             | Self::AdditiveObservationCentered(_)
             | Self::Clutter(_)
@@ -216,10 +217,11 @@ impl OrientedLandmarkSensorFilterType {
         &mut self,
         node: &mut crate::node::Node,
         initial_time: f32,
+        context: &Context,
     ) -> crate::errors::SimbaResult<()> {
         match self {
-            Self::Python(f) => f.post_init(node, initial_time),
-            Self::External(f) => f.post_init(node, initial_time),
+            Self::Python(f) => f.post_init(node, initial_time, context),
+            Self::External(f) => f.post_init(node, initial_time, context),
             Self::Range(_) | Self::Id(_) | Self::Label(_) => Ok(()),
         }
     }
@@ -431,7 +433,7 @@ impl Default for OrientedLandmarkObservation {
 }
 
 impl Recordable<OrientedLandmarkObservationRecord> for OrientedLandmarkObservation {
-    fn record(&self) -> OrientedLandmarkObservationRecord {
+    fn record(&self, _context: &Context) -> OrientedLandmarkObservationRecord {
         OrientedLandmarkObservationRecord {
             id: self.id,
             labels: self.labels.clone(),
@@ -516,18 +518,19 @@ impl OrientedLandmarkSensor {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
         let mut fault_models = Vec::new();
         for fault_config in &config.faults {
             fault_models.push(match &fault_config {
                 OrientedLandmarkSensorFaultModelConfig::AdditiveRobotCentered(c) => {
                     OrientedLandmarkSensorFaultModelType::AdditiveRobotCentered(
-                        AdditiveFault::from_config(c, va_factory, initial_time),
+                        AdditiveFault::from_config(c, va_factory, initial_time, context),
                     )
                 }
                 OrientedLandmarkSensorFaultModelConfig::AdditiveObservationCentered(c) => {
                     OrientedLandmarkSensorFaultModelType::AdditiveObservationCentered(
-                        AdditiveFault::from_config(c, va_factory, initial_time),
+                        AdditiveFault::from_config(c, va_factory, initial_time, context),
                     )
                 }
                 OrientedLandmarkSensorFaultModelConfig::Clutter(c) => {
@@ -535,16 +538,17 @@ impl OrientedLandmarkSensor {
                         c,
                         va_factory,
                         initial_time,
+                        context,
                     ))
                 }
                 OrientedLandmarkSensorFaultModelConfig::Misdetection(c) => {
                     OrientedLandmarkSensorFaultModelType::Misdetection(
-                        MisdetectionFault::from_config(c, va_factory, initial_time),
+                        MisdetectionFault::from_config(c, va_factory, initial_time, context),
                     )
                 }
                 OrientedLandmarkSensorFaultModelConfig::Misassociation(c) => {
                     OrientedLandmarkSensorFaultModelType::Misassociation(
-                        MisassociationFault::from_config(c, va_factory),
+                        MisassociationFault::from_config(c, va_factory, context),
                     )
                 }
                 OrientedLandmarkSensorFaultModelConfig::External(c) => {
@@ -554,6 +558,7 @@ impl OrientedLandmarkSensor {
                         global_config,
                         va_factory,
                         initial_time,
+                        context,
                     )?)
                 }
                 OrientedLandmarkSensorFaultModelConfig::Python(c) => {
@@ -561,6 +566,7 @@ impl OrientedLandmarkSensor {
                         c,
                         global_config,
                         initial_time,
+                        context,
                     )?)
                 }
             });
@@ -573,15 +579,17 @@ impl OrientedLandmarkSensor {
                     OrientedLandmarkSensorFilterType::Range(RangeFilter::from_config(
                         c,
                         initial_time,
+                        context,
                     ))
                 }
-                OrientedLandmarkSensorFilterConfig::Id(c) => {
-                    OrientedLandmarkSensorFilterType::Id(StringFilter::from_config(c, initial_time))
-                }
+                OrientedLandmarkSensorFilterConfig::Id(c) => OrientedLandmarkSensorFilterType::Id(
+                    StringFilter::from_config(c, initial_time, context),
+                ),
                 OrientedLandmarkSensorFilterConfig::Label(c) => {
                     OrientedLandmarkSensorFilterType::Label(StringFilter::from_config(
                         c,
                         initial_time,
+                        context,
                     ))
                 }
                 OrientedLandmarkSensorFilterConfig::External(c) => {
@@ -591,6 +599,7 @@ impl OrientedLandmarkSensor {
                         global_config,
                         va_factory,
                         initial_time,
+                        context,
                     )?)
                 }
                 OrientedLandmarkSensorFilterConfig::Python(c) => {
@@ -598,6 +607,7 @@ impl OrientedLandmarkSensor {
                         c,
                         global_config,
                         initial_time,
+                        context,
                     )?)
                 }
             });
@@ -622,17 +632,27 @@ impl OrientedLandmarkSensor {
 use crate::node::Node;
 
 impl Sensor for OrientedLandmarkSensor {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> crate::errors::SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> crate::errors::SimbaResult<()> {
         for filter in self.filters.iter_mut() {
-            filter.post_init(node, initial_time)?;
+            filter.post_init(node, initial_time, context)?;
         }
         for fault_model in self.faults.iter_mut() {
-            fault_model.post_init(node, initial_time)?;
+            fault_model.post_init(node, initial_time, context)?;
         }
         Ok(())
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation> {
         let mut observation_list = Vec::<SensorObservation>::new();
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
@@ -641,7 +661,7 @@ impl Sensor for OrientedLandmarkSensor {
         }
         let state = if let Some(arc_physic) = node.physics() {
             let physic = arc_physic.read().unwrap();
-            physic.state(time).clone()
+            physic.state(time, context).clone()
         } else {
             State::new() // 0
         };
@@ -654,6 +674,7 @@ impl Sensor for OrientedLandmarkSensor {
             if self.xray { None } else { Some(0.) },
             self.detection_distance,
             Some(node.name()),
+            context,
         );
 
         for (i, landmark) in observable_landmarks.iter().enumerate() {
@@ -675,10 +696,10 @@ impl Sensor for OrientedLandmarkSensor {
                 if let Some(obs) = keep_observation {
                     keep_observation = match filter {
                         OrientedLandmarkSensorFilterType::External(f) => {
-                            f.filter(time, obs, &state, None)
+                            f.filter(time, obs, &state, None, context)
                         }
                         OrientedLandmarkSensorFilterType::Python(f) => {
-                            f.filter(time, obs, &state, None)
+                            f.filter(time, obs, &state, None, context)
                         }
                         OrientedLandmarkSensorFilterType::Range(f) => {
                             if let SensorObservation::OrientedLandmark(obs) = obs {
@@ -757,6 +778,7 @@ impl Sensor for OrientedLandmarkSensor {
                                 OrientedLandmarkObservation::default(),
                             ),
                             node.environment(),
+                            context,
                         ),
                         OrientedLandmarkSensorFaultModelType::External(f) => f.add_faults(
                             time,
@@ -766,6 +788,7 @@ impl Sensor for OrientedLandmarkSensor {
                                 OrientedLandmarkObservation::default(),
                             ),
                             node.environment(),
+                            context,
                         ),
                         OrientedLandmarkSensorFaultModelType::AdditiveObservationCentered(f) => {
                             let obs_list_len = new_obs.len();
@@ -820,6 +843,7 @@ impl Sensor for OrientedLandmarkSensor {
                                             OrientedLandmarkSensorVariables::Width => obs.width,
                                         }
                                     }),
+                                    context,
                                 );
                                 if let Some(new_x) =
                                     new_values.get(&OrientedLandmarkSensorVariablesFaults::X)
@@ -862,6 +886,9 @@ impl Sensor for OrientedLandmarkSensor {
                                 {
                                     obs.width = *new_width;
                                 }
+                                obs.applied_faults.push(OrientedLandmarkSensorFaultModelConfig::AdditiveObservationCentered(
+                                    f.config().clone(),
+                                ));
                             }
                         }
                         OrientedLandmarkSensorFaultModelType::AdditiveRobotCentered(f) => {
@@ -921,6 +948,7 @@ impl Sensor for OrientedLandmarkSensor {
                                             OrientedLandmarkSensorVariables::Width => obs.width,
                                         }
                                     }),
+                                    context,
                                 );
                                 if let Some(new_x) =
                                     new_values.get(&OrientedLandmarkSensorVariablesFaults::X)
@@ -963,11 +991,16 @@ impl Sensor for OrientedLandmarkSensor {
                                 {
                                     obs.width = *new_width;
                                 }
+                                obs.applied_faults.push(
+                                    OrientedLandmarkSensorFaultModelConfig::AdditiveRobotCentered(
+                                        f.config().clone(),
+                                    ),
+                                );
                             }
                         }
                         OrientedLandmarkSensorFaultModelType::Clutter(f) => {
                             let new_obs_from_clutter =
-                                f.add_faults(time + landmark_seed, landmark_seed / 100.);
+                                f.add_faults(time + landmark_seed, landmark_seed / 100., context);
                             for (obs_id, obs_params) in new_obs_from_clutter {
                                 let mut x = obs_params
                                     .get(&OrientedLandmarkSensorVariablesFaults::X)
@@ -1024,8 +1057,14 @@ impl Sensor for OrientedLandmarkSensor {
                                         observation.id.to_string(),
                                         observation.pose.fixed_rows::<2>(0).clone_owned(),
                                         node.environment(),
+                                        context,
                                     );
                                     observation.id = new_label.parse().unwrap_or(observation.id);
+                                    observation.applied_faults.push(
+                                        OrientedLandmarkSensorFaultModelConfig::Misassociation(
+                                            f.config().clone(),
+                                        ),
+                                    );
                                 } else {
                                     unreachable!()
                                 }
@@ -1037,7 +1076,10 @@ impl Sensor for OrientedLandmarkSensor {
                                 .enumerate()
                                 .filter_map(|(i, obs)| {
                                     if let SensorObservation::OrientedLandmark(observation) = obs {
-                                        if f.detected(time + landmark_seed + (i as f32) / 1000.) {
+                                        if f.detected(
+                                            time + landmark_seed + (i as f32) / 1000.,
+                                            context,
+                                        ) {
                                             Some(SensorObservation::OrientedLandmark(
                                                 observation.clone(),
                                             ))
@@ -1052,8 +1094,10 @@ impl Sensor for OrientedLandmarkSensor {
                         }
                     }
                 }
-            } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-                debug!(
+            } else {
+                internal!(
+                    context,
+                    crate::logger::InternalLog::SensorManagerDetailed,
                     "Observation {i} of landmark {} was filtered out",
                     landmark.id
                 );
@@ -1078,7 +1122,7 @@ impl Sensor for OrientedLandmarkSensor {
 }
 
 impl Recordable<SensorRecord> for OrientedLandmarkSensor {
-    fn record(&self) -> SensorRecord {
+    fn record(&self, _context: &Context) -> SensorRecord {
         SensorRecord::OrientedLandmarkSensor(OrientedLandmarkSensorRecord {
             last_time: self.last_time,
         })

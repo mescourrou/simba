@@ -1,36 +1,26 @@
 # Physics
 Physics apply the command computed by the Controller to the simulated robot.
 
-The minimal code is composed of a struct which implements the `Physics` trait, the `Recordable<PhysicsRecord>` trait and the `HasService<GetRealStateReq, GetRealStateResp>`.
+The minimal code is composed of a struct which implements the `Physics` trait and the `Recordable<PhysicsRecord>` trait.
 The `Physics` trait has multiple functions and internal attributes should exist (at least for the state, where a reference is given):
 ```Rust
-fn apply_command(&mut self, command: &Command, time: f32);
+fn apply_command(&mut self, command: &Command, time: f32, context: &Context);
 
-fn update_state(&mut self, time: f32);
+fn update_state(&mut self, time: f32, context: &Context);
 
-fn state(&self, time: f32) -> &State;
+fn state(&self, time: f32, context: &Context) -> State;
+
+fn next_time_step(&self, context: &Context) -> Option<f32>;
 ```
 
 The `Recordable<PhysicsRecord>` has to be implemented, but it can be as minimal as below if no record is needed:
 ```Rust
-impl Recordable<PhysicsRecord> for MyWonderfulController {
-    fn record(&self) -> PhysicsRecord {
+impl Recordable<PhysicsRecord> for MyWonderfulPhysics {
+    fn record(&self, _context: &Context) -> PhysicsRecord {
         PhysicsRecord::External(ExternalPhysicsRecord {
             record: serde_json::to_value(MyWonderfulPhysicsRecord {}).unwrap(),
         })
     }
-}
-```
-
-The trait `HasService<GetRealStateReq, GetRealStateResp>` is used to get the real pose of the robots for the PerfectEstimator and for the RobotSensor.
-There is only one function:
-```Rust
-fn handle_service_requests(&mut self, req: GetRealStateReq, time: f32) -> Result<GetRealStateResp, String>;
-```
-with `GetRealStateReq` being an empty struct and `GetRealStateResp`:
-```Rust
-pub struct GetRealStateResp {
-    pub state: State,
 }
 ```
 
@@ -62,30 +52,26 @@ impl MyWonderfulPhysics {
 }
 
 impl Physics for MyWonderfulPhysics {
-    fn apply_command(&mut self, _command: &Command, _time: f32) {}
+    fn apply_command(
+        &mut self,
+        _command: &Command,
+        _time: f32,
+        _context: &simba::context::Context,
+    ) {
+    }
 
-    fn state(&self, _time: f32) -> State {
+    fn state(&self, _time: f32, _context: &simba::context::Context) -> State {
         self.state.clone()
     }
 
-    fn update_state(&mut self, _time: f32) {}
-}
-
-impl HasService<GetRealStateReq, GetRealStateResp> for MyWonderfulPhysics {
-    fn handle_service_requests(
-        &mut self,
-        _req: GetRealStateReq,
-        _time: f32,
-    ) -> Result<GetRealStateResp, String> {
-        Err("Unimplemented".to_string())
-    }
+    fn update_state(&mut self, _time: f32, _context: &simba::context::Context) {}
 }
 
 impl Recordable<PhysicsRecord> for MyWonderfulPhysics {
-    fn record(&self) -> PhysicsRecord {
+    fn record(&self, context: &Context) -> PhysicsRecord {
         PhysicsRecord::External(ExternalPhysicsRecord {
             record: serde_json::to_value(MyWonderfulPhysicsRecord {
-                state: self.state.record(),
+                state: self.state.record(context),
             })
             .unwrap(),
         })

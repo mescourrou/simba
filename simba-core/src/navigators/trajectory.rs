@@ -5,13 +5,13 @@ Trajectory tool.
 extern crate nalgebra as na;
 use config_checker::macros::Check;
 use libm::atan2;
-use log::debug;
 use na::{DMatrix, SVector};
 use nalgebra::Vector2;
 
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::{logger::is_enabled, recordable::Recordable};
+use crate::internal;
+use crate::{context::Context, recordable::Recordable};
 
 use crate::utils::geometry::*;
 
@@ -111,6 +111,7 @@ impl Trajectory {
         &mut self,
         point: SVector<f32, 2>,
         forward_distance: f32,
+        context: &Context,
     ) -> ((SVector<f32, 2>, SVector<f32, 2>), SVector<f32, 2>, bool) {
         let mut forward_distance = forward_distance;
         let (mut pt1, mut pt2, mut projected_point) = self.project(&point);
@@ -120,9 +121,11 @@ impl Trajectory {
         while (projected_point - pt2).norm() < 1e-6 {
             if self.current_segment + 1 == self.point_list.nrows() {
                 if !self.do_loop {
-                    if is_enabled(crate::logger::InternalLog::NavigatorDetailed) {
-                        debug!("No loop so give last point");
-                    }
+                    internal!(
+                        context,
+                        crate::logger::InternalLog::NavigatorDetailed,
+                        "No loop so give last point"
+                    );
                     return ((pt1, pt2), pt2, true);
                 } else {
                     self.current_segment = 0;
@@ -212,7 +215,7 @@ impl Default for Trajectory {
 }
 
 impl Recordable<TrajectoryRecord> for Trajectory {
-    fn record(&self) -> TrajectoryRecord {
+    fn record(&self, _context: &Context) -> TrajectoryRecord {
         TrajectoryRecord {
             current_segment: self.current_segment,
         }

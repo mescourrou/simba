@@ -10,7 +10,9 @@ use std::sync::{Arc, Mutex};
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 
 use crate::{
-    networking::service::HasService,
+    context::Context,
+    internal,
+    logger::InternalLog,
     physics::{
         fault_models::fault_model::{
             PhysicsFaultModel, PhysicsFaultModelConfig, make_physics_fault_model_from_config,
@@ -171,6 +173,7 @@ impl InternalPhysics {
         robot_name: &String,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
+        _context: &Context,
     ) -> Self {
         let model = make_model_from_config(&config.model);
         let current_command = model.default_command();
@@ -198,7 +201,7 @@ impl InternalPhysics {
     }
 
     /// Compute the state to the given `time`, using `self.command`.
-    fn compute_state_until(&mut self, time: f32) {
+    fn compute_state_until(&mut self, time: f32, context: &Context) {
         let dt = time - self.last_time_update;
         assert!(
             dt >= 0.,
@@ -212,38 +215,47 @@ impl InternalPhysics {
         }
 
         self.model
-            .update_state(&mut self.state, &self.current_command, dt);
+            .update_state(&mut self.state, &self.current_command, dt, context);
 
         self.last_time_update = time;
 
         for fault in self.faults.lock().unwrap().iter() {
-            fault.add_faults(time, &mut self.state);
+            fault.add_faults(time, &mut self.state, context);
         }
     }
 }
 
-use super::{GetRealStateReq, GetRealStateResp};
 use super::{Physics, PhysicsRecord};
 
 impl Physics for InternalPhysics {
-    fn post_init(&mut self, node: &mut crate::node::Node) -> crate::errors::SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        context: &Context,
+    ) -> crate::errors::SimbaResult<()> {
         for fault in self.faults.lock().unwrap().iter_mut() {
-            fault.post_init(node)?;
+            fault.post_init(node, context)?;
         }
         Ok(())
     }
     /// Apply the given `command` perfectly.
-    fn apply_command(&mut self, command: &Command, _time: f32) {
+    fn apply_command(&mut self, command: &Command, _time: f32, _context: &Context) {
         self.current_command = command.clone();
     }
 
     /// Compute the state at the given `time`.
-    fn update_state(&mut self, time: f32) {
-        self.compute_state_until(time);
+    fn update_state(&mut self, time: f32, context: &Context) {
+        internal!(
+            context,
+            InternalLog::NodeRunningDetailed,
+            "Updating internal physics to time {}",
+            time
+        );
+        self.compute_state_until(time, context);
     }
 
     /// Return the current state. Do not compute the state again.
-    fn state(&self, time: f32) -> State {
+    fn state(&self, time: f32, _context: &Context) -> State {
         assert!(
             time == self.last_time_update,
             "State should be requested at the same time as the last update: {} != {}",
@@ -254,22 +266,10 @@ impl Physics for InternalPhysics {
     }
 }
 
-impl HasService<GetRealStateReq, GetRealStateResp> for InternalPhysics {
-    fn handle_service_requests(
-        &mut self,
-        _req: GetRealStateReq,
-        time: f32,
-    ) -> Result<GetRealStateResp, String> {
-        Ok(GetRealStateResp {
-            state: self.state(time).clone(),
-        })
-    }
-}
-
 impl Recordable<PhysicsRecord> for InternalPhysics {
-    fn record(&self) -> PhysicsRecord {
+    fn record(&self, context: &Context) -> PhysicsRecord {
         PhysicsRecord::Internal(InternalPhysicsRecord {
-            state: self.state.record(),
+            state: self.state.record(context),
             last_time_update: self.last_time_update,
             current_command: self.current_command.clone(),
         })

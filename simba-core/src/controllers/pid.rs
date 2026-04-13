@@ -8,6 +8,7 @@
 //! - Unicycle: longitudinal, angular.
 //! - Holonomic: longitudinal, lateral, angular.
 
+use crate::context::Context;
 use crate::physics::PhysicsConfig;
 use crate::physics::internal_physics::InternalPhysicConfig;
 use crate::physics::robot_models::holonomic::HolonomicCommand;
@@ -15,10 +16,10 @@ use crate::physics::robot_models::unicycle::UnicycleCommand;
 use crate::physics::robot_models::{Command, RobotModelConfig};
 use crate::recordable::Recordable;
 use crate::utils::maths::{Derivator, Integrator};
+use crate::warning;
 #[cfg(feature = "gui")]
 use crate::{gui::UIComponent, simulator::SimulatorConfig};
 use config_checker::*;
-use log::warn;
 use nalgebra::Vector2;
 use serde::de::{MapAccess, SeqAccess, Visitor};
 use serde::{Deserializer, de};
@@ -142,7 +143,10 @@ impl Check for PIDConfig {
     fn do_check(&self) -> Result<(), Vec<String>> {
         let mut errs = Vec::new();
         if self.robot_model.is_none() {
-            warn!("No model given to PID controller, will use physics' one or default");
+            warning!(
+                Context::default(),
+                "No model given to PID controller, will use physics' one or default"
+            );
             return Ok(());
         }
         let canonical_config = Self::default_from_model(self.robot_model.as_ref().unwrap());
@@ -494,6 +498,7 @@ impl PID {
             &PIDConfig::default(),
             &PhysicsConfig::Internal(InternalPhysicConfig::default()),
             0.0,
+            &Context::default(),
         )
     }
 
@@ -502,6 +507,7 @@ impl PID {
         config: &PIDConfig,
         physics_config: &PhysicsConfig,
         initial_time: f32,
+        context: &Context,
     ) -> Self {
         let mut config_clone = config.clone();
         if config.robot_model.is_none() {
@@ -514,14 +520,18 @@ impl PID {
                 config_clone.robot_model = Some(model.clone());
                 if config_clone.do_check().is_err() {
                     config_clone = PIDConfig::default_from_model(model);
-                    warn!(
+                    warning!(
+                        context,
                         "No model given in PID Config and gains given mismatch physics model ({}) => resetting gains",
                         model
                     );
                 }
             } else {
                 config_clone = PIDConfig::default();
-                warn!("No model given in PID Config... using default one and resetting gains");
+                warning!(
+                    context,
+                    "No model given in PID Config... using default one and resetting gains"
+                );
             }
         }
         PID {
@@ -552,7 +562,13 @@ use crate::controllers::ControllerError;
 use crate::node::Node;
 
 impl Controller for PID {
-    fn make_command(&mut self, _robot: &mut Node, error: &ControllerError, time: f32) -> Command {
+    fn make_command(
+        &mut self,
+        _robot: &mut Node,
+        error: &ControllerError,
+        time: f32,
+        _context: &Context,
+    ) -> Command {
         let dt = time - self.last_command_time;
         assert!(
             dt > 0.,
@@ -631,11 +647,11 @@ impl Controller for PID {
         command
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {}
+    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32, _context: &Context) {}
 }
 
 impl Recordable<ControllerRecord> for PID {
-    fn record(&self) -> ControllerRecord {
+    fn record(&self, _context: &Context) -> ControllerRecord {
         ControllerRecord::PID(self.current_record.clone())
     }
 }

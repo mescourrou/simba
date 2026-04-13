@@ -1,5 +1,11 @@
 # Changelogs
 
+## v1.8.0
+- [breaking] Logging refactoring: removing global variables and using local context passed to all functions for logging and call tracing.
+- Introduce optimization options: selection of the number of threads for parallel or sequential execution.
+- Fix applied faults not being recorded in some observation cases.
+- Fix next_time_step anti-backward limit for consecutive runs.
+
 ## v1.7.0
 Features:
 - [breaking] Refactor sensor filter and fault configuration to enforce valid variable usage depending on the sensor type. Error will be raised during deserialization if invalid variable is used for a sensor type.

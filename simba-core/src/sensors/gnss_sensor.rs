@@ -13,10 +13,11 @@ use super::fault_models::fault_model::FaultModel;
 use super::{Sensor, SensorObservation, SensorRecord};
 
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
 use crate::errors::SimbaResult;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::plugin_api::PluginAPI;
 use crate::recordable::Recordable;
 use crate::sensors::fault_models::additive::{AdditiveFault, AdditiveFaultConfig};
@@ -32,7 +33,6 @@ use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
-use log::debug;
 use nalgebra::{Vector2, Vector3};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
@@ -118,10 +118,11 @@ impl GNSSSensorFaultModelType {
         &mut self,
         node: &mut crate::node::Node,
         initial_time: f32,
+        context: &Context,
     ) -> crate::errors::SimbaResult<()> {
         match self {
-            Self::Python(f) => f.post_init(node, initial_time),
-            Self::External(f) => f.post_init(node, initial_time),
+            Self::Python(f) => f.post_init(node, initial_time, context),
+            Self::External(f) => f.post_init(node, initial_time, context),
             Self::Additive(_) | Self::Clutter(_) | Self::Misdetection(_) => Ok(()),
         }
     }
@@ -171,10 +172,11 @@ impl GNSSSensorFilterType {
         &mut self,
         node: &mut crate::node::Node,
         initial_time: f32,
+        context: &Context,
     ) -> crate::errors::SimbaResult<()> {
         match self {
-            Self::Python(f) => f.post_init(node, initial_time),
-            Self::External(f) => f.post_init(node, initial_time),
+            Self::Python(f) => f.post_init(node, initial_time, context),
+            Self::External(f) => f.post_init(node, initial_time, context),
             Self::Range(_) => Ok(()),
         }
     }
@@ -342,7 +344,7 @@ impl UIComponent for GNSSObservationRecord {
 }
 
 impl Recordable<GNSSObservationRecord> for GNSSObservation {
-    fn record(&self) -> GNSSObservationRecord {
+    fn record(&self, _context: &Context) -> GNSSObservationRecord {
         GNSSObservationRecord {
             pose: [self.pose.x, self.pose.y, self.pose.z],
             velocity: [self.velocity.x, self.velocity.y],
@@ -370,21 +372,23 @@ impl GNSSSensor {
         global_config: &SimulatorConfig,
         va_factory: &Arc<DeterministRandomVariableFactory>,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
         let mut fault_models = Vec::new();
         for fault_config in &config.faults {
             fault_models.push(match &fault_config {
                 GNSSSensorFaultModelConfig::Additive(config) => GNSSSensorFaultModelType::Additive(
-                    AdditiveFault::from_config(config, va_factory, initial_time),
+                    AdditiveFault::from_config(config, va_factory, initial_time, context),
                 ),
                 GNSSSensorFaultModelConfig::Clutter(config) => GNSSSensorFaultModelType::Clutter(
-                    ClutterFault::from_config(config, va_factory, initial_time),
+                    ClutterFault::from_config(config, va_factory, initial_time, context),
                 ),
                 GNSSSensorFaultModelConfig::Misdetection(config) => {
                     GNSSSensorFaultModelType::Misdetection(MisdetectionFault::from_config(
                         config,
                         va_factory,
                         initial_time,
+                        context,
                     ))
                 }
                 GNSSSensorFaultModelConfig::External(config) => {
@@ -394,10 +398,11 @@ impl GNSSSensor {
                         global_config,
                         va_factory,
                         initial_time,
+                        context,
                     )?)
                 }
                 GNSSSensorFaultModelConfig::Python(config) => GNSSSensorFaultModelType::Python(
-                    PythonFaultModel::from_config(config, global_config, initial_time)?,
+                    PythonFaultModel::from_config(config, global_config, initial_time, context)?,
                 ),
             });
         }
@@ -405,11 +410,11 @@ impl GNSSSensor {
         let mut filters = Vec::new();
         for filter_config in &config.filters {
             filters.push(match &filter_config {
-                GNSSSensorFilterConfig::Range(config) => {
-                    GNSSSensorFilterType::Range(RangeFilter::from_config(config, initial_time))
-                }
+                GNSSSensorFilterConfig::Range(config) => GNSSSensorFilterType::Range(
+                    RangeFilter::from_config(config, initial_time, context),
+                ),
                 GNSSSensorFilterConfig::Python(config) => GNSSSensorFilterType::Python(
-                    PythonFilter::from_config(config, global_config, initial_time)?,
+                    PythonFilter::from_config(config, global_config, initial_time, context)?,
                 ),
                 GNSSSensorFilterConfig::External(config) => {
                     GNSSSensorFilterType::External(ExternalFilter::from_config(
@@ -418,6 +423,7 @@ impl GNSSSensor {
                         global_config,
                         va_factory,
                         initial_time,
+                        context,
                     )?)
                 }
             });
@@ -439,17 +445,27 @@ impl GNSSSensor {
 use crate::node::Node;
 
 impl Sensor for GNSSSensor {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> crate::errors::SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> crate::errors::SimbaResult<()> {
         for filter in self.filters.iter_mut() {
-            filter.post_init(node, initial_time)?;
+            filter.post_init(node, initial_time, context)?;
         }
         for fault_model in self.faults.iter_mut() {
-            fault_model.post_init(node, initial_time)?;
+            fault_model.post_init(node, initial_time, context)?;
         }
         Ok(())
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation> {
         if let Some(last_time) = self.last_time
             && (time - last_time).abs() < TIME_ROUND
         {
@@ -459,7 +475,7 @@ impl Sensor for GNSSSensor {
             .physics()
             .expect("Node with GNSS sensor should have Physics");
         let physic = arc_physic.read().unwrap();
-        let state = physic.state(time);
+        let state = physic.state(time, context);
 
         let velocity_norm = state.velocity.fixed_rows::<2>(0).norm();
         let velocity = Vector2::<f32>::from_vec(vec![
@@ -479,8 +495,8 @@ impl Sensor for GNSSSensor {
         for filter in self.filters.iter() {
             if let Some(obs) = keep_observation {
                 keep_observation = match filter {
-                    GNSSSensorFilterType::Python(f) => f.filter(time, obs, &state, None),
-                    GNSSSensorFilterType::External(f) => f.filter(time, obs, &state, None),
+                    GNSSSensorFilterType::Python(f) => f.filter(time, obs, &state, None, context),
+                    GNSSSensorFilterType::External(f) => f.filter(time, obs, &state, None, context),
                     GNSSSensorFilterType::Range(f) => {
                         if let SensorObservation::GNSS(obs) = obs {
                             if f.match_exclusion(&GNSSSensorVariablesFilter::mapped_values(
@@ -526,6 +542,7 @@ impl Sensor for GNSSSensor {
                         &mut observation_list,
                         SensorObservation::GNSS(GNSSObservation::default()),
                         node.environment(),
+                        context,
                     ),
                     GNSSSensorFaultModelType::External(f) => f.add_faults(
                         time,
@@ -533,6 +550,7 @@ impl Sensor for GNSSSensor {
                         &mut observation_list,
                         SensorObservation::GNSS(GNSSObservation::default()),
                         node.environment(),
+                        context,
                     ),
                     GNSSSensorFaultModelType::Additive(f) => {
                         let obs_list_len = observation_list.len();
@@ -575,6 +593,7 @@ impl Sensor for GNSSSensor {
                                         state.velocity.fixed_rows::<2>(0).norm()
                                     }
                                 }),
+                                context,
                             );
 
                             if let Some(value) = new_values.get(&GNSSSensorVariablesFaults::X) {
@@ -619,7 +638,7 @@ impl Sensor for GNSSSensor {
                         }
                     }
                     GNSSSensorFaultModelType::Clutter(f) => {
-                        let new_obs_from_clutter = f.add_faults(time, 1. / 100.);
+                        let new_obs_from_clutter = f.add_faults(time, 1. / 100., context);
                         for (_, obs_params) in new_obs_from_clutter {
                             let mut x = obs_params
                                 .get(&GNSSSensorVariablesFaults::X)
@@ -670,7 +689,7 @@ impl Sensor for GNSSSensor {
                             .enumerate()
                             .filter_map(|(i, obs)| {
                                 if let SensorObservation::GNSS(observation) = obs {
-                                    if f.detected(time + (i as f32) / 1000.) {
+                                    if f.detected(time + (i as f32) / 1000., context) {
                                         Some(SensorObservation::GNSS(observation.clone()))
                                     } else {
                                         None
@@ -683,8 +702,12 @@ impl Sensor for GNSSSensor {
                     }
                 }
             }
-        } else if is_enabled(crate::logger::InternalLog::SensorManagerDetailed) {
-            debug!("GNSS Observation was filtered out");
+        } else {
+            internal!(
+                context,
+                crate::logger::InternalLog::SensorManagerDetailed,
+                "GNSS Observation was filtered out"
+            );
         }
 
         if let Some(p) = self.activation_time.as_mut() {
@@ -704,7 +727,7 @@ impl Sensor for GNSSSensor {
 }
 
 impl Recordable<SensorRecord> for GNSSSensor {
-    fn record(&self) -> SensorRecord {
+    fn record(&self, _context: &Context) -> SensorRecord {
         SensorRecord::GNSSSensor(GNSSSensorRecord {
             last_time: self.last_time,
         })

@@ -10,6 +10,7 @@ use std::sync::Arc;
 use pyo3::prelude::*;
 
 use crate::{
+    context::Context,
     environment::Environment,
     errors::SimbaResult,
     node::Node,
@@ -48,16 +49,27 @@ impl PythonFaultModel {
         config: &PythonFaultModelConfig,
         global_config: &SimulatorConfig,
         _initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        let instance =
-            load_class_from_python_script(config, global_config, _initial_time, "Fault Model")?;
+        let instance = load_class_from_python_script(
+            config,
+            global_config,
+            _initial_time,
+            "Fault Model",
+            context,
+        )?;
         Ok(Self { instance })
     }
 }
 
 impl FaultModel for PythonFaultModel {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
-        let py_node = NodeWrapper::from_rust(node);
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
+        let py_node = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.instance, "post_init", py_node, initial_time);
         Ok(())
     }
@@ -69,6 +81,7 @@ impl FaultModel for PythonFaultModel {
         obs_list: &mut Vec<SensorObservation>,
         _obs_type: SensorObservation,
         _environment: &Arc<Environment>,
+        _context: &Context,
     ) {
         let py_obs_list: Vec<SensorObservationWrapper> = obs_list
             .iter()

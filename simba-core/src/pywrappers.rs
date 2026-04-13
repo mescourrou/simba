@@ -29,7 +29,9 @@ use std::path::Path;
 use crate::api::async_api::PluginAsyncAPI;
 
 use crate::{
+    context::Context,
     controllers::{ControllerError, pybinds::ControllerWrapper},
+    debug, error, info,
     navigators::pybinds::NavigatorWrapper,
     networking::{
         MessageTypes,
@@ -50,6 +52,7 @@ use crate::{
     simulator::{AsyncSimulator, SimbaBrokerMultiClient, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
     utils::occupancy_grid::OccupancyGrid,
+    warning,
 };
 
 #[derive(Clone, Debug)]
@@ -1079,6 +1082,7 @@ pub struct EnvelopeWrapper {
 pub struct NodeWrapper {
     name: String,
     network: Option<Weak<RwLock<Network>>>,
+    context: Context,
 }
 
 #[pymethods]
@@ -1120,7 +1124,10 @@ impl NodeWrapper {
                 timestamp: time,
                 message_flags: flags,
             };
-            network.write().unwrap().send_to(key, msg, time);
+            network
+                .write()
+                .unwrap()
+                .send_to(key, msg, time, &self.context);
             Ok(())
         } else {
             Err(PyErr::new::<PyTypeError, _>("No network on this node"))
@@ -1135,7 +1142,10 @@ impl NodeWrapper {
                 .iter()
                 .map(|t| PathKey::from_str(t.as_str()).unwrap())
                 .collect::<Vec<PathKey>>();
-            let client = network.write().unwrap().subscribe_to(&keys, None);
+            let client = network
+                .write()
+                .unwrap()
+                .subscribe_to(&keys, None, &self.context);
             Ok(MultiClientWrapper::from_rust(client))
         } else {
             Err(PyErr::new::<PyTypeError, _>("No network on this node"))
@@ -1146,20 +1156,41 @@ impl NodeWrapper {
     pub fn make_channel(&self, channel_name: String) -> PyResult<()> {
         if let Some(network) = &self.network.as_ref().and_then(|n| n.upgrade()) {
             let key = PathKey::from_str(channel_name.as_str()).unwrap();
-            network.write().unwrap().make_channel(key);
+            network.write().unwrap().make_channel(key, &self.context);
             Ok(())
         } else {
             Err(PyErr::new::<PyTypeError, _>("No network on this node"))
         }
     }
+
+    /// Log an info message using the simulator's logging system.
+    pub fn log_info(&self, message: String) {
+        info!(self.context, "{}", message);
+    }
+
+    /// Log a warning message using the simulator's logging system.
+    pub fn log_warning(&self, message: String) {
+        warning!(self.context, "{}", message);
+    }
+
+    /// Log an error message using the simulator's logging system.
+    pub fn log_error(&self, message: String) {
+        error!(self.context, "{}", message);
+    }
+
+    /// Log a debug message using the simulator's logging system.
+    pub fn log_debug(&self, message: String) {
+        debug!(self.context, "{}", message);
+    }
 }
 
 impl NodeWrapper {
     /// Create a new NodeWrapper from a Node.
-    pub fn from_rust(n: &Node) -> Self {
+    pub fn from_rust(n: &Node, context: Context) -> Self {
         Self {
             name: n.name(),
             network: n.network().as_ref().map(Arc::downgrade),
+            context,
         }
     }
 }
@@ -1470,6 +1501,8 @@ pub fn run_gui(
     let running = Arc::new(RwLock::new(true));
     let local_running = running.clone();
 
+    let context = Context::default();
+
     let thread_handle = thread::spawn(move || {
         while *running.read().unwrap() {
             if let Some(api_client) = &api_client {
@@ -1482,6 +1515,7 @@ pub fn run_gui(
                         &request.va_factory,
                         &request.network,
                         0.,
+                        &context,
                     )
                 });
                 api_client.get_controller.try_recv_closure(|request| {
@@ -1491,6 +1525,7 @@ pub fn run_gui(
                         &request.va_factory,
                         &request.network,
                         0.,
+                        &context,
                     )
                 });
                 api_client.get_navigator.try_recv_closure(|request| {
@@ -1500,6 +1535,7 @@ pub fn run_gui(
                         &request.va_factory,
                         &request.network,
                         0.,
+                        &context,
                     )
                 });
                 api_client.get_physics.try_recv_closure(|request| {
@@ -1509,9 +1545,10 @@ pub fn run_gui(
                         &request.va_factory,
                         &request.network,
                         0.,
+                        &context,
                     )
                 });
-                python_api.check_requests();
+                python_api.check_requests(&context);
             }
         }
     });

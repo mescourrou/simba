@@ -8,15 +8,15 @@ use std::{
     sync::{Arc, Mutex, RwLock, mpsc},
 };
 
-use log::debug;
 use pyo3::Python;
 
 use crate::{
     api::async_api::{
         AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner, PluginAsyncAPI,
     },
+    context::Context,
     errors::SimbaResult,
-    logger::is_enabled,
+    internal,
     plugin_api::PluginAPI,
     simulator::{Record, Simulator, SimulatorConfig},
     utils::{SharedMutex, SharedRoLock, SharedRwLock},
@@ -27,6 +27,7 @@ pub struct AsyncSimulator {
     server: SharedMutex<AsyncApiRunner>,
     api: AsyncApi,
     async_plugin_api: Option<Arc<PluginAsyncAPI>>,
+    context: Context,
     // python_api: Option<PythonAPI>,
 }
 
@@ -48,11 +49,19 @@ impl AsyncSimulator {
         Simulator::init_environment();
 
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
+        let context = server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .get_context();
         let api = server.lock().unwrap().get_api();
         let sim = Self {
             server,
             api,
             async_plugin_api: plugin_api.as_ref().map(|_| Arc::new(PluginAsyncAPI::new())),
+            context,
         };
 
         sim.server.lock().unwrap().run(
@@ -76,7 +85,8 @@ impl AsyncSimulator {
                         &request.global_config,
                         &request.va_factory,
                         &request.network,
-                        0.,
+                        request.initial_time,
+                        &sim.context,
                     )
                 });
                 api_client.get_controller.try_recv_closure(|request| {
@@ -85,7 +95,8 @@ impl AsyncSimulator {
                         &request.global_config,
                         &request.va_factory,
                         &request.network,
-                        0.,
+                        request.initial_time,
+                        &sim.context,
                     )
                 });
                 api_client.get_navigator.try_recv_closure(|request| {
@@ -94,7 +105,8 @@ impl AsyncSimulator {
                         &request.global_config,
                         &request.va_factory,
                         &request.network,
-                        0.,
+                        request.initial_time,
+                        &sim.context,
                     )
                 });
                 api_client.get_physics.try_recv_closure(|request| {
@@ -103,10 +115,11 @@ impl AsyncSimulator {
                         &request.global_config,
                         &request.va_factory,
                         &request.network,
-                        0.,
+                        request.initial_time,
+                        &sim.context,
                     )
                 });
-                plugin_api_unwrapped.check_requests();
+                plugin_api_unwrapped.check_requests(&sim.context);
                 res = sim.api.load_config.try_get_result();
             }
             res.unwrap()?;
@@ -132,7 +145,7 @@ impl AsyncSimulator {
             .async_call(AsyncApiRunRequest { max_time, reset });
         if let Some(plugin_api) = plugin_api {
             while self.api.run.try_get_result().is_none() {
-                plugin_api.check_requests();
+                plugin_api.check_requests(&self.context);
                 if Python::attach(|py| py.check_signals()).is_err() {
                     break;
                 }
@@ -168,9 +181,7 @@ impl AsyncSimulator {
 
     /// Stop the asynchronous simulator runner.
     pub fn stop(&self) {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Stop server");
-        }
+        internal!(self.context, crate::logger::InternalLog::API, "Stop server");
         // Stop server thread
         self.server.lock().unwrap().stop();
     }

@@ -37,13 +37,13 @@ class StateEstimator(simba.StateEstimator):
             "state": self._state})
 
     def prediction_step(self, node: simba.Node, command: simba.Command, time: float):
-        print(f"Doing prediction step in {self.filter_name}")
+        node.log_info(f"Doing prediction step in {self.filter_name}")
         self._state += 1
         self.last_time = time
-        print(f"{self.filter_name}: Prediction {self._state}")
+        node.log_info(f"{self.filter_name}: Prediction {self._state}")
 
     def correction_step(self, node: simba.Node, observations: List[simba.Observation], t: float):
-        print(f"Doing correction step with observations for robot {self.filter_name}:")
+        node.log_info(f"Doing correction step with observations for robot {self.filter_name}:")
         for obs in observations:
             sensor_obs = obs.sensor_observation
             # Not the best interface, but it works!
@@ -51,14 +51,14 @@ class StateEstimator(simba.StateEstimator):
             match sensor_obs.kind:
                 case "OrientedLandmark":
                     landmark=sensor_obs.as_oriented_landmark()
-                    print(f"Observation of landmark {landmark.id}: {landmark.pose}")
+                    node.log_info(f"Observation of landmark {landmark.id}: {landmark.pose}")
                 case "Speed":
                     speed=sensor_obs.as_speed()
-                    print(f"Speed: {speed}")
+                    node.log_info(f"Speed: {speed}")
                 case _:
-                    print(f"Other: {sensor_obs.kind}")
+                    node.log_info(f"Other: {sensor_obs.kind}")
         self._state += 100
-        print(f"{self.filter_name}: Prediction {self._state}")
+        node.log_info(f"{self.filter_name}: Prediction {self._state}")
 
 
     def next_time_step(self):

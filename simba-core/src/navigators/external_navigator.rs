@@ -5,30 +5,25 @@ To make your own external navigator strategy, the simulator should
 be used as a library (see [dedicated page](crate::plugin_api)).
 
 Your own external navigator strategy is made using the
-[`PluginAPI::get_navigator`] function.
+[`crate::plugin_api::PluginAPI::get_navigator`] function.
 */
 
-use log::debug;
 use pyo3::{pyclass, pymethods};
 use simba_macros::config_derives;
-use std::sync::Arc;
 
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
 use crate::controllers::ControllerError;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
-use crate::logger::is_enabled;
-use crate::networking::network::Network;
+use crate::internal;
+use crate::node::node_factory::FromConfigArguments;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
 use crate::state_estimators::WorldState;
-use crate::utils::SharedRwLock;
 use crate::utils::macros::{external_config, external_record_python_methods};
 use crate::utils::maths::round_precision;
-use crate::{
-    plugin_api::PluginAPI, utils::determinist_random_variable::DeterministRandomVariableFactory,
-};
 
 use super::{Navigator, NavigatorRecord};
 use serde_derive::{Deserialize, Serialize};
@@ -70,28 +65,24 @@ pub struct ExternalNavigator {
 impl ExternalNavigator {
     /// Creates a new [`ExternalNavigator`] from the given config.
     ///
-    /// <div class="warning">The `plugin_api` is required here !</div>
+    /// <div class="warning">The `plugin_api` in `from_config_params` is required here !</div>
     ///
     ///  ## Arguments
     /// * `config` -- Scenario config of the External navigator.
-    /// * `plugin_api` -- Required [`PluginAPI`] implementation.
-    /// * `global_config` -- Simulator config.
-    /// * `va_factory` -- Factory for Determinists random variables
-    /// * `network` -- Shared reference to the network, for navigators using messages.
-    /// * `initial_time` -- Initial node time.
+    /// * `from_config_params` -- Parameters required to create the navigator from config, including the required `plugin_api`.
     pub fn from_config(
         config: &ExternalNavigatorConfig,
-        plugin_api: &Option<Arc<dyn PluginAPI>>,
-        global_config: &SimulatorConfig,
-        va_factory: &Arc<DeterministRandomVariableFactory>,
-        network: &SharedRwLock<Network>,
-        initial_time: f32,
+        from_config_params: &FromConfigArguments,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(
+            from_config_params.context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
         Ok(Self {
-            navigator: plugin_api
+            navigator: from_config_params
+                .plugin_api
                 .as_ref()
                 .ok_or_else(|| {
                     SimbaError::new(
@@ -101,10 +92,11 @@ impl ExternalNavigator {
                 })?
                 .get_navigator(
                     &config.config,
-                    global_config,
-                    va_factory,
-                    network,
-                    initial_time,
+                    from_config_params.global_config,
+                    from_config_params.va_factory,
+                    from_config_params.network,
+                    from_config_params.initial_time,
+                    from_config_params.context,
                 ),
         })
     }
@@ -117,27 +109,32 @@ impl std::fmt::Debug for ExternalNavigator {
 }
 
 impl Navigator for ExternalNavigator {
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
-        self.navigator.post_init(node)
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
+        self.navigator.post_init(node, context)
     }
 
-    fn compute_error(&mut self, robot: &mut Node, world_state: WorldState) -> ControllerError {
-        self.navigator.compute_error(robot, world_state)
+    fn compute_error(
+        &mut self,
+        robot: &mut Node,
+        world_state: WorldState,
+        context: &Context,
+    ) -> ControllerError {
+        self.navigator.compute_error(robot, world_state, context)
     }
 
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        self.navigator.pre_loop_hook(node, time);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
+        self.navigator.pre_loop_hook(node, time, context);
     }
 
-    fn next_time_step(&self) -> Option<f32> {
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         self.navigator
-            .next_time_step()
+            .next_time_step(context)
             .map(|t| round_precision(t, TIME_ROUND).unwrap())
     }
 }
 
 impl Recordable<NavigatorRecord> for ExternalNavigator {
-    fn record(&self) -> NavigatorRecord {
-        self.navigator.record()
+    fn record(&self, context: &Context) -> NavigatorRecord {
+        self.navigator.record(context)
     }
 }

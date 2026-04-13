@@ -30,7 +30,7 @@ robots:
 After default application, it will result in:
 
 ```yaml
-version: 1.6.0
+version: 1.8.0
 max_time: 10.0
 log:
   log_level: 
@@ -44,6 +44,8 @@ time_analysis:
 random_seed: null # Different seed each run
 environment:
   map_path: null
+optimization:
+  threads: 0 # 0 = automatic, 1 = no parallelism, >1 = number of threads
 robots:
   - name: robot1
     navigator:
@@ -94,6 +96,8 @@ scenario:
 | `results` | No results will be saved |
 | `time_analysis` | Time performance analysis is enabled, saved as `time_performance.json` and as a statistic table `time_performance.csv` |
 | `random_seed` | Random seed is not set, so different each run |
+| `environment` | No map is loaded (empty environment) |
+| `optimization` | Setup for optimization (for threads: 0 = automatic, 1 = no parallelism, >1 = number of cores) |
 | `robots` | List of robots in the simulation |
 | `navigator` | How the robot chooses where to go (GoTo: simple point-to-point) |
 | `controller` | How the robot converts navigation commands to motor commands (PID controller) |
@@ -132,7 +136,7 @@ sensor_manager:
     - name: RobotDetector
       send_to: [other_robot]
       config:
-        type: RobotSensor
+        type: Robot
         detection_distance: 10.0  # Can detect robots within 10 meters
         activation_time: # Sensor updates every 0.1 seconds
           period: {type: Num, value: 0.1}

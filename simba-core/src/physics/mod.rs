@@ -161,8 +161,8 @@ impl UIComponent for PhysicsRecord {
 }
 
 use crate::{
+    context::Context,
     errors::SimbaResult,
-    networking::service::HasService,
     node::{Node, node_factory::FromConfigArguments},
     physics::robot_models::Command,
     recordable::Recordable,
@@ -190,15 +190,11 @@ pub struct GetRealStateResp {
 
 /// Physics simulation trait.
 pub trait Physics:
-    std::fmt::Debug
-    + std::marker::Send
-    + std::marker::Sync
-    + Recordable<PhysicsRecord>
-    + HasService<GetRealStateReq, GetRealStateResp>
+    std::fmt::Debug + std::marker::Send + std::marker::Sync + Recordable<PhysicsRecord>
 {
     /// Optional initialization hook called once after node setup.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -208,16 +204,22 @@ pub trait Physics:
     /// ## Arguments
     /// * `command` - Command to apply
     /// * `time` - Current time, when to apply the command.
-    fn apply_command(&mut self, command: &Command, time: f32);
+    /// * `context` - Shared simulation context used for logging and communication metadata.
+    fn apply_command(&mut self, command: &Command, time: f32, context: &Context);
 
     /// Update the state to the given time, while keeping the previous command.
-    fn update_state(&mut self, time: f32);
+    ///
+    /// `context` can be used for logging or diagnostics during integration.
+    fn update_state(&mut self, time: f32, context: &Context);
 
     /// Get the current real state, the groundtruth.
-    fn state(&self, time: f32) -> State;
+    ///
+    /// `context` can be used for logging or diagnostics while retrieving the state.
+    fn state(&self, time: f32, context: &Context) -> State;
 
     /// Optional: return the time of the next time step. Needed if using messages
-    fn next_time_step(&self) -> Option<f32> {
+    #[allow(unused_variables)]
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         None
     }
 }
@@ -225,8 +227,9 @@ pub trait Physics:
 /// Helper function to create a physics from the given configuration.
 ///
 /// ## Arguments
-/// - `config`: The configuration of the physics.
-/// - `from_config_args`: Additional arguments needed to create the physics, such as the robot name, random variable factory, initial time, plugin API, global config and network.
+/// * `config` - Physics configuration.
+/// * `from_config_args` - Additional constructor dependencies (node name, plugin API, global config, random-variable factory, network, and initial time).
+/// * `context` - Shared simulation context used for logging and call tracing during construction.
 pub fn make_physics_from_config(
     config: &PhysicsConfig,
     from_config_args: &FromConfigArguments,
@@ -237,20 +240,18 @@ pub fn make_physics_from_config(
             from_config_args.node_name,
             from_config_args.va_factory,
             from_config_args.initial_time,
+            from_config_args.context,
         )) as Box<dyn Physics>,
         PhysicsConfig::External(c) => Box::new(external_physics::ExternalPhysics::from_config(
             c,
-            from_config_args.plugin_api,
-            from_config_args.global_config,
-            from_config_args.va_factory,
-            from_config_args.network,
-            from_config_args.initial_time,
+            from_config_args,
         )?),
         PhysicsConfig::Python(c) => Box::new(
             python_physics::PythonPhysics::from_config(
                 c,
                 from_config_args.global_config,
                 from_config_args.initial_time,
+                from_config_args.context,
             )
             .unwrap(),
         ),

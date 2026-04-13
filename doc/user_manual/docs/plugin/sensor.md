@@ -5,9 +5,9 @@ The sensor uses Physics to simulate realistic measurements of the robot state. I
 The minimal code is composed of a struct which implements the `Sensor` trait and the `Recordable<SensorRecord>` trait.
 The `Sensor` trait has multiple functions which need to be implemented:
 ```Rust
-fn init(&mut self, node: &mut Node);
+fn post_init(&mut self, node: &mut Node, initial_time: f32, context: &Context) -> SimbaResult<()>;
 
-fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation>;
+fn get_observations(&mut self, node: &mut Node, time: f32, context: &Context) -> Vec<SensorObservation>;
 
 fn next_time_step(&self) -> f32;
 ```
@@ -16,7 +16,7 @@ The `next_time_step` is very important as it will trigger the call of `get_obser
 The `Recordable<SensorRecord>` has to be implemented, but it can be as minimal as below if no record is needed:
 ```Rust
 impl Recordable<SensorRecord> for MyWonderfulSensor {
-    fn record(&self) -> SensorRecord;
+    fn record(&self, context: &Context) -> SensorRecord;
 }
 ```
 
@@ -51,12 +51,22 @@ impl MyWonderfulSensor {
 }
 
 impl Sensor for MyWonderfulSensor {
-    fn post_init(&mut self, node: &mut Node, _initial_time: f32) -> SimbaResult<()> {
-        println!("Initializing MyWonderfulSensor for node {}", node.name());
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        _initial_time: f32,
+        context: &simba::context::Context,
+    ) -> SimbaResult<()> {
+        simba::info!(context, "Initializing MyWonderfulSensor for node {}", node.name());
         Ok(())
     }
 
-    fn get_observations(&mut self, _node: &mut Node, time: f32) -> Vec<SensorObservation> {
+    fn get_observations(
+        &mut self,
+        _node: &mut Node,
+        time: f32,
+        _context: &simba::context::Context,
+    ) -> Vec<SensorObservation> {
         self.last_observation = Some(MyWonderfulSensorObservation { data: time });
         self.last_time = time;
         // Return a custom observation here, but you can return an existing one as well (e.g. SpeedObservation)
@@ -71,7 +81,7 @@ impl Sensor for MyWonderfulSensor {
 }
 
 impl Recordable<SensorRecord> for MyWonderfulSensor {
-    fn record(&self) -> SensorRecord {
+    fn record(&self, _context: &Context) -> SensorRecord {
         SensorRecord::External(ExternalSensorRecord {
             record: serde_json::to_value(self.last_observation.clone()).unwrap(),
         })

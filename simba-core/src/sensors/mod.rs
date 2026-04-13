@@ -38,6 +38,7 @@ use {
 };
 
 use crate::{
+    context::Context,
     errors::SimbaResult,
     node::Node,
     recordable::Recordable,
@@ -86,12 +87,12 @@ impl Default for Observation {
 }
 
 impl Recordable<ObservationRecord> for Observation {
-    fn record(&self) -> ObservationRecord {
+    fn record(&self, context: &Context) -> ObservationRecord {
         ObservationRecord {
             sensor_name: self.sensor_name.clone(),
             observer: self.observer.clone(),
             time: self.time,
-            sensor_observation: self.sensor_observation.record(),
+            sensor_observation: self.sensor_observation.record(context),
         }
     }
 }
@@ -167,19 +168,21 @@ pub enum SensorObservation {
 }
 
 impl Recordable<SensorObservationRecord> for SensorObservation {
-    fn record(&self) -> SensorObservationRecord {
+    fn record(&self, context: &Context) -> SensorObservationRecord {
         match self {
             SensorObservation::OrientedLandmark(o) => {
-                SensorObservationRecord::OrientedLandmark(o.record())
+                SensorObservationRecord::OrientedLandmark(o.record(context))
             }
-            SensorObservation::Speed(o) => SensorObservationRecord::Speed(o.record()),
-            SensorObservation::Displacement(o) => SensorObservationRecord::Displacement(o.record()),
-            SensorObservation::GNSS(o) => SensorObservationRecord::GNSS(o.record()),
+            SensorObservation::Speed(o) => SensorObservationRecord::Speed(o.record(context)),
+            SensorObservation::Displacement(o) => {
+                SensorObservationRecord::Displacement(o.record(context))
+            }
+            SensorObservation::GNSS(o) => SensorObservationRecord::GNSS(o.record(context)),
             SensorObservation::OrientedRobot(o) => {
-                SensorObservationRecord::OrientedRobot(o.record())
+                SensorObservationRecord::OrientedRobot(o.record(context))
             }
-            SensorObservation::Scan(o) => SensorObservationRecord::Scan(o.record()),
-            SensorObservation::External(o) => SensorObservationRecord::External(o.record()),
+            SensorObservation::Scan(o) => SensorObservationRecord::Scan(o.record(context)),
+            SensorObservation::External(o) => SensorObservationRecord::External(o.record(context)),
         }
     }
 }
@@ -436,7 +439,12 @@ pub trait Sensor:
     /// Initialize the [`Sensor`]. Should be called at the beginning of the run, after
     /// the initialization of the modules.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -445,11 +453,17 @@ pub trait Sensor:
     /// ## Arguments
     /// * `node` - Reference to the node to access the modules.
     /// * `time` - Time at which the observations are taken.
+    /// * `context` - Shared simulation context used for logging and communication metadata.
     ///
     /// ## Return
     /// List of [`SensorObservation`]s, could be empty if no [`Sensor`] provided observation
     /// at this `time`.
-    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation>;
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation>;
 
     /// Get the time of the next observation to trigger the next call to `get_observations`.
     /// This allows the sensor to have a custom observation period, or to trigger observations at specific times.

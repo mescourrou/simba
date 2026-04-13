@@ -7,16 +7,16 @@
 
 use std::sync::Arc;
 
-use log::debug;
 use pyo3::{pyclass, pymethods};
 use serde_json::Value;
 use simba_macros::config_derives;
 
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
 use crate::errors::{SimbaError, SimbaErrorTypes, SimbaResult};
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::json_config};
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::networking::network::Network;
 use crate::recordable::Recordable;
 use crate::simulator::SimulatorConfig;
@@ -55,7 +55,7 @@ impl UIComponent for ExternalObservation {
 }
 
 impl Recordable<ExternalObservationRecord> for ExternalObservation {
-    fn record(&self) -> ExternalObservationRecord {
+    fn record(&self, _context: &Context) -> ExternalObservationRecord {
         ExternalObservationRecord {
             record: self.observation.clone(),
         }
@@ -120,10 +120,14 @@ impl ExternalSensor {
         va_factory: &Arc<DeterministRandomVariableFactory>,
         network: &SharedRwLock<Network>,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
         Ok(Self {
             sensor: plugin_api
                 .as_ref()
@@ -139,6 +143,7 @@ impl ExternalSensor {
                     va_factory,
                     network,
                     initial_time,
+                    context,
                 ),
         })
     }
@@ -151,12 +156,22 @@ impl std::fmt::Debug for ExternalSensor {
 }
 
 impl Sensor for ExternalSensor {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
-        self.sensor.post_init(node, initial_time)
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
+        self.sensor.post_init(node, initial_time, context)
     }
 
-    fn get_observations(&mut self, node: &mut Node, time: f32) -> Vec<SensorObservation> {
-        self.sensor.get_observations(node, time)
+    fn get_observations(
+        &mut self,
+        node: &mut Node,
+        time: f32,
+        context: &Context,
+    ) -> Vec<SensorObservation> {
+        self.sensor.get_observations(node, time, context)
     }
 
     fn next_time_step(&self) -> f32 {
@@ -166,7 +181,7 @@ impl Sensor for ExternalSensor {
 }
 
 impl Recordable<SensorRecord> for ExternalSensor {
-    fn record(&self) -> SensorRecord {
-        self.sensor.record()
+    fn record(&self, context: &Context) -> SensorRecord {
+        self.sensor.record(context)
     }
 }

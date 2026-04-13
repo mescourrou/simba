@@ -7,6 +7,7 @@
 use pyo3::prelude::*;
 
 use crate::{
+    context::Context,
     errors::SimbaResult,
     node::Node,
     pywrappers::{NodeWrapper, SensorObservationWrapper, StateWrapper},
@@ -41,16 +42,22 @@ impl PythonFilter {
         config: &PythonFilterConfig,
         global_config: &SimulatorConfig,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
         let instance =
-            load_class_from_python_script(config, global_config, initial_time, "Filter")?;
+            load_class_from_python_script(config, global_config, initial_time, "Filter", context)?;
         Ok(Self { instance })
     }
 }
 
 impl SensorFilter for PythonFilter {
-    fn post_init(&mut self, node: &mut Node, initial_time: f32) -> SimbaResult<()> {
-        let py_node = NodeWrapper::from_rust(node);
+    fn post_init(
+        &mut self,
+        node: &mut Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
+        let py_node = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.instance, "post_init", py_node, initial_time);
         Ok(())
     }
@@ -61,6 +68,7 @@ impl SensorFilter for PythonFilter {
         observation: SensorObservation,
         observer_state: &State,
         observee_state: Option<&State>,
+        _context: &Context,
     ) -> Option<SensorObservation> {
         let py_observation = SensorObservationWrapper::from_rust(&observation);
         let py_observer_state = StateWrapper::from_rust(observer_state);

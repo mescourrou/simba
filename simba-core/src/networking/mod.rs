@@ -7,16 +7,9 @@
 //! # Communication models
 //!
 //! 1. One-way messaging
-//!    Nodes send messages through [`Network::send_to`](network::Network::send_to) using
-//!    `channels`. Messages are stored in time-ordered
-//!    buffers and delivered when simulation time reaches their timestamp. Delivery happens during
-//!    sync periods. Range are checked
-//!    during simulator forwarding messages, in [`NetworkManager`](network_manager::NetworkManager)
-//!    and messages are dropped if the target node is out of range at the time of sending.
-//! 2. Request/response services
-//!    Nodes expose and consume services using [`Service`](service::Service) and
-//!    [`ServiceClient`](service::ServiceClient). A client sends a request to a remote node and
-//!    waits for the response, while the server handles pending requests during sync periods.
+//!    Nodes send messages through [`Network::send_to`](network::Network::send_to) using the
+//!    `pub_sub` system of `simba_com`. Other nodes can subscribe to these messages using the same system, and
+//!    receive them with the configured `reception_delay`.
 
 use pyo3::{pyclass, pymethods};
 use serde::{Deserialize, Serialize};
@@ -26,8 +19,6 @@ use crate::{navigators::go_to::GoToMessage, sensors::sensor_manager::SensorTrigg
 
 pub mod network;
 pub mod network_manager;
-pub mod service;
-pub mod service_manager;
 
 /// Errors that can occur while using networking and service communication APIs.
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -131,7 +122,6 @@ mod tests {
         sync::{Arc, Mutex},
     };
 
-    use log::debug;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
     use simba_com::pub_sub::{MultiClientTrait, PathKey};
@@ -139,6 +129,8 @@ mod tests {
     use crate::{
         config::NumberConfig,
         constants::TIME_ROUND,
+        context::Context,
+        debug,
         logger::LogLevel,
         networking::network::{Envelope, Network, NetworkConfig},
         node::{Node, node_factory::RobotConfig},
@@ -182,11 +174,12 @@ mod tests {
             _node: &mut crate::node::Node,
             _observations: &[Observation],
             _time: f32,
+            _context: &Context,
         ) {
         }
 
-        fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-            debug!("Doing pre_loop_hook");
+        fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
+            debug!(context, "Doing pre_loop_hook");
             if node.name() == "node1" {
                 println!("{} Sending message...", node.name());
                 let message = Envelope {
@@ -205,6 +198,7 @@ mod tests {
             node: &mut crate::node::Node,
             _command: Option<Command>,
             time: f32,
+            _context: &Context,
         ) {
             self.last_time = time;
             if node.name() == "node2" {
@@ -217,16 +211,16 @@ mod tests {
             }
         }
 
-        fn next_time_step(&self) -> f32 {
+        fn next_time_step(&self, _context: &Context) -> f32 {
             round_precision(self.last_time + 0.1, TIME_ROUND).unwrap()
         }
-        fn world_state(&self) -> WorldState {
+        fn world_state(&self, _context: &Context) -> WorldState {
             WorldState::new()
         }
     }
 
     impl Recordable<StateEstimatorRecord> for StateEstimatorTest {
-        fn record(&self) -> StateEstimatorRecord {
+        fn record(&self, _context: &Context) -> StateEstimatorRecord {
             StateEstimatorRecord::External(ExternalEstimatorRecord {
                 record: serde_json::to_value(StateEstimatorRecordTest {
                     last_time: self.last_time,
@@ -250,33 +244,24 @@ mod tests {
             _va_factory: &Arc<DeterministRandomVariableFactory>,
             network: &SharedRwLock<Network>,
             initial_time: f32,
+            context: &Context,
         ) -> Box<dyn StateEstimator> {
             network
                 .write()
                 .unwrap()
-                .make_channel(PathKey::from_str("/test").unwrap());
+                .make_channel(PathKey::from_str("/test").unwrap(), context);
             Box::new(StateEstimatorTest {
                 last_time: initial_time,
                 message: self.message.clone(),
                 last_from: self.last_from.clone(),
                 last_message: self.last_message.clone(),
-                message_client: network
-                    .write()
-                    .unwrap()
-                    .subscribe_to(&[PathKey::from_str("/test").unwrap()], None),
+                message_client: network.write().unwrap().subscribe_to(
+                    &[PathKey::from_str("/test").unwrap()],
+                    None,
+                    context,
+                ),
             }) as Box<dyn StateEstimator>
         }
-
-        // fn get_message_handlers(
-        //     &self,
-        //     node: &Node,
-        // ) -> Option<Vec<SharedRwLock<dyn MessageHandler>>>> {
-        //     if node.name() == "node2" {
-        //         Some(vec![self.message_handler.clone()])
-        //     } else {
-        //         None
-        //     }
-        // }
     }
 
     #[test]

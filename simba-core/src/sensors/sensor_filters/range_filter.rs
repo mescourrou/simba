@@ -15,7 +15,7 @@ use simba_macros::config_derives;
 
 #[cfg(feature = "gui")]
 use crate::gui::{UIComponent, utils::enum_combobox};
-use crate::utils::enum_tools::EnumVariables;
+use crate::{context::Context, utils::enum_tools::EnumVariables};
 
 #[config_derives]
 /// Configuration for a range-based filter over sensor variables.
@@ -153,7 +153,18 @@ pub struct RangeFilter<SV: EnumVariables> {
 
 impl<SV: EnumVariables> RangeFilter<SV> {
     /// Build a range filter from its configuration.
-    pub fn from_config(config: &RangeFilterConfig<SV>, _initial_time: f32) -> Self {
+    ///
+    /// `_context` is currently unused and kept for API consistency.
+    ///
+    /// ## Arguments
+    /// * `config` - Filter configuration to instantiate.
+    /// * `_initial_time` - Initial simulation time (currently unused).
+    /// * `_context` - Shared simulation context (currently unused in this constructor).
+    pub fn from_config(
+        config: &RangeFilterConfig<SV>,
+        _initial_time: f32,
+        _context: &Context,
+    ) -> Self {
         Self {
             config: config.clone(),
         }

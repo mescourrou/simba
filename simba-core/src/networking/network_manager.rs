@@ -5,13 +5,13 @@
 //! node [`Network`](crate::networking::network::Network) instances and advances queued messages in
 //! simulation time order.
 
-use log::debug;
 use serde_json::Value;
 use simba_com::pub_sub::{BrokerTrait, BrokerTraitProcessing, PathBroker};
 
 use crate::constants::TIME_ROUND;
+use crate::context::Context;
 use crate::errors::SimbaResult;
-use crate::logger::is_enabled;
+use crate::internal;
 use crate::simulator::SimbaBroker;
 use crate::utils::SharedRwLock;
 
@@ -74,10 +74,14 @@ impl NetworkManager {
     pub fn process_messages(
         &mut self,
         position_map: &HashMap<String, Option<[f32; 2]>>,
+        context: &Context,
     ) -> SimbaResult<()> {
-        if is_enabled(crate::logger::InternalLog::NetworkMessages) {
-            debug!("Processing messages");
-        }
+        let context = context.new_callstack_level("process_messages");
+        internal!(
+            context,
+            crate::logger::InternalLog::NetworkMessages,
+            "Processing messages"
+        );
         self.broker
             .write()
             .unwrap()

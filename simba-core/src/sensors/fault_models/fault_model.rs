@@ -2,7 +2,9 @@
 
 use std::{fmt::Debug, sync::Arc};
 
-use crate::{environment::Environment, errors::SimbaResult, sensors::SensorObservation};
+use crate::{
+    context::Context, environment::Environment, errors::SimbaResult, sensors::SensorObservation,
+};
 
 /// Trait defining the interface for sensor fault models in Simba.
 ///
@@ -12,7 +14,12 @@ use crate::{environment::Environment, errors::SimbaResult, sensors::SensorObserv
 pub trait FaultModel: Debug + Sync + Send {
     /// Post-initialization method called after the fault model is created and before the simulation starts.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut crate::node::Node, initial_time: f32) -> SimbaResult<()> {
+    fn post_init(
+        &mut self,
+        node: &mut crate::node::Node,
+        initial_time: f32,
+        context: &Context,
+    ) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -33,5 +40,6 @@ pub trait FaultModel: Debug + Sync + Send {
         obs_list: &mut Vec<SensorObservation>,
         obs_type: SensorObservation,
         environment: &Arc<Environment>,
+        context: &Context,
     );
 }

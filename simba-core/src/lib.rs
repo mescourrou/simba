@@ -38,6 +38,7 @@ use pyo3::prelude::*;
 pub use simba_com;
 
 pub mod config;
+pub mod context;
 pub mod controllers;
 pub mod environment;
 pub mod logger;

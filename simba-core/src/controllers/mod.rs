@@ -13,11 +13,12 @@ pub mod python_controller;
 pub mod pybinds;
 
 use crate::{
+    context::Context,
     errors::SimbaResult,
-    networking::network::Network,
+    node::node_factory::FromConfigArguments,
     physics::{PhysicsConfig, robot_models::Command},
     recordable::Recordable,
-    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
+    utils::SharedRwLock,
 };
 #[cfg(feature = "gui")]
 use crate::{
@@ -26,7 +27,7 @@ use crate::{
 };
 use std::sync::{Arc, RwLock};
 
-use crate::{plugin_api::PluginAPI, simulator::SimulatorConfig};
+use crate::simulator::SimulatorConfig;
 
 use config_checker::*;
 use serde_derive::{Deserialize, Serialize};
@@ -190,7 +191,7 @@ pub trait Controller:
 {
     /// Performs optional one-time initialization when the node starts, before entering simulation loop.
     #[allow(unused_variables)]
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
         Ok(())
     }
 
@@ -200,16 +201,24 @@ pub trait Controller:
     /// * `robot` - Reference to the robot to access modules.
     /// * `error` - Error to be corrected.
     /// * `time` - Current time.
+    /// * `context` - Shared simulation context used for logging and communication metadata.
     ///
     /// ## Return
     /// Command to apply to the [`Physics`](crate::physics::Physics).
-    fn make_command(&mut self, robot: &mut Node, error: &ControllerError, time: f32) -> Command;
+    fn make_command(
+        &mut self,
+        robot: &mut Node,
+        error: &ControllerError,
+        time: f32,
+        context: &Context,
+    ) -> Command;
 
     /// Executes per-step side effects before command computation.
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context);
 
     /// Optional: return the time of the next time step. Needed if using messages
-    fn next_time_step(&self) -> Option<f32> {
+    #[allow(unused_variables)]
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
         None
     }
 }
@@ -224,32 +233,30 @@ pub trait Controller:
 /// * `physics_config` - Physics configuration to transmit to the controller and infer the robot model from.
 /// * `network` - Shared reference to the network, for controllers using messages.
 /// * `initial_time` - Initial node time.
+/// * `context` - Shared simulation context used for logging and call tracing during construction.
 pub fn make_controller_from_config(
     config: &ControllerConfig,
-    plugin_api: &Option<Arc<dyn PluginAPI>>,
-    global_config: &SimulatorConfig,
-    va_factory: &Arc<DeterministRandomVariableFactory>,
+    from_config_params: &FromConfigArguments,
     physics_config: &PhysicsConfig,
-    network: &SharedRwLock<Network>,
-    initial_time: f32,
 ) -> SimbaResult<SharedRwLock<Box<dyn Controller>>> {
     Ok(Arc::new(RwLock::new(match config {
-        ControllerConfig::PID(c) => {
-            Box::new(pid::PID::from_config(c, physics_config, initial_time)) as Box<dyn Controller>
-        }
-        ControllerConfig::External(c) => {
-            Box::new(external_controller::ExternalController::from_config(
-                c,
-                plugin_api,
-                global_config,
-                va_factory,
-                network,
-                initial_time,
-            )?) as Box<dyn Controller>
-        }
+        ControllerConfig::PID(c) => Box::new(pid::PID::from_config(
+            c,
+            physics_config,
+            from_config_params.initial_time,
+            from_config_params.context,
+        )) as Box<dyn Controller>,
+        ControllerConfig::External(c) => Box::new(
+            external_controller::ExternalController::from_config(c, from_config_params)?,
+        ) as Box<dyn Controller>,
         ControllerConfig::Python(c) => Box::new(
-            python_controller::PythonController::from_config(c, global_config, initial_time)
-                .unwrap(),
+            python_controller::PythonController::from_config(
+                c,
+                from_config_params.global_config,
+                from_config_params.initial_time,
+                from_config_params.context,
+            )
+            .unwrap(),
         ) as Box<dyn Controller>,
     })))
 }

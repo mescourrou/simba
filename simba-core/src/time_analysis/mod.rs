@@ -19,12 +19,12 @@ use std::{
     time::Duration,
 };
 
-use log::info;
 use std::collections::BTreeMap;
 use std::time;
 
 use crate::{
-    errors::SimbaResult, time_analysis::time_analysis_config::AnalysisUnit, utils::SharedMutex,
+    context::Context, errors::SimbaResult, info, time_analysis::time_analysis_config::AnalysisUnit,
+    utils::SharedMutex,
 };
 
 /// Node for the time analysis. It represents a block of code to analyse,
@@ -143,9 +143,16 @@ impl TimeAnalysisFactory {
 
     /// Save the time results analysis to the file specified in the config.
     /// Execute the real time analysis to save a more readable report of the results, with statistics such as mean, median, etc. for each profile. The report is saved in the same path as the results, with the extension `.report.csv`.
-    pub fn save_results(&self) {
+    ///
+    /// ## Arguments
+    /// * `context` - Shared simulation context used for reporting logs.
+    pub fn save_results(&self, context: &Context) {
         let path = Path::new(self.config.output_path.as_str());
-        info!("Saving Time Analysis results to {}", path.to_str().unwrap());
+        info!(
+            context,
+            "Saving Time Analysis results to {}",
+            path.to_str().unwrap()
+        );
         self.exporter.export(self, path);
         self.real_time_analysis(path);
     }

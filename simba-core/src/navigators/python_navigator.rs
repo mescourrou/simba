@@ -4,20 +4,20 @@ Module providing the interface to use external Python [`Navigator`].
 
 use std::str::FromStr;
 
-use log::debug;
 use pyo3::prelude::*;
 use pyo3::{Python, pyclass, pymethods};
 use serde_json::Value;
 
+use crate::context::Context;
 #[cfg(feature = "gui")]
 use crate::gui::UIComponent;
+use crate::internal;
 use crate::pywrappers::NodeWrapper;
 use crate::utils::macros::{external_record_python_methods, python_class_config};
 use crate::utils::python::{call_py_method, call_py_method_void, load_class_from_python_script};
 use crate::{
     controllers::ControllerError,
     errors::SimbaResult,
-    logger::is_enabled,
     navigators::{Navigator, NavigatorRecord},
     pywrappers::{ControllerErrorWrapper, WorldStateWrapper},
     recordable::Recordable,
@@ -70,6 +70,7 @@ impl PythonNavigator {
             &PythonNavigatorConfig::default(),
             &SimulatorConfig::default(),
             0.0,
+            &Context::default(),
         )
     }
 
@@ -83,13 +84,22 @@ impl PythonNavigator {
         config: &PythonNavigatorConfig,
         global_config: &SimulatorConfig,
         initial_time: f32,
+        context: &Context,
     ) -> SimbaResult<Self> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Config given: {:?}", config);
-        }
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Config given: {:?}",
+            config
+        );
 
-        let navigator_instance =
-            load_class_from_python_script(config, global_config, initial_time, "Navigator")?;
+        let navigator_instance = load_class_from_python_script(
+            config,
+            global_config,
+            initial_time,
+            "Navigator",
+            context,
+        )?;
         Ok(Self {
             navigator: navigator_instance,
         })
@@ -103,20 +113,29 @@ impl std::fmt::Debug for PythonNavigator {
 }
 
 impl Navigator for PythonNavigator {
-    fn post_init(&mut self, node: &mut Node) -> SimbaResult<()> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of post_init");
-        }
-        let node_py = NodeWrapper::from_rust(node);
+    fn post_init(&mut self, node: &mut Node, context: &Context) -> SimbaResult<()> {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of post_init"
+        );
+        let node_py = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.navigator, "post_init", (node_py,));
         Ok(())
     }
 
-    fn compute_error(&mut self, node: &mut Node, state: WorldState) -> ControllerError {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of compute_error");
-        }
-        let node_py = NodeWrapper::from_rust(node);
+    fn compute_error(
+        &mut self,
+        node: &mut Node,
+        state: WorldState,
+        context: &Context,
+    ) -> ControllerError {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of compute_error"
+        );
+        let node_py = NodeWrapper::from_rust(node, context.clone());
         let result = call_py_method!(
             self.navigator,
             "compute_error",
@@ -127,27 +146,33 @@ impl Navigator for PythonNavigator {
         result.to_rust()
     }
 
-    fn pre_loop_hook(&mut self, node: &mut Node, time: f32) {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of pre_loop_hook");
-        }
-        let node_py = NodeWrapper::from_rust(node);
+    fn pre_loop_hook(&mut self, node: &mut Node, time: f32, context: &Context) {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of pre_loop_hook"
+        );
+        let node_py = NodeWrapper::from_rust(node, context.clone());
         call_py_method_void!(self.navigator, "pre_loop_hook", node_py, time);
     }
 
-    fn next_time_step(&self) -> Option<f32> {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of next_time_step");
-        }
+    fn next_time_step(&self, context: &Context) -> Option<f32> {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of next_time_step"
+        );
         call_py_method!(self.navigator, "next_time_step", Option<f32>,)
     }
 }
 
 impl Recordable<NavigatorRecord> for PythonNavigator {
-    fn record(&self) -> NavigatorRecord {
-        if is_enabled(crate::logger::InternalLog::API) {
-            debug!("Calling python implementation of record");
-        }
+    fn record(&self, context: &Context) -> NavigatorRecord {
+        internal!(
+            context,
+            crate::logger::InternalLog::API,
+            "Calling python implementation of record"
+        );
         let record_str = call_py_method!(self.navigator, "record", String,);
         let record = PythonNavigatorRecord {
             record: Value::from_str(&record_str).expect(

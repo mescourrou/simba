@@ -12,12 +12,15 @@ use crate::{
     AUTHORS, VERSION,
     api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
     constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
+    context::Context,
+    error,
     errors::{SimbaError, SimbaErrorTypes},
     gui::{
         UIComponent,
         drawables::popup::Popup,
         panels::{broker::BrokerPanel, virtual_nodes::VirtualNodesPanel},
     },
+    info,
     node::node_factory::NodeRecord,
     plugin_api::PluginAPI,
     simulator::{Record, SimbaBroker, Simulator, SimulatorConfig},
@@ -143,12 +146,20 @@ struct PrivateParams {
     broker_panel: Option<BrokerPanel>,
     current_max_time: f32,
     drawable_instants: BTreeSet<OrderedF32>,
+    context: Context,
 }
 
 impl Default for PrivateParams {
     fn default() -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
+        let context = server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .get_context();
         server.lock().unwrap().run(None);
         Self {
             server,
@@ -170,6 +181,7 @@ impl Default for PrivateParams {
             broker_panel: None,
             current_max_time: 0.,
             drawable_instants: BTreeSet::new(),
+            context,
         }
     }
 }
@@ -200,6 +212,13 @@ impl Default for SimbaApp {
     fn default() -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
+        let context = server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .get_context();
         server.lock().unwrap().run(None);
         Self {
             config_path: "".to_owned(),
@@ -208,6 +227,7 @@ impl Default for SimbaApp {
             p: PrivateParams {
                 server,
                 api,
+                context,
                 ..Default::default()
             },
             drawing_scale: 100.,
@@ -248,12 +268,20 @@ impl SimbaApp {
     ) -> Self {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
+        let context = server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .get_context();
         server.lock().unwrap().run(plugin_api.clone());
         let mut n = Self {
             p: PrivateParams {
                 server,
                 api,
                 plugin_api,
+                context,
                 ..Default::default()
             },
             ..Default::default()
@@ -273,7 +301,7 @@ impl SimbaApp {
                         });
                 }
                 Err(e) => {
-                    log::error!("Error loading config: {}", e.detailed_error());
+                    error!(n.p.context, "Error loading config: {}", e.detailed_error());
                 }
             }
             if load_results {
@@ -321,7 +349,11 @@ impl SimbaApp {
                         });
                 }
                 Err(e) => {
-                    log::error!("Error loading config: {}", e.detailed_error());
+                    error!(
+                        self.p.context,
+                        "Error loading config: {}",
+                        e.detailed_error()
+                    );
                 }
             }
             if load_results {
@@ -351,7 +383,7 @@ impl SimbaApp {
             return;
         }
         let config = self.p.config.as_ref().unwrap();
-        self.p.map = drawables::map::Map::init(&config.environment, config);
+        self.p.map = drawables::map::Map::init(&config.environment, config, &self.p.context);
         for robot in &config.robots {
             self.p.robots.insert(
                 robot.name.clone(),
@@ -443,7 +475,10 @@ impl SimbaApp {
                         drawables::robot::Robot::init(new_config, config),
                     );
                 } else {
-                    log::error!("Received record for unknown robot {}", n.name);
+                    error!(
+                        self.p.context,
+                        "Received record for unknown robot {}", n.name
+                    );
                 }
             }
         }
@@ -538,7 +573,7 @@ impl eframe::App for SimbaApp {
                 ui.text_edit_singleline(&mut self.config_path);
 
                 if ui.button("Load").clicked() {
-                    log::info!("Load configuration");
+                    info!(self.p.context, "Load configuration");
                     self.p.config = None;
                     match SimulatorConfig::load_from_path(Path::new(&self.config_path)) {
                         Ok(cfg) => {
@@ -581,7 +616,7 @@ impl eframe::App for SimbaApp {
                     }
                 }
                 if ui.button("Configurator").clicked() {
-                    self.p.configurator = Some(Configurator::init(&self.config_path));
+                    self.p.configurator = Some(Configurator::init(&self.config_path, &self.p.context));
                 }
                 if let Some(configurator) = &mut self.p.configurator
                     && configurator.show(ui, ctx)
@@ -596,20 +631,21 @@ impl eframe::App for SimbaApp {
                 ui.text_edit_singleline(&mut self.result_path);
 
                 if ui.button("Load results").clicked() {
-                    log::info!("Load previous results");
+                    info!(self.p.context, "Load previous results");
                     let api = self.p.api.clone();
                     let records = self.p.record_buffer.clone();
                     let result_path = self.result_path.clone();
+                    let context = self.p.context.clone();
                     self.p.popups.push(Popup::new_yes_no(
                         "Viewer only?".to_string(),
                         "Load results on the GUI only and not inside the simulator?\nResult analysis would not use these results.".to_string(),
                         Box::new(move |btn| {
                             if btn == 0 {
-                                log::info!("Load results in view");
-                                let results = Simulator::deserialize_results_from_file(Path::new(&result_path)).unwrap();
+                                info!(context, "Load results in view");
+                                let results = Simulator::deserialize_results_from_file(Path::new(&result_path), &context).unwrap();
                                 records.lock().unwrap().extend(results.records);
                             } else {
-                                log::info!("Load results in simulator and view");
+                                info!(context, "Load results in simulator and view");
                                 api.lock().unwrap().load_results.async_call(Some(result_path.clone()));
                             }
                         }),
@@ -647,7 +683,7 @@ impl eframe::App for SimbaApp {
                         .add_enabled(self.p.config.is_some(), egui::Button::new("Run"))
                         .clicked()
                     {
-                        log::info!("Run simulation");
+                        info!(self.p.context, "Run simulation");
                         self.p
                             .api
                             .lock()
@@ -724,7 +760,7 @@ impl eframe::App for SimbaApp {
                         .add_enabled(self.p.config.is_some(), egui::Button::new("Results"))
                         .clicked()
                     {
-                        log::info!("Analysing results");
+                        info!(self.p.context, "Analysing results");
                         self.p.api.lock().unwrap().compute_results.async_call(());
                     }
                     if let Some(Err(e)) =

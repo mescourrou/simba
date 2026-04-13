@@ -15,8 +15,8 @@ use std::{
     fmt::{Debug, Display},
 };
 
+use colored::Colorize;
 use itertools::Itertools;
-use log::warn;
 use tree_ds::prelude::{AutomatedId, Node, TraversalStrategy, Tree};
 
 use crate::pub_sub::{
@@ -190,7 +190,7 @@ where
             )),
         );
         #[cfg(feature = "debug_mode")]
-        log::debug!("Adding channel for key: {}", key);
+        println!("[{}] Adding channel for key: {}", "DEBUG".blue(), key);
         let new_id = self
             .key_tree
             .add_node(
@@ -206,8 +206,9 @@ where
             return;
         }
         #[cfg(feature = "debug_mode")]
-        log::debug!(
-            "Adding meta channel for key: {}, parent: {:?}",
+        println!(
+            "[{}] Adding meta channel for key: {}, parent: {:?}",
+            "DEBUG".blue(),
             key,
             parent_key
         );
@@ -269,19 +270,22 @@ where
             Some(client) => Some(client),
             None => {
                 if self.meta_exists(key) {
-                    warn!(
-                        "Trying to subscribe to channel '{}' which is a meta channel. Use `subscribe_to_meta` instead.",
+                    println!(
+                        "[{}] Trying to subscribe to channel '{}' which is a meta channel. Use `subscribe_to_meta` instead.",
+                        "WARN ".yellow(),
                         key
                     );
                 } else {
-                    warn!(
-                        "Trying to subscribe to channel '{}' that does not exist",
+                    println!(
+                        "[{}] Trying to subscribe to channel '{}' that does not exist",
+                        "WARN ".yellow(),
                         key
                     );
                 }
                 #[cfg(feature = "debug_mode")]
-                log::debug!(
-                    "Available channels:\n{}",
+                println!(
+                    "[{}] Available channels:\n{}",
+                    "DEBUG".blue(),
                     self.channels.keys().map(|k| format!("- {}", k)).join("\n")
                 );
                 None
@@ -476,8 +480,9 @@ where
         client_condition_args: Option<&HashMap<NodeIdType, ConditionArgType>>,
     ) {
         #[cfg(feature = "debug_mode")]
-        log::debug!(
-            "Processing messages for broker with {} channels",
+        println!(
+            "[{}] Processing messages for broker with {} channels",
+            "DEBUG".blue(),
             self.channels.len()
         );
         for channel in self.channels.values() {

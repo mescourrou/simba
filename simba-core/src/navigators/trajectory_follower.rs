@@ -10,6 +10,7 @@
 use crate::gui::{UIComponent, utils::path_finder};
 
 use crate::{
+    context::Context,
     navigators::{
         Navigator, NavigatorRecord,
         trajectory::{Trajectory, TrajectoryConfig, TrajectoryRecord},
@@ -330,7 +331,12 @@ impl Navigator for TrajectoryFollower {
     /// 3. Compute the orientation of the point to orient the robot to the projected point.
     /// 4. Compute the lateral error
     /// 5. Compute the velocity error
-    fn compute_error(&mut self, _robot: &mut Node, world_state: WorldState) -> ControllerError {
+    fn compute_error(
+        &mut self,
+        _robot: &mut Node,
+        world_state: WorldState,
+        context: &Context,
+    ) -> ControllerError {
         if world_state.ego.is_none() {
             panic!(
                 "StateEstimator should provide an ego estimate for TrajectoryFollower navigator."
@@ -344,6 +350,7 @@ impl Navigator for TrajectoryFollower {
         let (segment, projected_point, end) = self.trajectory.map_matching(
             state.pose.fixed_view::<2, 1>(0, 0).into(),
             self.forward_distance,
+            context,
         );
         if end {
             let distance_to_final = (state.pose.fixed_view::<2, 1>(0, 0) - segment.1).norm();
@@ -386,16 +393,16 @@ impl Navigator for TrajectoryFollower {
         self.error.clone()
     }
 
-    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32) {}
+    fn pre_loop_hook(&mut self, _node: &mut Node, _time: f32, _context: &Context) {}
 }
 
 use crate::recordable::Recordable;
 
 impl Recordable<NavigatorRecord> for TrajectoryFollower {
-    fn record(&self) -> NavigatorRecord {
+    fn record(&self, context: &Context) -> NavigatorRecord {
         NavigatorRecord::TrajectoryFollower(TrajectoryFollowerRecord {
             error: self.error.clone(),
-            trajectory: self.trajectory.record(),
+            trajectory: self.trajectory.record(context),
             projected_point: self.projected_point,
         })
     }
