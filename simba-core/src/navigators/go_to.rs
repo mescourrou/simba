@@ -20,7 +20,7 @@ use crate::{
     errors::SimbaResult,
     info,
     navigators::{Navigator, NavigatorRecord},
-    networking::network::Network,
+    networking::{message_types::MessageTypes, network::Network},
     simulator::SimbaBrokerMultiClient,
     utils::{SharedMutex, SharedRwLock, geometry::smallest_theta_diff},
 };
@@ -351,7 +351,7 @@ impl Navigator for GoTo {
 
     fn pre_loop_hook(&mut self, _node: &mut Node, time: f32, context: &Context) {
         while let Some((_, envelope)) = self.message_client.lock().unwrap().try_receive(time) {
-            if let Ok(msg) = serde_json::from_value::<GoToMessage>(envelope.message) {
+            if let MessageTypes::GoTo(msg) = envelope.message {
                 self.current_point = msg.target_point;
                 info!(context, "Update target point to {:?}", self.current_point);
             }

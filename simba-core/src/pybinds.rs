@@ -16,8 +16,7 @@ use crate::{
         pybinds::{NavigatorWrapper, PythonNavigator},
     },
     networking::{
-        MessageTypes,
-        network::{MessageFlag, Network},
+        network::{MessageFlag, Network}, pybinds::MessageTypesWrapper,
     },
     physics::{
         Physics,
@@ -69,7 +68,7 @@ pub fn make_python_bindings(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NodeWrapper>()?;
     m.add_class::<MultiClientWrapper>()?;
     m.add_class::<MessageFlag>()?;
-    m.add_class::<MessageTypes>()?;
+    m.add_class::<MessageTypesWrapper>()?;
     m.add_class::<GoToMessage>()?;
     m.add_class::<SensorTriggerMessage>()?;
     m.add_function(wrap_pyfunction!(run_gui, m)?)?;

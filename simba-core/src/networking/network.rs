@@ -20,13 +20,12 @@ use std::str::FromStr;
 use config_checker::*;
 use pyo3::pyclass;
 use serde_derive::{Deserialize, Serialize};
-use serde_json::Value;
 use simba_com::pub_sub::{BrokerTrait, BrokerTraitExtended, PathKey};
 use simba_macros::config_derives;
 
 use crate::context::Context;
 use crate::internal;
-use crate::networking::channels;
+use crate::networking::{message_types::MessageTypes, channels};
 use crate::simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig};
 use crate::utils::SharedRwLock;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
@@ -136,12 +135,12 @@ pub enum MessageFlag {
 /// Transport envelope sent through broker channels.
 ///
 /// This structure carries payload, metadata, and control flags used by the networking layer.
-#[derive(Serialize, Deserialize, Clone, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Envelope {
     /// Sender node name.
     pub from: String,
-    /// Serialized message payload.
-    pub message: Value,
+    /// Message payload.
+    pub message: MessageTypes,
     /// Simulation timestamp associated with this message.
     pub timestamp: f32,
     /// Optional transport flags that alter handling behavior.

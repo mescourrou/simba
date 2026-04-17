@@ -13,7 +13,7 @@
 
 extern crate confy;
 use core::f32;
-use pyo3::prelude::*;
+use pyo3::{panic, prelude::*};
 use serde_derive::{Deserialize, Serialize};
 use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::config_derives;
@@ -30,6 +30,7 @@ use crate::gui::{
     utils::{string_checkbox, text_singleline_with_apply},
 };
 use crate::logger::InternalLog;
+use crate::networking::message_types::MessageTypes;
 use crate::networking::network::Envelope;
 use crate::node::Node;
 use crate::node::node_factory::FromConfigArguments;
@@ -507,8 +508,10 @@ impl SensorManager {
                     .unwrap()
                     .join_str(Self::OBSERVATION_CHANNEL)
             {
-                let obs_list =
-                    serde_json::from_value::<Vec<Observation>>(envelope.message.clone()).unwrap();
+                let obs_list = match envelope.message {
+                    MessageTypes::Observations(obs) => obs,
+                    _ => panic!("Received message on observation channel with invalid type"),
+                };
                 self.last_observations
                     .extend(obs_list.iter().map(|o| o.record(context)));
                 self.distant_observations.extend(obs_list);
@@ -525,9 +528,7 @@ impl SensorManager {
                     envelope.from,
                     envelope.timestamp
                 );
-            } else if serde_json::from_value::<SensorTriggerMessage>(envelope.message.clone())
-                .is_ok()
-            {
+            } else if let MessageTypes::SensorTrigger(_) = &envelope.message {
                 let sensor_name = path.to_vec().last().unwrap().clone();
                 for sensor in &mut self.sensors {
                     if sensor.name == sensor_name {
@@ -645,7 +646,7 @@ impl SensorManager {
             let key_base = PathKey::from_str(networking::channels::internal::NODE).unwrap();
             for (to, observations) in obs_to_send {
                 if !observations.is_empty() {
-                    let obs_serialized = serde_json::to_value(observations).unwrap();
+                    let obs_msg = observations.into();
                     node.network()
                         .expect(
                             "This Node has no network, it cannot send observation to other nodes",
@@ -659,7 +660,7 @@ impl SensorManager {
                                 .join_str(Self::OBSERVATION_CHANNEL),
                             Envelope {
                                 from: node.name(),
-                                message: obs_serialized,
+                                message: obs_msg,
                                 timestamp: time,
                                 message_flags: Vec::new(),
                             },

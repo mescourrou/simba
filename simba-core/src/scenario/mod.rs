@@ -23,7 +23,7 @@ use crate::{
     errors::SimbaResult,
     info, internal,
     logger::InternalLog,
-    networking::{self, network::Envelope},
+    networking::{self, message_types::MessageTypes, network::Envelope},
     scenario::config::{
         AreaEventTriggerConfig, EventConfig, EventRecord, EventTriggerConfig, EventTypeConfig,
         ProximityEventTriggerConfig, ScenarioConfig, SpawnEventConfig, TimeEventTriggerConfig,
@@ -240,7 +240,7 @@ impl Scenario {
                     tmp_client.unwrap().send(
                         Envelope {
                             from: "scenario".to_string(),
-                            message: serde_json::Value::Null,
+                            message: MessageTypes::default(),
                             message_flags: vec![MessageFlag::Kill],
                             timestamp: time,
                         },
@@ -292,7 +292,7 @@ impl Scenario {
             self.client.send(
                 Envelope {
                     from: "scenario".to_string(),
-                    message: serde_json::to_value(event_executed).unwrap(),
+                    message: event_executed.clone().into(),
                     timestamp: time,
                     ..Default::default()
                 },

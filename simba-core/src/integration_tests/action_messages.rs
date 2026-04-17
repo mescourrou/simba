@@ -60,7 +60,7 @@ mod kill_node {
     use crate::{
         constants::TIME_ROUND,
         context::Context,
-        networking::network::{Envelope, MessageFlag},
+        networking::{message_types::MessageTypes, network::{Envelope, MessageFlag}},
         node::Node,
         physics::robot_models::Command,
         recordable::Recordable,
@@ -94,7 +94,7 @@ mod kill_node {
                     PathKey::from_str("/simba/command/node2").unwrap(),
                     Envelope {
                         from: node.name(),
-                        message: serde_json::Value::Null,
+                        message: MessageTypes::default(),
                         timestamp: time,
                         message_flags: vec![MessageFlag::Kill],
                     },
@@ -207,7 +207,7 @@ mod trigger_sensor {
         constants::TIME_ROUND,
         context::Context,
         info,
-        networking::network::{Envelope, Network},
+        networking::{message_types::MessageTypes, network::{Envelope, Network}},
         node::Node,
         physics::robot_models::Command,
         plugin_api::PluginAPI,
@@ -263,7 +263,7 @@ mod trigger_sensor {
                     PathKey::from_str("/simba/nodes/robot1/sensors/RobotSensor").unwrap(),
                     Envelope {
                         from: node.name(),
-                        message: serde_json::to_value(SensorTriggerMessage {}).unwrap(),
+                        message: MessageTypes::SensorTrigger(SensorTriggerMessage {}),
                         timestamp: time,
                         ..Default::default()
                     },

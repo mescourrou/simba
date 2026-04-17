@@ -34,8 +34,8 @@ use crate::{
     debug, error, info,
     navigators::pybinds::NavigatorWrapper,
     networking::{
-        MessageTypes,
-        network::{Envelope, MessageFlag, Network},
+        message_types::MessageTypes,
+        network::{Envelope, MessageFlag, Network}, pybinds::MessageTypesWrapper,
     },
     node::Node,
     physics::{
@@ -1069,7 +1069,7 @@ pub struct EnvelopeWrapper {
     /// Expeditor
     pub msg_from: String,
     /// Message sent, see [`MessageTypes`] for supported messages
-    pub message: MessageTypes,
+    pub message: MessageTypesWrapper,
     /// Time of the message
     pub timestamp: f32,
 }
@@ -1106,17 +1106,12 @@ impl NodeWrapper {
     pub fn send_message(
         &self,
         to: String,
-        message: MessageTypes,
+        message: MessageTypesWrapper,
         time: f32,
         flags: Vec<MessageFlag>,
     ) -> PyResult<()> {
         if let Some(network) = self.network.as_ref().and_then(|n| n.upgrade()) {
-            let msg = match message {
-                MessageTypes::String(s) => serde_json::to_value(s),
-                MessageTypes::GoTo(m) => serde_json::to_value(m),
-                MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
-            }
-            .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
+            let msg = message.to_rust();
             let key = PathKey::from_str(to.as_str()).unwrap();
             let msg = Envelope {
                 from: self.name.clone(),
@@ -1235,16 +1230,11 @@ impl MultiClientWrapper {
     pub fn send(
         &self,
         to: String,
-        message: MessageTypes,
+        message: MessageTypesWrapper,
         time: f32,
         flags: Vec<MessageFlag>,
     ) -> PyResult<()> {
-        let msg = match message {
-            MessageTypes::String(s) => serde_json::to_value(s),
-            MessageTypes::GoTo(m) => serde_json::to_value(m),
-            MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
-        }
-        .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
+        let msg = message.to_rust();
         let key = PathKey::from_str(to.as_str()).unwrap();
         let msg = Envelope {
             from: self.client.node_id().to_string(),
@@ -1261,15 +1251,11 @@ impl MultiClientWrapper {
     /// It can return messages older than the given `time`.
     pub fn try_receive(&self, time: f32) -> Option<(String, EnvelopeWrapper)> {
         if let Some((path, envelope)) = self.client.try_receive(time) {
-            let msg = match serde_json::from_value(envelope.message.clone()) {
-                Err(_) => MessageTypes::String(serde_json::to_string(&envelope.message).unwrap()),
-                Ok(m) => m,
-            };
             Some((
                 path.to_string(),
                 EnvelopeWrapper {
                     msg_from: envelope.from,
-                    message: msg,
+                    message: MessageTypesWrapper::from_rust(&envelope.message),
                     timestamp: envelope.timestamp,
                 },
             ))
