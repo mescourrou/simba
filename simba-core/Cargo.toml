@@ -83,3 +83,11 @@ path = "../examples/python_external.rs"
 name = "gui"
 required-features = ["gui"]
 path = "../examples/gui.rs"
+
+
+[dev-dependencies]
+criterion = { version = "0.8", features = ["html_reports"] }
+
+[[bench]]
+name = "base"
+harness = false

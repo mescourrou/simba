@@ -42,7 +42,46 @@ robots:
                   - type: Normal
                     mean: [0, 0, 0]
                     covariance: [0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01]
-                    
+        - name: "SpeedSensor"
+          config:
+            type: Speed
+            activation_time: 
+              period: {type: Num, value: 0.1}
+            faults:
+              - type: Additive
+                variable_order: [v, w]
+                distributions:
+                  - type: Normal
+                    mean: [0, 0]
+                    covariance: [0.01, 0, 0, 0.01]
+        - name: "DisplacementSensor"
+          config:
+            type: Displacement
+            activation_time: 
+              period: {type: Num, value: 0.1}
+            faults:
+              - type: AdditivePreDisplacement
+                variable_order: [x, y, rotation]
+                distributions:
+                  - type: Normal
+                    mean: [0, 0, 0]
+                    covariance: [0.01, 0, 0, 0, 0.01, 0, 0, 0, 0.01]
+        - name: "LidarSensor"
+          config:
+            type: Scan
+            activation_time: 
+              period: {type: Num, value: 0.1}
+            detection_distance: 100
+            rays: 
+              type: Regular
+              value: 1000
+            faults:
+              - type: PointAdditiveRobotCentered
+                variable_order: [r, theta]
+                distributions:
+                  - type: Normal
+                    mean: [0, 0]
+                    covariance: [0.1, 0, 0, 0.01]                    
   - name: "robot2"
     navigator:
       type: TrajectoryFollower
@@ -65,6 +104,21 @@ robots:
             activation_time: 
               period: {type: Num, value: 0.1}
             detection_distance: 100.0
+  - name: "robot3"
+    navigator:
+      type: TrajectoryFollower
+      trajectory_path: "paths/path1.yaml"
+      target_speed: 0.3
+      forward_distance: 0.2
+    physics: 
+      type: Internal
+      model:
+        type: Holonomic
+      initial_state:
+        pose: [10, 10, 0]
+    controller: 
+      type: PID
+      proportional_gains: [1.0, 3.0]
 computation_units:
   - name: "Central Unit"
     network:
@@ -73,6 +127,6 @@ computation_units:
       - name: "central_perfect"
         config: 
           type: Perfect
-          targets: ["robot1", "robot2"]
+          targets: ["robot1", "robot2", "robot3"]
           prediction_activation:
             period: {type: Num, value: 0.1}
