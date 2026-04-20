@@ -19,6 +19,8 @@ pub enum MessageTypes {
     Observations(Vec<Observation>),
     /// Scenario event record payload used by [`EventRecord`].
     Event(EventRecord),
+    // Custom payloads that can be serialized and deserialized as needed.
+    Custom(Vec<u8>)
 }
 
 macro_rules! impl_message_types_from {

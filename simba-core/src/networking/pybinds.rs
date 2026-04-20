@@ -18,6 +18,8 @@ pub enum MessageTypesWrapper {
     Observations(Vec<ObservationWrapper>),
 
     Event(String),
+    /// Custom binary payload.
+    Custom(Vec<u8>),
 }
 #[pymethods]
 impl MessageTypesWrapper {
@@ -43,6 +45,12 @@ impl MessageTypesWrapper {
     #[staticmethod]
     pub fn from_observation(observations: Vec<ObservationWrapper>) -> Self {
         MessageTypesWrapper::Observations(observations)
+    }
+
+    /// Creates a [`MessageTypes::Custom`] from binary data.
+    #[staticmethod]
+    pub fn from_custom(data: Vec<u8>) -> Self {
+        MessageTypesWrapper::Custom(data)
     }
 
     /// Returns the contained [`GoToMessage`] when this value is [`MessageTypes::GoTo`].
@@ -86,6 +94,14 @@ impl MessageTypesWrapper {
         }
     }
 
+    /// Returns the contained binary data when this value is [`MessageTypes::Custom`].
+    pub fn as_custom(&self) -> Option<Vec<u8>> {
+        match self {
+            MessageTypesWrapper::Custom(data) => Some(data.clone()),
+            _ => None,
+        }
+    }
+
     /// Returns the variant discriminator as a string.
     #[getter]
     pub fn kind(&self) -> String {
@@ -102,6 +118,7 @@ impl MessageTypesWrapper {
             MessageTypesWrapper::SensorTrigger(msg) => MessageTypes::SensorTrigger(msg.clone()),
             MessageTypesWrapper::Observations(observations) => MessageTypes::Observations(observations.iter().map(ObservationWrapper::to_rust).collect()),
             MessageTypesWrapper::Event(event) => MessageTypes::Event(serde_json::from_str(event).expect("Failed to parse EventRecord from JSON string")),
+            MessageTypesWrapper::Custom(data) => MessageTypes::Custom(data.clone()),
         }
     }
 
@@ -113,6 +130,7 @@ impl MessageTypesWrapper {
             MessageTypes::SensorTrigger(msg) => MessageTypesWrapper::SensorTrigger(msg.clone()),
             MessageTypes::Observations(observations) => MessageTypesWrapper::Observations(observations.iter().map(ObservationWrapper::from_rust).collect()),
             MessageTypes::Event(event) => MessageTypesWrapper::Event(serde_json::to_string(event).expect("Failed to serialize EventRecord to JSON string")),
+            MessageTypes::Custom(data) => MessageTypesWrapper::Custom(data.clone()),
         }
     }
 }
