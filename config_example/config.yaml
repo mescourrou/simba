@@ -5,7 +5,8 @@ log:
   excluded_nodes: []
   log_level:
     type: Info
-results: {}
+results:
+  result_path: "results.json"
 max_time: 20.0
 time_analysis:
   exporter:

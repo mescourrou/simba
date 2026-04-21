@@ -138,7 +138,7 @@ struct PrivateParams {
     playing: Option<(f32, std::time::Instant)>,
     simulation_run: bool,
     configurator: Option<Configurator>,
-    error_buffer: Vec<(time::Instant, SimbaError)>,
+    error_buffer: SharedMutex<Vec<(time::Instant, SimbaError)>>,
     painter_info: PainterInfo,
     popups: Vec<Popup>,
     record_buffer: SharedMutex<Vec<Record>>,
@@ -173,7 +173,7 @@ impl Default for PrivateParams {
             playing: None,
             simulation_run: false,
             configurator: None,
-            error_buffer: Vec::new(),
+            error_buffer: Arc::new(Mutex::new(Vec::new())),
             painter_info: PainterInfo::default(),
             popups: Vec::new(),
             record_buffer: Arc::new(Mutex::new(Vec::new())),
@@ -590,7 +590,7 @@ impl eframe::App for SimbaApp {
                         }
                         Err(e) => {
                             let now = time::Instant::now();
-                            self.p.error_buffer.push((now, e));
+                            self.p.error_buffer.lock().unwrap().push((now, e));
                         }
                     }
                 }
@@ -603,7 +603,7 @@ impl eframe::App for SimbaApp {
                                 if let SimbaErrorTypes::ExternalAPIError = e.error_type() {
                                     self.p.config = Some(SimulatorConfig::load_from_path(Path::new(&self.config_path)).unwrap());
                                 }
-                                self.p.error_buffer.push((now, e));
+                                self.p.error_buffer.lock().unwrap().push((now, e));
                             }
                             Ok(c) => {
                                 self.p.config = Some(c);
@@ -636,14 +636,22 @@ impl eframe::App for SimbaApp {
                     let records = self.p.record_buffer.clone();
                     let result_path = self.result_path.clone();
                     let context = self.p.context.clone();
+                    let config_is_none = self.p.config.is_none();
+                    let error_buffer = self.p.error_buffer.clone();
                     self.p.popups.push(Popup::new_yes_no(
                         "Viewer only?".to_string(),
                         "Load results on the GUI only and not inside the simulator?\nResult analysis would not use these results.".to_string(),
                         Box::new(move |btn| {
                             if btn == 0 {
-                                info!(context, "Load results in view");
-                                let results = Simulator::deserialize_results_from_file(Path::new(&result_path), &context).unwrap();
-                                records.lock().unwrap().extend(results.records);
+                                if config_is_none {
+                                    let error = "Cannot load results in view only mode without a valid configuration loaded.";
+                                    error!(context, "{}", error);
+                                    error_buffer.lock().unwrap().push((time::Instant::now(), SimbaError::new(SimbaErrorTypes::InitializationError, error.to_string())));
+                                } else {
+                                    info!(context, "Load results in view");
+                                    let results = Simulator::deserialize_results_from_file(Path::new(&result_path), &context).unwrap();
+                                    records.lock().unwrap().extend(results.records);
+                                }
                             } else {
                                 info!(context, "Load results in simulator and view");
                                 api.lock().unwrap().load_results.async_call(Some(result_path.clone()));
@@ -654,7 +662,7 @@ impl eframe::App for SimbaApp {
                 }
                 if let Some(Err(e)) = self.p.api.lock().unwrap().load_results.try_get_result() {
                     let now = time::Instant::now();
-                    self.p.error_buffer.push((now, e.clone()));
+                    self.p.error_buffer.lock().unwrap().push((now, e.clone()));
                     self.p.simulation_run = false;
                 }
             });
@@ -696,7 +704,7 @@ impl eframe::App for SimbaApp {
                         self.p.simulation_run = true;
                     }
                     if let Some(Err(e)) = self.p.api.lock().unwrap().run.try_get_result() {
-                        self.p.error_buffer.push((time::Instant::now(), e));
+                        self.p.error_buffer.lock().unwrap().push((time::Instant::now(), e));
                     }
                     let play_pause_btn = if self.p.playing.is_none() {
                         egui::Button::new("Play ")
@@ -766,7 +774,7 @@ impl eframe::App for SimbaApp {
                     if let Some(Err(e)) =
                         self.p.api.lock().unwrap().compute_results.try_get_result()
                     {
-                        self.p.error_buffer.push((time::Instant::now(), e));
+                        self.p.error_buffer.lock().unwrap().push((time::Instant::now(), e));
                     }
                 });
 
@@ -900,30 +908,33 @@ impl eframe::App for SimbaApp {
 
         let mut to_remove = Vec::new();
         let mut curr_y_shift = 0.;
-        for (i, (inst, e)) in self.p.error_buffer.iter_mut().enumerate().rev() {
-            if egui::Window::new("Error")
-                .id(Id::new(format!("error {i}")))
-                .anchor(Align2::RIGHT_TOP, [-50., curr_y_shift])
-                .fixed_size([500., 50.])
-                .hscroll(true)
-                .interactable(true)
-                .title_bar(false)
-                .show(ctx, |ui| {
-                    ui.colored_label(Color32::RED, e.detailed_error());
-                })
-                .unwrap()
-                .response
-                .contains_pointer()
-            {
-                *inst = time::Instant::now();
+        {
+            let mut error_buffer = self.p.error_buffer.lock().unwrap();
+            for (i, (inst, e)) in error_buffer.iter_mut().enumerate().rev() {
+                if egui::Window::new("Error")
+                    .id(Id::new(format!("error {i}")))
+                    .anchor(Align2::RIGHT_TOP, [-50., curr_y_shift])
+                    .fixed_size([500., 50.])
+                    .hscroll(true)
+                    .interactable(true)
+                    .title_bar(false)
+                    .show(ctx, |ui| {
+                        ui.colored_label(Color32::RED, e.detailed_error());
+                    })
+                    .unwrap()
+                    .response
+                    .contains_pointer()
+                {
+                    *inst = time::Instant::now();
+                }
+                curr_y_shift += 60.;
+                if inst.elapsed().as_secs_f32() > 5. {
+                    to_remove.push(i);
+                }
             }
-            curr_y_shift += 60.;
-            if inst.elapsed().as_secs_f32() > 5. {
-                to_remove.push(i);
+            for i in to_remove.iter() {
+                error_buffer.remove(*i);
             }
-        }
-        for i in to_remove.iter() {
-            self.p.error_buffer.remove(*i);
         }
 
         ctx.request_repaint_after(Duration::from_secs_f32(1.0 / 30.0));
