@@ -160,7 +160,7 @@ impl Default for PrivateParams {
             .lock()
             .unwrap()
             .get_context();
-        server.lock().unwrap().run(None);
+        // server.lock().unwrap().run(None);
         Self {
             server,
             api,
@@ -219,7 +219,7 @@ impl Default for SimbaApp {
             .lock()
             .unwrap()
             .get_context();
-        server.lock().unwrap().run(None);
+        // server.lock().unwrap().run(None);
         Self {
             config_path: "".to_owned(),
             result_path: "".to_owned(),
@@ -608,7 +608,7 @@ impl eframe::App for SimbaApp {
                             Ok(c) => {
                                 self.p.config = Some(c);
                                 if let Some(cfg) = &self.p.config.as_ref().unwrap().results && let Some(path) = &cfg.result_path {
-                                    self.result_path = path.clone();
+                                    self.result_path = self.p.config.as_ref().unwrap().base_path.join(Path::new(&path)).to_str().unwrap().to_string();
                                 }
                                 self.init_drawables();
                             }
@@ -649,7 +649,14 @@ impl eframe::App for SimbaApp {
                                     error_buffer.lock().unwrap().push((time::Instant::now(), SimbaError::new(SimbaErrorTypes::InitializationError, error.to_string())));
                                 } else {
                                     info!(context, "Load results in view");
-                                    let results = Simulator::deserialize_results_from_file(Path::new(&result_path), &context).unwrap();
+                                    let results = match Simulator::deserialize_results_from_file(Path::new(&result_path), &context) {
+                                        Ok(r) => r,
+                                        Err(e) => {
+                                            error!(context, "Error loading results: {}", e.detailed_error());
+                                            error_buffer.lock().unwrap().push((time::Instant::now(), e));
+                                            return;
+                                        }
+                                    };
                                     records.lock().unwrap().extend(results.records);
                                 }
                             } else {
@@ -920,6 +927,9 @@ impl eframe::App for SimbaApp {
                     .title_bar(false)
                     .show(ctx, |ui| {
                         ui.colored_label(Color32::RED, e.detailed_error());
+                        if ui.button("Close").clicked() {
+                            to_remove.push(i);
+                        }
                     })
                     .unwrap()
                     .response

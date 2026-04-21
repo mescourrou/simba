@@ -1554,7 +1554,10 @@ impl Simulator {
             "Loading results from file `{}`",
             filename.to_str().unwrap()
         );
-        let mut recording_file = File::open(filename).expect("Impossible to open record file");
+        let mut recording_file = match File::open(filename) {
+            Ok(file) => file,
+            Err(e) => return Err(SimbaError::new(SimbaErrorTypes::ConfigError, format!("Impossible to open record file: {}", e))),
+        };
         let mut content = String::new();
         recording_file
             .read_to_string(&mut content)
