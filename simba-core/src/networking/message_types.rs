@@ -19,12 +19,12 @@ pub enum MessageTypes {
     Observations(Vec<Observation>),
     /// Scenario event record payload used by [`EventRecord`].
     Event(EventRecord),
-    // Custom payloads that can be serialized and deserialized as needed.
-    Custom(Vec<u8>)
+    /// Custom payloads that can be serialized and deserialized as needed.
+    Custom(Vec<u8>),
 }
 
 macro_rules! impl_message_types_from {
-    ($($variant:ident, $type:ty),*) => {
+    ($($variant:ident, $type:ty),* $(,)?) => {
         $(
             impl From<$type> for MessageTypes {
                 fn from(value: $type) -> Self {
@@ -55,7 +55,8 @@ impl_message_types_from!(
     GoTo, GoToMessage,
     SensorTrigger, SensorTriggerMessage,
     Observations, Vec<Observation>,
-    Event, EventRecord
+    Event, EventRecord,
+    Custom, Vec<u8>,
 );
 
 impl From<&str> for MessageTypes {
