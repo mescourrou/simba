@@ -2,14 +2,14 @@
 
 use std::{
     collections::HashSet,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, RwLock},
 };
 
 use colored::Colorize;
 
 use crate::{
-    logger::{InternalLog, LogLevel, LoggerConfig},
-    utils::SharedRwLock,
+    logger::{ConsoleLogger, InternalLog, LogLevel, LoggerConfig, LoggerType, LoggerTypeConfig},
+    utils::{SharedMutex, SharedRwLock},
 };
 
 /// Context struct, which is passed to every function of the simulator.
@@ -33,6 +33,8 @@ pub struct Context {
     ///
     /// Empty by default, meaning no exclusion filter.
     pub excluded_nodes: SharedRwLock<HashSet<String>>,
+
+    write_targets: SharedMutex<Vec<LoggerType>>,
 }
 
 impl Default for Context {
@@ -44,6 +46,7 @@ impl Default for Context {
             current_sim_time: None,
             included_nodes: Arc::new(RwLock::new(HashSet::new())),
             excluded_nodes: Arc::new(RwLock::new(HashSet::new())),
+            write_targets: Arc::new(Mutex::new(vec![LoggerType::Console(ConsoleLogger::default())])),
         }
     }
 }
@@ -51,6 +54,13 @@ impl Default for Context {
 impl Context {
     /// Creates a new context for the given node name and log level.
     pub fn new(log_config: &LoggerConfig, time: Option<f32>) -> Self {
+        let mut write_targets = Vec::new();
+        for output in &log_config.outputs {
+            match output {
+                LoggerTypeConfig::Console => write_targets.push(LoggerType::Console(ConsoleLogger::default())),
+                LoggerTypeConfig::File(filepath) => write_targets.push(LoggerType::File(crate::logger::FileLogger::new(filepath.clone()))),
+            }
+        }
         Self {
             node_name: "simulator".to_string(),
             callstack: Vec::new(),
@@ -62,6 +72,7 @@ impl Context {
             excluded_nodes: Arc::new(RwLock::new(
                 log_config.excluded_nodes.iter().cloned().collect(),
             )),
+            write_targets: Arc::new(Mutex::new(write_targets)),
         }
     }
 
@@ -75,6 +86,22 @@ impl Context {
             included_nodes.extend(log_config.included_nodes.iter().cloned());
             excluded_nodes.clear();
             excluded_nodes.extend(log_config.excluded_nodes.iter().cloned());
+            
+            let default_len = LoggerConfig::default().outputs.len();
+            let mut write_targets = self.write_targets.lock().unwrap();
+            for i in 0..default_len {
+                if i < write_targets.len() {
+                    write_targets.remove(0);
+                }
+            }
+            println!("There is now logging to {} targets", write_targets.len());
+            // let _ = write_targets.drain(0..default_len);
+            for output in &log_config.outputs {
+                match output {
+                    LoggerTypeConfig::Console => write_targets.push(LoggerType::Console(ConsoleLogger::default())),
+                    LoggerTypeConfig::File(filepath) => write_targets.push(LoggerType::File(crate::logger::FileLogger::new(filepath.clone()))),
+                }
+            }
         }
         info!(self, "Log level updated to {:?}", log_config.log_level);
     }
@@ -109,26 +136,7 @@ impl Context {
 
 // Logging part
 impl Context {
-    #[inline]
-    fn format_log_line(&self, message: &str, callstack: bool) -> String {
-        let callstack_str = if callstack && !self.callstack.is_empty() {
-            format!("[{}]", self.callstack.join("/").magenta())
-        } else {
-            String::new()
-        };
-        let time_str = if let Some(time) = self.get_time() {
-            format!("[{:.3}]", time)
-        } else {
-            String::new()
-        };
-        format!(
-            "{}[{}]{} {}",
-            time_str,
-            self.node_name.cyan(),
-            callstack_str,
-            message
-        )
-    }
+    
 
     /// Logs a message with the given log level, including the node name and callstack for context.
     /// The message will only be logged if the log level is enabled in the context's configuration
@@ -151,55 +159,43 @@ impl Context {
         if level > *enabled_loglevel {
             return;
         }
-        match level {
-            LogLevel::Off => (),
-            LogLevel::Error => eprintln!(
-                "[{}]{}",
-                "ERROR".red(),
-                self.format_log_line(message, false)
-            ),
-            LogLevel::Warn => eprintln!(
-                "[{}]{}",
-                "WARN ".yellow(),
-                self.format_log_line(message, false)
-            ),
-            LogLevel::Info => println!(
-                "[{}]{}",
-                "INFO ".green(),
-                self.format_log_line(message, false)
-            ),
-            LogLevel::Debug => println!(
-                "[{}]{}",
-                "DEBUG".blue(),
-                self.format_log_line(message, false)
-            ),
-            LogLevel::Internal(l) => {
-                if let LogLevel::Internal(enabled_list) = &*enabled_loglevel {
-                    let matched_category = if enabled_list.contains(&InternalLog::All) {
-                        Some(l.first().unwrap_or(&InternalLog::All).clone())
-                    } else {
-                        let mut matched_category = None;
-                        for category in l {
-                            if enabled_list.contains(&category) {
-                                matched_category = Some(category);
-                                break;
-                            }
-                        }
-                        matched_category
-                    };
-                    if let Some(category) = matched_category {
-                        println!(
-                            "[{}][{}]{}",
-                            "INTNL".magenta(),
-                            category.to_string().magenta(),
-                            self.format_log_line(message, true)
-                        );
-                    }
+        let matched_category = if let LogLevel::Internal(l) = &level {
+            if let LogLevel::Internal(enabled_list) = &*enabled_loglevel {
+                if enabled_list.contains(&InternalLog::All) {
+                    Some(l.first().unwrap_or(&InternalLog::All))
                 } else {
-                    unreachable!()
+                    let mut matched_category = None;
+                    for category in l {
+                        if enabled_list.contains(&category) {
+                            matched_category = Some(category);
+                            break;
+                        }
+                    }
+                    matched_category
                 }
+            } else {
+                unreachable!()
+            }
+        } else {
+            None
+        };
+        if !message.is_empty() {
+            let mut write_targets = self.write_targets.lock().unwrap();
+            let time = self.get_time();
+            for target in write_targets.iter_mut() {
+                target.log(&level, time, &self.node_name, &self.callstack, matched_category, message);
             }
         }
+
+    }
+
+    /// Add a new write target to the context's logger, allowing log messages to be sent to multiple destinations (e.g., console, file, etc.).
+    /// 
+    /// See [`LoggerType`] for available write targets.
+    pub fn add_write_target(&self, target: LoggerType) {
+        let mut write_targets = self.write_targets.lock().unwrap();
+        println!("Adding write target: {}", target.to_string());
+        write_targets.push(target);
     }
 
     /// Check if the given internal log category is enabled in the context's configuration.

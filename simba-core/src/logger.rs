@@ -7,8 +7,11 @@
 //! - [`InternalLog`] for fine-grained internal debug categories,
 //! - [`LoggerConfig`] to configure logging from simulator configuration,
 //! - helper functions to initialize and query internal log flags.
-use simba_macros::config_derives;
+use std::{fmt::Debug, sync::{Arc, RwLock}};
 
+use simba_macros::{EnumToString, config_derives};
+
+use crate::{networking::channels::internal::log, utils::SharedRwLock};
 #[cfg(feature = "gui")]
 use crate::{
     gui::{
@@ -33,6 +36,30 @@ pub enum LogLevel {
     Debug,
     /// Enable debug logs with additional internal category filtering.
     Internal(Vec<InternalLog>),
+}
+
+impl LogLevel {
+    pub fn to_log_string(&self, colored: bool) -> String {
+        if colored {
+            match self {
+                LogLevel::Off => String::new(),
+                LogLevel::Error => "ERROR".red().to_string(),
+                LogLevel::Warn => "WARN ".yellow().to_string(),
+                LogLevel::Info => "INFO ".green().to_string(),
+                LogLevel::Debug => "DEBUG".blue().to_string(),
+                LogLevel::Internal(_) => "INTNL".magenta().to_string(),
+            }
+        } else {
+            match self {
+                LogLevel::Off => String::new(),
+                LogLevel::Error => "ERROR".to_string(),
+                LogLevel::Warn => "WARN ".to_string(),
+                LogLevel::Info => "INFO ".to_string(),
+                LogLevel::Debug => "DEBUG".to_string(),
+                LogLevel::Internal(_) => "INTNL".to_string(),
+            }
+        }
+    }
 }
 
 impl From<LogLevel> for String {
@@ -127,6 +154,8 @@ pub struct LoggerConfig {
     ///
     /// Default: [`LogLevel::Info`].
     pub log_level: LogLevel,
+
+    pub outputs: Vec<LoggerTypeConfig>,
 }
 
 impl Default for LoggerConfig {
@@ -135,6 +164,7 @@ impl Default for LoggerConfig {
             included_nodes: Vec::new(),
             excluded_nodes: Vec::new(),
             log_level: LogLevel::Info,
+            outputs: vec![LoggerTypeConfig::Console],
         }
     }
 }
@@ -221,5 +251,209 @@ impl UIComponent for LoggerConfig {
                 }
             });
         });
+    }
+}
+
+
+/// Trait for custom log targets, allowing users to implement their own logging mechanisms (e.g., file logging, remote logging, etc.).
+pub trait Logger : Debug + Send + Sync {
+    /// Log a message with the given log level. The implementation of this method will determine how the log message is handled (e.g., printed to console, written to a file, sent to a remote server, etc.).
+    /// 
+    /// # Parameters
+    /// * `loglevel` - The severity of the log message, which can be used to dispatch messages based on the configured log level.
+    /// * `time` - An optional timestamp for the log message.
+    /// * `node_name` - The name of the node that generated the log message.
+    /// * `callstack` - An optional list of function names representing the call stack at the time the log message was generated (typically used for internal messages).
+    /// * `internal_category` - An optional category for internal log messages.
+    /// * `message` - The content of the log message to be logged
+    fn log(&mut self, loglevel: &LogLevel, time: Option<f32>, node_name: &String, callstack: &Vec<String>, internal_category: Option<&InternalLog>, message: &str);
+}
+
+/// Configuration for different types of log targets, allowing users to specify where log messages should be sent (e.g., console, file, etc.) when configuring the logger.
+#[config_derives(tag_content)]
+pub enum LoggerTypeConfig {
+    /// Output log messages to the console (standard output and standard error).
+    Console,
+    /// Write log messages to a file at a specified path. The `value` field should contain the file path where log messages will be written.
+    File(String),
+}
+
+/// Enum to represent different types of log targets, allowing for flexible logging configurations.
+#[derive(Debug, EnumToString)]
+pub enum LoggerType {
+    /// Output log messages to the console (standard output and standard error).
+    Console(ConsoleLogger),
+    /// Accumulate log messages in a string, which can be retrieved later. Useful for testing or displaying logs in a GUI.
+    String(StringLogger),
+    /// Write log messages to a file at a specified path. 
+    File(FileLogger),
+    /// Custom log target defined by the user, which can implement any logging mechanism (e.g., file logging, remote logging, etc.) by implementing the [`Logger`] trait.
+    Custom(Box<dyn Logger>),
+}
+
+impl LoggerType {
+    /// Log a message using the selected log target. The log message will be dispatched to the appropriate logging mechanism based on the variant of `LoggerType`.
+    pub fn log(&mut self, loglevel: &LogLevel, time: Option<f32>, node_name: &String, callstack: &Vec<String>, internal_category: Option<&InternalLog>, message: &str) {
+        match self {
+            LoggerType::Console(logger) => logger.log(loglevel, time, node_name, callstack, internal_category, message),
+            LoggerType::String(logger) => logger.log(loglevel, time, node_name, callstack, internal_category, message),
+            LoggerType::File(logger) => logger.log(loglevel, time, node_name, callstack, internal_category, message),
+            LoggerType::Custom(logger) => logger.log(loglevel, time, node_name, callstack, internal_category, message),
+        }
+    }
+}
+
+/// Format the log message with the appropriate log level, timestamp, node name, call stack, internal category, and message content. The formatting can be customized to include colors for better readability in the console.
+/// 
+/// The output is structured as follows:
+/// ```text
+/// [LOG_LEVEL][TIMESTAMP?][NODE_NAME][CALLSTACK?][INTERNAL_CATEGORY?] MESSAGE
+/// ```
+/// - `LOG_LEVEL`: The severity of the log message (e.g., ERROR, WARN, INFO, DEBUG, INTNL).
+/// - `TIMESTAMP`: An optional timestamp for when the log message was generated, formatted to three decimal places.
+/// - `NODE_NAME`: The name of the node that generated the log message, optionally colored for better visibility.
+/// - `CALLSTACK`: An optional list of function names representing the call stack at the time the log message was generated, formatted as a single string and optionally colored. This is enabled only for internal messages.
+/// - `INTERNAL_CATEGORY`: An optional category for internal log messages, formatted as a string and optionally colored.
+/// - `MESSAGE`: The content of the log message to be logged.
+pub fn format_log_message(loglevel: &LogLevel, time: Option<f32>, node_name: &String, callstack: &Vec<String>, internal_category: Option<&InternalLog>, message: &str, colored: bool) -> String {
+    let callstack_str = if let LogLevel::Internal(_) = loglevel && !callstack.is_empty() {
+        format!("[{}]", if colored {
+            callstack.join("/").magenta().to_string()
+        } else {
+            callstack.join("/")
+        })
+    } else {
+        String::new()
+    };
+    let internal_str = if let Some(internal) = internal_category {
+        format!("[{}]", if colored {
+            internal.to_string().magenta().to_string()
+        } else {
+            internal.to_string()
+        })
+    } else {
+        String::new()
+    };
+    let time_str = if let Some(time) = time {
+        format!("[{:.3}]", time)
+    } else {
+        String::new()
+    };
+    format!(
+        "[{}]{}[{}]{}{} {}",
+        loglevel.to_log_string(colored),
+        time_str,
+        if colored {
+            &node_name.cyan().to_string()
+        } else {
+            node_name
+        },
+        callstack_str,
+        internal_str,
+        message
+    )
+}
+
+use colored::Colorize;
+/// Logger implementation that writes log messages to the console (standard output and standard error). Log messages with a log level of `Warn` or higher are written to standard error, while messages with a log level of `Info` or lower are written to standard output.
+#[derive(Debug, Clone)]
+pub struct ConsoleLogger {
+    /// Whether to use colored output for log messages. When enabled, log levels and other components of the log message will be colored for better readability in the console.
+    /// 
+    /// Default: `true`.
+    pub colored: bool,
+}
+
+impl Default for ConsoleLogger {
+    fn default() -> Self {
+        ConsoleLogger { colored: true }
+    }
+    
+}
+
+
+impl ConsoleLogger {
+    /// Create a new `ConsoleLogger` instance. This logger does not require any configuration and will write log messages to the console based on their log level.
+    pub fn new() -> Self {
+        ConsoleLogger::default()
+    }
+}
+
+impl Logger for ConsoleLogger {
+    #[inline]
+    fn log(&mut self, loglevel: &LogLevel, time: Option<f32>, node_name: &String, callstack: &Vec<String>, internal_category: Option<&InternalLog>, message: &str) {
+        let message = format_log_message(loglevel, time, node_name, callstack, internal_category, message, self.colored);
+        if *loglevel >= LogLevel::Warn {
+            eprintln!("{}", message);
+        } else {
+            println!("{}", message);
+        }
+    }
+}
+
+/// Logger implementation that accumulates log messages in a string. This logger is useful for testing purposes, allowing retrieval of all logged messages as a single string.
+#[derive(Debug, Clone)]
+pub struct StringLogger {
+    logs: SharedRwLock<String>,
+    /// Whether to use colored output for log messages. When enabled, log levels and other components of the log message will be colored for better readability when retrieved as a string.
+    /// 
+    /// Default: `false`.
+    pub colored: bool,
+}
+
+impl StringLogger {
+    /// Create a new `StringLogger` instance with an empty log string. This logger will accumulate log messages in memory and allow retrieval of the entire log history as a single string.
+    pub fn new() -> Self {
+        StringLogger {
+            logs: Arc::new(RwLock::new(String::new())),
+            colored: false,
+        }
+    }
+
+    /// Create a new `StringLogger` instance that shares the same log string with other owners. This allows `StringLogger` to write in a String displayed in the GUI, for example.
+    pub fn from_string(logs: SharedRwLock<String>) -> Self {
+        StringLogger {
+            logs,
+            colored: false,
+        }
+    }
+
+    /// Retrieve the accumulated log messages as a single string.
+    pub fn get_logs(&self) -> String {
+        self.logs.read().unwrap().clone()
+    }
+}
+
+impl Logger for StringLogger {
+    fn log(&mut self, loglevel: &LogLevel, time: Option<f32>, node_name: &String, callstack: &Vec<String>, internal_category: Option<&InternalLog>, message: &str) {
+        let mut logs = self.logs.write().unwrap();
+        let message = format_log_message(loglevel, time, node_name, callstack, internal_category, message, self.colored);
+        logs.push_str(&format!("{}\n", message));
+    }
+}
+
+/// Logger implementation that writes log messages to a file. The file is created at the specified path when the logger is initialized, and log messages are appended to the file as they are logged.
+#[derive(Debug)]
+pub struct FileLogger {
+    file: std::fs::File,
+    /// Whether to use colored output for log messages. When enabled, log levels and other components of the log message will be colored for better readability when viewed in the file (note that this may not display correctly in all text editors).
+    /// 
+    /// Default: `false`.
+    pub colored: bool,
+}
+
+impl FileLogger {
+    /// Create a new `FileLogger` that writes log messages to the specified file path. If the file does not exist, it will be created. If the file already exists, it will be overwritten.
+    pub fn new(filepath: String) -> Self {
+        let file = std::fs::File::create(&filepath).expect("Unable to create log file");
+        FileLogger { file, colored: false }
+    }
+}
+
+impl Logger for FileLogger {
+    fn log(&mut self, loglevel: &LogLevel, time: Option<f32>, node_name: &String, callstack: &Vec<String>, internal_category: Option<&InternalLog>, message: &str) {
+        use std::io::Write;
+        let message = format_log_message(loglevel, time, node_name, callstack, internal_category, message, self.colored);
+        writeln!(self.file, "{}", message).expect("Unable to write to log file");
     }
 }

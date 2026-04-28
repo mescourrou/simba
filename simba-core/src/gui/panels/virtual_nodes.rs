@@ -27,13 +27,23 @@ impl VirtualNodesPanel {
 
     pub fn draw(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str, time: f32) {
         egui::CollapsingHeader::new("Virtual Nodes").show(ui, |ui| {
-            for (node_name, records) in &self.records {
-                if let Some((_t, record)) = records.get_data_beq_time(time) {
-                    egui::CollapsingHeader::new(node_name).show(ui, |ui| {
-                        record.show(ui, ctx, unique_id);
-                    });
+            let width = ui.available_width();
+            egui::Resize::default()
+                .id("virtual_nodes_resize".into())
+                .resizable([false, true])
+                .min_width(width)
+                .max_width(width)
+                .min_height(100.0)
+                .show(ui, |ui| {
+                
+                for (node_name, records) in &self.records {
+                    if let Some((_t, record)) = records.get_data_beq_time(time) {
+                        egui::CollapsingHeader::new(node_name).show(ui, |ui| {
+                            record.show(ui, ctx, unique_id);
+                        });
+                    }
                 }
-            }
+            });
         });
     }
 }

@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use egui::ScrollArea;
 use simba_com::pub_sub::{BrokerTrait, PathKey};
 
 use crate::{simulator::SimbaBroker, utils::SharedRoLock};
@@ -41,8 +42,22 @@ impl BrokerPanel {
 
     pub fn draw(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str, _time: f32) {
         egui::CollapsingHeader::new("Channels").show(ui, |ui| {
-            let tree = self.broker.read().unwrap().meta_tree();
-            Self::draw_subtree(ui, &tree, PathKey::from_str("/").unwrap());
+            let width = ui.available_width();
+            egui::Resize::default()
+                .id("broker_resize".into())
+                .resizable([false, true])
+                .min_width(width)
+                .max_width(width)
+                .min_height(100.0)
+                .show(ui, |ui| {
+                ScrollArea::vertical()
+                .auto_shrink(false)
+                .show(ui, |ui| {
+                    ui.set_min_width(ui.available_width());
+                    let tree = self.broker.read().unwrap().meta_tree();
+                    Self::draw_subtree(ui, &tree, PathKey::from_str("/").unwrap());
+                });
+            });
         });
     }
 }

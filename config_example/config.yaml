@@ -5,9 +5,13 @@ log:
   excluded_nodes: []
   log_level:
     type: Info
+  outputs:
+    - type: Console
+    - type: File
+      value: "simulator.log"
 results:
   result_path: "results.json"
-max_time: 20.0
+max_time: 60.0
 time_analysis:
   exporter:
     type: TraceEventExporter

@@ -5,7 +5,7 @@ use std::{
     time::{self, Duration},
 };
 
-use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
+use egui::{Align2, Color32, Id, Pos2, Rect, Response, ScrollArea, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -18,7 +18,7 @@ use crate::{
     gui::{
         UIComponent,
         drawables::popup::Popup,
-        panels::{broker::BrokerPanel, virtual_nodes::VirtualNodesPanel},
+        panels::{broker::BrokerPanel, logs::LogsPanel, virtual_nodes::VirtualNodesPanel},
     },
     info,
     node::node_factory::NodeRecord,
@@ -127,8 +127,8 @@ impl PainterInfo {
 }
 
 struct PrivateParams {
-    server: SharedMutex<AsyncApiRunner>,
-    api: SharedMutex<AsyncApi>,
+    server: Option<SharedMutex<AsyncApiRunner>>,
+    api: Option<SharedMutex<AsyncApi>>,
     plugin_api: Option<Arc<dyn PluginAPI>>,
     config: Option<SimulatorConfig>,
     current_draw_time: f32,
@@ -144,26 +144,17 @@ struct PrivateParams {
     record_buffer: SharedMutex<Vec<Record>>,
     virtual_nodes_panel: VirtualNodesPanel,
     broker_panel: Option<BrokerPanel>,
+    log_panel: Option<LogsPanel>,
     current_max_time: f32,
     drawable_instants: BTreeSet<OrderedF32>,
-    context: Context,
+    context: Option<Context>,
 }
 
 impl Default for PrivateParams {
     fn default() -> Self {
-        let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
-        let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
-        let context = server
-            .lock()
-            .unwrap()
-            .get_simulator()
-            .lock()
-            .unwrap()
-            .get_context();
-        // server.lock().unwrap().run(None);
         Self {
-            server,
-            api,
+            server: None,
+            api: None,
             plugin_api: None,
             config: None,
             current_draw_time: 0.,
@@ -179,9 +170,10 @@ impl Default for PrivateParams {
             record_buffer: Arc::new(Mutex::new(Vec::new())),
             virtual_nodes_panel: VirtualNodesPanel::new(),
             broker_panel: None,
+            log_panel: None,
             current_max_time: 0.,
             drawable_instants: BTreeSet::new(),
-            context,
+            context: None,
         }
     }
 }
@@ -191,6 +183,7 @@ struct EnabledViews {
     configuration: bool,
     virtual_nodes: bool,
     broker: bool,
+    logs: bool,
 }
 
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
@@ -210,24 +203,13 @@ pub struct SimbaApp {
 
 impl Default for SimbaApp {
     fn default() -> Self {
-        let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
-        let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
-        let context = server
-            .lock()
-            .unwrap()
-            .get_simulator()
-            .lock()
-            .unwrap()
-            .get_context();
-        // server.lock().unwrap().run(None);
         Self {
             config_path: "".to_owned(),
             result_path: "".to_owned(),
             duration: 60.,
             p: PrivateParams {
-                server,
-                api,
-                context,
+                server: None,
+                api: None,
                 ..Default::default()
             },
             drawing_scale: 100.,
@@ -278,10 +260,11 @@ impl SimbaApp {
         server.lock().unwrap().run(plugin_api.clone());
         let mut n = Self {
             p: PrivateParams {
-                server,
-                api,
+                server: Some(server),
+                api: Some(api),
                 plugin_api,
-                context,
+                log_panel: Some(LogsPanel::new(&context)),
+                context: Some(context),
                 ..Default::default()
             },
             ..Default::default()
@@ -291,7 +274,7 @@ impl SimbaApp {
             n.p.config = None;
             match SimulatorConfig::load_from_path(Path::new(&n.config_path)) {
                 Ok(cfg) => {
-                    n.p.api
+                    n.p.api.as_ref().unwrap()
                         .lock()
                         .unwrap()
                         .load_config
@@ -301,16 +284,16 @@ impl SimbaApp {
                         });
                 }
                 Err(e) => {
-                    error!(n.p.context, "Error loading config: {}", e.detailed_error());
+                    error!(n.p.context.as_ref().unwrap(), "Error loading config: {}", e.detailed_error());
                 }
             }
             if load_results {
-                n.p.api.lock().unwrap().load_results.async_call(None);
+                n.p.api.as_ref().unwrap().lock().unwrap().load_results.async_call(None);
                 n.p.simulation_run = true;
             }
         }
         n.p.broker_panel = Some(BrokerPanel::new(
-            n.p.server
+            n.p.server.as_ref().unwrap()
                 .lock()
                 .unwrap()
                 .get_simulator()
@@ -330,8 +313,16 @@ impl SimbaApp {
         let server = Arc::new(Mutex::new(AsyncApiRunner::new()));
         let api = Arc::new(Mutex::new(server.lock().unwrap().get_api()));
         server.lock().unwrap().run(plugin_api.clone());
-        self.p.server = server;
-        self.p.api = api;
+        let context = server
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .get_context();
+        self.p.context = Some(context);
+        self.p.server = Some(server);
+        self.p.api = Some(api);
         self.p.plugin_api = plugin_api;
         if let Some(config) = default_config_path {
             self.config_path = config.to_str().unwrap().to_string();
@@ -339,7 +330,7 @@ impl SimbaApp {
             match SimulatorConfig::load_from_path(Path::new(&self.config_path)) {
                 Ok(cfg) => {
                     self.p
-                        .api
+                        .api.as_ref().unwrap()
                         .lock()
                         .unwrap()
                         .load_config
@@ -350,20 +341,21 @@ impl SimbaApp {
                 }
                 Err(e) => {
                     error!(
-                        self.p.context,
+                        self.p.context.as_ref().unwrap(),
                         "Error loading config: {}",
                         e.detailed_error()
                     );
                 }
             }
             if load_results {
-                self.p.api.lock().unwrap().load_results.async_call(None);
+                self.p.api.as_ref().unwrap().lock().unwrap().load_results.async_call(None);
                 self.p.simulation_run = true;
             }
         }
+        self.p.log_panel = Some(LogsPanel::new(self.p.context.as_ref().unwrap()));
         self.p.broker_panel = Some(BrokerPanel::new(
             self.p
-                .server
+                .server.as_ref().unwrap()
                 .lock()
                 .unwrap()
                 .get_simulator()
@@ -375,7 +367,7 @@ impl SimbaApp {
     }
 
     fn quit(&mut self) {
-        self.p.server.lock().unwrap().stop();
+        self.p.server.as_ref().unwrap().lock().unwrap().stop();
     }
 
     fn init_drawables(&mut self) {
@@ -383,7 +375,7 @@ impl SimbaApp {
             return;
         }
         let config = self.p.config.as_ref().unwrap();
-        self.p.map = drawables::map::Map::init(&config.environment, config, &self.p.context);
+        self.p.map = drawables::map::Map::init(&config.environment, config, self.p.context.as_ref().unwrap());
         for robot in &config.robots {
             self.p.robots.insert(
                 robot.name.clone(),
@@ -476,7 +468,7 @@ impl SimbaApp {
                     );
                 } else {
                     error!(
-                        self.p.context,
+                        self.p.context.as_ref().unwrap(),
                         "Received record for unknown robot {}", n.name
                     );
                 }
@@ -502,7 +494,7 @@ impl eframe::App for SimbaApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         {
             let api = self.p.api.clone();
-            for Record { time, node } in api
+            for Record { time, node } in api.as_ref().unwrap()
                 .lock()
                 .unwrap()
                 .simulator_api
@@ -550,6 +542,7 @@ impl eframe::App for SimbaApp {
                         ui.checkbox(&mut self.enabled_views.configuration, "Configuration");
                         ui.checkbox(&mut self.enabled_views.virtual_nodes, "Virtual Nodes");
                         ui.checkbox(&mut self.enabled_views.broker, "Communication Broker");
+                        ui.checkbox(&mut self.enabled_views.logs, "Logs");
                     });
                     ui.add_space(16.0);
                     ui.menu_button("Help", |ui| {
@@ -573,12 +566,12 @@ impl eframe::App for SimbaApp {
                 ui.text_edit_singleline(&mut self.config_path);
 
                 if ui.button("Load").clicked() {
-                    info!(self.p.context, "Load configuration");
+                    info!(self.p.context.as_ref().unwrap(), "Load configuration");
                     self.p.config = None;
                     match SimulatorConfig::load_from_path(Path::new(&self.config_path)) {
                         Ok(cfg) => {
                             self.p
-                                .api
+                                .api.as_ref().unwrap()
                                 .lock()
                                 .unwrap()
                                 .load_config
@@ -596,7 +589,7 @@ impl eframe::App for SimbaApp {
                 }
                 if self.p.config.is_none() {
                     let api = self.p.api.clone();
-                    if let Some(res) = api.lock().unwrap().load_config.try_get_result() {
+                    if let Some(res) = api.as_ref().unwrap().lock().unwrap().load_config.try_get_result() {
                         match res {
                             Err(e) => {
                                 let now = time::Instant::now();
@@ -616,7 +609,7 @@ impl eframe::App for SimbaApp {
                     }
                 }
                 if ui.button("Configurator").clicked() {
-                    self.p.configurator = Some(Configurator::init(&self.config_path, &self.p.context));
+                    self.p.configurator = Some(Configurator::init(&self.config_path, self.p.context.as_ref().unwrap()));
                 }
                 if let Some(configurator) = &mut self.p.configurator
                     && configurator.show(ui, ctx)
@@ -631,7 +624,7 @@ impl eframe::App for SimbaApp {
                 ui.text_edit_singleline(&mut self.result_path);
 
                 if ui.button("Load results").clicked() {
-                    info!(self.p.context, "Load previous results");
+                    info!(self.p.context.as_ref().unwrap(), "Load previous results");
                     let api = self.p.api.clone();
                     let records = self.p.record_buffer.clone();
                     let result_path = self.result_path.clone();
@@ -645,14 +638,14 @@ impl eframe::App for SimbaApp {
                             if btn == 0 {
                                 if config_is_none {
                                     let error = "Cannot load results in view only mode without a valid configuration loaded.";
-                                    error!(context, "{}", error);
+                                    error!(context.as_ref().unwrap(), "{}", error);
                                     error_buffer.lock().unwrap().push((time::Instant::now(), SimbaError::new(SimbaErrorTypes::InitializationError, error.to_string())));
                                 } else {
-                                    info!(context, "Load results in view");
-                                    let results = match Simulator::deserialize_results_from_file(Path::new(&result_path), &context) {
+                                    info!(context.as_ref().unwrap(), "Load results in view");
+                                    let results = match Simulator::deserialize_results_from_file(Path::new(&result_path), context.as_ref().unwrap()) {
                                         Ok(r) => r,
                                         Err(e) => {
-                                            error!(context, "Error loading results: {}", e.detailed_error());
+                                            error!(context.as_ref().unwrap(), "Error loading results: {}", e.detailed_error());
                                             error_buffer.lock().unwrap().push((time::Instant::now(), e));
                                             return;
                                         }
@@ -660,14 +653,14 @@ impl eframe::App for SimbaApp {
                                     records.lock().unwrap().extend(results.records);
                                 }
                             } else {
-                                info!(context, "Load results in simulator and view");
-                                api.lock().unwrap().load_results.async_call(Some(result_path.clone()));
+                                info!(context.as_ref().unwrap(), "Load results in simulator and view");
+                                api.as_ref().unwrap().lock().unwrap().load_results.async_call(Some(result_path.clone()));
                             }
                         }),
                     ));
                     self.p.simulation_run = true;
                 }
-                if let Some(Err(e)) = self.p.api.lock().unwrap().load_results.try_get_result() {
+                if let Some(Err(e)) = self.p.api.as_ref().unwrap().lock().unwrap().load_results.try_get_result() {
                     let now = time::Instant::now();
                     self.p.error_buffer.lock().unwrap().push((now, e.clone()));
                     self.p.simulation_run = false;
@@ -698,9 +691,9 @@ impl eframe::App for SimbaApp {
                         .add_enabled(self.p.config.is_some(), egui::Button::new("Run"))
                         .clicked()
                     {
-                        info!(self.p.context, "Run simulation");
+                        info!(self.p.context.as_ref().unwrap(), "Run simulation");
                         self.p
-                            .api
+                            .api.as_ref().unwrap()
                             .lock()
                             .unwrap()
                             .run
@@ -710,7 +703,7 @@ impl eframe::App for SimbaApp {
                             });
                         self.p.simulation_run = true;
                     }
-                    if let Some(Err(e)) = self.p.api.lock().unwrap().run.try_get_result() {
+                    if let Some(Err(e)) = self.p.api.as_ref().unwrap().lock().unwrap().run.try_get_result() {
                         self.p.error_buffer.lock().unwrap().push((time::Instant::now(), e));
                     }
                     let play_pause_btn = if self.p.playing.is_none() {
@@ -775,11 +768,11 @@ impl eframe::App for SimbaApp {
                         .add_enabled(self.p.config.is_some(), egui::Button::new("Results"))
                         .clicked()
                     {
-                        info!(self.p.context, "Analysing results");
-                        self.p.api.lock().unwrap().compute_results.async_call(());
+                        info!(self.p.context.as_ref().unwrap(), "Analysing results");
+                        self.p.api.as_ref().unwrap().lock().unwrap().compute_results.async_call(());
                     }
                     if let Some(Err(e)) =
-                        self.p.api.lock().unwrap().compute_results.try_get_result()
+                        self.p.api.as_ref().unwrap().lock().unwrap().compute_results.try_get_result()
                     {
                         self.p.error_buffer.lock().unwrap().push((time::Instant::now(), e));
                     }
@@ -794,13 +787,30 @@ impl eframe::App for SimbaApp {
         egui::SidePanel::right("right-panel").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.vertical(|ui| {
+                    if self.enabled_views.logs {
+                        self.p
+                            .log_panel
+                            .as_mut()
+                            .expect("GUI application not well initialized: LogPanel is None")
+                            .draw(ui, ctx, "logs_panel", self.p.current_draw_time);
+                    }
                     if self.enabled_views.configuration {
                         egui::CollapsingHeader::new("Configuration").show(ui, |ui| {
-                            egui::ScrollArea::both().show(ui, |ui| {
-                                if let Some(cfg) = &self.p.config {
-                                    let unique_id = String::new();
-                                    cfg.show(ui, ctx, &unique_id);
-                                }
+                            let width = ui.available_width();
+                            egui::Resize::default()
+                                .id("config_resize".into())
+                                .resizable([false, true])
+                                .min_width(width)
+                                .max_width(width)
+                                .min_height(100.0)
+                                .show(ui, |ui| {
+                                egui::ScrollArea::both().show(ui, |ui| {
+                                    ui.set_min_width(ui.available_width());
+                                    if let Some(cfg) = &self.p.config {
+                                        let unique_id = String::new();
+                                        cfg.show(ui, ctx, &unique_id);
+                                    }
+                                });
                             });
                         });
                     }
