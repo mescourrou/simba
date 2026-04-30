@@ -16,7 +16,8 @@ use crate::{
         pybinds::{NavigatorWrapper, PythonNavigator},
     },
     networking::{
-        network::{MessageFlag, Network}, pybinds::MessageTypesWrapper,
+        network::{MessageFlag, Network},
+        pybinds::MessageTypesWrapper,
     },
     physics::{
         Physics,

@@ -7,6 +7,7 @@ pub mod confy;
 pub mod determinist_random_variable;
 pub mod distributions;
 pub mod enum_tools;
+pub mod frame;
 pub mod geometry;
 pub mod macros;
 pub mod maths;

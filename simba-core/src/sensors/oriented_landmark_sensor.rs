@@ -33,6 +33,7 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::State;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
+use crate::utils::frame::{Frame, FrameConfig, FrameRecord};
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use serde_derive::{Deserialize, Serialize};
 
@@ -254,6 +255,9 @@ pub struct OrientedLandmarkSensorConfig {
     pub filters: Vec<OrientedLandmarkSensorFilterConfig>,
     /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
     pub xray: bool,
+    /// Frame of the sensor with respect to the robot frame. The observations will be given in this frame.
+    #[check]
+    pub frame: FrameConfig,
 }
 
 impl Check for OrientedLandmarkSensorConfig {
@@ -285,6 +289,7 @@ impl Default for OrientedLandmarkSensorConfig {
             faults: Vec::new(),
             filters: Vec::new(),
             xray: false,
+            frame: FrameConfig::default(),
         }
     }
 }
@@ -334,6 +339,15 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     ui.checkbox(&mut self.xray, "");
                 });
 
+                self.frame.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+
                 OrientedLandmarkSensorFilterConfig::show_all_mut(
                     &mut self.filters,
                     ui,
@@ -376,6 +390,8 @@ impl UIComponent for OrientedLandmarkSensorConfig {
                     ui.label(format!("X-Ray mode: {}", self.xray));
                 });
 
+                self.frame.show(ui, ctx, unique_id);
+
                 OrientedLandmarkSensorFilterConfig::show_all(&self.filters, ui, ctx, unique_id);
 
                 OrientedLandmarkSensorFaultModelConfig::show_all(&self.faults, ui, ctx, unique_id);
@@ -387,6 +403,7 @@ impl UIComponent for OrientedLandmarkSensorConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct OrientedLandmarkSensorRecord {
     last_time: Option<f32>,
+    frame: FrameRecord,
 }
 
 #[cfg(feature = "gui")]
@@ -417,6 +434,8 @@ pub struct OrientedLandmarkObservation {
     pub width: f32,
     /// Fault models applied to this observation.
     pub applied_faults: Vec<OrientedLandmarkSensorFaultModelConfig>,
+    /// Frame of the observation with respect to the robot frame.
+    pub frame: Frame,
 }
 
 impl Default for OrientedLandmarkObservation {
@@ -428,12 +447,13 @@ impl Default for OrientedLandmarkObservation {
             height: 1.,
             width: 0.,
             applied_faults: Vec::new(),
+            frame: Frame::default(),
         }
     }
 }
 
 impl Recordable<OrientedLandmarkObservationRecord> for OrientedLandmarkObservation {
-    fn record(&self, _context: &Context) -> OrientedLandmarkObservationRecord {
+    fn record(&self, context: &Context) -> OrientedLandmarkObservationRecord {
         OrientedLandmarkObservationRecord {
             id: self.id,
             labels: self.labels.clone(),
@@ -441,6 +461,7 @@ impl Recordable<OrientedLandmarkObservationRecord> for OrientedLandmarkObservati
             height: self.height,
             width: self.width,
             applied_faults: self.applied_faults.clone(),
+            frame: self.frame.record(context),
         }
     }
 }
@@ -460,11 +481,13 @@ pub struct OrientedLandmarkObservationRecord {
     pub width: f32,
     /// Fault models applied at observation generation time.
     pub applied_faults: Vec<OrientedLandmarkSensorFaultModelConfig>,
+    /// Frame of the observation with respect to the robot frame.
+    pub frame: FrameRecord,
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for OrientedLandmarkObservationRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Id: {}", self.id));
             ui.label("Labels:");
@@ -489,6 +512,7 @@ impl UIComponent for OrientedLandmarkObservationRecord {
                     ui.label(format!("{:?}", fault));
                 }
             }
+            self.frame.show(ui, ctx, unique_id);
         });
     }
 }
@@ -506,6 +530,8 @@ pub struct OrientedLandmarkSensor {
     filters: Vec<OrientedLandmarkSensorFilterType>,
     /// If true, will detect all landmarks, even if they are behind obstacles (no raycasting).
     xray: bool,
+    /// Frame of the sensor with respect to the robot frame. The observations will be given in this frame.
+    frame: Frame,
 }
 
 impl OrientedLandmarkSensor {
@@ -625,6 +651,7 @@ impl OrientedLandmarkSensor {
             faults: fault_models,
             filters,
             xray: config.xray,
+            frame: Frame::from_config(&config.frame),
         })
     }
 }
@@ -665,6 +692,8 @@ impl Sensor for OrientedLandmarkSensor {
         } else {
             State::new() // 0
         };
+        let attached_frame = self.frame.attach_to_state(&state);
+        let state = attached_frame.state();
 
         let rotation_matrix =
             nalgebra::geometry::Rotation3::from_euler_angles(0., 0., state.pose.z);
@@ -688,6 +717,7 @@ impl Sensor for OrientedLandmarkSensor {
                 applied_faults: Vec::new(),
                 height: landmark.height,
                 width: landmark.width,
+                frame: self.frame.clone(),
             });
 
             let mut keep_observation = Some(obs);
@@ -1044,6 +1074,7 @@ impl Sensor for OrientedLandmarkSensor {
                                                 f.config().clone(),
                                             ),
                                         ],
+                                        frame: self.frame.clone(),
                                     },
                                 );
                                 new_obs.push(obs);
@@ -1122,9 +1153,10 @@ impl Sensor for OrientedLandmarkSensor {
 }
 
 impl Recordable<SensorRecord> for OrientedLandmarkSensor {
-    fn record(&self, _context: &Context) -> SensorRecord {
+    fn record(&self, context: &Context) -> SensorRecord {
         SensorRecord::OrientedLandmarkSensor(OrientedLandmarkSensorRecord {
             last_time: self.last_time,
+            frame: self.frame.record(context),
         })
     }
 }

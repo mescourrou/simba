@@ -1556,7 +1556,12 @@ impl Simulator {
         );
         let mut recording_file = match File::open(filename) {
             Ok(file) => file,
-            Err(e) => return Err(SimbaError::new(SimbaErrorTypes::ConfigError, format!("Impossible to open record file: {}", e))),
+            Err(e) => {
+                return Err(SimbaError::new(
+                    SimbaErrorTypes::ConfigError,
+                    format!("Impossible to open record file: {}", e),
+                ));
+            }
         };
         let mut content = String::new();
         recording_file

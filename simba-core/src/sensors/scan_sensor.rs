@@ -40,10 +40,7 @@ use crate::{
     simulator::SimulatorConfig,
     state_estimators::State,
     utils::{
-        determinist_random_variable::DeterministRandomVariableFactory,
-        enum_tools::EnumVariables,
-        geometry::{is_angle_inside, segments_intersection},
-        periodicity::{Periodicity, PeriodicityConfig},
+        determinist_random_variable::DeterministRandomVariableFactory, enum_tools::EnumVariables, frame::{Frame, FrameConfig, FrameRecord}, geometry::{is_angle_inside, segments_intersection}, periodicity::{Periodicity, PeriodicityConfig}
     },
 };
 #[cfg(feature = "gui")]
@@ -283,6 +280,9 @@ pub struct ScanSensorConfig {
     /// Filter configuration list applied before fault injection.
     #[check]
     pub filters: Vec<ScanSensorFilterConfig>,
+    /// Frame of the sensor with respect to the robot frame. The observations will be given in this frame.
+    #[check]
+    pub frame: FrameConfig,
 }
 
 impl Check for ScanSensorConfig {
@@ -317,6 +317,7 @@ impl Default for ScanSensorConfig {
             }),
             faults: vec![],
             filters: vec![],
+            frame: FrameConfig::default(),
         }
     }
 }
@@ -422,6 +423,15 @@ impl UIComponent for ScanSensorConfig {
                     }
                 });
 
+                self.frame.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    &format!("scan-sensor-frame-{}", unique_id),
+                );
+
                 ScanSensorFilterConfig::show_all_mut(
                     &mut self.filters,
                     ui,
@@ -444,7 +454,7 @@ impl UIComponent for ScanSensorConfig {
             });
     }
 
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, unique_id: &str) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         egui::CollapsingHeader::new("Scan sensor")
             .id_salt(format!("scan-sensor-{}", unique_id))
             .show(ui, |ui| {
@@ -455,7 +465,7 @@ impl UIComponent for ScanSensorConfig {
 
                 if let Some(p) = &self.activation_time {
                     ui.horizontal(|ui| {
-                        p.show(ui, _ctx, unique_id);
+                        p.show(ui, ctx, unique_id);
                     });
                 }
 
@@ -480,9 +490,11 @@ impl UIComponent for ScanSensorConfig {
                     }
                 }
 
-                ScanSensorFilterConfig::show_all(&self.filters, ui, _ctx, unique_id);
+                self.frame.show(ui, ctx, &format!("scan-sensor-frame-{}", unique_id));
 
-                ScanSensorFaultModelConfig::show_all(&self.faults, ui, _ctx, unique_id);
+                ScanSensorFilterConfig::show_all(&self.filters, ui, ctx, unique_id);
+
+                ScanSensorFaultModelConfig::show_all(&self.faults, ui, ctx, unique_id);
             });
     }
 }
@@ -491,11 +503,12 @@ impl UIComponent for ScanSensorConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ScanSensorRecord {
     last_time: Option<f32>,
+    frame: FrameRecord,
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for ScanSensorRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.label(format!(
             "Last time: {}",
             match self.last_time {
@@ -503,6 +516,7 @@ impl UIComponent for ScanSensorRecord {
                 None => "None".to_string(),
             }
         ));
+        self.frame.show(ui, ctx, unique_id);
     }
 }
 
@@ -517,6 +531,8 @@ pub struct ScanObservation {
     pub radial_velocities: Vec<f32>,
     /// Fault configurations applied to produce this observation.
     pub applied_faults: Vec<ScanSensorFaultModelConfig>,
+    /// Frame of the observation with respect to the robot frame.
+    pub frame: Frame,
 }
 
 impl Iterator for ScanObservation {
@@ -537,12 +553,13 @@ impl Iterator for ScanObservation {
 }
 
 impl Recordable<ScanObservationRecord> for ScanObservation {
-    fn record(&self, _context: &Context) -> ScanObservationRecord {
+    fn record(&self, context: &Context) -> ScanObservationRecord {
         ScanObservationRecord {
             distances: self.distances.clone(),
             angles: self.angles.clone(),
             radial_velocities: self.radial_velocities.clone(),
             applied_faults: self.applied_faults.clone(),
+            frame: self.frame.record(context),
         }
     }
 }
@@ -558,11 +575,13 @@ pub struct ScanObservationRecord {
     pub radial_velocities: Vec<f32>,
     /// Fault configurations applied at observation generation time.
     pub applied_faults: Vec<ScanSensorFaultModelConfig>,
+    /// Frame of the observation with respect to the robot frame.
+    pub frame: FrameRecord,
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for ScanObservationRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Distances: {:?}", self.distances));
             ui.label(format!("Angles: {:?}", self.angles));
@@ -575,6 +594,7 @@ impl UIComponent for ScanObservationRecord {
                     ui.label(format!("{:?}", fault));
                 }
             }
+            self.frame.show(ui, ctx, unique_id);
         });
     }
 }
@@ -590,6 +610,7 @@ pub struct ScanSensor {
     faults: Vec<FaultModelTypeScanSensor>,
     filters: Vec<ScanSensorFilterType>,
     last_time: Option<f32>,
+    frame: Frame,
 }
 
 impl ScanSensor {
@@ -699,6 +720,7 @@ impl ScanSensor {
             faults: fault_models,
             filters,
             last_time: None,
+            frame: Frame::from_config(&config.frame),
         })
     }
 }
@@ -745,6 +767,8 @@ impl Sensor for ScanSensor {
         } else {
             State::new() // 0
         };
+        let attached_frame = self.frame.attach_to_state(&state);
+        let state = attached_frame.state();
         let position = state.pose.fixed_rows::<2>(0).into_owned();
 
         // List of observable landmarks with their angle ranges (in sensor frame) and extremities (in world frame)
@@ -753,7 +777,7 @@ impl Sensor for ScanSensor {
                 &position,
                 Some(self.height),
                 self.detection_distance,
-                Some(node.name()),
+                Some(format!("{}-{}", node.name(), self.frame.transform().to_string())),
                 context,
             )
             .into_iter()
@@ -798,7 +822,10 @@ impl Sensor for ScanSensor {
             }
         }
 
-        let mut observation = ScanObservation::default();
+        let mut observation = ScanObservation {
+            frame: self.frame.clone(),
+            ..Default::default()
+        };
         // Ray casting
         for ray in &self.rays {
             let world_ray_angle = state.pose.z + ray;
@@ -1312,9 +1339,10 @@ impl Sensor for ScanSensor {
 }
 
 impl Recordable<SensorRecord> for ScanSensor {
-    fn record(&self, _context: &Context) -> SensorRecord {
+    fn record(&self, context: &Context) -> SensorRecord {
         SensorRecord::ScanSensor(ScanSensorRecord {
             last_time: self.last_time,
+            frame: self.frame.record(context),
         })
     }
 }

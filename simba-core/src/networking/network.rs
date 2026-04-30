@@ -25,7 +25,7 @@ use simba_macros::config_derives;
 
 use crate::context::Context;
 use crate::internal;
-use crate::networking::{message_types::MessageTypes, channels};
+use crate::networking::{channels, message_types::MessageTypes};
 use crate::simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig};
 use crate::utils::SharedRwLock;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;

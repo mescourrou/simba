@@ -72,7 +72,7 @@ robots:
     #     faults: []
     # - name: LandmarkSensor
     #   config: 
-    #     type: OrientedLandmarkSensor
+    #     type: RobotSensor
     #     detection_distance: 100.0
     #     activation_time:
     #       period: {type: Num, value: 0.1}
@@ -202,6 +202,13 @@ robots:
     type: Internal
     model: 
       type: Holonomic
+  sensor_manager:
+    sensors:
+      - name: "GNSS"
+        config: 
+          type: GNSS
+          
+        
 computation_units:
 - name: Central Unit
   network:

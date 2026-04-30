@@ -31,6 +31,7 @@ use crate::simulator::SimulatorConfig;
 use crate::state_estimators::{State, StateRecord};
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
+use crate::utils::frame::{Frame, FrameConfig, FrameRecord};
 use crate::utils::geometry::smallest_theta_diff;
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
 use nalgebra::{Matrix3, Vector2};
@@ -205,6 +206,9 @@ pub struct DisplacementSensorConfig {
     pub filters: Vec<DisplacementSensorFilterConfig>,
     /// If `true`, use Lie-movement mode (currently not implemented).
     pub lie_movement: bool,
+    /// Frame configuration for the sensor observations.
+    #[check]
+    pub frame: FrameConfig,
 }
 
 impl Default for DisplacementSensorConfig {
@@ -217,6 +221,7 @@ impl Default for DisplacementSensorConfig {
             faults: Vec::new(),
             filters: Vec::new(),
             lie_movement: false,
+            frame: FrameConfig::default(),
         }
     }
 }
@@ -258,6 +263,15 @@ impl UIComponent for DisplacementSensorConfig {
                     ui.checkbox(&mut self.lie_movement, "");
                 });
 
+                self.frame.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+
                 DisplacementSensorFilterConfig::show_all_mut(
                     &mut self.filters,
                     ui,
@@ -294,6 +308,8 @@ impl UIComponent for DisplacementSensorConfig {
 
                 ui.label(format!("Lie movement: {}", self.lie_movement));
 
+                self.frame.show(ui, ctx, unique_id);
+
                 DisplacementSensorFilterConfig::show_all(&self.filters, ui, ctx, unique_id);
 
                 DisplacementSensorFaultModelConfig::show_all(&self.faults, ui, ctx, unique_id);
@@ -307,6 +323,7 @@ pub struct DisplacementSensorRecord {
     last_time: Option<f32>,
     last_state: StateRecord,
     lie_movement: bool, // Default is false
+    frame: FrameRecord,
 }
 
 #[cfg(feature = "gui")]
@@ -322,6 +339,7 @@ impl UIComponent for DisplacementSensorRecord {
         ui.label(format!("Lie movement: {}", self.lie_movement));
         ui.label("Last state: ");
         self.last_state.show(ui, ctx, unique_id);
+        self.frame.show(ui, ctx, unique_id);
     }
 }
 
@@ -334,14 +352,17 @@ pub struct DisplacementObservation {
     pub rotation: f32,
     /// Fault models applied to this observation.
     pub applied_faults: Vec<DisplacementSensorFaultModelConfig>,
+    /// Frame of the observation.
+    pub frame: Frame,
 }
 
 impl Recordable<DisplacementObservationRecord> for DisplacementObservation {
-    fn record(&self, _context: &Context) -> DisplacementObservationRecord {
+    fn record(&self, context: &Context) -> DisplacementObservationRecord {
         DisplacementObservationRecord {
             translation: self.translation,
             rotation: self.rotation,
             applied_faults: self.applied_faults.clone(),
+            frame: self.frame.record(context),
         }
     }
 }
@@ -355,14 +376,18 @@ pub struct DisplacementObservationRecord {
     pub rotation: f32,
     /// Fault models applied at observation generation time.
     pub applied_faults: Vec<DisplacementSensorFaultModelConfig>,
+    /// Recorded frame of the observation.
+    pub frame: FrameRecord,
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for DisplacementObservationRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!("Translation: {:?}", self.translation));
             ui.label(format!("Rotation: {}", self.rotation));
+            ui.label("Frame: ");
+            self.frame.show(ui, ctx, unique_id);
         });
     }
 }
@@ -379,6 +404,7 @@ pub struct DisplacementSensor {
     faults: Vec<DisplacementSensorFaultModelType>,
     filters: Vec<DisplacementSensorFilterType>,
     lie_movement: bool,
+    frame: Frame,
 }
 
 impl DisplacementSensor {
@@ -464,6 +490,7 @@ impl DisplacementSensor {
             faults: fault_models,
             filters,
             lie_movement: config.lie_movement,
+            frame: Frame::from_config(&config.frame),
         })
     }
 }
@@ -509,6 +536,8 @@ impl Sensor for DisplacementSensor {
             .expect("Node with Displacement sensor should have Physics");
         let physic = arc_physic.read().unwrap();
         let state = physic.state(time, context);
+        let attached_frame = self.frame.attach_to_state(&state);
+        let state = attached_frame.state();
 
         let (tx, ty, r) = if self.lie_movement {
             todo!("Lie movement not implemented yet for DisplacementSensor");
@@ -541,6 +570,7 @@ impl Sensor for DisplacementSensor {
             translation: Vector2::new(tx, ty),
             rotation: r,
             applied_faults: Vec::new(),
+            frame: self.frame.clone(),
         });
 
         let mut keep_observation = Some(obs);
@@ -798,6 +828,7 @@ impl Recordable<SensorRecord> for DisplacementSensor {
             last_time: self.last_time,
             last_state: self.last_state.record(context),
             lie_movement: self.lie_movement,
+            frame: self.frame.record(context),
         })
     }
 }

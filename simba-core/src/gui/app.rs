@@ -274,7 +274,9 @@ impl SimbaApp {
             n.p.config = None;
             match SimulatorConfig::load_from_path(Path::new(&n.config_path)) {
                 Ok(cfg) => {
-                    n.p.api.as_ref().unwrap()
+                    n.p.api
+                        .as_ref()
+                        .unwrap()
                         .lock()
                         .unwrap()
                         .load_config
@@ -284,16 +286,28 @@ impl SimbaApp {
                         });
                 }
                 Err(e) => {
-                    error!(n.p.context.as_ref().unwrap(), "Error loading config: {}", e.detailed_error());
+                    error!(
+                        n.p.context.as_ref().unwrap(),
+                        "Error loading config: {}",
+                        e.detailed_error()
+                    );
                 }
             }
             if load_results {
-                n.p.api.as_ref().unwrap().lock().unwrap().load_results.async_call(None);
+                n.p.api
+                    .as_ref()
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .load_results
+                    .async_call(None);
                 n.p.simulation_run = true;
             }
         }
         n.p.broker_panel = Some(BrokerPanel::new(
-            n.p.server.as_ref().unwrap()
+            n.p.server
+                .as_ref()
+                .unwrap()
                 .lock()
                 .unwrap()
                 .get_simulator()
@@ -330,7 +344,9 @@ impl SimbaApp {
             match SimulatorConfig::load_from_path(Path::new(&self.config_path)) {
                 Ok(cfg) => {
                     self.p
-                        .api.as_ref().unwrap()
+                        .api
+                        .as_ref()
+                        .unwrap()
                         .lock()
                         .unwrap()
                         .load_config
@@ -348,14 +364,23 @@ impl SimbaApp {
                 }
             }
             if load_results {
-                self.p.api.as_ref().unwrap().lock().unwrap().load_results.async_call(None);
+                self.p
+                    .api
+                    .as_ref()
+                    .unwrap()
+                    .lock()
+                    .unwrap()
+                    .load_results
+                    .async_call(None);
                 self.p.simulation_run = true;
             }
         }
         self.p.log_panel = Some(LogsPanel::new(self.p.context.as_ref().unwrap()));
         self.p.broker_panel = Some(BrokerPanel::new(
             self.p
-                .server.as_ref().unwrap()
+                .server
+                .as_ref()
+                .unwrap()
                 .lock()
                 .unwrap()
                 .get_simulator()
@@ -375,7 +400,11 @@ impl SimbaApp {
             return;
         }
         let config = self.p.config.as_ref().unwrap();
-        self.p.map = drawables::map::Map::init(&config.environment, config, self.p.context.as_ref().unwrap());
+        self.p.map = drawables::map::Map::init(
+            &config.environment,
+            config,
+            self.p.context.as_ref().unwrap(),
+        );
         for robot in &config.robots {
             self.p.robots.insert(
                 robot.name.clone(),
@@ -494,7 +523,9 @@ impl eframe::App for SimbaApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         {
             let api = self.p.api.clone();
-            for Record { time, node } in api.as_ref().unwrap()
+            for Record { time, node } in api
+                .as_ref()
+                .unwrap()
                 .lock()
                 .unwrap()
                 .simulator_api
@@ -692,19 +723,29 @@ impl eframe::App for SimbaApp {
                         .clicked()
                     {
                         info!(self.p.context.as_ref().unwrap(), "Run simulation");
-                        self.p
-                            .api.as_ref().unwrap()
-                            .lock()
-                            .unwrap()
-                            .run
-                            .async_call(AsyncApiRunRequest {
+                        self.p.api.as_ref().unwrap().lock().unwrap().run.async_call(
+                            AsyncApiRunRequest {
                                 max_time: Some(self.duration),
                                 reset: self.p.simulation_run,
-                            });
+                            },
+                        );
                         self.p.simulation_run = true;
                     }
-                    if let Some(Err(e)) = self.p.api.as_ref().unwrap().lock().unwrap().run.try_get_result() {
-                        self.p.error_buffer.lock().unwrap().push((time::Instant::now(), e));
+                    if let Some(Err(e)) = self
+                        .p
+                        .api
+                        .as_ref()
+                        .unwrap()
+                        .lock()
+                        .unwrap()
+                        .run
+                        .try_get_result()
+                    {
+                        self.p
+                            .error_buffer
+                            .lock()
+                            .unwrap()
+                            .push((time::Instant::now(), e));
                     }
                     let play_pause_btn = if self.p.playing.is_none() {
                         egui::Button::new("Play ")
@@ -769,12 +810,30 @@ impl eframe::App for SimbaApp {
                         .clicked()
                     {
                         info!(self.p.context.as_ref().unwrap(), "Analysing results");
-                        self.p.api.as_ref().unwrap().lock().unwrap().compute_results.async_call(());
+                        self.p
+                            .api
+                            .as_ref()
+                            .unwrap()
+                            .lock()
+                            .unwrap()
+                            .compute_results
+                            .async_call(());
                     }
-                    if let Some(Err(e)) =
-                        self.p.api.as_ref().unwrap().lock().unwrap().compute_results.try_get_result()
+                    if let Some(Err(e)) = self
+                        .p
+                        .api
+                        .as_ref()
+                        .unwrap()
+                        .lock()
+                        .unwrap()
+                        .compute_results
+                        .try_get_result()
                     {
-                        self.p.error_buffer.lock().unwrap().push((time::Instant::now(), e));
+                        self.p
+                            .error_buffer
+                            .lock()
+                            .unwrap()
+                            .push((time::Instant::now(), e));
                     }
                 });
 
@@ -804,14 +863,14 @@ impl eframe::App for SimbaApp {
                                 .max_width(width)
                                 .min_height(100.0)
                                 .show(ui, |ui| {
-                                egui::ScrollArea::both().show(ui, |ui| {
-                                    ui.set_min_width(ui.available_width());
-                                    if let Some(cfg) = &self.p.config {
-                                        let unique_id = String::new();
-                                        cfg.show(ui, ctx, &unique_id);
-                                    }
+                                    egui::ScrollArea::both().show(ui, |ui| {
+                                        ui.set_min_width(ui.available_width());
+                                        if let Some(cfg) = &self.p.config {
+                                            let unique_id = String::new();
+                                            cfg.show(ui, ctx, &unique_id);
+                                        }
+                                    });
                                 });
-                            });
                         });
                     }
                     if self.enabled_views.virtual_nodes {

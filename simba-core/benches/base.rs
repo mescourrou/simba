@@ -1,18 +1,18 @@
+use criterion::{Criterion, criterion_group, criterion_main};
+use simba::{
+    logger::LogLevel,
+    simulator::{Simulator, SimulatorConfig},
+};
 use std::path::Path;
-use criterion::{criterion_group, criterion_main, Criterion};
-use simba::{logger::LogLevel, simulator::{Simulator, SimulatorConfig}};
 extern crate simba;
 
 fn run_benchmark(c: &mut Criterion, name: &str, config: SimulatorConfig) {
-    let mut simulator = Simulator::from_config(
-        &config,
-        None,
-    )
-    .map_err(|e| {
-        println!("Error while loading config: {}", e.detailed_error());
-        e
-    })
-    .unwrap();
+    let mut simulator = Simulator::from_config(&config, None)
+        .map_err(|e| {
+            println!("Error while loading config: {}", e.detailed_error());
+            e
+        })
+        .unwrap();
 
     c.bench_function(name, |b| {
         b.iter(|| {
@@ -49,5 +49,10 @@ fn config_pooled(c: &mut Criterion) {
     run_benchmark(c, "run_config_pooled", config);
 }
 
-criterion_group!(benches_config, config_monothread, config_multithread, config_pooled);
+criterion_group!(
+    benches_config,
+    config_monothread,
+    config_multithread,
+    config_pooled
+);
 criterion_main!(benches_config);

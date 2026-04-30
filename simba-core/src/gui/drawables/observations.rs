@@ -1,17 +1,15 @@
 use egui::{Color32, Rect, Shape, Stroke, Vec2};
-use nalgebra::{Rotation2, Vector2, Vector3};
+use nalgebra::{Const, OPoint, Rotation2, Vector2, Vector3};
 
 use crate::{
-    gui::app::PainterInfo,
-    sensors::{
+    gui::app::PainterInfo, sensors::{
         gnss_sensor::{GNSSObservationRecord, GNSSSensorConfig},
         oriented_landmark_sensor::{
             OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,
         },
         robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig},
         scan_sensor::{ScanObservationRecord, ScanSensorConfig},
-    },
-    simulator::SimulatorConfig,
+    }, simulator::SimulatorConfig, state_estimators::State, utils::frame::{Frame, FrameConfig}
 };
 
 pub struct OrientedRobotObservation {
@@ -39,19 +37,32 @@ impl OrientedRobotObservation {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
 
-        let rot_matrix = Rotation2::new(robot_pose[2]);
-        let obs_pose =
-            rot_matrix * Vector2::new(obs.pose[0], obs.pose[1]) + robot_pose.fixed_rows::<2>(0);
+        let frame = obs.frame;
+        let frame = Frame::new(frame.x, frame.y, frame.theta);
+        let robot_state = State {
+            pose: *robot_pose,
+             ..Default::default()
+        };
+        let attached_frame = frame.attach_to_state(&robot_state);
+        let robot_pose = attached_frame.state().pose;
+        let robot_position = Vector2::new(robot_pose.x, robot_pose.y);
 
-        let robot_position = center + Vec2::new(robot_pose.x, robot_pose.y) * scale;
+        let robot_position = Vec2::new(robot_position.x, robot_position.y);
+        if !painter_info.is_inside(&robot_position) {
+            return Err(robot_position);
+        }
+        let robot_position = center + robot_position * scale;
+
+        let obs_pose = attached_frame.transform_point_frame_to_global(&Vector2::new(obs.pose[0], obs.pose[1]));
         let obs_position = Vec2::new(obs_pose.x, obs_pose.y);
+        let obs_angle = obs.pose[2];
         if !painter_info.is_inside(&obs_position) {
             return Err(obs_position);
         }
         let arrow_tip = obs_position
             + Vec2 {
-                x: self.arrow_len * (obs.pose[2] + robot_pose[2]).cos(),
-                y: self.arrow_len * (obs.pose[2] + robot_pose[2]).sin(),
+                x: self.arrow_len * (obs_angle + robot_pose[2]).cos(),
+                y: self.arrow_len * (obs_angle + robot_pose[2]).sin(),
             };
         if !painter_info.is_inside(&arrow_tip) {
             return Err(arrow_tip);
@@ -102,20 +113,35 @@ impl OrientedLandmarkObservation {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
 
-        let rot_matrix = Rotation2::new(robot_pose[2]);
-        let obs_pose =
-            rot_matrix * Vector2::new(obs.pose[0], obs.pose[1]) + robot_pose.fixed_rows::<2>(0);
+        let frame = obs.frame;
+        let frame = Frame::new(frame.x, frame.y, frame.theta);
+        let robot_state = State {
+            pose: *robot_pose,
+             ..Default::default()
+        };
+        let attached_frame = frame.attach_to_state(&robot_state);
+        let robot_pose = attached_frame.state().pose;
+        let robot_position = Vector2::new(robot_pose.x, robot_pose.y);
+        let robot_angle = robot_pose[2];
 
-        let robot_position = center + Vec2::new(robot_pose.x, robot_pose.y) * scale; // The robot should be inside the painter area (managed by the robot draw)
+        let obs_pose = attached_frame.transform_point_frame_to_global(&Vector2::new(obs.pose[0], obs.pose[1]));
+            // rot_matrix * Vector2::new(obs.pose[0], obs.pose[1]) + robot_position;
+
+        let robot_position = Vec2::new(robot_position.x, robot_position.y);
+        if !painter_info.is_inside(&robot_position) {
+            return Err(robot_position);
+        }
+        let robot_position = center + robot_position * scale;
 
         let obs_position = Vec2::new(obs_pose.x, obs_pose.y);
+        let obs_angle = obs.pose[2];
         if !painter_info.is_inside(&obs_position) {
             return Err(obs_position);
         }
         let arrow_tip = obs_position
             + Vec2 {
-                x: self.arrow_len * (obs.pose[2] + robot_pose[2]).cos(),
-                y: self.arrow_len * (obs.pose[2] + robot_pose[2]).sin(),
+                x: self.arrow_len * (obs_angle + robot_angle).cos(),
+                y: self.arrow_len * (obs_angle + robot_angle).sin(),
             };
         if !painter_info.is_inside(&arrow_tip) {
             return Err(arrow_tip);
@@ -140,8 +166,8 @@ impl OrientedLandmarkObservation {
         if obs.width > 0.0 {
             let half_width = obs.width / 2.0;
             let dir_vector = Vec2::new(
-                half_width * (obs.pose[2] + robot_pose[2] + std::f32::consts::FRAC_PI_2).cos(),
-                half_width * (obs.pose[2] + robot_pose[2] + std::f32::consts::FRAC_PI_2).sin(),
+                half_width * (obs_angle + robot_angle + std::f32::consts::FRAC_PI_2).cos(),
+                half_width * (obs_angle + robot_angle + std::f32::consts::FRAC_PI_2).sin(),
             );
             let p1 = obs_position + dir_vector * scale;
             let p2 = obs_position - dir_vector * scale;
@@ -193,11 +219,38 @@ impl GNSSObservation {
         if !painter_info.is_inside(&arrow_tip) {
             return Err(arrow_tip);
         }
+        let arrow_angle = obs.velocity[1].atan2(obs.velocity[0]);
+        let arrow_length = (obs.velocity[0].powi(2) + obs.velocity[1].powi(2)).sqrt() * 0.2;
+        let arrow_wing_left = arrow_tip - Vec2 {
+            x: (arrow_angle + std::f32::consts::FRAC_PI_4).cos() * arrow_length,
+            y: (arrow_angle + std::f32::consts::FRAC_PI_4).sin() * arrow_length,
+        };
+        let arrow_wing_right = arrow_tip - Vec2 {
+            x: (arrow_angle - std::f32::consts::FRAC_PI_4).cos() * arrow_length,
+            y: (arrow_angle - std::f32::consts::FRAC_PI_4).sin() * arrow_length,
+        };
+
         let obs_position = center + obs_position * scale;
         let arrow_tip = center + arrow_tip * scale;
+        let arrow_wing_left = center + arrow_wing_left * scale;
+        let arrow_wing_right = center + arrow_wing_right * scale;
 
         shapes.push(Shape::line_segment(
             [obs_position, arrow_tip],
+            Stroke {
+                color: self.color,
+                width: 0.01 * scale,
+            },
+        ));
+        shapes.push(Shape::line_segment(
+            [arrow_tip, arrow_wing_left],
+            Stroke {
+                color: self.color,
+                width: 0.01 * scale,
+            },
+        ));
+        shapes.push(Shape::line_segment(
+            [arrow_tip, arrow_wing_right],
             Stroke {
                 color: self.color,
                 width: 0.01 * scale,
@@ -230,10 +283,17 @@ impl ScanObservation {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
 
-        let rot_matrix = Rotation2::new(robot_pose[2]);
+
+        let frame = obs.frame;
+        let frame = Frame::new(frame.x, frame.y, frame.theta);
+        let robot_state = State {
+            pose: *robot_pose,
+             ..Default::default()
+        };
+        let attached_frame = frame.attach_to_state(&robot_state);
         for (d, angle) in obs.distances.iter().zip(obs.angles.iter()) {
             let obs_position = Vector2::new(d * angle.cos(), d * angle.sin());
-            let obs_position = rot_matrix * obs_position + robot_pose.fixed_rows::<2>(0);
+            let obs_position = attached_frame.transform_point_frame_to_global(&obs_position);
             let obs_position = Vec2::new(obs_position.x, obs_position.y);
             if !painter_info.is_inside(&obs_position) {
                 return Err(obs_position);

@@ -157,7 +157,7 @@ pub trait PluginAPI: Send + Sync {
     /// * `va_factory` - Factory for Determinists random variables to create random variables.
     /// * `network` - Reference to the network, to allow the physics to send messages or create channels.
     /// * `initial_time` - Initial time of the simulation (or the time of creation).
-    /// * `context` - Context for the simulation, to allow the physics to log. 
+    /// * `context` - Context for the simulation, to allow the physics to log.
     ///
     /// # Return
     ///
@@ -254,7 +254,7 @@ pub trait PluginAPI: Send + Sync {
     /// * `va_factory` - Factory for Determinists random variables.
     /// * `initial_time` - Initial time of the simulation.
     /// * `context` - Context for the simulation, to allow the sensor fault to log.
-    /// 
+    ///
     /// # Return
     ///
     /// Returns the [`FaultModel`] to use.

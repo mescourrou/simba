@@ -46,7 +46,9 @@ impl Default for Context {
             current_sim_time: None,
             included_nodes: Arc::new(RwLock::new(HashSet::new())),
             excluded_nodes: Arc::new(RwLock::new(HashSet::new())),
-            write_targets: Arc::new(Mutex::new(vec![LoggerType::Console(ConsoleLogger::default())])),
+            write_targets: Arc::new(Mutex::new(vec![LoggerType::Console(
+                ConsoleLogger::default(),
+            )])),
         }
     }
 }
@@ -57,8 +59,12 @@ impl Context {
         let mut write_targets = Vec::new();
         for output in &log_config.outputs {
             match output {
-                LoggerTypeConfig::Console => write_targets.push(LoggerType::Console(ConsoleLogger::default())),
-                LoggerTypeConfig::File(filepath) => write_targets.push(LoggerType::File(crate::logger::FileLogger::new(filepath.clone()))),
+                LoggerTypeConfig::Console => {
+                    write_targets.push(LoggerType::Console(ConsoleLogger::default()))
+                }
+                LoggerTypeConfig::File(filepath) => write_targets.push(LoggerType::File(
+                    crate::logger::FileLogger::new(filepath.clone()),
+                )),
             }
         }
         Self {
@@ -86,7 +92,7 @@ impl Context {
             included_nodes.extend(log_config.included_nodes.iter().cloned());
             excluded_nodes.clear();
             excluded_nodes.extend(log_config.excluded_nodes.iter().cloned());
-            
+
             let default_len = LoggerConfig::default().outputs.len();
             let mut write_targets = self.write_targets.lock().unwrap();
             for i in 0..default_len {
@@ -98,8 +104,12 @@ impl Context {
             // let _ = write_targets.drain(0..default_len);
             for output in &log_config.outputs {
                 match output {
-                    LoggerTypeConfig::Console => write_targets.push(LoggerType::Console(ConsoleLogger::default())),
-                    LoggerTypeConfig::File(filepath) => write_targets.push(LoggerType::File(crate::logger::FileLogger::new(filepath.clone()))),
+                    LoggerTypeConfig::Console => {
+                        write_targets.push(LoggerType::Console(ConsoleLogger::default()))
+                    }
+                    LoggerTypeConfig::File(filepath) => write_targets.push(LoggerType::File(
+                        crate::logger::FileLogger::new(filepath.clone()),
+                    )),
                 }
             }
         }
@@ -136,8 +146,6 @@ impl Context {
 
 // Logging part
 impl Context {
-    
-
     /// Logs a message with the given log level, including the node name and callstack for context.
     /// The message will only be logged if the log level is enabled in the context's configuration
     pub fn log(&self, level: LogLevel, message: &str) {
@@ -183,14 +191,20 @@ impl Context {
             let mut write_targets = self.write_targets.lock().unwrap();
             let time = self.get_time();
             for target in write_targets.iter_mut() {
-                target.log(&level, time, &self.node_name, &self.callstack, matched_category, message);
+                target.log(
+                    &level,
+                    time,
+                    &self.node_name,
+                    &self.callstack,
+                    matched_category,
+                    message,
+                );
             }
         }
-
     }
 
     /// Add a new write target to the context's logger, allowing log messages to be sent to multiple destinations (e.g., console, file, etc.).
-    /// 
+    ///
     /// See [`LoggerType`] for available write targets.
     pub fn add_write_target(&self, target: LoggerType) {
         let mut write_targets = self.write_targets.lock().unwrap();

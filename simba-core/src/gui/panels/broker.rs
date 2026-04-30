@@ -50,14 +50,12 @@ impl BrokerPanel {
                 .max_width(width)
                 .min_height(100.0)
                 .show(ui, |ui| {
-                ScrollArea::vertical()
-                .auto_shrink(false)
-                .show(ui, |ui| {
-                    ui.set_min_width(ui.available_width());
-                    let tree = self.broker.read().unwrap().meta_tree();
-                    Self::draw_subtree(ui, &tree, PathKey::from_str("/").unwrap());
+                    ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+                        ui.set_min_width(ui.available_width());
+                        let tree = self.broker.read().unwrap().meta_tree();
+                        Self::draw_subtree(ui, &tree, PathKey::from_str("/").unwrap());
+                    });
                 });
-            });
         });
     }
 }

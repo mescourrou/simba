@@ -11,10 +11,10 @@
 //!    `pub_sub` system of `simba_com`. Other nodes can subscribe to these messages using the same system, and
 //!    receive them with the configured `reception_delay`.
 
+pub mod message_types;
 pub mod network;
 pub mod network_manager;
 pub mod pybinds;
-pub mod message_types;
 
 /// Errors that can occur while using networking and service communication APIs.
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -30,8 +30,6 @@ pub enum NetworkError {
     /// A non-specific networking error.
     Other,
 }
-
-
 
 /// Definition of channels managed by the simulator.
 pub mod channels {
@@ -78,7 +76,10 @@ mod tests {
         context::Context,
         debug,
         logger::LogLevel,
-        networking::{message_types::MessageTypes, network::{Envelope, Network, NetworkConfig}},
+        networking::{
+            message_types::MessageTypes,
+            network::{Envelope, Network, NetworkConfig},
+        },
         node::{Node, node_factory::RobotConfig},
         physics::robot_models::Command,
         plugin_api::PluginAPI,

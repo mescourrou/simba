@@ -35,15 +35,14 @@ impl VirtualNodesPanel {
                 .max_width(width)
                 .min_height(100.0)
                 .show(ui, |ui| {
-                
-                for (node_name, records) in &self.records {
-                    if let Some((_t, record)) = records.get_data_beq_time(time) {
-                        egui::CollapsingHeader::new(node_name).show(ui, |ui| {
-                            record.show(ui, ctx, unique_id);
-                        });
+                    for (node_name, records) in &self.records {
+                        if let Some((_t, record)) = records.get_data_beq_time(time) {
+                            egui::CollapsingHeader::new(node_name).show(ui, |ui| {
+                                record.show(ui, ctx, unique_id);
+                            });
+                        }
                     }
-                }
-            });
+                });
         });
     }
 }

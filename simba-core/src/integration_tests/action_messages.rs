@@ -60,7 +60,10 @@ mod kill_node {
     use crate::{
         constants::TIME_ROUND,
         context::Context,
-        networking::{message_types::MessageTypes, network::{Envelope, MessageFlag}},
+        networking::{
+            message_types::MessageTypes,
+            network::{Envelope, MessageFlag},
+        },
         node::Node,
         physics::robot_models::Command,
         recordable::Recordable,
@@ -207,7 +210,10 @@ mod trigger_sensor {
         constants::TIME_ROUND,
         context::Context,
         info,
-        networking::{message_types::MessageTypes, network::{Envelope, Network}},
+        networking::{
+            message_types::MessageTypes,
+            network::{Envelope, Network},
+        },
         node::Node,
         physics::robot_models::Command,
         plugin_api::PluginAPI,

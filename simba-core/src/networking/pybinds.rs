@@ -1,7 +1,11 @@
 use pyo3::prelude::*;
 use simba_macros::EnumToString;
 
-use crate::{navigators::go_to::GoToMessage, networking::message_types::MessageTypes, pywrappers::ObservationWrapper, scenario::config::EventRecord, sensors::sensor_manager::SensorTriggerMessage};
+use crate::{
+    navigators::go_to::GoToMessage, networking::message_types::MessageTypes,
+    pywrappers::ObservationWrapper, scenario::config::EventRecord,
+    sensors::sensor_manager::SensorTriggerMessage,
+};
 
 #[derive(Clone, Debug, EnumToString)]
 #[pyclass]
@@ -116,8 +120,15 @@ impl MessageTypesWrapper {
             MessageTypesWrapper::String(s) => MessageTypes::String(s.clone()),
             MessageTypesWrapper::GoTo(msg) => MessageTypes::GoTo(msg.clone()),
             MessageTypesWrapper::SensorTrigger(msg) => MessageTypes::SensorTrigger(msg.clone()),
-            MessageTypesWrapper::Observations(observations) => MessageTypes::Observations(observations.iter().map(ObservationWrapper::to_rust).collect()),
-            MessageTypesWrapper::Event(event) => MessageTypes::Event(serde_json::from_str(event).expect("Failed to parse EventRecord from JSON string")),
+            MessageTypesWrapper::Observations(observations) => MessageTypes::Observations(
+                observations
+                    .iter()
+                    .map(ObservationWrapper::to_rust)
+                    .collect(),
+            ),
+            MessageTypesWrapper::Event(event) => MessageTypes::Event(
+                serde_json::from_str(event).expect("Failed to parse EventRecord from JSON string"),
+            ),
             MessageTypesWrapper::Custom(data) => MessageTypes::Custom(data.clone()),
         }
     }
@@ -128,8 +139,16 @@ impl MessageTypesWrapper {
             MessageTypes::String(s) => MessageTypesWrapper::String(s.clone()),
             MessageTypes::GoTo(msg) => MessageTypesWrapper::GoTo(msg.clone()),
             MessageTypes::SensorTrigger(msg) => MessageTypesWrapper::SensorTrigger(msg.clone()),
-            MessageTypes::Observations(observations) => MessageTypesWrapper::Observations(observations.iter().map(ObservationWrapper::from_rust).collect()),
-            MessageTypes::Event(event) => MessageTypesWrapper::Event(serde_json::to_string(event).expect("Failed to serialize EventRecord to JSON string")),
+            MessageTypes::Observations(observations) => MessageTypesWrapper::Observations(
+                observations
+                    .iter()
+                    .map(ObservationWrapper::from_rust)
+                    .collect(),
+            ),
+            MessageTypes::Event(event) => MessageTypesWrapper::Event(
+                serde_json::to_string(event)
+                    .expect("Failed to serialize EventRecord to JSON string"),
+            ),
             MessageTypes::Custom(data) => MessageTypesWrapper::Custom(data.clone()),
         }
     }

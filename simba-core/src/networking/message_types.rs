@@ -2,7 +2,11 @@
 
 use simba_macros::EnumToString;
 
-use crate::{navigators::go_to::GoToMessage, scenario::config::EventRecord, sensors::{Observation, sensor_manager::SensorTriggerMessage}};
+use crate::{
+    navigators::go_to::GoToMessage,
+    scenario::config::EventRecord,
+    sensors::{Observation, sensor_manager::SensorTriggerMessage},
+};
 
 /// Payload variants that can transit through the network.
 ///
@@ -51,12 +55,18 @@ impl Default for MessageTypes {
 }
 
 impl_message_types_from!(
-    String, String,
-    GoTo, GoToMessage,
-    SensorTrigger, SensorTriggerMessage,
-    Observations, Vec<Observation>,
-    Event, EventRecord,
-    Custom, Vec<u8>,
+    String,
+    String,
+    GoTo,
+    GoToMessage,
+    SensorTrigger,
+    SensorTriggerMessage,
+    Observations,
+    Vec<Observation>,
+    Event,
+    EventRecord,
+    Custom,
+    Vec<u8>,
 );
 
 impl From<&str> for MessageTypes {

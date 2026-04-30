@@ -32,8 +32,9 @@ use crate::sensors::sensor_filters::range_filter::{RangeFilter, RangeFilterConfi
 use crate::simulator::SimulatorConfig;
 use crate::utils::determinist_random_variable::DeterministRandomVariableFactory;
 use crate::utils::enum_tools::EnumVariables;
+use crate::utils::frame::{Frame, FrameConfig, FrameRecord};
 use crate::utils::periodicity::{Periodicity, PeriodicityConfig};
-use nalgebra::{Vector2, Vector3};
+use nalgebra::{Rotation2, Vector2, Vector3};
 use serde_derive::{Deserialize, Serialize};
 use simba_macros::{EnumToString, UIComponent, config_derives, enum_variables};
 
@@ -199,6 +200,9 @@ pub struct GNSSSensorConfig {
     /// Filter configurations applied before fault injection.
     #[check]
     pub filters: Vec<GNSSSensorFilterConfig>,
+    /// Frame configuration for the sensor's pose observations, relative to the node's reference point.
+    #[check]
+    pub frame: FrameConfig,
 }
 
 impl Default for GNSSSensorConfig {
@@ -211,6 +215,7 @@ impl Default for GNSSSensorConfig {
             }),
             faults: Vec::new(),
             filters: Vec::new(),
+            frame: FrameConfig::default(),
         }
     }
 }
@@ -247,6 +252,15 @@ impl UIComponent for GNSSSensorConfig {
                     }
                 });
 
+                self.frame.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
+
                 GNSSSensorFilterConfig::show_all_mut(
                     &mut self.filters,
                     ui,
@@ -281,6 +295,8 @@ impl UIComponent for GNSSSensorConfig {
                     }
                 });
 
+                self.frame.show(ui, ctx, unique_id);
+
                 GNSSSensorFilterConfig::show_all(&self.filters, ui, ctx, unique_id);
 
                 GNSSSensorFaultModelConfig::show_all(&self.faults, ui, ctx, unique_id);
@@ -292,6 +308,7 @@ impl UIComponent for GNSSSensorConfig {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GNSSSensorRecord {
     last_time: Option<f32>,
+    frame: FrameRecord,
 }
 
 #[cfg(feature = "gui")]
@@ -316,6 +333,8 @@ pub struct GNSSObservation {
     pub velocity: Vector2<f32>,
     /// Fault models applied to this observation.
     pub applied_faults: Vec<GNSSSensorFaultModelConfig>,
+    /// Frame of the observation relative to the node's reference point.
+    pub frame: Frame,
 }
 
 /// Serializable record representation of [`GNSSObservation`].
@@ -325,11 +344,13 @@ pub struct GNSSObservationRecord {
     pub pose: [f32; 3],
     /// Recorded global planar velocity represented as `[vx, vy]`.
     pub velocity: [f32; 2],
+    /// Frame of the observation relative to the node's reference point.
+    pub frame: FrameRecord,
 }
 
 #[cfg(feature = "gui")]
 impl UIComponent for GNSSObservationRecord {
-    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         ui.vertical(|ui| {
             ui.label(format!(
                 "Position: ({}, {}, {})",
@@ -339,15 +360,17 @@ impl UIComponent for GNSSObservationRecord {
                 "Velocity: ({}, {})",
                 self.velocity[0], self.velocity[1]
             ));
+            self.frame.show(ui, ctx, unique_id);
         });
     }
 }
 
 impl Recordable<GNSSObservationRecord> for GNSSObservation {
-    fn record(&self, _context: &Context) -> GNSSObservationRecord {
+    fn record(&self, context: &Context) -> GNSSObservationRecord {
         GNSSObservationRecord {
             pose: [self.pose.x, self.pose.y, self.pose.z],
             velocity: [self.velocity.x, self.velocity.y],
+            frame: self.frame.record(context),
         }
     }
 }
@@ -361,7 +384,10 @@ pub struct GNSSSensor {
     last_time: Option<f32>,
     /// Fault models for x and y positions and on x and y velocities
     faults: Vec<GNSSSensorFaultModelType>,
+    /// Filters applied before fault injection. If any filter excludes the observation, the observation is dropped and no fault is injected.
     filters: Vec<GNSSSensorFilterType>,
+    /// Frame of the sensor's pose observations, relative to the node's reference point.
+    frame: Frame,
 }
 
 impl GNSSSensor {
@@ -438,6 +464,7 @@ impl GNSSSensor {
             last_time: None,
             faults: fault_models,
             filters,
+            frame: Frame::from_config(&config.frame),
         })
     }
 }
@@ -476,18 +503,20 @@ impl Sensor for GNSSSensor {
             .expect("Node with GNSS sensor should have Physics");
         let physic = arc_physic.read().unwrap();
         let state = physic.state(time, context);
+        let attached_frame = self.frame.attach_to_state(&state);
+        let state = attached_frame.state();
 
-        let velocity_norm = state.velocity.fixed_rows::<2>(0).norm();
-        let velocity = Vector2::<f32>::from_vec(vec![
-            velocity_norm * state.pose.z.cos(),
-            velocity_norm * state.pose.z.sin(),
-        ]);
+        // let velocity_norm = state.velocity.fixed_rows::<2>(0).norm();
+        let velocity = state.velocity.fixed_rows::<2>(0);
+        let angle = state.pose[2];
+        let rotated_velocity = Rotation2::new(angle) * velocity;
 
         // Apply filters until one rejects the observation
         let obs = SensorObservation::GNSS(GNSSObservation {
             pose: state.pose,
-            velocity,
+            velocity: rotated_velocity,
             applied_faults: Vec::new(),
+            frame: self.frame.clone(),
         });
 
         let mut keep_observation = Some(obs);
@@ -679,6 +708,7 @@ impl Sensor for GNSSSensor {
                                 applied_faults: vec![GNSSSensorFaultModelConfig::Clutter(
                                     f.config().clone(),
                                 )],
+                                frame: self.frame.clone(),
                             });
                             observation_list.push(obs);
                         }
@@ -727,9 +757,10 @@ impl Sensor for GNSSSensor {
 }
 
 impl Recordable<SensorRecord> for GNSSSensor {
-    fn record(&self, _context: &Context) -> SensorRecord {
+    fn record(&self, context: &Context) -> SensorRecord {
         SensorRecord::GNSSSensor(GNSSSensorRecord {
             last_time: self.last_time,
+            frame: self.frame.record(context),
         })
     }
 }
