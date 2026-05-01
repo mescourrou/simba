@@ -400,8 +400,9 @@ impl SimbaApp {
             return;
         }
         let config = self.p.config.as_ref().unwrap();
+        let environment = self.p.server.as_ref().unwrap().lock().unwrap().get_simulator().lock().unwrap().get_environment();
         self.p.map = drawables::map::Map::init(
-            &config.environment,
+            environment,
             config,
             self.p.context.as_ref().unwrap(),
         );

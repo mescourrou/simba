@@ -15,7 +15,8 @@ time_analysis:
   analysis_unit: s
 random_seed: null
 environment:
-  map_path: maps/landmarks_obstruction.yaml
+  # map_path: maps/landmarks_obstruction.yaml
+  map_path: maps/random_map.yaml
 robots:
 - name: robot1
   navigator: 
@@ -207,6 +208,10 @@ robots:
       - name: "GNSS"
         config: 
           type: GNSS
+          frame:
+            x: 0.0
+            y: 0.5
+            theta: 0.0
           
         
 computation_units:

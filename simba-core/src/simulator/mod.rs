@@ -372,7 +372,7 @@ impl Simulator {
 
         self.plugin_api = plugin_api.clone();
 
-        self.environment = Arc::new(Environment::from_config(&config.environment, &config)?);
+        self.environment = Arc::new(Environment::from_config(&config.environment, &config, &self.determinist_va_factory)?);
 
         // Create robots
         for robot_config in &config.robots {
@@ -1977,6 +1977,11 @@ def show():
     /// Get a context for the simulator
     pub fn get_context(&self) -> Context {
         self.context.clone()
+    }
+
+    /// Get the environment of the simulator, containing the map and the meta-data of the nodes.
+    pub fn get_environment(&self) -> Arc<Environment> {
+        self.environment.clone()
     }
 }
 

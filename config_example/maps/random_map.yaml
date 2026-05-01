@@ -1,0 +1,16 @@
+landmarks:
+  - id: 1
+    x: 5
+    y: 5
+    theta: -1
+  - id: 4
+    x: 5
+    y: -5
+    theta: 1
+random:
+  - number: {type: Num, value: 5}
+    distributions:
+      - type: Uniform
+        min: [0, 0, -3.1416]
+        max: [10, 10, 3.1416]
+    variable_order: [x, y, theta]

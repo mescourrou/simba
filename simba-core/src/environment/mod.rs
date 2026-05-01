@@ -22,23 +22,23 @@ use simba_macros::config_derives;
 
 use crate::{
     context::Context,
-    environment::oriented_landmark::OrientedLandmark,
+    environment::{map::Map, oriented_landmark::OrientedLandmark},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     internal,
     logger::InternalLog,
     node::NodeMetaData,
     utils::{
-        SharedRoLock, SharedRwLock,
-        geometry::{
+        SharedRoLock, SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory, geometry::{
             segment_circle_intersection, segment_to_line_intersection,
             segment_triangle_intersection, segments_intersection,
-        },
+        }
     },
 };
 #[cfg(feature = "gui")]
 use crate::{gui::utils::path_finder, simulator::SimulatorConfig};
 
 pub mod oriented_landmark;
+pub mod map;
 
 /// Configuration for building an [`Environment`].
 ///
@@ -113,9 +113,10 @@ impl Environment {
     pub fn from_config(
         config: &EnvironmentConfig,
         global_config: &SimulatorConfig,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
     ) -> SimbaResult<Self> {
         let map = if let Some(map_path) = &config.map_path {
-            Map::load_from_path(&global_config.base_path.join(map_path))?
+            Map::load_from_path(&global_config.base_path.join(map_path), va_factory)?
         } else {
             Map::new()
         };
@@ -171,7 +172,7 @@ impl Environment {
         // Intersections concerns only non-ponctual landmarks and contains either the intersection
         // with the detection circle, or extremitie(s) of the landmark segment if inside the
         // detection circle
-        for landmark in &self.map.landmarks {
+        for landmark in self.map.landmarks() {
             let d = ((landmark.pose.x - position.x).powi(2)
                 + (landmark.pose.y - position.y).powi(2))
             .sqrt();
@@ -637,58 +638,5 @@ impl Environment {
             .write()
             .unwrap()
             .insert(node_name, meta_data);
-    }
-}
-
-/// Map, containing multiple [`OrientedLandmark`], used for the map file.
-///
-/// The map file should be parsable by this struct, which currently supports a simple custom format (see its documentation for details).
-///
-/// # File example
-/// ```yaml
-/// landmarks:
-///  - id: 1
-///    x: 3
-///    y: 2
-///    theta: 0.7854
-///    width: 2.8284
-///    height: 0
-///  - id: 2
-///    x: 5.5
-///    y: 7
-///    theta: 1.5708
-///    width: 3
-///    height: 1
-/// ```
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct Map {
-    /// Landmarks contained in the map.
-    pub landmarks: Vec<OrientedLandmark>,
-}
-
-impl Map {
-    /// Creates an empty map.
-    pub fn new() -> Self {
-        Self {
-            landmarks: Vec::new(),
-        }
-    }
-
-    /// Load the map from the given `path`.
-    pub fn load_from_path(path: &Path) -> SimbaResult<Map> {
-        let map: Map = match confy::load_path(path) {
-            Ok(config) => config,
-            Err(error) => {
-                return Err(SimbaError::new(
-                    SimbaErrorTypes::ConfigError,
-                    format!(
-                        "Error from Confy while loading the map file {} : {}",
-                        path.display(),
-                        error
-                    ),
-                ));
-            }
-        };
-        Ok(map)
     }
 }

@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use egui::{Color32, Rect, Shape, Stroke, Vec2};
 
 use crate::{
     context::Context,
-    environment::{self, EnvironmentConfig, oriented_landmark::OrientedLandmark},
+    environment::{self, Environment, EnvironmentConfig, oriented_landmark::OrientedLandmark},
     gui::app::PainterInfo,
     info,
     simulator::SimulatorConfig,
@@ -10,7 +12,7 @@ use crate::{
 
 pub struct Map {
     color: Color32,
-    landmarks: Vec<OrientedLandmark>,
+    environment: Arc<Environment>,
     arrow_len: f32,
 }
 
@@ -18,7 +20,7 @@ impl Default for Map {
     fn default() -> Self {
         Self {
             color: Color32::RED,
-            landmarks: Vec::new(),
+            environment: Arc::new(Environment::default()),
             arrow_len: 0.2,
         }
     }
@@ -28,27 +30,17 @@ impl Map {
     /// Initialize the map drawable from environment and simulator configuration.
     ///
     /// ## Arguments
-    /// * `environment_config` - Environment configuration holding the optional map path.
     /// * `sim_config` - Simulator configuration used to resolve the map path.
     /// * `context` - Shared simulation context used for initialization logs.
     pub fn init(
-        environment_config: &EnvironmentConfig,
-        sim_config: &SimulatorConfig,
-        context: &Context,
+        environment: Arc<Environment>,
+        _sim_config: &SimulatorConfig,
+        _context: &Context,
     ) -> Self {
-        let path = &environment_config.map_path;
-        let landmarks = if let Some(path) = path {
-            environment::Map::load_from_path(&sim_config.base_path.join(path))
-                .expect("Failed to load map")
-                .landmarks
-        } else {
-            Vec::new()
-        };
-        info!(context, "Loaded map with {} landmarks", landmarks.len());
         Self {
             color: Color32::RED,
-            landmarks,
             arrow_len: 0.2,
+            environment,
         }
     }
 
@@ -62,7 +54,7 @@ impl Map {
     ) -> Result<Vec<Shape>, Vec2> {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
-        for landmark in &self.landmarks {
+        for landmark in self.environment.map().landmarks() {
             let position = Vec2::new(landmark.pose[0], landmark.pose[1]);
             if !painter_info.is_inside(&position) {
                 return Err(position);
