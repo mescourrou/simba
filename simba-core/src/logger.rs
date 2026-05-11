@@ -406,9 +406,9 @@ pub fn format_log_message(
         loglevel.to_log_string(colored),
         time_str,
         if colored {
-            &node_name.cyan().to_string()
+            node_name.cyan().to_string()
         } else {
-            node_name
+            node_name.to_string()
         },
         callstack_str,
         internal_str,

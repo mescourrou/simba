@@ -32,7 +32,12 @@
         "included_nodes": [],
         "log_level": {
           "type": "Info"
-        }
+        },
+        "outputs": [
+          {
+            "type": "Console"
+          }
+        ]
       }
     },
     "max_time": {
@@ -938,6 +943,31 @@
       "type": "object",
       "additionalProperties": true
     },
+    "FrameConfig": {
+      "description": "Configuration for a 2D frame, including position and orientation.",
+      "type": "object",
+      "properties": {
+        "theta": {
+          "description": "The orientation of the frame in radians.\nDefault is `0.0` (facing along the positive x-axis).",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "x": {
+          "description": "The x-coordinate of the frame's position.\nDefault is `0.0`.",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        },
+        "y": {
+          "description": "The y-coordinate of the frame's position.\nDefault is `0.0`.",
+          "type": "number",
+          "format": "float",
+          "default": 0.0
+        }
+      },
+      "additionalProperties": false
+    },
     "GNSSSensorFaultModelConfig": {
       "description": "Configuration enum selecting GNSS fault model strategies.\n\nDefault value: [`GNSSSensorFaultModelConfig::Additive`] with\n[`AdditiveFaultConfig::default`].",
       "oneOf": [
@@ -1662,9 +1692,57 @@
           "default": {
             "type": "Info"
           }
+        },
+        "outputs": {
+          "type": "array",
+          "default": [
+            {
+              "type": "Console"
+            }
+          ],
+          "items": {
+            "$ref": "#/$defs/LoggerTypeConfig"
+          }
         }
       },
       "additionalProperties": false
+    },
+    "LoggerTypeConfig": {
+      "description": "Configuration for different types of log targets, allowing users to specify where log messages should be sent (e.g., console, file, etc.) when configuring the logger.",
+      "oneOf": [
+        {
+          "description": "Output log messages to the console (standard output and standard error).",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Console"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "Write log messages to a file at a specified path. The `value` field should contain the file path where log messages will be written.",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "File"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "value"
+          ]
+        }
+      ]
     },
     "ManagedSensorConfig": {
       "description": "Configuration of one managed sensor entry.\n\nIt defines the sensor instance, optional destination nodes for forwarded observations,\nand whether the sensor is event-triggered. Observation that are sent to other nodes are also\navailable locally in the node's sensor manager, so they can be used by the node's state estimator.\n\nDefault values:\n- `name`: `\"some_sensor\"`\n- `send_to`: empty vector\n- `triggered`: `false`, setting it to `true` ignore the activation times of the sensor and wait for [`SensorTriggerMessage`] to produce observations.\n- `config`: [`SensorConfig::Speed`] with [`SpeedSensorConfig::default`]",
@@ -1684,6 +1762,11 @@
             },
             "faults": [],
             "filters": [],
+            "frame": {
+              "theta": 0.0,
+              "x": 0.0,
+              "y": 0.0
+            },
             "type": "Speed"
           }
         },
@@ -4513,6 +4596,15 @@
                 "$ref": "#/$defs/OrientedLandmarkSensorFilterConfig"
               }
             },
+            "frame": {
+              "description": "Frame of the sensor with respect to the robot frame. The observations will be given in this frame.",
+              "$ref": "#/$defs/FrameConfig",
+              "default": {
+                "theta": 0.0,
+                "x": 0.0,
+                "y": 0.0
+              }
+            },
             "type": {
               "type": "string",
               "const": "OrientedLandmark"
@@ -4567,6 +4659,15 @@
                 "$ref": "#/$defs/SpeedSensorFilterConfig"
               }
             },
+            "frame": {
+              "description": "Frame of the sensor, the velocity will be expressed in this frame.",
+              "$ref": "#/$defs/FrameConfig",
+              "default": {
+                "theta": 0.0,
+                "x": 0.0,
+                "y": 0.0
+              }
+            },
             "type": {
               "type": "string",
               "const": "Speed"
@@ -4614,6 +4715,15 @@
               "default": [],
               "items": {
                 "$ref": "#/$defs/DisplacementSensorFilterConfig"
+              }
+            },
+            "frame": {
+              "description": "Frame configuration for the sensor observations.",
+              "$ref": "#/$defs/FrameConfig",
+              "default": {
+                "theta": 0.0,
+                "x": 0.0,
+                "y": 0.0
               }
             },
             "lie_movement": {
@@ -4670,6 +4780,15 @@
                 "$ref": "#/$defs/GNSSSensorFilterConfig"
               }
             },
+            "frame": {
+              "description": "Frame configuration for the sensor's pose observations, relative to the node's reference point.",
+              "$ref": "#/$defs/FrameConfig",
+              "default": {
+                "theta": 0.0,
+                "x": 0.0,
+                "y": 0.0
+              }
+            },
             "type": {
               "type": "string",
               "const": "GNSS"
@@ -4723,6 +4842,15 @@
               "default": [],
               "items": {
                 "$ref": "#/$defs/RobotSensorFilterConfig"
+              }
+            },
+            "frame": {
+              "description": "Frame of the sensor with respect to the robot frame. The observations will be given in this frame.",
+              "$ref": "#/$defs/FrameConfig",
+              "default": {
+                "theta": 0.0,
+                "x": 0.0,
+                "y": 0.0
               }
             },
             "type": {
@@ -4783,6 +4911,15 @@
               "default": [],
               "items": {
                 "$ref": "#/$defs/ScanSensorFilterConfig"
+              }
+            },
+            "frame": {
+              "description": "Frame of the sensor with respect to the robot frame. The observations will be given in this frame.",
+              "$ref": "#/$defs/FrameConfig",
+              "default": {
+                "theta": 0.0,
+                "x": 0.0,
+                "y": 0.0
               }
             },
             "height": {
