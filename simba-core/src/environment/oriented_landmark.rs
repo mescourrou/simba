@@ -7,6 +7,10 @@
 use nalgebra::{Rotation2, Vector2, Vector3};
 use simba_macros::config_derives;
 
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
+use crate::recordable::Recordable;
+
 /// Landmark entry loaded from map data.
 ///
 #[config_derives]
@@ -89,5 +93,35 @@ impl OrientedLandmark {
         let extremity1 = self.pose + Vector3::new(width_vector.x, width_vector.y, 0.);
         let extremity2 = self.pose - Vector3::new(width_vector.x, width_vector.y, 0.);
         (extremity1, extremity2)
+    }
+}
+
+impl Recordable<OrientedLandmarkRecord> for OrientedLandmark {
+    fn record(&self, _context: &crate::context::Context) -> OrientedLandmarkRecord {
+        OrientedLandmarkConfig {
+            id: self.id,
+            labels: self.labels.clone(),
+            x: self.pose.x,
+            y: self.pose.y,
+            theta: self.pose.z,
+            height: self.height,
+            width: self.width,
+        }
+    }
+}
+
+pub type OrientedLandmarkRecord = OrientedLandmarkConfig;
+
+#[cfg(feature = "gui")]
+impl UIComponent for OrientedLandmarkRecord {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+        egui::CollapsingHeader::new(format!("Landmark Id {}", self.id)).show(ui, |ui| {
+            ui.vertical(|ui| {
+                ui.label(format!("Labels: {}", self.labels.join(", ")));
+                ui.label(format!("Pose: {}, {}, {}", self.x, self.y, self.theta));
+                ui.label(format!("Height: {}", self.height));
+                ui.label(format!("Width: {}", self.width));
+            });
+        });
     }
 }

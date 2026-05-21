@@ -35,6 +35,8 @@ pub struct Context {
     pub excluded_nodes: SharedRwLock<HashSet<String>>,
 
     write_targets: SharedMutex<Vec<LoggerType>>,
+    /// Keep track if the write target has been modified from the default one, to avoid unnecessary cloning of the write targets when logging.
+    is_write_target_default: SharedMutex<bool>,
 }
 
 impl Default for Context {
@@ -49,6 +51,7 @@ impl Default for Context {
             write_targets: Arc::new(Mutex::new(vec![LoggerType::Console(
                 ConsoleLogger::default(),
             )])),
+            is_write_target_default: Arc::new(Mutex::new(true)),
         }
     }
 }
@@ -79,6 +82,7 @@ impl Context {
                 log_config.excluded_nodes.iter().cloned().collect(),
             )),
             write_targets: Arc::new(Mutex::new(write_targets)),
+            is_write_target_default: Arc::new(Mutex::new(false)),
         }
     }
 
@@ -93,14 +97,14 @@ impl Context {
             excluded_nodes.clear();
             excluded_nodes.extend(log_config.excluded_nodes.iter().cloned());
 
-            let default_len = LoggerConfig::default().outputs.len();
             let mut write_targets = self.write_targets.lock().unwrap();
-            for i in 0..default_len {
-                if i < write_targets.len() {
-                    write_targets.remove(0);
-                }
+            let mut is_write_target_default = self.is_write_target_default.lock().unwrap();
+            if *is_write_target_default && !log_config.outputs.is_empty() {
+                write_targets.clear();
+                *is_write_target_default = false;
+            } else if !*is_write_target_default {
+                write_targets.clear();
             }
-            println!("There is now logging to {} targets", write_targets.len());
             // let _ = write_targets.drain(0..default_len);
             for output in &log_config.outputs {
                 match output {
@@ -112,6 +116,7 @@ impl Context {
                     )),
                 }
             }
+            println!("There is now logging to {} targets", write_targets.len());
         }
         info!(self, "Log level updated to {:?}", log_config.log_level);
     }

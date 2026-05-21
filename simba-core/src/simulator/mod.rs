@@ -66,7 +66,7 @@ use crate::{
     node::{
         Node, NodeState,
         node_factory::{
-            ComputationUnitConfig, MakeNodeParams, NodeFactory, NodeRecord, RobotConfig,
+            ComputationUnitConfig, MakeNodeParams, NodeFactory, RecordType, RobotConfig,
         },
     },
     plugin_api::PluginAPI,
@@ -106,13 +106,13 @@ pub struct Record {
     /// Time of the record.
     pub time: f32,
     /// Record of a node.
-    pub node: NodeRecord,
+    pub node: RecordType,
 }
 
 impl Ord for Record {
     fn cmp(&self, other: &Self) -> Ordering {
         if (self.time - other.time).abs() < TIME_ROUND {
-            self.node.name().cmp(other.node.name())
+            self.node.name().unwrap_or(&"".to_string()).cmp(other.node.name().unwrap_or(&"".to_string()))
         } else {
             self.time.total_cmp(&other.time)
         }
@@ -128,7 +128,7 @@ impl PartialOrd for Record {
 impl PartialEq for Record {
     fn eq(&self, other: &Self) -> bool {
         if (self.time - other.time).abs() < TIME_ROUND {
-            self.node.name().eq(other.node.name())
+            self.node.name().unwrap_or(&"".to_string()).eq(other.node.name().unwrap_or(&"".to_string()))
         } else {
             false
         }
@@ -372,7 +372,11 @@ impl Simulator {
 
         self.plugin_api = plugin_api.clone();
 
-        self.environment = Arc::new(Environment::from_config(&config.environment, &config, &self.determinist_va_factory)?);
+        self.environment = Arc::new(Environment::from_config(
+            &config.environment,
+            &config,
+            &self.determinist_va_factory,
+        )?);
 
         // Create robots
         for robot_config in &config.robots {
@@ -427,6 +431,14 @@ impl Simulator {
                     &self.context.clone(),
                 ),
             );
+        }
+
+        let map_record = Record {
+            time: 0.,
+            node: RecordType::Map(Box::new(self.environment.map().record(&self.context))),
+        };
+        if let Some(async_api_server) = &self.async_api_server {
+            async_api_server.send_record(&map_record);
         }
 
         Ok(())
@@ -1559,7 +1571,7 @@ impl Simulator {
             Err(e) => {
                 return Err(SimbaError::new(
                     SimbaErrorTypes::ConfigError,
-                    format!("Impossible to open record file: {}", e),
+                    format!("Impossible to open record file '{}': {}", filename.to_str().unwrap(), e),
                 ));
             }
         };

@@ -5,9 +5,12 @@ log:
   excluded_nodes: []
   log_level:
     type: Info
+    # value: [type: All]
 results:
   result_path: result.json
 max_time: 2.0
+optimization:
+  threads: 1
 time_analysis:
   exporter:
     type: TraceEventExporter

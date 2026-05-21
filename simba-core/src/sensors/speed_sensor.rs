@@ -246,7 +246,14 @@ impl UIComponent for SpeedSensorConfig {
                     }
                 });
 
-                self.frame.show_mut(ui, ctx, buffer_stack, global_config, current_node_name, unique_id);
+                self.frame.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
 
                 SpeedSensorFilterConfig::show_all_mut(
                     &mut self.filters,

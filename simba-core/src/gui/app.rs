@@ -9,22 +9,11 @@ use egui::{Align2, Color32, Id, Pos2, Rect, Response, ScrollArea, Sense, Shape, 
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AUTHORS, VERSION,
-    api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
-    constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
-    context::Context,
-    error,
-    errors::{SimbaError, SimbaErrorTypes},
-    gui::{
+    AUTHORS, VERSION, api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner}, constants::{TIME_ROUND, TIME_ROUND_DECIMALS}, context::Context, error, errors::{SimbaError, SimbaErrorTypes}, gui::{
         UIComponent,
         drawables::popup::Popup,
         panels::{broker::BrokerPanel, logs::LogsPanel, virtual_nodes::VirtualNodesPanel},
-    },
-    info,
-    node::node_factory::NodeRecord,
-    plugin_api::PluginAPI,
-    simulator::{Record, SimbaBroker, Simulator, SimulatorConfig},
-    utils::{SharedMutex, SharedRoLock, maths::round_precision, numbers::OrderedF32},
+    }, info, node::node_factory::RecordType, plugin_api::PluginAPI, recordable::Recordable, simulator::{Record, SimbaBroker, Simulator, SimulatorConfig}, utils::{SharedMutex, SharedRoLock, maths::round_precision, numbers::OrderedF32}
 };
 
 use super::{
@@ -400,12 +389,19 @@ impl SimbaApp {
             return;
         }
         let config = self.p.config.as_ref().unwrap();
-        let environment = self.p.server.as_ref().unwrap().lock().unwrap().get_simulator().lock().unwrap().get_environment();
-        self.p.map = drawables::map::Map::init(
-            environment,
-            config,
-            self.p.context.as_ref().unwrap(),
-        );
+        let environment = self
+            .p
+            .server
+            .as_ref()
+            .unwrap()
+            .lock()
+            .unwrap()
+            .get_simulator()
+            .lock()
+            .unwrap()
+            .get_environment();
+        self.p.map =
+            drawables::map::Map::init(environment.map().record(self.p.context.as_ref().unwrap()), config, self.p.context.as_ref().unwrap());
         for robot in &config.robots {
             self.p.robots.insert(
                 robot.name.clone(),
@@ -477,15 +473,15 @@ impl SimbaApp {
         }
     }
 
-    fn add_result(&mut self, time: f32, node: NodeRecord) {
+    fn add_result(&mut self, time: f32, node: RecordType) {
         let time = round_precision(time, TIME_ROUND).unwrap();
         match &node {
-            NodeRecord::ComputationUnit(rec) => {
+            RecordType::ComputationUnit(rec) => {
                 self.p
                     .virtual_nodes_panel
                     .add_record(rec.name.clone(), time, node.clone());
             }
-            NodeRecord::Robot(n) => {
+            RecordType::Robot(n) => {
                 if let Some(r) = self.p.robots.get_mut(&n.name) {
                     r.add_record(time, *n.clone());
                 } else if let Some(config) = &self.p.config
@@ -502,6 +498,12 @@ impl SimbaApp {
                         "Received record for unknown robot {}", n.name
                     );
                 }
+            }
+            RecordType::Map(map_record) => {
+                self.p.map.update_map(*map_record.clone());
+            }
+            RecordType::Scenario(_event_record) => {
+                todo!("Handle scenario events in the GUI");
             }
         }
         for drawable in self.p.drawables.iter_mut() {

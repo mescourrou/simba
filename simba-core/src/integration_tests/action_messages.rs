@@ -11,7 +11,7 @@ use crate::{
         NavigatorConfig, go_to::GoToConfig, trajectory_follower::TrajectoryFollowerConfig,
     },
     networking::network::Network,
-    node::node_factory::{NodeRecord, RobotConfig},
+    node::node_factory::{RecordType, RobotConfig},
     plugin_api::PluginAPI,
     sensors::{
         SensorConfig,
@@ -190,7 +190,7 @@ fn kill_node() {
     let mut last_node2_time: f32 = 0.;
     for record in records {
         let t = record.time;
-        if let NodeRecord::Robot(r) = record.node
+        if let RecordType::Robot(r) = record.node
             && r.name.as_str() == "node2"
         {
             last_node2_time = last_node2_time.max(t);

@@ -2,14 +2,18 @@ use egui::{Color32, Rect, Shape, Stroke, Vec2};
 use nalgebra::{Const, OPoint, Rotation2, Vector2, Vector3};
 
 use crate::{
-    gui::app::PainterInfo, sensors::{
+    gui::app::PainterInfo,
+    sensors::{
         gnss_sensor::{GNSSObservationRecord, GNSSSensorConfig},
         oriented_landmark_sensor::{
             OrientedLandmarkObservationRecord, OrientedLandmarkSensorConfig,
         },
         robot_sensor::{OrientedRobotObservationRecord, RobotSensorConfig},
         scan_sensor::{ScanObservationRecord, ScanSensorConfig},
-    }, simulator::SimulatorConfig, state_estimators::State, utils::frame::{Frame, FrameConfig}
+    },
+    simulator::SimulatorConfig,
+    state_estimators::State,
+    utils::frame::{Frame, FrameConfig},
 };
 
 pub struct OrientedRobotObservation {
@@ -41,7 +45,7 @@ impl OrientedRobotObservation {
         let frame = Frame::new(frame.x, frame.y, frame.theta);
         let robot_state = State {
             pose: *robot_pose,
-             ..Default::default()
+            ..Default::default()
         };
         let attached_frame = frame.attach_to_state(&robot_state);
         let robot_pose = attached_frame.state().pose;
@@ -53,7 +57,8 @@ impl OrientedRobotObservation {
         }
         let robot_position = center + robot_position * scale;
 
-        let obs_pose = attached_frame.transform_point_frame_to_global(&Vector2::new(obs.pose[0], obs.pose[1]));
+        let obs_pose =
+            attached_frame.transform_point_frame_to_global(&Vector2::new(obs.pose[0], obs.pose[1]));
         let obs_position = Vec2::new(obs_pose.x, obs_pose.y);
         let obs_angle = obs.pose[2];
         if !painter_info.is_inside(&obs_position) {
@@ -117,15 +122,16 @@ impl OrientedLandmarkObservation {
         let frame = Frame::new(frame.x, frame.y, frame.theta);
         let robot_state = State {
             pose: *robot_pose,
-             ..Default::default()
+            ..Default::default()
         };
         let attached_frame = frame.attach_to_state(&robot_state);
         let robot_pose = attached_frame.state().pose;
         let robot_position = Vector2::new(robot_pose.x, robot_pose.y);
         let robot_angle = robot_pose[2];
 
-        let obs_pose = attached_frame.transform_point_frame_to_global(&Vector2::new(obs.pose[0], obs.pose[1]));
-            // rot_matrix * Vector2::new(obs.pose[0], obs.pose[1]) + robot_position;
+        let obs_pose =
+            attached_frame.transform_point_frame_to_global(&Vector2::new(obs.pose[0], obs.pose[1]));
+        // rot_matrix * Vector2::new(obs.pose[0], obs.pose[1]) + robot_position;
 
         let robot_position = Vec2::new(robot_position.x, robot_position.y);
         if !painter_info.is_inside(&robot_position) {
@@ -221,14 +227,16 @@ impl GNSSObservation {
         }
         let arrow_angle = obs.velocity[1].atan2(obs.velocity[0]);
         let arrow_length = (obs.velocity[0].powi(2) + obs.velocity[1].powi(2)).sqrt() * 0.2;
-        let arrow_wing_left = arrow_tip - Vec2 {
-            x: (arrow_angle + std::f32::consts::FRAC_PI_4).cos() * arrow_length,
-            y: (arrow_angle + std::f32::consts::FRAC_PI_4).sin() * arrow_length,
-        };
-        let arrow_wing_right = arrow_tip - Vec2 {
-            x: (arrow_angle - std::f32::consts::FRAC_PI_4).cos() * arrow_length,
-            y: (arrow_angle - std::f32::consts::FRAC_PI_4).sin() * arrow_length,
-        };
+        let arrow_wing_left = arrow_tip
+            - Vec2 {
+                x: (arrow_angle + std::f32::consts::FRAC_PI_4).cos() * arrow_length,
+                y: (arrow_angle + std::f32::consts::FRAC_PI_4).sin() * arrow_length,
+            };
+        let arrow_wing_right = arrow_tip
+            - Vec2 {
+                x: (arrow_angle - std::f32::consts::FRAC_PI_4).cos() * arrow_length,
+                y: (arrow_angle - std::f32::consts::FRAC_PI_4).sin() * arrow_length,
+            };
 
         let obs_position = center + obs_position * scale;
         let arrow_tip = center + arrow_tip * scale;
@@ -283,12 +291,11 @@ impl ScanObservation {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
 
-
         let frame = obs.frame;
         let frame = Frame::new(frame.x, frame.y, frame.theta);
         let robot_state = State {
             pose: *robot_pose,
-             ..Default::default()
+            ..Default::default()
         };
         let attached_frame = frame.attach_to_state(&robot_state);
         for (d, angle) in obs.distances.iter().zip(obs.angles.iter()) {

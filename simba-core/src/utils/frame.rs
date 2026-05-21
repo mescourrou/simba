@@ -163,9 +163,11 @@ impl AttachedFrame {
         let new_theta = mod2pi(new_theta);
 
         let angular_velocity = state.velocity[2];
-        let level_arms = nalgebra::Vector2::new(frame.transform.translation.y, -frame.transform.translation.x);
-        let new_velocity = state.velocity.fixed_rows::<2>(0)
-            - angular_velocity * level_arms;
+        let level_arms = nalgebra::Vector2::new(
+            frame.transform.translation.y,
+            -frame.transform.translation.x,
+        );
+        let new_velocity = state.velocity.fixed_rows::<2>(0) - angular_velocity * level_arms;
         let new_velocity = frame
             .transform
             .rotation
@@ -260,8 +262,18 @@ mod tests {
             mod2pi(PI / 4.0 + PI / 2.0),
         );
         let expected_velocity = nalgebra::Vector3::new(0.5 + 0.1, -0.5, 0.1);
-        assert!((attached_frame.state().pose - expected_pose).norm() < 1e-6, "Expected pose: {:?}, got: {:?}", expected_pose, attached_frame.state().pose);
-        assert!((attached_frame.state().velocity - expected_velocity).norm() < 1e-6, "Expected velocity: {:?}, got: {:?}", expected_velocity, attached_frame.state().velocity);
+        assert!(
+            (attached_frame.state().pose - expected_pose).norm() < 1e-6,
+            "Expected pose: {:?}, got: {:?}",
+            expected_pose,
+            attached_frame.state().pose
+        );
+        assert!(
+            (attached_frame.state().velocity - expected_velocity).norm() < 1e-6,
+            "Expected velocity: {:?}, got: {:?}",
+            expected_velocity,
+            attached_frame.state().velocity
+        );
     }
 
     #[test]
@@ -278,7 +290,17 @@ mod tests {
             mod2pi(PI / 4.0 + PI / 2.0),
         );
         let expected_velocity = nalgebra::Vector3::new(0.5, -0.5 + 0.1, 0.1);
-        assert!((attached_frame.state().pose - expected_pose).norm() < 1e-6, "Expected pose: {:?}, got: {:?}", expected_pose, attached_frame.state().pose);
-        assert!((attached_frame.state().velocity - expected_velocity).norm() < 1e-6, "Expected velocity: {:?}, got: {:?}", expected_velocity, attached_frame.state().velocity);
+        assert!(
+            (attached_frame.state().pose - expected_pose).norm() < 1e-6,
+            "Expected pose: {:?}, got: {:?}",
+            expected_pose,
+            attached_frame.state().pose
+        );
+        assert!(
+            (attached_frame.state().velocity - expected_velocity).norm() < 1e-6,
+            "Expected velocity: {:?}, got: {:?}",
+            expected_velocity,
+            attached_frame.state().velocity
+        );
     }
 }

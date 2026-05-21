@@ -3,8 +3,19 @@ use std::{path::Path, sync::Arc};
 use serde::{Deserialize, Serialize};
 use simba_macros::{config_derives, enum_variables};
 
-use crate::{config::NumberConfig, environment::oriented_landmark::{OrientedLandmark, OrientedLandmarkConfig}, errors::{SimbaError, SimbaErrorTypes, SimbaResult}, utils::determinist_random_variable::{DeterministRandomVariableFactory, RandomVariableTypeConfig}};
-
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
+use crate::{
+    config::NumberConfig,
+    environment::oriented_landmark::{
+        OrientedLandmark, OrientedLandmarkConfig, OrientedLandmarkRecord,
+    },
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    recordable::Recordable,
+    utils::determinist_random_variable::{
+        DeterministRandomVariableFactory, RandomVariableTypeConfig,
+    },
+};
 
 /// Map containing multiple [`OrientedLandmark`] and possibility for random generation.
 ///
@@ -69,6 +80,8 @@ enum_variables!(
 pub struct RandomMap {
     /// Number of landmarks to generate randomly.
     pub number: NumberConfig,
+    /// List of distributions to generate the landmarks. The order should be consistent
+    /// with `variable_order`.
     #[check]
     pub distributions: Vec<RandomVariableTypeConfig>,
     /// Ordered list of target variables receiving sampled perturbations.
@@ -97,8 +110,13 @@ impl Check for RandomMap {
                 self.variable_order.len()
             ));
         }
-        if let NumberConfig::Num(n) = self.number && n < 0. {
-            errors.push(format!("Number of random landmarks should be non-negative, got {}", n));
+        if let NumberConfig::Num(n) = self.number
+            && n < 0.
+        {
+            errors.push(format!(
+                "Number of random landmarks should be non-negative, got {}",
+                n
+            ));
         } else if let NumberConfig::Rand(cfg) = &self.number {
             if cfg.dim() != 1 {
                 errors.push(format!("Number of random landmarks should be a univariate random variable, got dimension {}", cfg.dim()));
@@ -113,7 +131,11 @@ impl Check for RandomMap {
 }
 
 impl RandomMap {
-    pub fn generate_landmarks(&self, va_factory: &Arc<DeterministRandomVariableFactory>, first_id: usize) -> Vec<OrientedLandmark> {
+    pub fn generate_landmarks(
+        &self,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+        first_id: usize,
+    ) -> Vec<OrientedLandmark> {
         let nb = match &self.number {
             NumberConfig::Num(n) => n.round() as usize,
             NumberConfig::Rand(cfg) => {
@@ -162,7 +184,10 @@ impl Map {
     }
 
     /// Load the map from the given `path`.
-    pub fn load_from_path(path: &Path, va_factory: &Arc<DeterministRandomVariableFactory>) -> SimbaResult<Map> {
+    pub fn load_from_path(
+        path: &Path,
+        va_factory: &Arc<DeterministRandomVariableFactory>,
+    ) -> SimbaResult<Map> {
         let config: MapConfig = match confy::load_path(path) {
             Ok(config) => config,
             Err(error) => {
@@ -176,7 +201,11 @@ impl Map {
                 ));
             }
         };
-        let mut landmarks = config.landmarks.iter().map(OrientedLandmark::from_config).collect::<Vec<_>>();
+        let mut landmarks = config
+            .landmarks
+            .iter()
+            .map(OrientedLandmark::from_config)
+            .collect::<Vec<_>>();
         let mut max_id = landmarks.iter().map(|l| l.id).max().unwrap_or(0) as usize + 1;
         for random_config in config.random {
             let new_landmarks = random_config.generate_landmarks(va_factory, max_id);
@@ -188,5 +217,35 @@ impl Map {
 
     pub fn landmarks(&self) -> &Vec<OrientedLandmark> {
         &self.landmarks
+    }
+}
+
+impl Recordable<MapRecord> for Map {
+    fn record(&self, context: &crate::context::Context) -> MapRecord {
+        MapRecord {
+            landmarks: self
+                .landmarks
+                .iter()
+                .map(|l| l.record(context))
+                .collect::<Vec<_>>(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MapRecord {
+    pub landmarks: Vec<OrientedLandmarkRecord>,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for MapRecord {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        egui::CollapsingHeader::new("Landmarks:").show(ui, |ui| {
+            ui.vertical(|ui| {
+                for l in &self.landmarks {
+                    l.show(ui, ctx, format!("{}-{}", unique_id, l.id).as_str());
+                }
+            })
+        });
     }
 }

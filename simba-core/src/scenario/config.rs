@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 use crate::config::NumberConfig;
+#[cfg(feature = "gui")]
+use crate::gui::UIComponent;
 
 /// Root scenario configuration.
 ///
@@ -70,6 +72,17 @@ impl Default for EventTriggerConfig {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for EventTriggerConfig {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        match &self {
+            Self::Time(event) => event.show(ui, ctx, unique_id),
+            Self::Proximity(event) => event.show(ui, ctx, unique_id),
+            Self::Area(event) => event.show(ui, ctx, unique_id),
+        }
+    }
+}
+
 /// Time-based event trigger configuration.
 ///
 /// Default values:
@@ -96,6 +109,21 @@ impl Default for TimeEventTriggerConfig {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for TimeEventTriggerConfig {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        ui.label(format!("Time Trigger (time: {}, occurences: {})", 
+        match self.time {
+            NumberConfig::Num(t) => t.to_string(),
+            _ => "Random".to_string()
+        },
+        match self.occurences {
+            NumberConfig::Num(t) => t.to_string(),
+            _ => "Random".to_string()
+        }));
+    }
+}
+
 /// Area-based trigger configuration.
 ///
 /// Default value: [`AreaEventTriggerConfig::Rect`] with [`RectAreaEventTriggerConfig::default`].
@@ -110,6 +138,16 @@ pub enum AreaEventTriggerConfig {
 impl Default for AreaEventTriggerConfig {
     fn default() -> Self {
         Self::Rect(RectAreaEventTriggerConfig::default())
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for AreaEventTriggerConfig {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        match &self {
+            Self::Rect(event) => event.show(ui, ctx, unique_id),
+            Self::Circle(event) => event.show(ui, ctx, unique_id),
+        }
     }
 }
 
@@ -139,6 +177,14 @@ impl Default for RectAreaEventTriggerConfig {
     }
 }
 
+
+#[cfg(feature = "gui")]
+impl UIComponent for RectAreaEventTriggerConfig {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+        ui.label(format!("Rect Area Trigger (top-right: {:#?}, bottom-left: {:#?}, inside: {})", self.top_right, self.bottom_left, self.inside));
+    }
+}
+
 /// Circular area trigger configuration.
 ///
 /// Default values:
@@ -162,6 +208,13 @@ impl Default for CircleAreaEventTriggerConfig {
             radius: 1.0,
             inside: true,
         }
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for CircleAreaEventTriggerConfig {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+        ui.label(format!("Circe Area Trigger (center: {:#?}, radius: {}, inside: {})", self.center, self.radius, self.inside));
     }
 }
 
@@ -191,6 +244,13 @@ impl Default for ProximityEventTriggerConfig {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for ProximityEventTriggerConfig {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        ui.label(format!("Proximity Trigger (distance: {}, inside: {}, protected target: {:#?})", self.distance, self.inside, self.protected_target));
+    }
+}
+
 /// Defines the type of event to execute.
 ///
 /// The name provided in the variants refers to the name of the nodes or use $0 notation for
@@ -206,6 +266,16 @@ pub enum EventTypeConfig {
 impl Default for EventTypeConfig {
     fn default() -> Self {
         Self::Kill("$0".to_string())
+    }
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for EventTypeConfig {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        match &self {
+            Self::Spawn(event) => { event.show(ui, ctx, unique_id); },
+            Self::Kill(target) => { ui.label(format!("Kill Event (target: {})", target)); },
+        }
     }
 }
 
@@ -231,6 +301,13 @@ impl Default for SpawnEventConfig {
     }
 }
 
+#[cfg(feature = "gui")]
+impl UIComponent for SpawnEventConfig {
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+        ui.label(format!("Spawn Event (model_name: {}, node_name: {})", self.model_name, self.node_name));
+    }
+}
+
 /// Record emitted when an event is evaluated/executed.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EventRecord {
@@ -238,4 +315,17 @@ pub struct EventRecord {
     pub trigger: EventTriggerConfig,
     /// Event action associated with this record.
     pub event: EventTypeConfig,
+}
+
+#[cfg(feature = "gui")]
+impl UIComponent for EventRecord {
+    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
+        egui::CollapsingHeader::new("Event").show(ui, |ui| {
+            ui.label("Trigger:");
+            self.trigger.show(ui, ctx, unique_id);
+
+            ui.label("Effective event:");
+            self.event.show(ui, ctx, unique_id);
+        });
+    }
 }

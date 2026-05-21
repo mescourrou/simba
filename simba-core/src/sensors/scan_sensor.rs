@@ -40,7 +40,11 @@ use crate::{
     simulator::SimulatorConfig,
     state_estimators::State,
     utils::{
-        determinist_random_variable::DeterministRandomVariableFactory, enum_tools::EnumVariables, frame::{Frame, FrameConfig, FrameRecord}, geometry::{is_angle_inside, segments_intersection}, periodicity::{Periodicity, PeriodicityConfig}
+        determinist_random_variable::DeterministRandomVariableFactory,
+        enum_tools::EnumVariables,
+        frame::{Frame, FrameConfig, FrameRecord},
+        geometry::{is_angle_inside, segments_intersection},
+        periodicity::{Periodicity, PeriodicityConfig},
     },
 };
 #[cfg(feature = "gui")]
@@ -490,7 +494,8 @@ impl UIComponent for ScanSensorConfig {
                     }
                 }
 
-                self.frame.show(ui, ctx, &format!("scan-sensor-frame-{}", unique_id));
+                self.frame
+                    .show(ui, ctx, &format!("scan-sensor-frame-{}", unique_id));
 
                 ScanSensorFilterConfig::show_all(&self.filters, ui, ctx, unique_id);
 
@@ -777,7 +782,11 @@ impl Sensor for ScanSensor {
                 &position,
                 Some(self.height),
                 self.detection_distance,
-                Some(format!("{}-{}", node.name(), self.frame.transform().to_string())),
+                Some(format!(
+                    "{}-{}",
+                    node.name(),
+                    self.frame.transform().to_string()
+                )),
                 context,
             )
             .into_iter()

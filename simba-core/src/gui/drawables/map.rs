@@ -4,7 +4,7 @@ use egui::{Color32, Rect, Shape, Stroke, Vec2};
 
 use crate::{
     context::Context,
-    environment::{self, Environment, EnvironmentConfig, oriented_landmark::OrientedLandmark},
+    environment::{self, Environment, EnvironmentConfig, map::MapRecord, oriented_landmark::OrientedLandmark},
     gui::app::PainterInfo,
     info,
     simulator::SimulatorConfig,
@@ -12,7 +12,7 @@ use crate::{
 
 pub struct Map {
     color: Color32,
-    environment: Arc<Environment>,
+    current_map: MapRecord,
     arrow_len: f32,
 }
 
@@ -20,7 +20,9 @@ impl Default for Map {
     fn default() -> Self {
         Self {
             color: Color32::RED,
-            environment: Arc::new(Environment::default()),
+            current_map: MapRecord {
+                landmarks: Vec::new(),
+            },
             arrow_len: 0.2,
         }
     }
@@ -33,15 +35,19 @@ impl Map {
     /// * `sim_config` - Simulator configuration used to resolve the map path.
     /// * `context` - Shared simulation context used for initialization logs.
     pub fn init(
-        environment: Arc<Environment>,
+        current_map: MapRecord,
         _sim_config: &SimulatorConfig,
         _context: &Context,
     ) -> Self {
         Self {
             color: Color32::RED,
             arrow_len: 0.2,
-            environment,
+            current_map,
         }
+    }
+
+    pub fn update_map(&mut self, new_map: MapRecord) {
+        self.current_map = new_map;
     }
 
     /// Build the set of map shapes for rendering in the current viewport.
@@ -54,15 +60,15 @@ impl Map {
     ) -> Result<Vec<Shape>, Vec2> {
         let mut shapes = Vec::new();
         let center = painter_info.zero(scale);
-        for landmark in self.environment.map().landmarks() {
-            let position = Vec2::new(landmark.pose[0], landmark.pose[1]);
+        for landmark in self.current_map.landmarks.iter() {
+            let position = Vec2::new(landmark.x, landmark.y);
             if !painter_info.is_inside(&position) {
                 return Err(position);
             }
             let arrow_tip = position
                 + Vec2 {
-                    x: self.arrow_len * landmark.pose[2].cos(),
-                    y: self.arrow_len * landmark.pose[2].sin(),
+                    x: self.arrow_len * landmark.theta.cos(),
+                    y: self.arrow_len * landmark.theta.sin(),
                 };
             if !painter_info.is_inside(&arrow_tip) {
                 return Err(arrow_tip);
@@ -91,8 +97,8 @@ impl Map {
             if landmark.width > 0.0 {
                 let half_width = landmark.width / 2.0;
                 let dir_vector = Vec2::new(
-                    half_width * (landmark.pose[2] + std::f32::consts::FRAC_PI_2).cos(),
-                    half_width * (landmark.pose[2] + std::f32::consts::FRAC_PI_2).sin(),
+                    half_width * (landmark.theta + std::f32::consts::FRAC_PI_2).cos(),
+                    half_width * (landmark.theta + std::f32::consts::FRAC_PI_2).sin(),
                 );
                 let p1 = position + dir_vector * scale;
                 let p2 = position - dir_vector * scale;

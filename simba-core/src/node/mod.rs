@@ -10,7 +10,7 @@
 
 pub mod node_factory;
 
-use node_factory::{ComputationUnitRecord, NodeRecord, NodeType, RobotRecord};
+use node_factory::{ComputationUnitRecord, NodeType, RecordType, RobotRecord};
 use serde::{Deserialize, Serialize};
 use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::EnumToString;
@@ -1027,13 +1027,13 @@ impl Node {
     }
 }
 
-impl Recordable<NodeRecord> for Node {
+impl Recordable<RecordType> for Node {
     /// Generate the current state record.
-    fn record(&self, context: &Context) -> NodeRecord {
+    fn record(&self, context: &Context) -> RecordType {
         match &self.node_meta_data.read().unwrap().node_type {
-            NodeType::Robot => NodeRecord::Robot(Box::new(self.robot_record(context))),
+            NodeType::Robot => RecordType::Robot(Box::new(self.robot_record(context))),
             NodeType::ComputationUnit => {
-                NodeRecord::ComputationUnit(Box::new(self.computation_unit_record(context)))
+                RecordType::ComputationUnit(Box::new(self.computation_unit_record(context)))
             }
             _ => unimplemented!(),
         }

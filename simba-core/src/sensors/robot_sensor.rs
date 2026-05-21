@@ -336,7 +336,14 @@ impl UIComponent for RobotSensorConfig {
                     ui.checkbox(&mut self.xray, "");
                 });
 
-                self.frame.show_mut(ui, ctx, buffer_stack, global_config, current_node_name, unique_id);
+                self.frame.show_mut(
+                    ui,
+                    ctx,
+                    buffer_stack,
+                    global_config,
+                    current_node_name,
+                    unique_id,
+                );
 
                 RobotSensorFilterConfig::show_all_mut(
                     &mut self.filters,

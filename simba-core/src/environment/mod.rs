@@ -28,17 +28,19 @@ use crate::{
     logger::InternalLog,
     node::NodeMetaData,
     utils::{
-        SharedRoLock, SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory, geometry::{
+        SharedRoLock, SharedRwLock,
+        determinist_random_variable::DeterministRandomVariableFactory,
+        geometry::{
             segment_circle_intersection, segment_to_line_intersection,
             segment_triangle_intersection, segments_intersection,
-        }
+        },
     },
 };
 #[cfg(feature = "gui")]
 use crate::{gui::utils::path_finder, simulator::SimulatorConfig};
 
-pub mod oriented_landmark;
 pub mod map;
+pub mod oriented_landmark;
 
 /// Configuration for building an [`Environment`].
 ///

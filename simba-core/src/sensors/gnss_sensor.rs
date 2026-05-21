@@ -7,6 +7,7 @@
 //! Filtering is configured through [`GNSSSensorFilterConfig`], and fault behavior
 //! is configured through [`GNSSSensorFaultModelConfig`].
 
+use core::unreachable;
 use std::sync::Arc;
 
 use super::fault_models::fault_model::FaultModel;
