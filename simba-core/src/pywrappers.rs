@@ -34,8 +34,8 @@ use crate::{
     debug, error, info,
     navigators::pybinds::NavigatorWrapper,
     networking::{
-        MessageTypes,
         network::{Envelope, MessageFlag, Network},
+        pybinds::MessageTypesWrapper,
     },
     node::Node,
     physics::{
@@ -51,7 +51,7 @@ use crate::{
     },
     simulator::{AsyncSimulator, SimbaBrokerMultiClient, Simulator},
     state_estimators::{State, WorldState, pybinds::StateEstimatorWrapper},
-    utils::occupancy_grid::OccupancyGrid,
+    utils::{frame::Frame, occupancy_grid::OccupancyGrid},
     warning,
 };
 
@@ -382,6 +382,8 @@ pub struct OrientedLandmarkObservationWrapper {
     pub width: f32,
     /// Height of the landmark
     pub height: f32,
+    /// Frame of the sensor
+    pub frame: Pose,
 }
 
 #[pymethods]
@@ -400,6 +402,11 @@ impl OrientedLandmarkObservationWrapper {
             width: 0.,
             height: 1.,
             applied_faults: "[]".to_string(),
+            frame: Pose {
+                x: 0.,
+                y: 0.,
+                theta: 0.,
+            },
         }
     }
 }
@@ -418,6 +425,11 @@ impl OrientedLandmarkObservationWrapper {
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
             width: s.width,
             height: s.height,
+            frame: Pose {
+                x: s.frame.transform().translation.x,
+                y: s.frame.transform().translation.y,
+                theta: s.frame.transform().rotation.angle(),
+            },
         }
     }
     /// Convert this wrapper to the Rust [`OrientedLandmarkObservation`] type.
@@ -429,6 +441,7 @@ impl OrientedLandmarkObservationWrapper {
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
             width: self.width,
             height: self.height,
+            frame: Frame::new(self.frame.x, self.frame.y, self.frame.theta),
         }
     }
 }
@@ -452,6 +465,8 @@ pub struct SpeedObservationWrapper {
     pub angular_velocity: f32,
     /// Applied faults in JSON format
     pub applied_faults: String,
+    /// Frame of the sensor
+    pub frame: Pose,
 }
 
 #[pymethods]
@@ -464,6 +479,11 @@ impl SpeedObservationWrapper {
             lateral_velocity: 0.,
             angular_velocity: 0.,
             applied_faults: "[]".to_string(),
+            frame: Pose {
+                x: 0.,
+                y: 0.,
+                theta: 0.,
+            },
         }
     }
 }
@@ -476,6 +496,11 @@ impl SpeedObservationWrapper {
             lateral_velocity: s.lateral_velocity,
             angular_velocity: s.angular_velocity,
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
+            frame: Pose {
+                x: s.frame.transform().translation.x,
+                y: s.frame.transform().translation.y,
+                theta: s.frame.transform().rotation.angle(),
+            },
         }
     }
     /// Convert this wrapper to the Rust [`SpeedObservation`] type.
@@ -485,6 +510,7 @@ impl SpeedObservationWrapper {
             lateral_velocity: self.lateral_velocity,
             angular_velocity: self.angular_velocity,
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
+            frame: Frame::new(self.frame.x, self.frame.y, self.frame.theta),
         }
     }
 }
@@ -506,6 +532,8 @@ pub struct GNSSObservationWrapper {
     pub velocity: Vec2,
     /// Applied faults in JSON format
     pub applied_faults: String,
+    /// Frame of the sensor
+    pub frame: Pose,
 }
 
 #[pymethods]
@@ -521,6 +549,11 @@ impl GNSSObservationWrapper {
             },
             velocity: Vec2 { x: 0., y: 0. },
             applied_faults: "[]".to_string(),
+            frame: Pose {
+                x: 0.,
+                y: 0.,
+                theta: 0.,
+            },
         }
     }
 }
@@ -528,6 +561,7 @@ impl GNSSObservationWrapper {
 impl GNSSObservationWrapper {
     /// Convert from the Rust [`GNSSObservation`] type.
     pub fn from_rust(s: &GNSSObservation) -> Self {
+        let frame = s.frame.transform();
         Self {
             pose: Vec3 {
                 x: s.pose[0],
@@ -539,6 +573,11 @@ impl GNSSObservationWrapper {
                 y: s.velocity[1],
             },
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
+            frame: Pose {
+                x: frame.translation.x,
+                y: frame.translation.y,
+                theta: frame.rotation.angle(),
+            },
         }
     }
     /// Convert this wrapper to the Rust [`GNSSObservation`] type.
@@ -547,6 +586,7 @@ impl GNSSObservationWrapper {
             pose: Vector3::from_vec(vec![self.pose.x, self.pose.y, self.pose.z]),
             velocity: Vector2::from_vec(vec![self.velocity.x, self.velocity.y]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
+            frame: Frame::new(self.frame.x, self.frame.y, self.frame.theta),
         }
     }
 }
@@ -568,6 +608,8 @@ pub struct DisplacementObservationWrapper {
     pub rotation: f32,
     /// Applied faults in JSON format
     pub applied_faults: String,
+    /// Frame of the sensor
+    pub frame: Pose,
 }
 
 #[pymethods]
@@ -579,6 +621,11 @@ impl DisplacementObservationWrapper {
             translation: Vec2 { x: 0., y: 0. },
             rotation: 0.,
             applied_faults: "[]".to_string(),
+            frame: Pose {
+                x: 0.,
+                y: 0.,
+                theta: 0.,
+            },
         }
     }
 }
@@ -593,6 +640,11 @@ impl DisplacementObservationWrapper {
             },
             rotation: s.rotation,
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
+            frame: Pose {
+                x: s.frame.transform().translation.x,
+                y: s.frame.transform().translation.y,
+                theta: s.frame.transform().rotation.angle(),
+            },
         }
     }
     /// Convert this wrapper to the Rust [`DisplacementObservation`] type.
@@ -601,6 +653,7 @@ impl DisplacementObservationWrapper {
             translation: Vector2::from_vec(vec![self.translation.x, self.translation.y]),
             rotation: self.rotation,
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
+            frame: Frame::new(self.frame.x, self.frame.y, self.frame.theta),
         }
     }
 }
@@ -624,6 +677,8 @@ pub struct OrientedRobotObservationWrapper {
     pub pose: Pose,
     /// Applied faults in JSON format
     pub applied_faults: String,
+    /// Frame of the sensor
+    pub frame: Pose,
 }
 
 #[pymethods]
@@ -640,6 +695,11 @@ impl OrientedRobotObservationWrapper {
                 theta: 0.,
             },
             applied_faults: "[]".to_string(),
+            frame: Pose {
+                x: 0.,
+                y: 0.,
+                theta: 0.,
+            },
         }
     }
 }
@@ -656,6 +716,11 @@ impl OrientedRobotObservationWrapper {
                 theta: s.pose[2],
             },
             applied_faults: serde_json::to_string(&s.applied_faults).unwrap(),
+            frame: Pose {
+                x: s.frame.transform().translation.x,
+                y: s.frame.transform().translation.y,
+                theta: s.frame.transform().rotation.angle(),
+            },
         }
     }
     /// Convert this wrapper to the Rust [`OrientedRobotObservation`] type.
@@ -665,6 +730,7 @@ impl OrientedRobotObservationWrapper {
             labels: self.labels.clone(),
             pose: SVector::from_vec(vec![self.pose.x, self.pose.y, self.pose.theta]),
             applied_faults: serde_json::from_str(&self.applied_faults).unwrap(),
+            frame: Frame::new(self.frame.x, self.frame.y, self.frame.theta),
         }
     }
 }
@@ -1068,8 +1134,8 @@ impl HolonomicCommandWrapper {
 pub struct EnvelopeWrapper {
     /// Expeditor
     pub msg_from: String,
-    /// Message sent, see [`MessageTypes`] for supported messages
-    pub message: MessageTypes,
+    /// Message sent, see [`MessageTypesWrapper`] for supported messages
+    pub message: MessageTypesWrapper,
     /// Time of the message
     pub timestamp: f32,
 }
@@ -1098,7 +1164,7 @@ impl NodeWrapper {
     ///
     /// # Arguments
     /// * `to` - Channel key to send the message to. It can be a relative key (e.g. "channel1") or an absolute key (e.g. "/my_channels/channel1").
-    /// * `message` - Message to send. See [`MessageTypes`] for the supported message types in Python.
+    /// * `message` - Message to send. See [`MessageTypesWrapper`] for the supported message types in Python.
     /// * `time` - Time at which the message is sent. It should be the current time of the simulator or in the future.
     /// * `flags` - Message flags. See [`MessageFlag`] for the supported flags.
     #[pyo3(signature = (to, message, time, flags=Vec::new()))]
@@ -1106,17 +1172,12 @@ impl NodeWrapper {
     pub fn send_message(
         &self,
         to: String,
-        message: MessageTypes,
+        message: MessageTypesWrapper,
         time: f32,
         flags: Vec<MessageFlag>,
     ) -> PyResult<()> {
         if let Some(network) = self.network.as_ref().and_then(|n| n.upgrade()) {
-            let msg = match message {
-                MessageTypes::String(s) => serde_json::to_value(s),
-                MessageTypes::GoTo(m) => serde_json::to_value(m),
-                MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
-            }
-            .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
+            let msg = message.to_rust();
             let key = PathKey::from_str(to.as_str()).unwrap();
             let msg = Envelope {
                 from: self.name.clone(),
@@ -1229,22 +1290,17 @@ impl MultiClientWrapper {
     ///
     /// # Arguments
     /// * `to` - Channel key to send the message to. It can be a relative key (e.g. "channel1") or an absolute key (e.g. "/my_channels/channel1").
-    /// * `message` - Message to send. See [`MessageTypes`] for the supported message types in Python.
+    /// * `message` - Message to send. See [`MessageTypesWrapper`] for the supported message types in Python.
     /// * `time` - Time at which the message is sent. It should be the current time of the simulator or in the future.
     /// * `flags` - Message flags. See [`MessageFlag`] for the supported flags.
     pub fn send(
         &self,
         to: String,
-        message: MessageTypes,
+        message: MessageTypesWrapper,
         time: f32,
         flags: Vec<MessageFlag>,
     ) -> PyResult<()> {
-        let msg = match message {
-            MessageTypes::String(s) => serde_json::to_value(s),
-            MessageTypes::GoTo(m) => serde_json::to_value(m),
-            MessageTypes::SensorTrigger(m) => serde_json::to_value(m),
-        }
-        .map_err(|e| PyErr::new::<PyTypeError, _>(format!("Conversion failed: {}", e)))?;
+        let msg = message.to_rust();
         let key = PathKey::from_str(to.as_str()).unwrap();
         let msg = Envelope {
             from: self.client.node_id().to_string(),
@@ -1261,15 +1317,11 @@ impl MultiClientWrapper {
     /// It can return messages older than the given `time`.
     pub fn try_receive(&self, time: f32) -> Option<(String, EnvelopeWrapper)> {
         if let Some((path, envelope)) = self.client.try_receive(time) {
-            let msg = match serde_json::from_value(envelope.message.clone()) {
-                Err(_) => MessageTypes::String(serde_json::to_string(&envelope.message).unwrap()),
-                Ok(m) => m,
-            };
             Some((
                 path.to_string(),
                 EnvelopeWrapper {
                     msg_from: envelope.from,
-                    message: msg,
+                    message: MessageTypesWrapper::from_rust(&envelope.message),
                     timestamp: envelope.timestamp,
                 },
             ))

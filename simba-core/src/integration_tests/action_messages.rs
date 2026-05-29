@@ -11,7 +11,7 @@ use crate::{
         NavigatorConfig, go_to::GoToConfig, trajectory_follower::TrajectoryFollowerConfig,
     },
     networking::network::Network,
-    node::node_factory::{NodeRecord, RobotConfig},
+    node::node_factory::{RecordType, RobotConfig},
     plugin_api::PluginAPI,
     sensors::{
         SensorConfig,
@@ -60,7 +60,10 @@ mod kill_node {
     use crate::{
         constants::TIME_ROUND,
         context::Context,
-        networking::network::{Envelope, MessageFlag},
+        networking::{
+            message_types::MessageTypes,
+            network::{Envelope, MessageFlag},
+        },
         node::Node,
         physics::robot_models::Command,
         recordable::Recordable,
@@ -94,7 +97,7 @@ mod kill_node {
                     PathKey::from_str("/simba/command/node2").unwrap(),
                     Envelope {
                         from: node.name(),
-                        message: serde_json::Value::Null,
+                        message: MessageTypes::default(),
                         timestamp: time,
                         message_flags: vec![MessageFlag::Kill],
                     },
@@ -187,7 +190,7 @@ fn kill_node() {
     let mut last_node2_time: f32 = 0.;
     for record in records {
         let t = record.time;
-        if let NodeRecord::Robot(r) = record.node
+        if let RecordType::Robot(r) = record.node
             && r.name.as_str() == "node2"
         {
             last_node2_time = last_node2_time.max(t);
@@ -207,7 +210,10 @@ mod trigger_sensor {
         constants::TIME_ROUND,
         context::Context,
         info,
-        networking::network::{Envelope, Network},
+        networking::{
+            message_types::MessageTypes,
+            network::{Envelope, Network},
+        },
         node::Node,
         physics::robot_models::Command,
         plugin_api::PluginAPI,
@@ -263,7 +269,7 @@ mod trigger_sensor {
                     PathKey::from_str("/simba/nodes/robot1/sensors/RobotSensor").unwrap(),
                     Envelope {
                         from: node.name(),
-                        message: serde_json::to_value(SensorTriggerMessage {}).unwrap(),
+                        message: MessageTypes::SensorTrigger(SensorTriggerMessage {}),
                         timestamp: time,
                         ..Default::default()
                     },

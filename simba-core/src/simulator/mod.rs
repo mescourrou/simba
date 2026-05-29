@@ -66,7 +66,7 @@ use crate::{
     node::{
         Node, NodeState,
         node_factory::{
-            ComputationUnitConfig, MakeNodeParams, NodeFactory, NodeRecord, RobotConfig,
+            ComputationUnitConfig, MakeNodeParams, NodeFactory, RecordType, RobotConfig,
         },
     },
     plugin_api::PluginAPI,
@@ -97,22 +97,24 @@ use std::io::prelude::*;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread;
 
-/// One time record of a node. The record is the state of the node with the
-/// associated time.
+/// One time record.
 ///
-/// This is a line for one node ([`NodeRecord`]) at a given time.
+/// This is a line for one record ([`RecordType`]) at a given time.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Record {
     /// Time of the record.
     pub time: f32,
     /// Record of a node.
-    pub node: NodeRecord,
+    pub node: RecordType,
 }
 
 impl Ord for Record {
     fn cmp(&self, other: &Self) -> Ordering {
         if (self.time - other.time).abs() < TIME_ROUND {
-            self.node.name().cmp(other.node.name())
+            self.node
+                .name()
+                .unwrap_or(&"".to_string())
+                .cmp(other.node.name().unwrap_or(&"".to_string()))
         } else {
             self.time.total_cmp(&other.time)
         }
@@ -128,7 +130,10 @@ impl PartialOrd for Record {
 impl PartialEq for Record {
     fn eq(&self, other: &Self) -> bool {
         if (self.time - other.time).abs() < TIME_ROUND {
-            self.node.name().eq(other.node.name())
+            self.node
+                .name()
+                .unwrap_or(&"".to_string())
+                .eq(other.node.name().unwrap_or(&"".to_string()))
         } else {
             false
         }
@@ -372,7 +377,11 @@ impl Simulator {
 
         self.plugin_api = plugin_api.clone();
 
-        self.environment = Arc::new(Environment::from_config(&config.environment, &config)?);
+        self.environment = Arc::new(Environment::from_config(
+            &config.environment,
+            &config,
+            &self.determinist_va_factory,
+        )?);
 
         // Create robots
         for robot_config in &config.robots {
@@ -427,6 +436,14 @@ impl Simulator {
                     &self.context.clone(),
                 ),
             );
+        }
+
+        let map_record = Record {
+            time: 0.,
+            node: RecordType::Map(Box::new(self.environment.map().record(&self.context))),
+        };
+        if let Some(async_api_server) = &self.async_api_server {
+            async_api_server.send_record(&map_record);
         }
 
         Ok(())
@@ -819,9 +836,7 @@ impl Simulator {
                     error = Some(e);
                     break;
                 }
-                for (node, do_control_loop) in
-                    self.nodes.iter_mut().zip(do_control_loops.into_iter())
-                {
+                for (node, do_control_loop) in self.nodes.iter_mut().zip(do_control_loops) {
                     if node.process_messages() {
                         node.handle_messages(time, &node_contexts[&node.name()]);
                     }
@@ -1073,7 +1088,7 @@ impl Simulator {
 
                         pool.scoped(|scope| {
                             for (node, do_control_loop) in
-                                self.nodes.iter_mut().zip(do_control_loops.into_iter())
+                                self.nodes.iter_mut().zip(do_control_loops)
                             {
                                 let node_context = node_contexts[&node.name()].clone();
                                 scope.execute(move || {
@@ -1554,7 +1569,19 @@ impl Simulator {
             "Loading results from file `{}`",
             filename.to_str().unwrap()
         );
-        let mut recording_file = File::open(filename).expect("Impossible to open record file");
+        let mut recording_file = match File::open(filename) {
+            Ok(file) => file,
+            Err(e) => {
+                return Err(SimbaError::new(
+                    SimbaErrorTypes::ConfigError,
+                    format!(
+                        "Impossible to open record file '{}': {}",
+                        filename.to_str().unwrap(),
+                        e
+                    ),
+                ));
+            }
+        };
         let mut content = String::new();
         recording_file
             .read_to_string(&mut content)
@@ -1969,6 +1996,11 @@ def show():
     /// Get a context for the simulator
     pub fn get_context(&self) -> Context {
         self.context.clone()
+    }
+
+    /// Get the environment of the simulator, containing the map and the meta-data of the nodes.
+    pub fn get_environment(&self) -> Arc<Environment> {
+        self.environment.clone()
     }
 }
 

@@ -602,6 +602,7 @@ enum ConfigDerivesType {
 /// Options:
 /// - skip_check: do not derive Check (for configs that cannot be checked with the current checkers, such as fault models)
 /// - skip_deserialize: do not derive Deserialize (for configs that cannot be deserialized, such as those containing trait objects)
+/// - skip_serialize: do not derive Serialize (serialization should be done otherwide)
 /// - tag_content: for enums, use #[serde(tag = "type", content = "value")] instead of #[serde(tag = "type")]
 /// - untagged: for enums, use #[serde(untagged)] instead of #[serde(tag = "type")]
 /// - skip_unknown_fields: do not use #[serde(deny_unknown_fields)] (for configs that want to allow unknown fields, such as fault models that can have custom parameters)
@@ -617,6 +618,7 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let mut check_derive = quote! { Check, };
     let mut deserialize_derive = quote! { serde::Deserialize, };
+    let mut serialize_derive = quote! { serde::Serialize, };
     let mut tagged_derive = quote! { #[serde(tag = "type")] };
     let mut jsonschema_derive = quote! {
         #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
@@ -635,6 +637,9 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
             "skip_deserialize" => {
                 deserialize_derive = quote! {};
+            }
+            "skip_serialize" => {
+                serialize_derive = quote! {};
             }
             "tag_content" => {
                 tagged_derive = quote! {  #[serde(tag = "type", content = "value")] };
@@ -686,7 +691,7 @@ pub fn config_derives(attr: TokenStream, item: TokenStream) -> TokenStream {
     let output = quote! {
         use config_checker::*;
         #[derive(
-            serde::Serialize,
+            #serialize_derive
             #deserialize_derive
             Debug,
             Clone,

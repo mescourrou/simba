@@ -321,8 +321,8 @@ impl<'de> serde::Deserialize<'de> for PIDConfig {
         ];
         let mut config = deserializer.deserialize_struct("PIDConfig", FIELDS, PIDConfigVisitor)?;
 
-        if config.robot_model.is_some() {
-            let canonical_config = Self::default_from_model(config.robot_model.as_ref().unwrap());
+        if let Some(robot_model) = &config.robot_model {
+            let canonical_config = Self::default_from_model(robot_model);
             if config.proportional_gains.is_empty() {
                 config.proportional_gains = vec![0.0; canonical_config.proportional_gains.len()];
             }

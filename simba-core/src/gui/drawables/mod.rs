@@ -1,6 +1,6 @@
 use egui::{Rect, Response, Shape, Vec2};
 
-use crate::{gui::app::PainterInfo, node::node_factory::NodeRecord};
+use crate::{gui::app::PainterInfo, node::node_factory::RecordType};
 
 pub mod map;
 pub mod observations;
@@ -17,7 +17,7 @@ pub trait Drawable {
     /// * `time` - The time of the record. It can be different from the time of the last drawing, and it can be in the past or in the future.
     /// * `record` - The record to add. It contains the information to draw the drawable for the given time.
     ///
-    fn add_record(&mut self, time: f32, record: NodeRecord);
+    fn add_record(&mut self, time: f32, record: RecordType);
 
     /// Draws the drawable for the given time.
     ///

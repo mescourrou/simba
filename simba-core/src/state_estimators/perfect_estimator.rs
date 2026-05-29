@@ -258,7 +258,7 @@ impl StateEstimator for PerfectEstimator {
             self.world_state.objects.remove(&obj);
         }
 
-        let landmarks = node.environment().map().landmarks.clone();
+        let landmarks = node.environment().map().landmarks();
         self.world_state.landmarks = landmarks
             .iter()
             .enumerate()

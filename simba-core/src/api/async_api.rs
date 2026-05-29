@@ -147,7 +147,7 @@ impl AsyncApiRunner {
             keep_alive_rx: Arc::new(Mutex::new(keep_alive_rx)),
             keep_alive_tx,
             thread_handle: None,
-            running: true,
+            running: false,
         }
     }
 

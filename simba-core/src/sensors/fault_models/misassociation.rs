@@ -264,7 +264,7 @@ impl MisassociationFault {
                 .collect(),
             Source::Map => environment
                 .map()
-                .landmarks
+                .landmarks()
                 .iter()
                 .map(|l| (l.id.to_string(), l.pose.fixed_rows::<2>(0).into()))
                 .collect(),

@@ -11,14 +11,10 @@
 //!    `pub_sub` system of `simba_com`. Other nodes can subscribe to these messages using the same system, and
 //!    receive them with the configured `reception_delay`.
 
-use pyo3::{pyclass, pymethods};
-use serde::{Deserialize, Serialize};
-use simba_macros::EnumToString;
-
-use crate::{navigators::go_to::GoToMessage, sensors::sensor_manager::SensorTriggerMessage};
-
+pub mod message_types;
 pub mod network;
 pub mod network_manager;
+pub mod pybinds;
 
 /// Errors that can occur while using networking and service communication APIs.
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
@@ -33,58 +29,6 @@ pub enum NetworkError {
     ClientSide,
     /// A non-specific networking error.
     Other,
-}
-
-/// Payload variants that can transit through the network.
-///
-/// This enum is exposed to Python through `pyo3` and is serializable for transport.
-#[derive(Debug, Clone, Serialize, Deserialize, EnumToString)]
-#[pyclass]
-pub enum MessageTypes {
-    /// Arbitrary UTF-8 textual payload.
-    String(String),
-    /// Navigation payload used by [`GoToMessage`].
-    GoTo(GoToMessage),
-    /// Sensor event payload used by [`SensorTriggerMessage`].
-    SensorTrigger(SensorTriggerMessage),
-}
-
-#[pymethods]
-impl MessageTypes {
-    /// Creates a [`MessageTypes::GoTo`] from a [`GoToMessage`].
-    #[staticmethod]
-    pub fn from_goto(message: GoToMessage) -> Self {
-        MessageTypes::GoTo(message)
-    }
-
-    /// Creates a [`MessageTypes::SensorTrigger`] from a [`SensorTriggerMessage`].
-    #[staticmethod]
-    pub fn from_sensor_trigger(message: SensorTriggerMessage) -> Self {
-        MessageTypes::SensorTrigger(message)
-    }
-
-    /// Returns the contained [`GoToMessage`] when this value is [`MessageTypes::GoTo`].
-    pub fn as_goto(&self) -> Option<GoToMessage> {
-        match self {
-            MessageTypes::GoTo(msg) => Some(msg.clone()),
-            _ => None,
-        }
-    }
-
-    /// Returns the contained [`SensorTriggerMessage`] when this value is
-    /// [`MessageTypes::SensorTrigger`].
-    pub fn as_sensor_trigger(&self) -> Option<SensorTriggerMessage> {
-        match self {
-            MessageTypes::SensorTrigger(msg) => Some(msg.clone()),
-            _ => None,
-        }
-    }
-
-    /// Returns the variant discriminator as a string.
-    #[getter]
-    pub fn kind(&self) -> String {
-        self.to_string()
-    }
 }
 
 /// Definition of channels managed by the simulator.
@@ -132,7 +76,10 @@ mod tests {
         context::Context,
         debug,
         logger::LogLevel,
-        networking::network::{Envelope, Network, NetworkConfig},
+        networking::{
+            message_types::MessageTypes,
+            network::{Envelope, Network, NetworkConfig},
+        },
         node::{Node, node_factory::RobotConfig},
         physics::robot_models::Command,
         plugin_api::PluginAPI,
@@ -183,7 +130,7 @@ mod tests {
             if node.name() == "node1" {
                 println!("{} Sending message...", node.name());
                 let message = Envelope {
-                    message: serde_json::to_value(self.message.clone()).unwrap(),
+                    message: MessageTypes::String(self.message.clone()),
                     from: node.name().to_string(),
                     timestamp: time,
                     ..Default::default()
@@ -203,7 +150,7 @@ mod tests {
             self.last_time = time;
             if node.name() == "node2" {
                 while let Some((_path, envelope)) = self.message_client.try_receive(time) {
-                    let message = serde_json::from_value(envelope.message.clone()).unwrap();
+                    let message: String = envelope.message.clone().into();
                     println!("Receiving message: {} from {}", &message, envelope.from);
                     *self.last_message.lock().unwrap() = Some(message);
                     *self.last_from.lock().unwrap() = Some(envelope.from.clone());

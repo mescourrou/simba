@@ -20,7 +20,7 @@ use crate::gui::{UIComponent, utils::text_singleline_with_apply};
 use crate::{
     context::Context,
     controllers::{self, ControllerConfig, ControllerRecord, pid},
-    environment::Environment,
+    environment::{Environment, map::MapRecord},
     errors::{SimbaError, SimbaErrorTypes, SimbaResult},
     internal,
     navigators::{self, NavigatorConfig, NavigatorRecord, go_to},
@@ -31,6 +31,7 @@ use crate::{
     node::{Node, NodeMetaData, NodeState},
     physics::{self, PhysicsConfig, PhysicsRecord, internal_physics},
     plugin_api::PluginAPI,
+    scenario::config::EventRecord,
     sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
     simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig, TimeCv},
     state_estimators::{
@@ -120,32 +121,39 @@ impl NodeType {
     }
 }
 
-/// Record enum for node runtime snapshots.
+/// Record enum for node runtime snapshots and other recorded elements
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum NodeRecord {
+pub enum RecordType {
     // Box RobotRecord to reduce size of NodeRecord
     /// Record payload for a robot node.
     Robot(Box<RobotRecord>),
     /// Record payload for a computation-unit node.
     ComputationUnit(Box<ComputationUnitRecord>),
+    /// Scenario-based events records
+    Scenario(Box<EventRecord>),
+    /// Map generation record
+    Map(Box<MapRecord>),
 }
 
 #[cfg(feature = "gui")]
-impl UIComponent for NodeRecord {
+impl UIComponent for RecordType {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         match &self {
             Self::Robot(robot_record) => robot_record.show(ui, ctx, unique_id),
             Self::ComputationUnit(cu_record) => cu_record.show(ui, ctx, unique_id),
+            Self::Scenario(record) => record.show(ui, ctx, unique_id),
+            Self::Map(record) => record.show(ui, ctx, unique_id),
         }
     }
 }
 
-impl NodeRecord {
+impl RecordType {
     /// Returns the corresponding [`NodeType`] for this record.
-    pub fn as_node_type(&self) -> NodeType {
+    pub fn as_node_type(&self) -> Option<NodeType> {
         match &self {
-            Self::Robot(_) => NodeType::Robot,
-            Self::ComputationUnit(_) => NodeType::ComputationUnit,
+            Self::Robot(_) => Some(NodeType::Robot),
+            Self::ComputationUnit(_) => Some(NodeType::ComputationUnit),
+            _ => None,
         }
     }
 
@@ -154,6 +162,7 @@ impl NodeRecord {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.navigator),
             Self::ComputationUnit(_) => None,
+            _ => None,
         }
     }
 
@@ -162,6 +171,7 @@ impl NodeRecord {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.controller),
             Self::ComputationUnit(_) => None,
+            _ => None,
         }
     }
 
@@ -170,6 +180,7 @@ impl NodeRecord {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.physics),
             Self::ComputationUnit(_) => None,
+            _ => None,
         }
     }
 
@@ -178,6 +189,7 @@ impl NodeRecord {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.state_estimator),
             Self::ComputationUnit(_) => None,
+            _ => None,
         }
     }
 
@@ -188,6 +200,7 @@ impl NodeRecord {
             Self::ComputationUnit(computation_unit_record) => {
                 Some(&computation_unit_record.state_estimators)
             }
+            _ => None,
         }
     }
 
@@ -196,14 +209,16 @@ impl NodeRecord {
         match &self {
             Self::Robot(robot_record) => Some(&robot_record.sensors),
             Self::ComputationUnit(r) => Some(&r.sensor_manager),
+            _ => None,
         }
     }
 
     /// Returns node name.
-    pub fn name(&self) -> &String {
+    pub fn name(&self) -> Option<&String> {
         match &self {
-            Self::Robot(robot_record) => &robot_record.name,
-            Self::ComputationUnit(r) => &r.name,
+            Self::Robot(robot_record) => Some(&robot_record.name),
+            Self::ComputationUnit(r) => Some(&r.name),
+            _ => None,
         }
     }
 }

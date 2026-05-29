@@ -24,9 +24,11 @@ use crate::{
 use crate::simulator::{Record, SimulatorConfig};
 
 #[config_derives(tag_content)]
+#[derive(Default)]
 /// Strategy used to save simulation results on disk.
 pub enum ResultSaveMode {
     /// Save once when the simulation ends.
+    #[default]
     AtTheEnd,
     /// Save continuously as records are produced.
     Continuous,
@@ -34,12 +36,6 @@ pub enum ResultSaveMode {
     Batch(usize),
     /// Save every `period` seconds of simulated time.
     Periodic(f32),
-}
-
-impl Default for ResultSaveMode {
-    fn default() -> Self {
-        Self::AtTheEnd
-    }
 }
 
 #[config_derives]
