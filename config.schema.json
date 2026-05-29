@@ -110,7 +110,7 @@
     "version": {
       "description": "Version of the simulator used by the configuration. Produces a warning the the major version (second number)\nis different from the current one.",
       "type": "string",
-      "default": "1.8.0"
+      "default": "1.8.1"
     }
   },
   "additionalProperties": false,
@@ -1694,6 +1694,7 @@
           }
         },
         "outputs": {
+          "description": "List of log targets to which log messages will be sent.\nEach target can be configured with different logging mechanisms (e.g., console, file, custom).\n\nDefault is a single console logger [`LoggerTypeConfig::Console`]. If the configuration is\nchanged, the console logger is lost.",
           "type": "array",
           "default": [
             {

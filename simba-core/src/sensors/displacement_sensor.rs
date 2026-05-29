@@ -579,10 +579,10 @@ impl Sensor for DisplacementSensor {
             if let Some(o) = keep_observation {
                 keep_observation = match filter {
                     DisplacementSensorFilterType::External(f) => {
-                        f.filter(time, o, &state, None, context)
+                        f.filter(time, o, state, None, context)
                     }
                     DisplacementSensorFilterType::Python(f) => {
-                        f.filter(time, o, &state, None, context)
+                        f.filter(time, o, state, None, context)
                     }
                     DisplacementSensorFilterType::Range(f) => {
                         if let SensorObservation::Displacement(obs) = o {

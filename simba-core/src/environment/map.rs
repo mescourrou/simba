@@ -1,3 +1,5 @@
+//! Map representation containing multiple landmarks.
+
 use std::{path::Path, sync::Arc};
 
 use serde::{Deserialize, Serialize};
@@ -45,6 +47,7 @@ use crate::{
 ///     variable_order: [x, y, theta]
 /// ```
 #[config_derives]
+#[derive(Default)]
 pub struct MapConfig {
     /// Landmarks contained in the map.
     pub landmarks: Vec<OrientedLandmarkConfig>,
@@ -52,17 +55,8 @@ pub struct MapConfig {
     pub random: Vec<RandomMap>,
 }
 
-impl Default for MapConfig {
-    fn default() -> Self {
-        Self {
-            landmarks: Vec::new(),
-            random: Vec::new(),
-        }
-    }
-}
-
 enum_variables!(
-    "Variables of the [`MapRandom`]."
+    "Variables of the [`RandomMap`]."
     MapVariables;
     "X position of the landmark"
     X, "x";
@@ -76,7 +70,9 @@ enum_variables!(
     Width, "width", "w";
 );
 
+/// Configuration for generating random landmarks in the map.
 #[config_derives]
+#[derive(Default)]
 pub struct RandomMap {
     /// Number of landmarks to generate randomly.
     pub number: NumberConfig,
@@ -86,16 +82,6 @@ pub struct RandomMap {
     pub distributions: Vec<RandomVariableTypeConfig>,
     /// Ordered list of target variables receiving sampled perturbations.
     pub variable_order: Vec<MapVariables>,
-}
-
-impl Default for RandomMap {
-    fn default() -> Self {
-        Self {
-            number: NumberConfig::default(),
-            distributions: Vec::new(),
-            variable_order: Vec::new(),
-        }
-    }
 }
 
 impl Check for RandomMap {
@@ -117,10 +103,10 @@ impl Check for RandomMap {
                 "Number of random landmarks should be non-negative, got {}",
                 n
             ));
-        } else if let NumberConfig::Rand(cfg) = &self.number {
-            if cfg.dim() != 1 {
-                errors.push(format!("Number of random landmarks should be a univariate random variable, got dimension {}", cfg.dim()));
-            }
+        } else if let NumberConfig::Rand(cfg) = &self.number
+            && cfg.dim() != 1
+        {
+            errors.push(format!("Number of random landmarks should be a univariate random variable, got dimension {}", cfg.dim()));
         }
         if errors.is_empty() {
             Ok(())
@@ -131,6 +117,12 @@ impl Check for RandomMap {
 }
 
 impl RandomMap {
+    /// Generate a list of [`OrientedLandmark`] based on the configuration of this random map.
+    ///
+    /// # Arguments
+    /// * `va_factory`: Factory for creating random variable instances based on the distribution configurations.
+    /// * `first_id`: Starting ID for the generated landmarks. Each landmark will be assigned a unique ID incremented from this starting point.
+    ///
     pub fn generate_landmarks(
         &self,
         va_factory: &Arc<DeterministRandomVariableFactory>,
@@ -169,6 +161,7 @@ impl RandomMap {
     }
 }
 
+/// Map representation containing multiple landmarks.
 #[derive(Debug, Clone, Default)]
 pub struct Map {
     /// Landmarks contained in the map.
@@ -215,6 +208,7 @@ impl Map {
         Ok(Map { landmarks })
     }
 
+    /// Get the landmarks contained in the map.
     pub fn landmarks(&self) -> &Vec<OrientedLandmark> {
         &self.landmarks
     }
@@ -232,8 +226,10 @@ impl Recordable<MapRecord> for Map {
     }
 }
 
+/// Record type for [`Map`].
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MapRecord {
+    /// Landmarks contained in the map.
     pub landmarks: Vec<OrientedLandmarkRecord>,
 }
 

@@ -111,16 +111,18 @@ impl Default for TimeEventTriggerConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for TimeEventTriggerConfig {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
-        ui.label(format!("Time Trigger (time: {}, occurences: {})", 
-        match self.time {
-            NumberConfig::Num(t) => t.to_string(),
-            _ => "Random".to_string()
-        },
-        match self.occurences {
-            NumberConfig::Num(t) => t.to_string(),
-            _ => "Random".to_string()
-        }));
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+        ui.label(format!(
+            "Time Trigger (time: {}, occurences: {})",
+            match self.time {
+                NumberConfig::Num(t) => t.to_string(),
+                _ => "Random".to_string(),
+            },
+            match self.occurences {
+                NumberConfig::Num(t) => t.to_string(),
+                _ => "Random".to_string(),
+            }
+        ));
     }
 }
 
@@ -177,11 +179,13 @@ impl Default for RectAreaEventTriggerConfig {
     }
 }
 
-
 #[cfg(feature = "gui")]
 impl UIComponent for RectAreaEventTriggerConfig {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(format!("Rect Area Trigger (top-right: {:#?}, bottom-left: {:#?}, inside: {})", self.top_right, self.bottom_left, self.inside));
+        ui.label(format!(
+            "Rect Area Trigger (top-right: {:#?}, bottom-left: {:#?}, inside: {})",
+            self.top_right, self.bottom_left, self.inside
+        ));
     }
 }
 
@@ -214,7 +218,10 @@ impl Default for CircleAreaEventTriggerConfig {
 #[cfg(feature = "gui")]
 impl UIComponent for CircleAreaEventTriggerConfig {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(format!("Circe Area Trigger (center: {:#?}, radius: {}, inside: {})", self.center, self.radius, self.inside));
+        ui.label(format!(
+            "Circe Area Trigger (center: {:#?}, radius: {}, inside: {})",
+            self.center, self.radius, self.inside
+        ));
     }
 }
 
@@ -246,8 +253,11 @@ impl Default for ProximityEventTriggerConfig {
 
 #[cfg(feature = "gui")]
 impl UIComponent for ProximityEventTriggerConfig {
-    fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
-        ui.label(format!("Proximity Trigger (distance: {}, inside: {}, protected target: {:#?})", self.distance, self.inside, self.protected_target));
+    fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
+        ui.label(format!(
+            "Proximity Trigger (distance: {}, inside: {}, protected target: {:#?})",
+            self.distance, self.inside, self.protected_target
+        ));
     }
 }
 
@@ -273,8 +283,12 @@ impl Default for EventTypeConfig {
 impl UIComponent for EventTypeConfig {
     fn show(&self, ui: &mut egui::Ui, ctx: &egui::Context, unique_id: &str) {
         match &self {
-            Self::Spawn(event) => { event.show(ui, ctx, unique_id); },
-            Self::Kill(target) => { ui.label(format!("Kill Event (target: {})", target)); },
+            Self::Spawn(event) => {
+                event.show(ui, ctx, unique_id);
+            }
+            Self::Kill(target) => {
+                ui.label(format!("Kill Event (target: {})", target));
+            }
         }
     }
 }
@@ -304,7 +318,10 @@ impl Default for SpawnEventConfig {
 #[cfg(feature = "gui")]
 impl UIComponent for SpawnEventConfig {
     fn show(&self, ui: &mut egui::Ui, _ctx: &egui::Context, _unique_id: &str) {
-        ui.label(format!("Spawn Event (model_name: {}, node_name: {})", self.model_name, self.node_name));
+        ui.label(format!(
+            "Spawn Event (model_name: {}, node_name: {})",
+            self.model_name, self.node_name
+        ));
     }
 }
 

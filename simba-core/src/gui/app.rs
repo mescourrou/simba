@@ -5,15 +5,27 @@ use std::{
     time::{self, Duration},
 };
 
-use egui::{Align2, Color32, Id, Pos2, Rect, Response, ScrollArea, Sense, Shape, Vec2};
+use egui::{Align2, Color32, Id, Pos2, Rect, Response, Sense, Shape, Vec2};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    AUTHORS, VERSION, api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner}, constants::{TIME_ROUND, TIME_ROUND_DECIMALS}, context::Context, error, errors::{SimbaError, SimbaErrorTypes}, gui::{
+    AUTHORS, VERSION,
+    api::async_api::{AsyncApi, AsyncApiLoadConfigRequest, AsyncApiRunRequest, AsyncApiRunner},
+    constants::{TIME_ROUND, TIME_ROUND_DECIMALS},
+    context::Context,
+    error,
+    errors::{SimbaError, SimbaErrorTypes},
+    gui::{
         UIComponent,
         drawables::popup::Popup,
         panels::{broker::BrokerPanel, logs::LogsPanel, virtual_nodes::VirtualNodesPanel},
-    }, info, node::node_factory::RecordType, plugin_api::PluginAPI, recordable::Recordable, simulator::{Record, SimbaBroker, Simulator, SimulatorConfig}, utils::{SharedMutex, SharedRoLock, maths::round_precision, numbers::OrderedF32}
+    },
+    info,
+    node::node_factory::RecordType,
+    plugin_api::PluginAPI,
+    recordable::Recordable,
+    simulator::{Record, SimbaBroker, Simulator, SimulatorConfig},
+    utils::{SharedMutex, SharedRoLock, maths::round_precision, numbers::OrderedF32},
 };
 
 use super::{
@@ -400,8 +412,11 @@ impl SimbaApp {
             .lock()
             .unwrap()
             .get_environment();
-        self.p.map =
-            drawables::map::Map::init(environment.map().record(self.p.context.as_ref().unwrap()), config, self.p.context.as_ref().unwrap());
+        self.p.map = drawables::map::Map::init(
+            environment.map().record(self.p.context.as_ref().unwrap()),
+            config,
+            self.p.context.as_ref().unwrap(),
+        );
         for robot in &config.robots {
             self.p.robots.insert(
                 robot.name.clone(),

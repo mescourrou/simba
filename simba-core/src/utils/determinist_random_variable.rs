@@ -132,8 +132,10 @@ impl DeterministRandomVariable {
 
 /// Configuration of random-variable type and parameters.
 #[config_derives]
+#[derive(Default)]
 pub enum RandomVariableTypeConfig {
     /// No random variable
+    #[default]
     None,
     /// Fixed value
     #[check]
@@ -163,12 +165,6 @@ impl RandomVariableTypeConfig {
             RandomVariableTypeConfig::Poisson(c) => c.lambda.len(),
             RandomVariableTypeConfig::Exponential(c) => c.lambda.len(),
         }
-    }
-}
-
-impl Default for RandomVariableTypeConfig {
-    fn default() -> Self {
-        Self::None
     }
 }
 

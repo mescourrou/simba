@@ -31,6 +31,9 @@ List of parameters:
 			- `type`: Scenario  
 			- `type`: Environment  
 			- `type`: EnvironmentDetailed  
+	`outputs`: [LoggerTypeConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/logger/enum.LoggerTypeConfig.html), List, Enum
+		- `type`: Console  
+		- `type`: File => String
 `results`: [ResultConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/simulator/results/struct.ResultConfig.html), Optional
 	`result_path`: String, Optional
 	`show_figures`: Boolean
@@ -191,6 +194,10 @@ List of parameters:
 						- `type`: External => [ExternalFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/external_filter/struct.ExternalFilterConfig.html)
 							Insert User-specific struct
 					`xray`: Boolean
+					`frame`: [FrameConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/frame/struct.FrameConfig.html)
+						`x`: Float
+						`y`: Float
+						`theta`: Float
 				- `type`: Speed => [SpeedSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/speed_sensor/struct.SpeedSensorConfig.html)
 					`activation_time`: [PeriodicityConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/periodicity/struct.PeriodicityConfig.html), See above, Optional
 					`faults`: [SpeedSensorFaultModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/speed_sensor/enum.SpeedSensorFaultModelConfig.html), List, Enum
@@ -201,6 +208,7 @@ List of parameters:
 						- `type`: Range => [RangeFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/range_filter/struct.RangeFilterConfig.html), See above
 						- `type`: Python => [PythonFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/python_filter/struct.PythonFilterConfig.html), See above
 						- `type`: External => [ExternalFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/external_filter/struct.ExternalFilterConfig.html), See above
+					`frame`: [FrameConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/frame/struct.FrameConfig.html), See above
 				- `type`: Displacement => [DisplacementSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/displacement_sensor/struct.DisplacementSensorConfig.html)
 					`activation_time`: [PeriodicityConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/periodicity/struct.PeriodicityConfig.html), See above, Optional
 					`faults`: [DisplacementSensorFaultModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/displacement_sensor/enum.DisplacementSensorFaultModelConfig.html), List, Enum
@@ -213,6 +221,7 @@ List of parameters:
 						- `type`: Python => [PythonFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/python_filter/struct.PythonFilterConfig.html), See above
 						- `type`: External => [ExternalFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/external_filter/struct.ExternalFilterConfig.html), See above
 					`lie_movement`: Boolean
+					`frame`: [FrameConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/frame/struct.FrameConfig.html), See above
 				- `type`: GNSS => [GNSSSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/gnss_sensor/struct.GNSSSensorConfig.html)
 					`activation_time`: [PeriodicityConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/periodicity/struct.PeriodicityConfig.html), See above, Optional
 					`faults`: [GNSSSensorFaultModelConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/gnss_sensor/enum.GNSSSensorFaultModelConfig.html), List, Enum
@@ -225,6 +234,7 @@ List of parameters:
 						- `type`: Range => [RangeFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/range_filter/struct.RangeFilterConfig.html), See above
 						- `type`: Python => [PythonFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/python_filter/struct.PythonFilterConfig.html), See above
 						- `type`: External => [ExternalFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/external_filter/struct.ExternalFilterConfig.html), See above
+					`frame`: [FrameConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/frame/struct.FrameConfig.html), See above
 				- `type`: Robot => [RobotSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/robot_sensor/struct.RobotSensorConfig.html)
 					`detection_distance`: Float
 					`activation_time`: [PeriodicityConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/periodicity/struct.PeriodicityConfig.html), See above, Optional
@@ -243,6 +253,7 @@ List of parameters:
 						- `type`: Python => [PythonFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/python_filter/struct.PythonFilterConfig.html), See above
 						- `type`: External => [ExternalFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/external_filter/struct.ExternalFilterConfig.html), See above
 					`xray`: Boolean
+					`frame`: [FrameConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/frame/struct.FrameConfig.html), See above
 				- `type`: Scan => [ScanSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/scan_sensor/struct.ScanSensorConfig.html)
 					`detection_distance`: Float
 					`rays`: [RayConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/scan_sensor/enum.RayConfig.html), Enum
@@ -264,6 +275,7 @@ List of parameters:
 						- `type`: Range => [RangeFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/range_filter/struct.RangeFilterConfig.html), See above
 						- `type`: Python => [PythonFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/python_filter/struct.PythonFilterConfig.html), See above
 						- `type`: External => [ExternalFilterConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/sensor_filters/external_filter/struct.ExternalFilterConfig.html), See above
+					`frame`: [FrameConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/utils/frame/struct.FrameConfig.html), See above
 				- `type`: External => [ExternalSensorConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/sensors/external_sensor/struct.ExternalSensorConfig.html)
 					Insert User-specific struct
 	`network`: [NetworkConfig](https://homepages.laas.fr/mescourrou/Recherche/Logiciels/multi-robot-simulator/rust/simba/networking/network/struct.NetworkConfig.html)

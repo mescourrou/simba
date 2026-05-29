@@ -1,10 +1,11 @@
+//! Python bindings for the networking module of Simba, allowing Python code to interact with Rust networking components.
+//!
 use pyo3::prelude::*;
 use simba_macros::EnumToString;
 
 use crate::{
     navigators::go_to::GoToMessage, networking::message_types::MessageTypes,
-    pywrappers::ObservationWrapper, scenario::config::EventRecord,
-    sensors::sensor_manager::SensorTriggerMessage,
+    pywrappers::ObservationWrapper, sensors::sensor_manager::SensorTriggerMessage,
 };
 
 #[derive(Clone, Debug, EnumToString)]
@@ -18,9 +19,9 @@ pub enum MessageTypesWrapper {
     GoTo(GoToMessage),
     /// Sensor event payload used by [`SensorTriggerMessage`].
     SensorTrigger(SensorTriggerMessage),
-
+    /// A list of observations, each wrapped in an [`ObservationWrapper`].
     Observations(Vec<ObservationWrapper>),
-
+    /// An event record serialized as a JSON string.
     Event(String),
     /// Custom binary payload.
     Custom(Vec<u8>),
@@ -45,9 +46,9 @@ impl MessageTypesWrapper {
         MessageTypesWrapper::String(message)
     }
 
-    /// Creates a [`MessageTypes::Observation`] from an [`ObservationWrapper`].
+    /// Creates a [`MessageTypes::Observations`] from a list of [`ObservationWrapper`].
     #[staticmethod]
-    pub fn from_observation(observations: Vec<ObservationWrapper>) -> Self {
+    pub fn from_observations(observations: Vec<ObservationWrapper>) -> Self {
         MessageTypesWrapper::Observations(observations)
     }
 
@@ -82,8 +83,8 @@ impl MessageTypesWrapper {
         }
     }
 
-    /// Returns the contained [`ObservationWrapper`] when this value is [`MessageTypes::Observation`].
-    pub fn as_observation(&self) -> Option<Vec<ObservationWrapper>> {
+    /// Returns the contained [`ObservationWrapper`] when this value is [`MessageTypes::Observations`].
+    pub fn as_observations(&self) -> Option<Vec<ObservationWrapper>> {
         match self {
             MessageTypesWrapper::Observations(obs) => Some(obs.clone()),
             _ => None,

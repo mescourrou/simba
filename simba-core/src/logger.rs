@@ -7,13 +7,11 @@
 //! - [`InternalLog`] for fine-grained internal debug categories,
 //! - [`LoggerConfig`] to configure logging from simulator configuration,
 //! - helper functions to initialize and query internal log flags.
-use std::{
-    fmt::Debug,
-    sync::{Arc, RwLock},
-};
+use std::fmt::Debug;
 
 use simba_macros::{EnumToString, config_derives};
 
+use crate::utils::SharedRwLock;
 #[cfg(feature = "gui")]
 use crate::{
     gui::{
@@ -22,7 +20,6 @@ use crate::{
     },
     simulator::SimulatorConfig,
 };
-use crate::{networking::channels::internal::log, utils::SharedRwLock};
 
 /// Global logging level configuration.
 #[config_derives(tag_content)]
@@ -42,6 +39,9 @@ pub enum LogLevel {
 }
 
 impl LogLevel {
+    /// Convert the log level to a string representation, optionally with colors for better readability in the console.
+    /// The color is using the `colored` crate, which may not display correctly in all environments
+    /// (e.g., some text editors or log viewers may not support colored output).
     pub fn to_log_string(&self, colored: bool) -> String {
         if colored {
             match self {
@@ -158,6 +158,11 @@ pub struct LoggerConfig {
     /// Default: [`LogLevel::Info`].
     pub log_level: LogLevel,
 
+    /// List of log targets to which log messages will be sent.
+    /// Each target can be configured with different logging mechanisms (e.g., console, file, custom).
+    ///
+    /// Default is a single console logger [`LoggerTypeConfig::Console`]. If the configuration is
+    /// changed, the console logger is lost.
     pub outputs: Vec<LoggerTypeConfig>,
 }
 
@@ -272,8 +277,8 @@ pub trait Logger: Debug + Send + Sync {
         &mut self,
         loglevel: &LogLevel,
         time: Option<f32>,
-        node_name: &String,
-        callstack: &Vec<String>,
+        node_name: &str,
+        callstack: &[String],
         internal_category: Option<&InternalLog>,
         message: &str,
     );
@@ -307,8 +312,8 @@ impl LoggerType {
         &mut self,
         loglevel: &LogLevel,
         time: Option<f32>,
-        node_name: &String,
-        callstack: &Vec<String>,
+        node_name: &str,
+        callstack: &[String],
         internal_category: Option<&InternalLog>,
         message: &str,
     ) {
@@ -364,8 +369,8 @@ impl LoggerType {
 pub fn format_log_message(
     loglevel: &LogLevel,
     time: Option<f32>,
-    node_name: &String,
-    callstack: &Vec<String>,
+    node_name: &str,
+    callstack: &[String],
     internal_category: Option<&InternalLog>,
     message: &str,
     colored: bool,
@@ -445,8 +450,8 @@ impl Logger for ConsoleLogger {
         &mut self,
         loglevel: &LogLevel,
         time: Option<f32>,
-        node_name: &String,
-        callstack: &Vec<String>,
+        node_name: &str,
+        callstack: &[String],
         internal_category: Option<&InternalLog>,
         message: &str,
     ) {
@@ -478,14 +483,6 @@ pub struct StringLogger {
 }
 
 impl StringLogger {
-    /// Create a new `StringLogger` instance with an empty log string. This logger will accumulate log messages in memory and allow retrieval of the entire log history as a single string.
-    pub fn new() -> Self {
-        StringLogger {
-            logs: Arc::new(RwLock::new(String::new())),
-            colored: false,
-        }
-    }
-
     /// Create a new `StringLogger` instance that shares the same log string with other owners. This allows `StringLogger` to write in a String displayed in the GUI, for example.
     pub fn from_string(logs: SharedRwLock<String>) -> Self {
         StringLogger {
@@ -505,8 +502,8 @@ impl Logger for StringLogger {
         &mut self,
         loglevel: &LogLevel,
         time: Option<f32>,
-        node_name: &String,
-        callstack: &Vec<String>,
+        node_name: &str,
+        callstack: &[String],
         internal_category: Option<&InternalLog>,
         message: &str,
     ) {
@@ -550,8 +547,8 @@ impl Logger for FileLogger {
         &mut self,
         loglevel: &LogLevel,
         time: Option<f32>,
-        node_name: &String,
-        callstack: &Vec<String>,
+        node_name: &str,
+        callstack: &[String],
         internal_category: Option<&InternalLog>,
         message: &str,
     ) {

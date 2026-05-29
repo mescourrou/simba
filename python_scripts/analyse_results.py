@@ -19,6 +19,8 @@ def analyse(records: list, config: dict, figure_path: str, figure_type: str, add
     for record in records:
         t = record["time"]
         node_type = list(record["node"].keys())[0]
+        if node_type not in ["Robot", "ComputationUnit"]:
+            continue
         turtle_name = record["node"][node_type]["name"]
         if not turtle_name in all_turtles_data:
             all_turtles_data[turtle_name] = TurtleData()

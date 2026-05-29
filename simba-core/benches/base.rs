@@ -8,10 +8,7 @@ extern crate simba;
 
 fn run_benchmark(c: &mut Criterion, name: &str, config: SimulatorConfig) {
     let mut simulator = Simulator::from_config(&config, None)
-        .map_err(|e| {
-            println!("Error while loading config: {}", e.detailed_error());
-            e
-        })
+        .inspect_err(|e| println!("Error while loading config: {}", e.detailed_error()))
         .unwrap();
 
     c.bench_function(name, |b| {

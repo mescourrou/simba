@@ -700,10 +700,10 @@ impl Sensor for RobotSensor {
                     if let Some(obs) = keep_observation {
                         keep_observation = match filter {
                             RobotSensorFilterType::Python(f) => {
-                                f.filter(time, obs, &state, Some(&other_state), context)
+                                f.filter(time, obs, state, Some(&other_state), context)
                             }
                             RobotSensorFilterType::External(f) => {
-                                f.filter(time, obs, &state, Some(&other_state), context)
+                                f.filter(time, obs, state, Some(&other_state), context)
                             }
                             RobotSensorFilterType::Id(f) => {
                                 if let SensorObservation::OrientedRobot(obs) = obs {

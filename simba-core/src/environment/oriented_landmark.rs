@@ -71,6 +71,7 @@ pub struct OrientedLandmark {
 }
 
 impl OrientedLandmark {
+    /// Create a new [`OrientedLandmark`] from the given configuration.
     pub fn from_config(config: &OrientedLandmarkConfig) -> Self {
         Self {
             id: config.id,
@@ -110,6 +111,7 @@ impl Recordable<OrientedLandmarkRecord> for OrientedLandmark {
     }
 }
 
+/// Record type for [`OrientedLandmark`], which is the same as its configuration struct.
 pub type OrientedLandmarkRecord = OrientedLandmarkConfig;
 
 #[cfg(feature = "gui")]

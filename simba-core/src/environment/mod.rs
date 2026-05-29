@@ -11,19 +11,17 @@
 use std::collections::BTreeMap;
 use std::{
     collections::HashMap,
-    path::Path,
     sync::{Arc, RwLock},
 };
 
 use config_checker::*;
 use nalgebra::{Vector2, Vector3};
-use serde::{Deserialize, Serialize};
 use simba_macros::config_derives;
 
 use crate::{
     context::Context,
     environment::{map::Map, oriented_landmark::OrientedLandmark},
-    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    errors::SimbaResult,
     internal,
     logger::InternalLog,
     node::NodeMetaData,

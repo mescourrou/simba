@@ -1,12 +1,7 @@
-use std::sync::Arc;
-
 use egui::{Color32, Rect, Shape, Stroke, Vec2};
 
 use crate::{
-    context::Context,
-    environment::{self, Environment, EnvironmentConfig, map::MapRecord, oriented_landmark::OrientedLandmark},
-    gui::app::PainterInfo,
-    info,
+    context::Context, environment::map::MapRecord, gui::app::PainterInfo,
     simulator::SimulatorConfig,
 };
 
@@ -34,11 +29,7 @@ impl Map {
     /// ## Arguments
     /// * `sim_config` - Simulator configuration used to resolve the map path.
     /// * `context` - Shared simulation context used for initialization logs.
-    pub fn init(
-        current_map: MapRecord,
-        _sim_config: &SimulatorConfig,
-        _context: &Context,
-    ) -> Self {
+    pub fn init(current_map: MapRecord, _sim_config: &SimulatorConfig, _context: &Context) -> Self {
         Self {
             color: Color32::RED,
             arrow_len: 0.2,

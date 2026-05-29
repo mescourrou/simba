@@ -13,7 +13,7 @@
 
 extern crate confy;
 use core::f32;
-use pyo3::{panic, prelude::*};
+use pyo3::prelude::*;
 use serde_derive::{Deserialize, Serialize};
 use simba_com::pub_sub::{MultiClientTrait, PathKey};
 use simba_macros::config_derives;

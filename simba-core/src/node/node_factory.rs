@@ -18,13 +18,28 @@ use simba_macros::config_derives;
 use crate::gui::{UIComponent, utils::text_singleline_with_apply};
 
 use crate::{
-    context::Context, controllers::{self, ControllerConfig, ControllerRecord, pid}, environment::{Environment, map::MapRecord}, errors::{SimbaError, SimbaErrorTypes, SimbaResult}, internal, navigators::{self, NavigatorConfig, NavigatorRecord, go_to}, networking::{
+    context::Context,
+    controllers::{self, ControllerConfig, ControllerRecord, pid},
+    environment::{Environment, map::MapRecord},
+    errors::{SimbaError, SimbaErrorTypes, SimbaResult},
+    internal,
+    navigators::{self, NavigatorConfig, NavigatorRecord, go_to},
+    networking::{
         self,
         network::{Network, NetworkConfig},
-    }, node::{Node, NodeMetaData, NodeState}, physics::{self, PhysicsConfig, PhysicsRecord, internal_physics}, plugin_api::PluginAPI, scenario::config::EventRecord, sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord}, simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig, TimeCv}, state_estimators::{
+    },
+    node::{Node, NodeMetaData, NodeState},
+    physics::{self, PhysicsConfig, PhysicsRecord, internal_physics},
+    plugin_api::PluginAPI,
+    scenario::config::EventRecord,
+    sensors::sensor_manager::{SensorManager, SensorManagerConfig, SensorManagerRecord},
+    simulator::{SimbaBroker, SimbaBrokerMultiClient, SimulatorConfig, TimeCv},
+    state_estimators::{
         self, BenchStateEstimator, BenchStateEstimatorConfig, BenchStateEstimatorRecord, State,
         StateEstimatorConfig, StateEstimatorRecord, perfect_estimator,
-    }, time_analysis::TimeAnalysisFactory, utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory}
+    },
+    time_analysis::TimeAnalysisFactory,
+    utils::{SharedRwLock, determinist_random_variable::DeterministRandomVariableFactory},
 };
 
 /// Type of node instantiated in the simulator.

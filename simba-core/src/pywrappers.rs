@@ -34,7 +34,6 @@ use crate::{
     debug, error, info,
     navigators::pybinds::NavigatorWrapper,
     networking::{
-        message_types::MessageTypes,
         network::{Envelope, MessageFlag, Network},
         pybinds::MessageTypesWrapper,
     },
@@ -1135,7 +1134,7 @@ impl HolonomicCommandWrapper {
 pub struct EnvelopeWrapper {
     /// Expeditor
     pub msg_from: String,
-    /// Message sent, see [`MessageTypes`] for supported messages
+    /// Message sent, see [`MessageTypesWrapper`] for supported messages
     pub message: MessageTypesWrapper,
     /// Time of the message
     pub timestamp: f32,
@@ -1165,7 +1164,7 @@ impl NodeWrapper {
     ///
     /// # Arguments
     /// * `to` - Channel key to send the message to. It can be a relative key (e.g. "channel1") or an absolute key (e.g. "/my_channels/channel1").
-    /// * `message` - Message to send. See [`MessageTypes`] for the supported message types in Python.
+    /// * `message` - Message to send. See [`MessageTypesWrapper`] for the supported message types in Python.
     /// * `time` - Time at which the message is sent. It should be the current time of the simulator or in the future.
     /// * `flags` - Message flags. See [`MessageFlag`] for the supported flags.
     #[pyo3(signature = (to, message, time, flags=Vec::new()))]
@@ -1291,7 +1290,7 @@ impl MultiClientWrapper {
     ///
     /// # Arguments
     /// * `to` - Channel key to send the message to. It can be a relative key (e.g. "channel1") or an absolute key (e.g. "/my_channels/channel1").
-    /// * `message` - Message to send. See [`MessageTypes`] for the supported message types in Python.
+    /// * `message` - Message to send. See [`MessageTypesWrapper`] for the supported message types in Python.
     /// * `time` - Time at which the message is sent. It should be the current time of the simulator or in the future.
     /// * `flags` - Message flags. See [`MessageFlag`] for the supported flags.
     pub fn send(

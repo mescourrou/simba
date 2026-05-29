@@ -525,8 +525,8 @@ impl Sensor for GNSSSensor {
         for filter in self.filters.iter() {
             if let Some(obs) = keep_observation {
                 keep_observation = match filter {
-                    GNSSSensorFilterType::Python(f) => f.filter(time, obs, &state, None, context),
-                    GNSSSensorFilterType::External(f) => f.filter(time, obs, &state, None, context),
+                    GNSSSensorFilterType::Python(f) => f.filter(time, obs, state, None, context),
+                    GNSSSensorFilterType::External(f) => f.filter(time, obs, state, None, context),
                     GNSSSensorFilterType::Range(f) => {
                         if let SensorObservation::GNSS(obs) = obs {
                             if f.match_exclusion(&GNSSSensorVariablesFilter::mapped_values(

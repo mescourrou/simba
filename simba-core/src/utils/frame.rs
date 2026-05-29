@@ -1,6 +1,9 @@
+//! Module for managing 2D frames, including their configuration, transformation, and attachment to states.
+//! This module provides the [`Frame`] struct to represent a 2D frame with position and orientation, and the
+//! [`AttachedFrame`] struct to represent a frame that is attached to a specific state, allowing for
+//! transformations between the frame's coordinate system and the global coordinate system.
 #[cfg(feature = "gui")]
 use std::f32::consts::PI;
-use std::ops::Mul;
 
 use nalgebra::{ArrayStorage, Const, Isometry2, Storage};
 use serde::{Deserialize, Serialize};
@@ -63,11 +66,7 @@ impl UIComponent for FrameConfig {
                     ui.horizontal(|ui| {
                         ui.label("Theta:");
                         ui.add(egui::DragValue::new(&mut self.theta).speed(0.01));
-                        if self.theta < -PI {
-                            self.theta = -PI;
-                        } else if self.theta > PI {
-                            self.theta = PI;
-                        }
+                        self.theta = self.theta.clamp(-PI, PI);
                     });
                 });
             });
@@ -113,6 +112,7 @@ impl Frame {
         Frame::new(config.x, config.y, config.theta)
     }
 
+    /// Create a new [`Frame`] with the specified position (x, y) and orientation (theta).
     pub fn new(x: f32, y: f32, theta: f32) -> Self {
         Self {
             transform: Isometry2::new(nalgebra::Vector2::new(x, y), theta),
@@ -124,6 +124,8 @@ impl Frame {
         &self.transform
     }
 
+    /// Attach the frame to a given state, returning an [`AttachedFrame`] that represents the frame's
+    /// state and transformation relative to the provided state.
     pub fn attach_to_state(&self, state: &State) -> AttachedFrame {
         AttachedFrame::from_frame(self, state)
     }
@@ -194,9 +196,9 @@ impl AttachedFrame {
     }
 
     /// Transform a given point from the frame's coordinate system to the global coordinate system.
-    pub fn transform_point_frame_to_global<'a, S>(
+    pub fn transform_point_frame_to_global<S>(
         &self,
-        point: &'a nalgebra::Matrix<f32, Const<2>, Const<1>, S>,
+        point: &nalgebra::Matrix<f32, Const<2>, Const<1>, S>,
     ) -> nalgebra::Matrix<f32, Const<2>, Const<1>, ArrayStorage<f32, 2, 1>>
     where
         S: Storage<f32, Const<2>, Const<1>>,

@@ -726,10 +726,10 @@ impl Sensor for OrientedLandmarkSensor {
                 if let Some(obs) = keep_observation {
                     keep_observation = match filter {
                         OrientedLandmarkSensorFilterType::External(f) => {
-                            f.filter(time, obs, &state, None, context)
+                            f.filter(time, obs, state, None, context)
                         }
                         OrientedLandmarkSensorFilterType::Python(f) => {
-                            f.filter(time, obs, &state, None, context)
+                            f.filter(time, obs, state, None, context)
                         }
                         OrientedLandmarkSensorFilterType::Range(f) => {
                             if let SensorObservation::OrientedLandmark(obs) = obs {

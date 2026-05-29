@@ -97,10 +97,9 @@ use std::io::prelude::*;
 use std::sync::{Arc, Condvar, Mutex, RwLock};
 use std::thread;
 
-/// One time record of a node. The record is the state of the node with the
-/// associated time.
+/// One time record.
 ///
-/// This is a line for one node ([`NodeRecord`]) at a given time.
+/// This is a line for one record ([`RecordType`]) at a given time.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Record {
     /// Time of the record.
@@ -112,7 +111,10 @@ pub struct Record {
 impl Ord for Record {
     fn cmp(&self, other: &Self) -> Ordering {
         if (self.time - other.time).abs() < TIME_ROUND {
-            self.node.name().unwrap_or(&"".to_string()).cmp(other.node.name().unwrap_or(&"".to_string()))
+            self.node
+                .name()
+                .unwrap_or(&"".to_string())
+                .cmp(other.node.name().unwrap_or(&"".to_string()))
         } else {
             self.time.total_cmp(&other.time)
         }
@@ -128,7 +130,10 @@ impl PartialOrd for Record {
 impl PartialEq for Record {
     fn eq(&self, other: &Self) -> bool {
         if (self.time - other.time).abs() < TIME_ROUND {
-            self.node.name().unwrap_or(&"".to_string()).eq(other.node.name().unwrap_or(&"".to_string()))
+            self.node
+                .name()
+                .unwrap_or(&"".to_string())
+                .eq(other.node.name().unwrap_or(&"".to_string()))
         } else {
             false
         }
@@ -831,9 +836,7 @@ impl Simulator {
                     error = Some(e);
                     break;
                 }
-                for (node, do_control_loop) in
-                    self.nodes.iter_mut().zip(do_control_loops.into_iter())
-                {
+                for (node, do_control_loop) in self.nodes.iter_mut().zip(do_control_loops) {
                     if node.process_messages() {
                         node.handle_messages(time, &node_contexts[&node.name()]);
                     }
@@ -1085,7 +1088,7 @@ impl Simulator {
 
                         pool.scoped(|scope| {
                             for (node, do_control_loop) in
-                                self.nodes.iter_mut().zip(do_control_loops.into_iter())
+                                self.nodes.iter_mut().zip(do_control_loops)
                             {
                                 let node_context = node_contexts[&node.name()].clone();
                                 scope.execute(move || {
@@ -1571,7 +1574,11 @@ impl Simulator {
             Err(e) => {
                 return Err(SimbaError::new(
                     SimbaErrorTypes::ConfigError,
-                    format!("Impossible to open record file '{}': {}", filename.to_str().unwrap(), e),
+                    format!(
+                        "Impossible to open record file '{}': {}",
+                        filename.to_str().unwrap(),
+                        e
+                    ),
                 ));
             }
         };

@@ -1,5 +1,13 @@
 # Changelogs
 
+## v1.8.1
+- Add static frames to sensors (relative to node state)
+- Random map generation
+- [gui] Explicit error when loading results in viewer only and no config is loaded
+- [gui] Fix multiple start of AsyncApiRunner + close button on errors
+- [gui] Logging panel in GUI
+
+
 ## v1.8.0
 - [breaking] Logging refactoring: removing global variables and using local context passed to all functions for logging and call tracing.
 - Introduce optimization options: selection of the number of threads for parallel or sequential execution.

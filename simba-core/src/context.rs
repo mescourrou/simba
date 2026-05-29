@@ -5,8 +5,6 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use colored::Colorize;
-
 use crate::{
     logger::{ConsoleLogger, InternalLog, LogLevel, LoggerConfig, LoggerType, LoggerTypeConfig},
     utils::{SharedMutex, SharedRwLock},
@@ -179,7 +177,7 @@ impl Context {
                 } else {
                     let mut matched_category = None;
                     for category in l {
-                        if enabled_list.contains(&category) {
+                        if enabled_list.contains(category) {
                             matched_category = Some(category);
                             break;
                         }
@@ -213,7 +211,7 @@ impl Context {
     /// See [`LoggerType`] for available write targets.
     pub fn add_write_target(&self, target: LoggerType) {
         let mut write_targets = self.write_targets.lock().unwrap();
-        println!("Adding write target: {}", target.to_string());
+        println!("Adding write target: {}", target);
         write_targets.push(target);
     }
 

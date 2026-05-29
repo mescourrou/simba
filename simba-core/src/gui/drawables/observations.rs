@@ -1,5 +1,5 @@
 use egui::{Color32, Rect, Shape, Stroke, Vec2};
-use nalgebra::{Const, OPoint, Rotation2, Vector2, Vector3};
+use nalgebra::{Vector2, Vector3};
 
 use crate::{
     gui::app::PainterInfo,
@@ -13,7 +13,7 @@ use crate::{
     },
     simulator::SimulatorConfig,
     state_estimators::State,
-    utils::frame::{Frame, FrameConfig},
+    utils::frame::Frame,
 };
 
 pub struct OrientedRobotObservation {

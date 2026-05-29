@@ -512,10 +512,8 @@ impl Sensor for SpeedSensor {
         for filter in self.filters.iter() {
             if let Some(obs) = keep_observation {
                 keep_observation = match filter {
-                    SpeedSensorFilterType::Python(f) => f.filter(time, obs, &state, None, context),
-                    SpeedSensorFilterType::External(f) => {
-                        f.filter(time, obs, &state, None, context)
-                    }
+                    SpeedSensorFilterType::Python(f) => f.filter(time, obs, state, None, context),
+                    SpeedSensorFilterType::External(f) => f.filter(time, obs, state, None, context),
                     SpeedSensorFilterType::Range(f) => {
                         if let SensorObservation::Speed(obs) = obs {
                             if f.match_exclusion(&SpeedSensorVariablesFilter::mapped_values(

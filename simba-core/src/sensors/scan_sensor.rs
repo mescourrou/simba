@@ -782,11 +782,7 @@ impl Sensor for ScanSensor {
                 &position,
                 Some(self.height),
                 self.detection_distance,
-                Some(format!(
-                    "{}-{}",
-                    node.name(),
-                    self.frame.transform().to_string()
-                )),
+                Some(format!("{}-{}", node.name(), self.frame.transform())),
                 context,
             )
             .into_iter()
@@ -899,8 +895,8 @@ impl Sensor for ScanSensor {
         for filter in &self.filters {
             if let Some(obs) = keep_observation {
                 keep_observation = match filter {
-                    ScanSensorFilterType::Python(f) => f.filter(time, obs, &state, None, context),
-                    ScanSensorFilterType::External(f) => f.filter(time, obs, &state, None, context),
+                    ScanSensorFilterType::Python(f) => f.filter(time, obs, state, None, context),
+                    ScanSensorFilterType::External(f) => f.filter(time, obs, state, None, context),
                     ScanSensorFilterType::Range(f) => {
                         if let SensorObservation::Scan(obs) = obs {
                             let mut obs = obs;
